@@ -2,24 +2,70 @@
 import { useState, useEffect } from 'react';
 
 const NewsTicker = () => {
-  const [newsItems] = useState([
-    "🚀 New streaming app update available",
-    "📺 Live support available now - Chat with Josh",
-    "🎬 Fresh video tutorials added to Support section",
-    "💫 Snow Media Store updated with new content",
-    "🔥 Community chat active - Join the conversation",
-    "⚡ Performance improvements deployed"
+  const [newsItems, setNewsItems] = useState<string[]>([
+    "Loading news feed..."
   ]);
-
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % newsItems.length);
-    }, 4000);
+    const fetchRSSFeed = async () => {
+      try {
+        // Using a CORS proxy to fetch the RSS feed
+        const response = await fetch(`https://api.allorigins.win/raw?url=http://104.168.157.178/smc/newsfeed.xml`);
+        const xmlText = await response.text();
+        
+        // Parse the XML
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        
+        // Extract news items from RSS feed
+        const items = xmlDoc.querySelectorAll('item');
+        const newsArray: string[] = [];
+        
+        items.forEach((item) => {
+          const title = item.querySelector('title')?.textContent;
+          if (title) {
+            newsArray.push(title);
+          }
+        });
 
-    return () => clearInterval(interval);
-  }, [newsItems.length]);
+        if (newsArray.length > 0) {
+          setNewsItems(newsArray);
+        } else {
+          setNewsItems(["No news items available"]);
+        }
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching RSS feed:', error);
+        setNewsItems([
+          "🚀 New streaming app update available",
+          "📺 Live support available now - Chat with Josh",
+          "🎬 Fresh video tutorials added to Support section",
+          "💫 Snow Media Store updated with new content"
+        ]);
+        setIsLoading(false);
+      }
+    };
+
+    fetchRSSFeed();
+    
+    // Refresh RSS feed every 5 minutes
+    const refreshInterval = setInterval(fetchRSSFeed, 5 * 60 * 1000);
+    
+    return () => clearInterval(refreshInterval);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && newsItems.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentIndex((prev) => (prev + 1) % newsItems.length);
+      }, 4000);
+
+      return () => clearInterval(interval);
+    }
+  }, [newsItems.length, isLoading]);
 
   return (
     <div className="relative z-10 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-y border-blue-400/30 py-3 overflow-hidden">
