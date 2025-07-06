@@ -9,7 +9,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      apps: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          download_url: string | null
+          icon_url: string | null
+          id: string
+          is_featured: boolean | null
+          is_installed: boolean | null
+          name: string
+          size: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description: string
+          download_url?: string | null
+          icon_url?: string | null
+          id?: string
+          is_featured?: boolean | null
+          is_installed?: boolean | null
+          name: string
+          size: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          download_url?: string | null
+          icon_url?: string | null
+          id?: string
+          is_featured?: boolean | null
+          is_installed?: boolean | null
+          name?: string
+          size?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
