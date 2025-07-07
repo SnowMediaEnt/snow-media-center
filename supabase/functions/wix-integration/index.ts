@@ -24,11 +24,12 @@ Deno.serve(async (req) => {
 
   try {
     const wixApiKey = Deno.env.get('WIX_API_KEY');
+    const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
     
-    if (!wixApiKey) {
-      console.error('Missing WIX_API_KEY');
+    if (!wixApiKey || !wixAccountId) {
+      console.error('Missing WIX_API_KEY or WIX_ACCOUNT_ID');
       return new Response(
-        JSON.stringify({ error: 'Wix API key not configured' }),
+        JSON.stringify({ error: 'Wix API credentials not configured' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -36,7 +37,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action, email, wixAccountId } = await req.json();
+    const { action, email, wixMemberId, items } = await req.json();
 
     switch (action) {
       case 'get-products':
@@ -45,6 +46,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -73,13 +75,12 @@ Deno.serve(async (req) => {
         );
 
       case 'create-cart':
-        // Create a cart in Wix
-        const { items } = await req.json();
-        
+        // Create a cart in Wix        
         const cartResponse = await fetch('https://www.wixapis.com/stores/v1/carts', {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -115,6 +116,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -147,16 +149,17 @@ Deno.serve(async (req) => {
 
       case 'get-member':
         // Get member details by ID
-        if (!wixAccountId) {
+        if (!wixMemberId) {
           return new Response(
-            JSON.stringify({ error: 'Wix account ID required' }),
+            JSON.stringify({ error: 'Wix member ID required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        const detailResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixAccountId}`, {
+        const detailResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
           headers: {
             'Authorization': wixApiKey,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           }
         });

@@ -31,13 +31,13 @@ export const useWixIntegration = () => {
     }
   };
 
-  const getWixMember = async (wixAccountId: string): Promise<{ member: WixMember }> => {
+  const getWixMember = async (wixMemberId: string): Promise<{ member: WixMember }> => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('wix-integration', {
         body: {
           action: 'get-member',
-          wixAccountId
+          wixMemberId
         }
       });
 
