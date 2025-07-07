@@ -39,6 +39,76 @@ Deno.serve(async (req) => {
     const { action, email, wixAccountId } = await req.json();
 
     switch (action) {
+      case 'get-products':
+        // Fetch products from Wix Store
+        const productsResponse = await fetch('https://www.wixapis.com/stores/v1/products/query', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: {
+              paging: {
+                limit: 50
+              }
+            }
+          })
+        });
+
+        if (!productsResponse.ok) {
+          throw new Error(`Wix Store API error: ${productsResponse.statusText}`);
+        }
+
+        const productsData = await productsResponse.json();
+        
+        return new Response(
+          JSON.stringify({ 
+            products: productsData.products || [],
+            total: productsData.totalResults || 0
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      case 'create-cart':
+        // Create a cart in Wix
+        const { items } = await req.json();
+        
+        const cartResponse = await fetch('https://www.wixapis.com/stores/v1/carts', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            lineItems: items.map(item => ({
+              catalogReference: {
+                appId: "1380b703-ce81-ff05-f115-39571d94dfcd",
+                catalogItemId: item.productId
+              },
+              quantity: item.quantity
+            }))
+          })
+        });
+
+        if (!cartResponse.ok) {
+          throw new Error(`Wix Cart API error: ${cartResponse.statusText}`);
+        }
+
+        const cartData = await cartResponse.json();
+        
+        return new Response(
+          JSON.stringify({ 
+            cart: cartData.cart,
+            checkoutUrl: cartData.cart?.checkoutUrl
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
       case 'verify-member':
         // Verify if a member exists in Wix by email
         const memberResponse = await fetch(`https://www.wixapis.com/members/v1/members/query`, {

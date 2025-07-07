@@ -61,11 +61,13 @@ Deno.serve(async (req) => {
 
     console.log('Fetching videos from Vimeo API...');
 
-    // Fetch videos from Vimeo API with tags
-    const vimeoResponse = await fetch('https://api.vimeo.com/me/videos?per_page=10&sort=date&fields=uri,name,description,duration,pictures,player_embed_url,created_time,tags', {
+    // Add cache-busting parameter to force fresh data
+    const cacheBuster = Date.now();
+    const vimeoResponse = await fetch(`https://api.vimeo.com/me/videos?per_page=10&sort=date&fields=uri,name,description,duration,pictures,player_embed_url,created_time,tags&_cb=${cacheBuster}`, {
       headers: {
         'Authorization': `Bearer ${vimeoToken}`,
         'Accept': 'application/vnd.vimeo.*+json;version=3.4',
+        'Cache-Control': 'no-cache',
       },
     });
 
