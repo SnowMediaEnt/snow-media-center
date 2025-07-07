@@ -203,8 +203,8 @@ const Index = () => {
       <NewsTicker />
 
       {/* Main Content */}
-      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'flex flex-col justify-end pb-16 flex-1' : 'flex flex-col justify-end pb-16 flex-1'}`}>
-        <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 max-w-6xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
+      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'flex flex-col justify-center pb-16 flex-1 pt-16' : 'flex flex-col justify-end pb-16 flex-1'}`}>
+        <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-12 max-w-7xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
             const isFocused = focusedButton === index;
