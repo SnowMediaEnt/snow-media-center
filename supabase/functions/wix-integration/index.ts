@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
         const productsResponse = await fetch('https://www.wixapis.com/stores/v1/products/query', {
           method: 'POST',
           headers: {
-            'Authorization': wixApiKey,
+            'Authorization': `Bearer ${wixApiKey}`,
             'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
           },
@@ -85,7 +86,7 @@ Deno.serve(async (req) => {
         const cartResponse = await fetch('https://www.wixapis.com/stores/v1/carts', {
           method: 'POST',
           headers: {
-            'Authorization': wixApiKey,
+            'Authorization': `Bearer ${wixApiKey}`,
             'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
@@ -121,7 +122,7 @@ Deno.serve(async (req) => {
         const memberResponse = await fetch(`https://www.wixapis.com/members/v1/members/query`, {
           method: 'POST',
           headers: {
-            'Authorization': wixApiKey,
+            'Authorization': `Bearer ${wixApiKey}`,
             'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
@@ -164,7 +165,7 @@ Deno.serve(async (req) => {
 
         const detailResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
           headers: {
-            'Authorization': wixApiKey,
+            'Authorization': `Bearer ${wixApiKey}`,
             'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           }
