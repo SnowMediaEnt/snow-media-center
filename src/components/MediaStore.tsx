@@ -27,13 +27,11 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     setCheckoutLoading(true);
     try {
       const wixCartItems: CartItem[] = cartItems.map(item => {
-        const product = products.find(p => p.id === item.id);
         return {
           productId: item.id,
-          quantity: item.quantity,
-          name: product?.name || 'Unknown Product',
-          price: product?.price || 0,
-          image: product?.images[0]
+          quantity: item.cartQuantity,
+          name: item.name,
+          price: item.price
         };
       });
 
@@ -133,15 +131,9 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   onClick={() => {
                     const cartItem = cartItems.find(item => item.id === selectedProduct.id);
                     if (cartItem) {
-                      updateQuantity(selectedProduct.id, cartItem.quantity + 1);
+                      updateQuantity(selectedProduct.id, cartItem.cartQuantity + 1);
                     } else {
-                      addToCart({
-                        id: selectedProduct.id,
-                        name: selectedProduct.name,
-                        price: selectedProduct.price,
-                        quantity: 1,
-                        images: selectedProduct.images
-                      });
+                      addToCart(selectedProduct as any, 1);
                     }
                     toast({
                       title: "Added to cart!",
@@ -222,7 +214,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between bg-white/5 p-3 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                      <img src={item.images[0]} alt={item.name} className="w-12 h-12 object-cover rounded" />
                       <div>
                         <h4 className="text-white font-medium">{item.name}</h4>
                         <p className="text-white/60 text-sm">${item.price.toFixed(2)} each</p>
@@ -233,17 +225,17 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          className="bg-white/10 border-white/20 text-white"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="text-white font-medium px-2">{item.quantity}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="bg-white/10 border-white/20 text-white"
+                           onClick={() => updateQuantity(item.id, Math.max(1, item.cartQuantity - 1))}
+                           className="bg-white/10 border-white/20 text-white"
+                         >
+                           <Minus className="w-3 h-3" />
+                         </Button>
+                         <span className="text-white font-medium px-2">{item.cartQuantity}</span>
+                         <Button
+                           size="sm"
+                           variant="outline"
+                           onClick={() => updateQuantity(item.id, item.cartQuantity + 1)}
+                           className="bg-white/10 border-white/20 text-white"
                         >
                           <Plus className="w-3 h-3" />
                         </Button>
@@ -379,38 +371,32 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                           <div className="flex items-center space-x-2 w-full">
                             <div className="flex items-center bg-blue-600/20 border border-blue-500/30 rounded-lg">
                               <button
-                                onClick={() => updateQuantity(product.id, Math.max(0, cartItem.quantity - 1))}
-                                className="p-2 text-blue-400 hover:text-blue-300"
-                              >
-                                <Minus className="w-4 h-4" />
-                              </button>
-                              <span className="px-3 py-2 text-white">{cartItem.quantity}</span>
-                              <button
-                                onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
-                                className="p-2 text-blue-400 hover:text-blue-300"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <Button
-                              onClick={() => removeFromCart(product.id)}
-                              variant="outline"
-                              size="sm"
-                              className="bg-red-600/20 border-red-500/30 text-red-400 hover:bg-red-600/30"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                            addToCart({
-                              id: product.id,
-                              name: product.name,
-                              price: product.price,
-                              quantity: 1,
-                              images: product.images
-                            });
+                            onClick={() => updateQuantity(product.id, Math.max(0, cartItem.cartQuantity - 1))}
+                            className="p-2 text-blue-400 hover:text-blue-300"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="px-3 py-2 text-white">{cartItem.cartQuantity}</span>
+                          <button
+                            onClick={() => updateQuantity(product.id, cartItem.cartQuantity + 1)}
+                            className="p-2 text-blue-400 hover:text-blue-300"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <Button
+                          onClick={() => removeFromCart(product.id)}
+                          variant="outline"
+                          size="sm"
+                          className="bg-red-600/20 border-red-500/30 text-red-400 hover:bg-red-600/30"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => {
+                          addToCart(product as any, 1);
                               toast({
                                 title: "Added to cart!",
                                 description: `${product.name} has been added to your cart.`,
