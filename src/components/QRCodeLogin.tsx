@@ -23,6 +23,19 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
       const token = crypto.randomUUID();
       setLoginToken(token);
 
+      // Create the QR login session in the database
+      const { error: sessionError } = await supabase
+        .from('qr_login_sessions')
+        .insert({
+          token: token,
+          expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes from now
+          is_used: false
+        });
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
       // Create the login URL with the token
       const loginUrl = `${window.location.origin}/qr-login?token=${token}`;
       

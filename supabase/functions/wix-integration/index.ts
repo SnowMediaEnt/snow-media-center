@@ -45,22 +45,59 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case 'get-products':
-        // Fetch products from Wix Store
-        const productsResponse = await fetch('https://www.wixapis.com/stores/v1/products/query', {
-          method: 'POST',
+        // First check catalog version
+        const versionResponse = await fetch('https://www.wixapis.com/stores/v3/provision/version', {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
             'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query: {
-              paging: {
-                limit: 50
-              }
-            }
-          })
+          }
         });
+
+        console.log('Version API response status:', versionResponse.status);
+        let catalogVersion = 'V1_CATALOG'; // Default to V1
+        if (versionResponse.ok) {
+          const versionData = await versionResponse.json();
+          catalogVersion = versionData.catalogVersion || 'V1_CATALOG';
+          console.log('Catalog version:', catalogVersion);
+        }
+
+        // Use appropriate API based on catalog version
+        let productsResponse;
+        if (catalogVersion === 'V3_CATALOG') {
+          productsResponse = await fetch('https://www.wixapis.com/stores/v3/products/query', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${wixApiKey}`,
+              'wix-site-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: {
+                paging: {
+                  limit: 50
+                }
+              }
+            })
+          });
+        } else {
+          productsResponse = await fetch('https://www.wixapis.com/stores/v1/products/query', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${wixApiKey}`,
+              'wix-site-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: {
+                paging: {
+                  limit: 50
+                }
+              }
+            })
+          });
+        }
 
         console.log('Products API response status:', productsResponse.status);
         if (!productsResponse.ok) {
@@ -74,7 +111,8 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             products: productsData.products || [],
-            total: productsData.totalResults || 0
+            total: productsData.totalResults || 0,
+            catalogVersion
           }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
