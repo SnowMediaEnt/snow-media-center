@@ -104,69 +104,51 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
     try {
       setGenerating(true);
       
-      // Create a more detailed prompt for better results
-      const enhancedPrompt = `Ultra high resolution 16:9 aspect ratio background image: ${generatePrompt}. Professional, cinematic quality, suitable for desktop wallpaper.`;
-      
-      // Generate a unique filename
-      const fileName = `generated-bg-${Date.now()}.jpg`;
-      
-      // Create a blob with the enhanced prompt to simulate generated content
-      // In a real implementation, this would be replaced with actual AI generation
-      const canvas = document.createElement('canvas');
-      canvas.width = 1920;
-      canvas.height = 1080;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        // Create a gradient background as placeholder
-        const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
-        gradient.addColorStop(0, '#1e293b');
-        gradient.addColorStop(0.5, '#3b82f6');
-        gradient.addColorStop(1, '#6366f1');
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 1920, 1080);
-        
-        // Add text indicating this is AI generated
-        ctx.fillStyle = 'white';
-        ctx.font = '48px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('AI Generated Background', 960, 500);
-        ctx.font = '24px Arial';
-        ctx.fillText(`Prompt: ${generatePrompt}`, 960, 600);
+      // Call our OpenAI edge function
+      const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-ai-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhbG13emh2eG9lZnZrZnNpeWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4MjIwNDMsImV4cCI6MjA2NzM5ODA0M30.I-YfvZxAuOvhehrdoZOgrANirZv0-ucGUKbW9gOfQak`
+        },
+        body: JSON.stringify({
+          prompt: generatePrompt
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate image');
       }
+
+      const result = await response.json();
       
-      // Convert canvas to blob
-      canvas.toBlob(async (blob) => {
-        if (blob) {
-          const file = new File([blob], fileName, { type: 'image/jpeg' });
-          
-          try {
-            // Upload the generated image
-            await uploadAsset(file, 'background', uploadForm.section, `AI Generated: ${generatePrompt}`);
-            
-            toast({
-              title: "Image generated successfully",
-              description: "Your AI-generated background has been created and uploaded.",
-            });
-            
-            setGeneratePrompt('');
-          } catch (uploadError) {
-            console.error('Upload error:', uploadError);
-            toast({
-              title: "Upload failed",
-              description: "Generated image but failed to upload. Please try again.",
-              variant: "destructive",
-            });
-          }
-        }
-      }, 'image/jpeg', 0.9);
+      if (!result.success) {
+        throw new Error(result.error || 'Generation failed');
+      }
+
+      // Convert base64 to blob
+      const base64Response = await fetch(result.image);
+      const blob = await base64Response.blob();
       
+      // Create file from blob
+      const fileName = `ai-generated-${Date.now()}.jpg`;
+      const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+      // Upload the generated image
+      await uploadAsset(file, 'background', uploadForm.section, `AI Generated: ${generatePrompt}`);
+      
+      toast({
+        title: "Image generated successfully",
+        description: "Your AI-generated background has been created and uploaded.",
+      });
+      
+      setGeneratePrompt('');
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
         title: "Generation failed",
-        description: "Failed to generate image. Please try a different prompt.",
+        description: `Failed to generate image: ${error.message}`,
         variant: "destructive",
       });
     } finally {
