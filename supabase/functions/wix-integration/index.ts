@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-account-id': wixAccountId,
+            'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-account-id': wixAccountId,
+            'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
         const detailResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-account-id': wixAccountId,
+            'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
           }
         });
