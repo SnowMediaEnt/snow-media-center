@@ -302,10 +302,12 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           </div>
         </div>
 
-        {/* Wix Integration Test */}
-        <div className="mb-8">
-          <WixVerification />
-        </div>
+        {/* Wix Integration Test - Hidden, just for testing */}
+        {false && (
+          <div className="mb-8">
+            <WixVerification />
+          </div>
+        )}
 
         {/* Featured Products */}
         <div className="mb-8">
