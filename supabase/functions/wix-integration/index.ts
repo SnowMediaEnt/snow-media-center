@@ -29,6 +29,8 @@ Deno.serve(async (req) => {
     
     console.log('API Key present:', !!wixApiKey);
     console.log('Account ID present:', !!wixAccountId);
+    console.log('API Key format:', wixApiKey ? `${wixApiKey.substring(0, 10)}...` : 'missing');
+    console.log('Account ID:', wixAccountId);
     
     if (!wixApiKey || !wixAccountId) {
       console.error('Missing WIX_API_KEY or WIX_ACCOUNT_ID');
@@ -42,6 +44,7 @@ Deno.serve(async (req) => {
     }
 
     const { action, email, wixMemberId, items } = await req.json();
+    console.log('Action requested:', action);
 
     switch (action) {
       case 'get-products':
@@ -61,6 +64,10 @@ Deno.serve(async (req) => {
           const versionData = await versionResponse.json();
           catalogVersion = versionData.catalogVersion || 'V1_CATALOG';
           console.log('Catalog version:', catalogVersion);
+        } else {
+          const versionError = await versionResponse.text();
+          console.log('Version API error:', versionError);
+          console.log('Defaulting to V1_CATALOG');
         }
 
         // Use appropriate API based on catalog version

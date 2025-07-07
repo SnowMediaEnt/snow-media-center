@@ -31,8 +31,9 @@ const QRLogin = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        setStatus('error');
-        setMessage('Please sign in first, then scan the QR code');
+        // Redirect to login with return URL
+        const returnUrl = encodeURIComponent(`/qr-login?token=${token}`);
+        window.location.href = `/auth?redirect=${returnUrl}`;
         return;
       }
 
@@ -41,9 +42,16 @@ const QRLogin = () => {
         .from('qr_login_sessions')
         .select('*')
         .eq('token', token)
-        .single();
+        .maybeSingle();
 
-      if (tokenError || !tokenData) {
+      if (tokenError) {
+        console.error('Token query error:', tokenError);
+        setStatus('error');
+        setMessage('Error checking QR code validity');
+        return;
+      }
+
+      if (!tokenData) {
         setStatus('expired');
         setMessage('QR code has expired or is invalid');
         return;
