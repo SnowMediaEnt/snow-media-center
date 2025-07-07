@@ -7,24 +7,33 @@ export const useDynamicBackground = (section: string = 'home') => {
   const [rotationIndex, setRotationIndex] = useState(0);
 
   useEffect(() => {
-    const backgrounds = getActiveAssets('background', section)
-      .sort((a, b) => a.rotation_order - b.rotation_order);
-    
-    if (backgrounds.length > 0) {
-      const selectedBackground = backgrounds[rotationIndex % backgrounds.length];
-      setCurrentBackground(getAssetUrl(selectedBackground.file_path));
+    const updateBackground = () => {
+      const backgrounds = getActiveAssets('background', section)
+        .sort((a, b) => a.rotation_order - b.rotation_order);
       
-      // Set up rotation if multiple backgrounds
-      if (backgrounds.length > 1) {
-        const interval = setInterval(() => {
-          setRotationIndex(prev => prev + 1);
-        }, 30000); // Change every 30 seconds
+      if (backgrounds.length > 0) {
+        const selectedBackground = backgrounds[rotationIndex % backgrounds.length];
+        setCurrentBackground(getAssetUrl(selectedBackground.file_path));
         
-        return () => clearInterval(interval);
+        // Set up rotation if multiple backgrounds
+        if (backgrounds.length > 1) {
+          const interval = setInterval(() => {
+            setRotationIndex(prev => prev + 1);
+          }, 30000); // Change every 30 seconds
+          
+          return () => clearInterval(interval);
+        }
+      } else {
+        setCurrentBackground(null);
       }
-    } else {
-      setCurrentBackground(null);
-    }
+    };
+
+    updateBackground();
+
+    // Check for new backgrounds every 3 seconds
+    const refreshInterval = setInterval(updateBackground, 3000);
+
+    return () => clearInterval(refreshInterval);
   }, [section, getActiveAssets, getAssetUrl, rotationIndex]);
 
   return {
