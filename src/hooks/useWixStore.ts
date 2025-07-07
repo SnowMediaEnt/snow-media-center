@@ -100,14 +100,38 @@ export const useWixStore = () => {
     setError(null);
     
     try {
-      // Using mock data for now - will switch to real Wix API later
-      console.log('Loading mock products...');
+      console.log('Calling Wix integration function...');
+      const { data, error: funcError } = await supabase.functions.invoke('wix-integration', {
+        body: { action: 'get-products' }
+      });
+
+      if (funcError) {
+        console.error('Function error:', funcError);
+        throw funcError;
+      }
+
+      if (data?.error) {
+        console.error('API error response:', data);
+        throw new Error(data.error + (data.details ? ` - ${JSON.stringify(data.details)}` : ''));
+      }
+
+      console.log('Wix products loaded:', data);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setProducts(mockProducts);
-      console.log('Mock products loaded successfully');
+      // Transform Wix product data to our format
+      const transformedProducts = (data.products || []).map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price?.price || 0,
+        comparePrice: product.price?.comparePrice,
+        images: product.media?.items?.map((item: any) => item.image?.url) || ['/placeholder.svg'],
+        inStock: product.stock?.inStock !== false,
+        inventory: product.stock?.quantity ? { quantity: product.stock.quantity } : undefined,
+        productOptions: product.productOptions || []
+      }));
+
+      setProducts(transformedProducts.length > 0 ? transformedProducts : mockProducts);
+      console.log('Products set successfully');
     } catch (err) {
       console.error('Error loading products:', err);
       setError(err instanceof Error ? err.message : 'Failed to load products');

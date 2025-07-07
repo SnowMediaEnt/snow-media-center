@@ -207,7 +207,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
         {/* Cart Panel - Collapsible */}
         {cartItems.length > 0 && (
-          <Card className="bg-gradient-to-br from-green-600/10 to-blue-600/10 border-green-500/20 mb-8">
+          <Card className="bg-gradient-to-br from-green-600/20 to-blue-600/20 border-green-500/30 mb-8">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Shopping Cart</h3>
               <div className="space-y-3 mb-4">
@@ -311,7 +311,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 const isInCart = !!cartItem;
                 
                 return (
-                  <Card key={product.id} className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 overflow-hidden hover:from-blue-600/20 hover:to-purple-600/20 transition-all duration-300">
+                  <Card key={product.id} className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300">
                     <div className="relative">
                       <img 
                         src={product.images[0]} 

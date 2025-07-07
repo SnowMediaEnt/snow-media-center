@@ -40,7 +40,13 @@ Deno.serve(async (req) => {
     if (!wixApiKey || !wixAccountId) {
       console.error('Missing WIX_API_KEY or WIX_ACCOUNT_ID');
       return new Response(
-        JSON.stringify({ error: 'Wix API credentials not configured' }),
+        JSON.stringify({ 
+          error: 'Wix API credentials not configured',
+          details: {
+            hasApiKey: !!wixApiKey,
+            hasAccountId: !!wixAccountId
+          }
+        }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -115,7 +121,19 @@ Deno.serve(async (req) => {
         if (!productsResponse.ok) {
           const errorText = await productsResponse.text();
           console.error('Products API error:', errorText);
-          throw new Error(`Wix Store API error: ${productsResponse.statusText}`);
+          console.error('Response headers:', Object.fromEntries(productsResponse.headers.entries()));
+          return new Response(
+            JSON.stringify({ 
+              error: `Wix Store API error: ${productsResponse.status} ${productsResponse.statusText}`,
+              details: errorText,
+              apiKey: wixApiKey ? `${wixApiKey.substring(0, 10)}...` : 'missing',
+              accountId: wixAccountId
+            }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
         }
 
         const productsData = await productsResponse.json();
