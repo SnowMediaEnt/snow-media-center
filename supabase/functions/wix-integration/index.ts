@@ -26,6 +26,9 @@ Deno.serve(async (req) => {
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
     
+    console.log('API Key present:', !!wixApiKey);
+    console.log('Account ID present:', !!wixAccountId);
+    
     if (!wixApiKey || !wixAccountId) {
       console.error('Missing WIX_API_KEY or WIX_ACCOUNT_ID');
       return new Response(
@@ -46,7 +49,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
-            'wix-account-id': wixAccountId,
+            'wix-site-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -58,7 +61,10 @@ Deno.serve(async (req) => {
           })
         });
 
+        console.log('Products API response status:', productsResponse.status);
         if (!productsResponse.ok) {
+          const errorText = await productsResponse.text();
+          console.error('Products API error:', errorText);
           throw new Error(`Wix Store API error: ${productsResponse.statusText}`);
         }
 
