@@ -203,7 +203,7 @@ const Index = () => {
       <NewsTicker />
 
       {/* Main Content */}
-      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'py-8' : 'flex flex-col justify-end pb-16 flex-1'}`}>
+      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'flex flex-col justify-end pb-16 flex-1' : 'flex flex-col justify-end pb-16 flex-1'}`}>
         <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 max-w-6xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
