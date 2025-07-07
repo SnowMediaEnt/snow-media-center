@@ -128,7 +128,7 @@ const Index = () => {
 
   return (
     <div 
-      className="min-h-screen text-white overflow-hidden relative"
+      className={`min-h-screen text-white overflow-hidden relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}
       style={hasBackground ? {
         backgroundImage: `url(${backgroundUrl})`,
         backgroundSize: 'cover',
@@ -176,7 +176,7 @@ const Index = () => {
       <NewsTicker />
 
       {/* Main Content */}
-      <div className="relative z-10 px-16 py-8">
+      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'py-8' : 'flex flex-col justify-end pb-16 flex-1'}`}>
         <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 max-w-6xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
@@ -222,13 +222,6 @@ const Index = () => {
             );
           })}
         </div>
-      </div>
-
-      {/* Footer Instructions */}
-      <div className="relative z-10 text-center pb-8">
-        <p className="text-blue-200/60 text-lg">
-          Use remote D-pad to navigate • Enter to select • Back to return
-        </p>
       </div>
     </div>
   );
