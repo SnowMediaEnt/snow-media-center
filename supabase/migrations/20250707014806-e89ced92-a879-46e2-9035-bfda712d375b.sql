@@ -1,0 +1,2 @@
+-- No database changes needed for Wix integration at this time
+-- The API key will be stored in Supabase secrets
