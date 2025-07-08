@@ -24,7 +24,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   };
 
   // Categorize videos based on tags
-  const deviceTags = ['x96', 'firetv', 'older'];
+  const deviceTags = ['x96', 'firetv', 'older', 'firestick', 'device'];
   const serviceTags = ['dreamstreams', 'vibez tv', 'vibeztv', 'plex', 'support'];
 
   const categorizeVideos = () => {
