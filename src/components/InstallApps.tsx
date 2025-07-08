@@ -15,7 +15,7 @@ interface App {
   id: string;
   name: string;
   description: string;
-  category: 'streaming' | 'utility' | 'browser' | 'media';
+  category: 'streaming' | 'support';
   icon: string;
   downloadUrl: string;
   packageName: string; // For launching
@@ -24,20 +24,9 @@ interface App {
   featured?: boolean;
 }
 
-// Your server apps - update URLs to match your server structure
+// Apps from your actual server - update paths as needed
 const apps: App[] = [
-  {
-    id: 'kodi',
-    name: 'Kodi Media Center',
-    description: 'Ultimate media center for streaming and local content',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/kodi.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/kodi.apk',
-    packageName: 'org.xbmc.kodi',
-    size: '85MB',
-    version: '21.0',
-    featured: true
-  },
+  // Featured Apps
   {
     id: 'tivimate',
     name: 'TiviMate IPTV Player',
@@ -48,6 +37,18 @@ const apps: App[] = [
     packageName: 'ar.tvplayer.tv',
     size: '32MB',
     version: '4.7.0',
+    featured: true
+  },
+  {
+    id: 'kodi',
+    name: 'Kodi Media Center',
+    description: 'Ultimate media center for streaming and local content',
+    category: 'streaming',
+    icon: 'http://104.168.157.178/smc/icons/kodi.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/kodi.apk',
+    packageName: 'org.xbmc.kodi',
+    size: '85MB',
+    version: '21.0',
     featured: true
   },
   {
@@ -62,38 +63,119 @@ const apps: App[] = [
     version: '20.45',
     featured: true
   },
+
+  // Streaming Apps (Live TV, Movies, Series)
   {
-    id: 'mx-player',
-    name: 'MX Player Pro',
-    description: 'Professional video player with codec support',
-    category: 'media',
-    icon: 'http://104.168.157.178/smc/icons/mxplayer.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/mxplayer.apk',
-    packageName: 'com.mxtech.videoplayer.pro',
+    id: 'cinemahd',
+    name: 'Cinema HD',
+    description: 'Movies and TV shows streaming app',
+    category: 'streaming',
+    icon: 'http://104.168.157.178/smc/icons/cinemahd.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/cinemahd.apk',
+    packageName: 'com.cinema.hd.tv',
     size: '45MB',
-    version: '1.85.2'
+    version: '2.4.1'
   },
   {
-    id: 'file-manager',
-    name: 'X-plore File Manager',
-    description: 'Dual-pane file manager for Android TV',
-    category: 'utility',
-    icon: 'http://104.168.157.178/smc/icons/xplore.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/xplore.apk',
-    packageName: 'com.lonelycatgames.Xplore',
+    id: 'beetv',
+    name: 'BeeTV',
+    description: 'Free movies and TV series streaming',
+    category: 'streaming',
+    icon: 'http://104.168.157.178/smc/icons/beetv.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/beetv.apk',
+    packageName: 'com.beetv.android',
+    size: '28MB',
+    version: '2.9.8'
+  },
+  {
+    id: 'stremio',
+    name: 'Stremio',
+    description: 'Organize and watch video content from torrents',
+    category: 'streaming',
+    icon: 'http://104.168.157.178/smc/icons/stremio.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/stremio.apk',
+    packageName: 'com.stremio.one',
+    size: '55MB',
+    version: '1.6.11'
+  },
+  {
+    id: 'plex',
+    name: 'Plex',
+    description: 'Stream your media library anywhere',
+    category: 'streaming',
+    icon: 'http://104.168.157.178/smc/icons/plex.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/plex.apk',
+    packageName: 'com.plexapp.android',
+    size: '95MB',
+    version: '9.12.1'
+  },
+
+  // Support Apps (Utilities, VPNs, Tools)
+  {
+    id: 'speedtest',
+    name: 'Speedtest by Ookla',
+    description: 'Test your internet speed and performance',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/speedtest.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/speedtest.apk',
+    packageName: 'org.zwanoo.android.speedtest',
+    size: '35MB',
+    version: '5.2.5'
+  },
+  {
+    id: 'ipvanish',
+    name: 'IPVanish VPN',
+    description: 'Secure VPN for streaming and privacy',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/ipvanish.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/ipvanish.apk',
+    packageName: 'com.ipvanish.mobile',
+    size: '42MB',
+    version: '4.5.11'
+  },
+  {
+    id: 'nordvpn',
+    name: 'NordVPN',
+    description: 'Fast and secure VPN service',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/nordvpn.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/nordvpn.apk',
+    packageName: 'com.nordvpn.android',
+    size: '38MB',
+    version: '5.12.4'
+  },
+  {
+    id: 'teamviewer',
+    name: 'TeamViewer',
+    description: 'Remote access and support tool',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/teamviewer.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/teamviewer.apk',
+    packageName: 'com.teamviewer.teamviewer.market.mobile',
+    size: '65MB',
+    version: '15.49.5'
+  },
+  {
+    id: 'esfileexplorer',
+    name: 'ES File Explorer',
+    description: 'File manager and network browser',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/esfileexplorer.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/esfileexplorer.apk',
+    packageName: 'com.estrongs.android.pop',
+    size: '22MB',
+    version: '4.2.9.9'
+  },
+  {
+    id: 'downloader',
+    name: 'Downloader',
+    description: 'Easy APK and file downloader for Android TV',
+    category: 'support',
+    icon: 'http://104.168.157.178/smc/icons/downloader.png',
+    downloadUrl: 'http://104.168.157.178/smc/apks/downloader.apk',
+    packageName: 'com.esaba.downloader',
     size: '8MB',
-    version: '4.36.05'
-  },
-  {
-    id: 'chrome-browser',
-    name: 'Chrome Browser TV',
-    description: 'Chrome browser optimized for Android TV',
-    category: 'browser',
-    icon: 'http://104.168.157.178/smc/icons/chrome.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/chrome-tv.apk',
-    packageName: 'com.android.chrome',
-    size: '125MB',
-    version: '120.0'
+    version: '1.8.0'
   }
 ];
 
@@ -178,9 +260,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'streaming': return Tv;
-      case 'utility': return Settings;
-      case 'browser': return Package;
-      case 'media': return Play;
+      case 'support': return Settings;
       default: return Smartphone;
     }
   };
@@ -281,21 +361,15 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         </div>
 
         <Tabs defaultValue="featured" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-8 bg-slate-800">
+          <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800">
             <TabsTrigger value="featured" className="text-white data-[state=active]:bg-blue-600">
               Featured ({getCategoryApps('featured').length})
             </TabsTrigger>
             <TabsTrigger value="streaming" className="text-white data-[state=active]:bg-blue-600">
               Streaming ({getCategoryApps('streaming').length})
             </TabsTrigger>
-            <TabsTrigger value="media" className="text-white data-[state=active]:bg-blue-600">
-              Media ({getCategoryApps('media').length})
-            </TabsTrigger>
-            <TabsTrigger value="utility" className="text-white data-[state=active]:bg-blue-600">
-              Utility ({getCategoryApps('utility').length})
-            </TabsTrigger>
-            <TabsTrigger value="browser" className="text-white data-[state=active]:bg-blue-600">
-              Browser ({getCategoryApps('browser').length})
+            <TabsTrigger value="support" className="text-white data-[state=active]:bg-blue-600">
+              Support ({getCategoryApps('support').length})
             </TabsTrigger>
           </TabsList>
           
@@ -307,16 +381,8 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
             {renderAppGrid(getCategoryApps('streaming'))}
           </TabsContent>
           
-          <TabsContent value="media" className="mt-0">
-            {renderAppGrid(getCategoryApps('media'))}
-          </TabsContent>
-          
-          <TabsContent value="utility" className="mt-0">
-            {renderAppGrid(getCategoryApps('utility'))}
-          </TabsContent>
-          
-          <TabsContent value="browser" className="mt-0">
-            {renderAppGrid(getCategoryApps('browser'))}
+          <TabsContent value="support" className="mt-0">
+            {renderAppGrid(getCategoryApps('support'))}
           </TabsContent>
         </Tabs>
       </div>
