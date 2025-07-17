@@ -106,9 +106,27 @@ const WixVerification = () => {
               </div>
             )}
             
-            {!connectionResult.connected && connectionResult.error && (
+            {!connectionResult.connected && (
               <div className="text-white/80 text-sm">
                 <p><strong>Error:</strong> {connectionResult.error}</p>
+                {connectionResult.suggestions && (
+                  <div className="mt-2">
+                    <p><strong>Suggestions:</strong></p>
+                    <ul className="list-disc pl-5 mt-1">
+                      {connectionResult.suggestions.map((suggestion: string, index: number) => (
+                        <li key={index}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {connectionResult.statusCode === 403 && (
+                  <div className="mt-2 p-2 bg-red-500/20 rounded border border-red-500/30">
+                    <p className="text-red-300 font-semibold">⚠️ Permission Issue Detected</p>
+                    <p className="text-red-200 text-xs mt-1">
+                      Your API key needs "Read Members" permissions enabled in the Wix API Keys Manager.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
