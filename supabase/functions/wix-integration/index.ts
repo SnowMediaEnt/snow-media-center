@@ -201,12 +201,33 @@ Deno.serve(async (req) => {
           })
         });
 
-        if (!memberResponse.ok) {
-          throw new Error(`Wix API error: ${memberResponse.statusText}`);
+        console.log('Member verification response status:', memberResponse.status);
+
+        // Handle different response statuses
+        if (memberResponse.status === 404) {
+          // Member not found - this is expected behavior
+          console.log('Member not found (404) - returning exists: false');
+          return new Response(
+            JSON.stringify({ 
+              exists: false,
+              member: null
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        } else if (!memberResponse.ok) {
+          // Other errors (401, 403, 500, etc.) should be treated as actual errors
+          const errorText = await memberResponse.text();
+          console.error('Wix API error:', errorText);
+          throw new Error(`Wix API error: ${memberResponse.status} ${memberResponse.statusText}`);
         }
 
         const memberData = await memberResponse.json();
         const member = memberData.members?.[0];
+
+        console.log('Member found:', !!member);
+        console.log('Member data:', member ? { id: member.id, email: member.loginEmail } : 'none');
 
         return new Response(
           JSON.stringify({ 
