@@ -24,15 +24,18 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('=== WIX INTEGRATION FUNCTION START ===');
     console.log('Wix integration function called');
     
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
     
+    console.log('=== ENVIRONMENT VARIABLES ===');
     console.log('API Key present:', !!wixApiKey);
     console.log('Account ID present:', !!wixAccountId);
     console.log('API Key format:', wixApiKey ? `${wixApiKey.substring(0, 10)}...` : 'missing');
     console.log('Account ID:', wixAccountId);
+    console.log('=== END ENVIRONMENT VARIABLES ===');
     
     // Test if the function is even being reached
     console.log('Environment check passed');
