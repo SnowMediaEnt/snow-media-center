@@ -10,7 +10,6 @@ import SupportVideos from '@/components/SupportVideos';
 import ChatCommunity from '@/components/ChatCommunity';
 import Settings from '@/components/Settings';
 import UserDashboard from '@/components/UserDashboard';
-import WixVerification from '@/components/WixVerification';
 import { useDynamicBackground } from '@/hooks/useDynamicBackground';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -249,11 +248,6 @@ const Index = () => {
               </Card>
             );
           })}
-        </div>
-        
-        {/* Wix Test Section - temporary for debugging */}
-        <div className="mt-8 flex justify-center">
-          <WixVerification />
         </div>
       </div>
     </div>

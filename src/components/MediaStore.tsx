@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShoppingCart, Plus, Minus, Star, Truck, Shield, Zap, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Minus, Truck, Shield, Zap, Package, Trash2, Smartphone, Headphones, Cable, Wrench, LogIn, User } from 'lucide-react';
 import { useWixStore, WixProduct, CartItem } from '@/hooks/useWixStore';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface MediaStoreProps {
   onBack: () => void;
@@ -15,32 +17,64 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const { products, loading, error, createCart } = useWixStore();
   const { cart, addToCart, removeFromCart, clearCart, updateQuantity } = useCart();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<WixProduct | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   const cartItems = cart.items;
   const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
+
+  // Category configuration
+  const categories = [
+    { id: 'All', name: 'All Products', icon: Package },
+    { id: 'Devices', name: 'Devices', icon: Smartphone },
+    { id: 'Services', name: 'Services', icon: Zap },
+    { id: 'Accessories', name: 'Accessories', icon: Headphones },
+    { id: 'Support Tools', name: 'Support Tools', icon: Wrench }
+  ];
+
+  // Filter products by category (this is a simple example - you'd want to add category metadata to your Wix products)
+  const getFilteredProducts = () => {
+    if (selectedCategory === 'All') return products;
+    
+    return products.filter(product => {
+      const name = product.name.toLowerCase();
+      const description = product.description.toLowerCase();
+      
+      switch (selectedCategory) {
+        case 'Devices':
+          return name.includes('device') || name.includes('box') || name.includes('stick') || name.includes('player') || name.includes('tablet') || name.includes('phone');
+        case 'Services':
+          return name.includes('service') || name.includes('subscription') || name.includes('setup') || name.includes('installation') || name.includes('support');
+        case 'Accessories':
+          return name.includes('cable') || name.includes('remote') || name.includes('adapter') || name.includes('case') || name.includes('accessory') || name.includes('mount');
+        case 'Support Tools':
+          return name.includes('tool') || name.includes('software') || name.includes('guide') || name.includes('tutorial') || name.includes('help');
+        default:
+          return true;
+      }
+    });
+  };
 
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
 
     setCheckoutLoading(true);
     try {
-      const wixCartItems: CartItem[] = cartItems.map(item => {
-        return {
-          productId: item.id,
-          quantity: item.cartQuantity,
-          name: item.name,
-          price: item.price
-        };
-      });
+      const wixCartItems: CartItem[] = cartItems.map(item => ({
+        productId: item.id,
+        quantity: item.cartQuantity,
+        name: item.name,
+        price: item.price
+      }));
 
       const { checkoutUrl } = await createCart(wixCartItems);
       
       if (checkoutUrl) {
-        // Open Wix checkout in new window
         window.open(checkoutUrl, '_blank');
-        clearCart(); // Clear local cart after redirecting to Wix
+        clearCart();
         toast({
           title: "Redirecting to Checkout",
           description: "Opening Wix checkout in a new window",
@@ -192,8 +226,24 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             </div>
           </div>
           
-          {/* Cart Summary */}
+          {/* Top Right Controls */}
           <div className="flex items-center space-x-4">
+            {user ? (
+              <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/50 rounded-lg px-3 py-2">
+                <User className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 text-sm">Signed In</span>
+              </div>
+            ) : (
+              <Button
+                onClick={() => navigate('/auth')}
+                variant="outline"
+                size="sm"
+                className="bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign In
+              </Button>
+            )}
             <Button
               variant="outline"
               size="lg"
@@ -205,7 +255,34 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           </div>
         </div>
 
-        {/* Cart Panel - Collapsible */}
+        {/* Category Filter */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4">Categories</h2>
+          <div className="flex flex-wrap gap-3">
+            {categories.map((category) => {
+              const Icon = category.icon;
+              const isSelected = selectedCategory === category.id;
+              
+              return (
+                <Button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  variant={isSelected ? "default" : "outline"}
+                  className={`${
+                    isSelected 
+                      ? 'bg-blue-600 border-blue-500 text-white' 
+                      : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {category.name}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Cart Panel */}
         {cartItems.length > 0 && (
           <Card className="bg-gradient-to-br from-green-600/20 to-blue-600/20 border-green-500/30 mb-8">
             <CardContent className="p-6">
@@ -225,17 +302,17 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                         <Button
                           size="sm"
                           variant="outline"
-                           onClick={() => updateQuantity(item.id, Math.max(1, item.cartQuantity - 1))}
-                           className="bg-white/10 border-white/20 text-white"
-                         >
-                           <Minus className="w-3 h-3" />
-                         </Button>
-                         <span className="text-white font-medium px-2">{item.cartQuantity}</span>
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={() => updateQuantity(item.id, item.cartQuantity + 1)}
-                           className="bg-white/10 border-white/20 text-white"
+                          onClick={() => updateQuantity(item.id, Math.max(1, item.cartQuantity - 1))}
+                          className="bg-white/10 border-white/20 text-white"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="text-white font-medium px-2">{item.cartQuantity}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateQuantity(item.id, item.cartQuantity + 1)}
+                          className="bg-white/10 border-white/20 text-white"
                         >
                           <Plus className="w-3 h-3" />
                         </Button>
@@ -279,7 +356,9 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
         {/* Products Grid */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-6">All Products</h2>
+          <h2 className="text-2xl font-bold text-white mb-6">
+            {selectedCategory === 'All' ? 'All Products' : categories.find(c => c.id === selectedCategory)?.name}
+          </h2>
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => (
@@ -306,7 +385,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {products.map((product) => {
+              {getFilteredProducts().map((product) => {
                 const cartItem = cartItems.find(item => item.id === product.id);
                 const isInCart = !!cartItem;
                 
@@ -371,39 +450,39 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                           <div className="flex items-center space-x-2 w-full">
                             <div className="flex items-center bg-blue-600/20 border border-blue-500/30 rounded-lg">
                               <button
-                            onClick={() => updateQuantity(product.id, Math.max(0, cartItem.cartQuantity - 1))}
-                            className="p-2 text-blue-400 hover:text-blue-300"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="px-3 py-2 text-white">{cartItem.cartQuantity}</span>
-                          <button
-                            onClick={() => updateQuantity(product.id, cartItem.cartQuantity + 1)}
-                            className="p-2 text-blue-400 hover:text-blue-300"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <Button
-                          onClick={() => removeFromCart(product.id)}
-                          variant="outline"
-                          size="sm"
-                          className="bg-red-600/20 border-red-500/30 text-red-400 hover:bg-red-600/30"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        onClick={() => {
-                          addToCart(product as any, 1);
+                                onClick={() => updateQuantity(product.id, Math.max(0, cartItem.cartQuantity - 1))}
+                                className="p-2 text-blue-400 hover:text-blue-300"
+                              >
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <span className="px-3 py-2 text-white">{cartItem.cartQuantity}</span>
+                              <button
+                                onClick={() => updateQuantity(product.id, cartItem.cartQuantity + 1)}
+                                className="p-2 text-blue-400 hover:text-blue-300"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <Button
+                              onClick={() => removeFromCart(product.id)}
+                              variant="outline"
+                              size="sm"
+                              className="bg-red-600/20 border-red-500/30 text-red-400 hover:bg-red-600/30"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              addToCart(product as any, 1);
                               toast({
                                 title: "Added to cart!",
                                 description: `${product.name} has been added to your cart.`,
                               });
                             }}
                             disabled={!product.inStock}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <ShoppingCart className="w-4 h-4 mr-2" />
                             Add to Cart
