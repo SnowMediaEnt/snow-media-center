@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -52,18 +52,86 @@ export const useWixIntegration = () => {
   const [wixProfile, setWixProfile] = useState<any>(null);
   const [wixOrders, setWixOrders] = useState<WixOrder[]>([]);
   const [wixReferrals, setWixReferrals] = useState<WixReferralInfo | null>(null);
+  const [dataFetched, setDataFetched] = useState(false);
 
-  useEffect(() => {
-    if (user?.email) {
-      fetchWixData();
+  const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'verify-member',
+          email
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error verifying Wix member:', error);
+      return { exists: false, member: null };
     }
-  }, [user]);
+  }, []);
 
-  const fetchWixData = async () => {
-    if (!user?.email) return;
+  const getWixMember = useCallback(async (wixMemberId: string): Promise<{ member: WixMember }> => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'get-member',
+          wixMemberId
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error getting Wix member:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getProfile = useCallback(async (wixMemberId: string): Promise<{ profile: WixProfile }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'get-profile',
+          wixMemberId
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error getting Wix profile:', error);
+      throw error;
+    }
+  }, []);
+
+  const getReferralInfo = useCallback(async (wixMemberId: string): Promise<{ referral: WixReferralInfo }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'get-referral-info',
+          wixMemberId
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error getting referral info:', error);
+      throw error;
+    }
+  }, []);
+
+  const fetchWixData = useCallback(async () => {
+    if (!user?.email || dataFetched || loading) return;
     
     setLoading(true);
     try {
+      console.log('Fetching Wix data for:', user.email);
+      
       // Try to get existing member
       const memberResult = await verifyWixMember(user.email);
       
@@ -105,54 +173,16 @@ export const useWixIntegration = () => {
           console.error('Error fetching referral info:', error);
         }
       }
+      
+      setDataFetched(true);
     } catch (error) {
       console.error('Error fetching Wix data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email, dataFetched, loading, verifyWixMember, getProfile, getReferralInfo]);
 
-  const verifyWixMember = async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'verify-member',
-          email
-        }
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error verifying Wix member:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getWixMember = async (wixMemberId: string): Promise<{ member: WixMember }> => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-member',
-          wixMemberId
-        }
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error getting Wix member:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testConnection = async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
+  const testConnection = useCallback(async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('wix-integration', {
@@ -169,9 +199,9 @@ export const useWixIntegration = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const createMember = async (memberData: CreateMemberData): Promise<{ member: WixMember }> => {
+  const createMember = useCallback(async (memberData: CreateMemberData): Promise<{ member: WixMember }> => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('wix-integration', {
@@ -189,49 +219,9 @@ export const useWixIntegration = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const getProfile = async (wixMemberId: string): Promise<{ profile: WixProfile }> => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-profile',
-          wixMemberId
-        }
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error getting Wix profile:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getReferralInfo = async (wixMemberId: string): Promise<{ referral: WixReferralInfo }> => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-referral-info',
-          wixMemberId
-        }
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error getting referral info:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addToEmailList = async (memberData: CreateMemberData): Promise<{ success: boolean; contact?: any }> => {
+  const addToEmailList = useCallback(async (memberData: CreateMemberData): Promise<{ success: boolean; contact?: any }> => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('wix-integration', {
@@ -249,7 +239,13 @@ export const useWixIntegration = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user?.email && !dataFetched && !loading) {
+      fetchWixData();
+    }
+  }, [user?.email, dataFetched, loading, fetchWixData]);
 
   return {
     loading,
