@@ -42,7 +42,8 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         const finalProgress = Math.min(newProgress, 100);
         
         // Simulate download speed and size
-        const totalMB = parseFloat(app.size.replace('MB', ''));
+        const sizeString = app.size || '25MB';
+        const totalMB = parseFloat(sizeString.replace('MB', ''));
         const downloadedMB = (finalProgress / 100) * totalMB;
         const speed = Math.random() * 5 + 1; // 1-6 MB/s
         

@@ -51,7 +51,11 @@ export const useAppData = () => {
           downloadUrl: app.apk || app.downloadUrl,
           packageName: app.packageName || `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`,
           category: app.category || 'streaming',
-          featured: app.featured || false
+          featured: app.featured || false,
+          size: app.size || '25MB', // Default size if not provided
+          version: app.version || '1.0',
+          name: app.name || 'Unknown App',
+          description: app.description || 'No description available'
         }));
         
         console.log('Transformed apps:', transformedApps);
