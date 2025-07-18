@@ -7,7 +7,7 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const { verifyWixMember } = useWixIntegration();
+  const { verifyWixMember, createMember, addToEmailList } = useWixIntegration();
 
   useEffect(() => {
     // Set up auth state listener
@@ -34,11 +34,41 @@ export const useAuth = () => {
       // First, verify if this email exists in Wix
       const wixVerification = await verifyWixMember(email);
       
+      let wixMemberId = wixVerification.member?.id;
+      
+      // If Wix member doesn't exist, create one
       if (!wixVerification.exists) {
-        return { error: { message: 'Email not found in Wix member database. Please contact support@snowmediaent.com to set up your account.' } };
+        console.log('Creating new Wix member account...');
+        const nameParts = fullName?.split(' ') || [];
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        try {
+          // Create member in Wix
+          const newMember = await createMember({
+            email,
+            firstName,
+            lastName,
+            nickname: firstName
+          });
+          
+          wixMemberId = newMember.member.id;
+          
+          // Add to email list
+          await addToEmailList({
+            email,
+            firstName,
+            lastName
+          });
+          
+          console.log('Successfully created Wix member:', wixMemberId);
+        } catch (wixError) {
+          console.error('Error creating Wix member:', wixError);
+          return { error: { message: 'Failed to create Wix account. Please contact support@snowmediaent.com.' } };
+        }
       }
 
-      // If Wix member exists, proceed with Supabase signup
+      // Proceed with Supabase signup
       const redirectUrl = `${window.location.origin}/`;
       
       const { error } = await supabase.auth.signUp({
@@ -48,7 +78,7 @@ export const useAuth = () => {
           emailRedirectTo: redirectUrl,
           data: {
             full_name: fullName || wixVerification.member?.name || '',
-            wix_member_id: wixVerification.member?.id
+            wix_member_id: wixMemberId
           }
         }
       });

@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action, email, wixMemberId, items } = await req.json();
+    const { action, email, wixMemberId, items, memberData } = await req.json();
     console.log('Action requested:', action);
 
     switch (action) {
@@ -153,8 +153,8 @@ Deno.serve(async (req) => {
         );
 
       case 'create-cart':
-        // Create a cart in Wix using Stores API        
-        const cartResponse = await fetch(`https://www.wixapis.com/stores/v1/carts`, {
+        // Create a cart in Wix using eCommerce API
+        const cartResponse = await fetch(`https://www.wixapis.com/ecom/v1/carts`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
@@ -163,7 +163,10 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             lineItems: items.map(item => ({
-              productId: item.productId,
+              catalogReference: {
+                productId: item.productId,
+                catalogItemId: item.productId
+              },
               quantity: item.quantity
             }))
           })
@@ -450,6 +453,206 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
+
+      case 'create-member':
+        // Create a new member in Wix
+        if (!memberData || !memberData.email) {
+          return new Response(
+            JSON.stringify({ error: 'Member data with email is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const createMemberResponse = await fetch(`https://www.wixapis.com/members/v1/members`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${wixApiKey}`,
+            'wix-site-id': wixAccountId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            loginEmail: memberData.email,
+            profile: {
+              firstName: memberData.firstName || '',
+              lastName: memberData.lastName || '',
+              nickname: memberData.nickname || memberData.firstName || ''
+            },
+            privacyStatus: 'PUBLIC'
+          })
+        });
+
+        if (!createMemberResponse.ok) {
+          const errorText = await createMemberResponse.text();
+          console.error('Create member error:', errorText);
+          throw new Error(`Wix create member error: ${createMemberResponse.status} ${createMemberResponse.statusText}`);
+        }
+
+        const newMember = await createMemberResponse.json();
+        
+        return new Response(
+          JSON.stringify({ 
+            member: {
+              id: newMember.member.id,
+              email: newMember.member.loginEmail,
+              name: newMember.member.profile?.firstName || 'Unknown'
+            }
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      case 'get-profile':
+        // Get full profile including purchase history
+        if (!wixMemberId) {
+          return new Response(
+            JSON.stringify({ error: 'Wix member ID required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get member profile
+        const profileResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
+          headers: {
+            'Authorization': `Bearer ${wixApiKey}`,
+            'wix-site-id': wixAccountId,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!profileResponse.ok) {
+          throw new Error(`Wix API error: ${profileResponse.statusText}`);
+        }
+
+        const profileData = await profileResponse.json();
+
+        // Get purchase history
+        let purchaseHistory = [];
+        try {
+          const ordersResponse = await fetch(`https://www.wixapis.com/stores/v2/orders/query`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${wixApiKey}`,
+              'wix-site-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: {
+                filter: {
+                  "buyerInfo.memberId": { $eq: wixMemberId }
+                },
+                paging: { limit: 50 }
+              }
+            })
+          });
+
+          if (ordersResponse.ok) {
+            const ordersData = await ordersResponse.json();
+            purchaseHistory = ordersData.orders || [];
+          }
+        } catch (error) {
+          console.error('Error fetching purchase history:', error);
+        }
+
+        return new Response(
+          JSON.stringify({ 
+            profile: {
+              id: profileData.member.id,
+              email: profileData.member.loginEmail,
+              firstName: profileData.member.profile?.firstName || '',
+              lastName: profileData.member.profile?.lastName || '',
+              nickname: profileData.member.profile?.nickname || '',
+              addresses: profileData.member.profile?.addresses || [],
+              phoneNumber: profileData.member.profile?.phoneNumber || '',
+              picture: profileData.member.profile?.picture || '',
+              purchaseHistory: purchaseHistory
+            }
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      case 'get-referral-info':
+        // Get referral program information
+        if (!wixMemberId) {
+          return new Response(
+            JSON.stringify({ error: 'Wix member ID required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Generate referral link (basic implementation)
+        const referralCode = `REF_${wixMemberId.substring(0, 8)}`;
+        const referralLink = `https://snowmediaent.com?ref=${referralCode}`;
+
+        return new Response(
+          JSON.stringify({ 
+            referral: {
+              code: referralCode,
+              link: referralLink,
+              memberId: wixMemberId
+            }
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      case 'add-to-email-list':
+        // Add member to email marketing list
+        if (!memberData || !memberData.email) {
+          return new Response(
+            JSON.stringify({ error: 'Member data with email is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        try {
+          const contactResponse = await fetch(`https://www.wixapis.com/contacts/v4/contacts`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${wixApiKey}`,
+              'wix-site-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              info: {
+                name: {
+                  first: memberData.firstName || '',
+                  last: memberData.lastName || ''
+                },
+                emails: [{
+                  email: memberData.email,
+                  primary: true
+                }]
+              }
+            })
+          });
+
+          const contactData = contactResponse.ok ? await contactResponse.json() : null;
+          
+          return new Response(
+            JSON.stringify({ 
+              success: contactResponse.ok,
+              contact: contactData?.contact || null
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        } catch (error) {
+          console.error('Error adding to email list:', error);
+          return new Response(
+            JSON.stringify({ 
+              success: false,
+              error: error.message
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
 
       default:
         return new Response(
