@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +20,16 @@ interface UserDashboardProps {
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore }: UserDashboardProps) => {
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
-  const { wixProfile, wixOrders, wixReferrals, loading: wixLoading } = useWixIntegration();
+  const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
+
+  // Fetch Wix data when user changes
+  useEffect(() => {
+    if (user?.email && !wixLoading) {
+      fetchWixData(user.email);
+    }
+  }, [user?.email, wixLoading, fetchWixData]);
 
   const handleSignOut = async () => {
     const { error } = await signOut();

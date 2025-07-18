@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
 
 interface WixMember {
   id: string;
@@ -47,12 +46,10 @@ interface CreateMemberData {
 }
 
 export const useWixIntegration = () => {
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [wixProfile, setWixProfile] = useState<any>(null);
   const [wixOrders, setWixOrders] = useState<WixOrder[]>([]);
   const [wixReferrals, setWixReferrals] = useState<WixReferralInfo | null>(null);
-  const [dataFetched, setDataFetched] = useState(false);
 
   const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
     try {
@@ -125,15 +122,15 @@ export const useWixIntegration = () => {
     }
   }, []);
 
-  const fetchWixData = useCallback(async () => {
-    if (!user?.email || dataFetched || loading) return;
+  const fetchWixData = useCallback(async (userEmail: string) => {
+    if (!userEmail || loading) return;
     
     setLoading(true);
     try {
-      console.log('Fetching Wix data for:', user.email);
+      console.log('Fetching Wix data for:', userEmail);
       
       // Try to get existing member
-      const memberResult = await verifyWixMember(user.email);
+      const memberResult = await verifyWixMember(userEmail);
       
       if (memberResult.exists && memberResult.member) {
         // Fetch profile data
@@ -173,14 +170,12 @@ export const useWixIntegration = () => {
           console.error('Error fetching referral info:', error);
         }
       }
-      
-      setDataFetched(true);
     } catch (error) {
       console.error('Error fetching Wix data:', error);
     } finally {
       setLoading(false);
     }
-  }, [user?.email, dataFetched, loading, verifyWixMember, getProfile, getReferralInfo]);
+  }, [loading, verifyWixMember, getProfile, getReferralInfo]);
 
   const testConnection = useCallback(async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
     setLoading(true);
@@ -240,12 +235,6 @@ export const useWixIntegration = () => {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (user?.email && !dataFetched && !loading) {
-      fetchWixData();
-    }
-  }, [user?.email, dataFetched, loading, fetchWixData]);
 
   return {
     loading,
