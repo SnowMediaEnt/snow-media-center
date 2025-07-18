@@ -153,8 +153,8 @@ Deno.serve(async (req) => {
         );
 
       case 'create-cart':
-        // Create a cart in Wix        
-        const cartResponse = await fetch('https://www.wixapis.com/stores/v1/carts', {
+        // Create a cart in Wix using eCommerce API        
+        const cartResponse = await fetch(`https://www.wixapis.com/ecom/v1/carts`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
