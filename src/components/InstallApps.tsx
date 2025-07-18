@@ -33,10 +33,10 @@ const apps: App[] = [
     name: 'Dreamstreams 3.0',
     description: 'Premium IPTV streaming service',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/dreamstreams.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/dreamstreams.apk',
+    icon: 'http://104.168.157.178/apps/icons/dreamstreams.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/dreamstreams.apk',
     packageName: 'com.dreamstreams.tv',
-    size: '45MB',
+    size: '54MB',
     version: '3.0',
     featured: true
   },
@@ -45,10 +45,10 @@ const apps: App[] = [
     name: 'VibezTV',
     description: 'Live TV streaming application',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/vibeztv.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/vibeztv.apk',
+    icon: 'http://104.168.157.178/apps/icons/vibeztv.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/vibeztv.apk',
     packageName: 'com.vibeztv.android',
-    size: '38MB',
+    size: '96MB',
     version: '2.1.5',
     featured: true
   },
@@ -57,8 +57,8 @@ const apps: App[] = [
     name: 'Plex',
     description: 'Stream your media library anywhere',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/plex.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/plex.apk',
+    icon: 'http://104.168.157.178/apps/icons/plex.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/plex.apk',
     packageName: 'com.plexapp.android',
     size: '95MB',
     version: '9.12.1',
@@ -69,8 +69,8 @@ const apps: App[] = [
     name: 'Cinema HD',
     description: 'Movies and TV shows streaming app',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/cinemahd.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/cinemahd.apk',
+    icon: 'http://104.168.157.178/apps/icons/cinemahd.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/cinemahd.apk',
     packageName: 'com.cinema.hd.tv',
     size: '45MB',
     version: '2.4.1',
@@ -81,8 +81,8 @@ const apps: App[] = [
     name: 'IPVanish VPN',
     description: 'Secure VPN for streaming and privacy',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/ipvanish.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/ipvanish.apk',
+    icon: 'http://104.168.157.178/apps/icons/ipvanish.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/ipvanish.apk',
     packageName: 'com.ipvanish.mobile',
     size: '42MB',
     version: '4.5.11',
@@ -95,8 +95,8 @@ const apps: App[] = [
     name: 'Cinema HD',
     description: 'Movies and TV shows streaming app',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/cinemahd.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/cinemahd.apk',
+    icon: 'http://104.168.157.178/apps/icons/cinemahd.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/cinemahd.apk',
     packageName: 'com.cinema.hd.tv',
     size: '45MB',
     version: '2.4.1'
@@ -106,8 +106,8 @@ const apps: App[] = [
     name: 'BeeTV',
     description: 'Free movies and TV series streaming',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/beetv.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/beetv.apk',
+    icon: 'http://104.168.157.178/apps/icons/beetv.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/beetv.apk',
     packageName: 'com.beetv.android',
     size: '28MB',
     version: '2.9.8'
@@ -117,8 +117,8 @@ const apps: App[] = [
     name: 'Stremio',
     description: 'Organize and watch video content from torrents',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/stremio.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/stremio.apk',
+    icon: 'http://104.168.157.178/apps/icons/stremio.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/stremio.apk',
     packageName: 'com.stremio.one',
     size: '55MB',
     version: '1.6.11'
@@ -128,8 +128,8 @@ const apps: App[] = [
     name: 'Plex',
     description: 'Stream your media library anywhere',
     category: 'streaming',
-    icon: 'http://104.168.157.178/smc/icons/plex.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/plex.apk',
+    icon: 'http://104.168.157.178/apps/icons/plex.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/plex.apk',
     packageName: 'com.plexapp.android',
     size: '95MB',
     version: '9.12.1'
@@ -141,8 +141,8 @@ const apps: App[] = [
     name: 'Speedtest by Ookla',
     description: 'Test your internet speed and performance',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/speedtest.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/speedtest.apk',
+    icon: 'http://104.168.157.178/apps/icons/speedtest.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/speedtest.apk',
     packageName: 'org.zwanoo.android.speedtest',
     size: '35MB',
     version: '5.2.5'
@@ -152,8 +152,8 @@ const apps: App[] = [
     name: 'IPVanish VPN',
     description: 'Secure VPN for streaming and privacy',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/ipvanish.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/ipvanish.apk',
+    icon: 'http://104.168.157.178/apps/icons/ipvanish.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/ipvanish.apk',
     packageName: 'com.ipvanish.mobile',
     size: '42MB',
     version: '4.5.11'
@@ -163,8 +163,8 @@ const apps: App[] = [
     name: 'NordVPN',
     description: 'Fast and secure VPN service',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/nordvpn.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/nordvpn.apk',
+    icon: 'http://104.168.157.178/apps/icons/nordvpn.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/nordvpn.apk',
     packageName: 'com.nordvpn.android',
     size: '38MB',
     version: '5.12.4'
@@ -174,8 +174,8 @@ const apps: App[] = [
     name: 'TeamViewer',
     description: 'Remote access and support tool',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/teamviewer.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/teamviewer.apk',
+    icon: 'http://104.168.157.178/apps/icons/teamviewer.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/teamviewer.apk',
     packageName: 'com.teamviewer.teamviewer.market.mobile',
     size: '65MB',
     version: '15.49.5'
@@ -185,8 +185,8 @@ const apps: App[] = [
     name: 'ES File Explorer',
     description: 'File manager and network browser',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/esfileexplorer.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/esfileexplorer.apk',
+    icon: 'http://104.168.157.178/apps/icons/esfileexplorer.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/esfileexplorer.apk',
     packageName: 'com.estrongs.android.pop',
     size: '22MB',
     version: '4.2.9.9'
@@ -196,8 +196,8 @@ const apps: App[] = [
     name: 'Downloader',
     description: 'Easy APK and file downloader for Android TV',
     category: 'support',
-    icon: 'http://104.168.157.178/smc/icons/downloader.png',
-    downloadUrl: 'http://104.168.157.178/smc/apks/downloader.apk',
+    icon: 'http://104.168.157.178/apps/icons/downloader.png',
+    downloadUrl: 'http://104.168.157.178/apps/apks/downloader.apk',
     packageName: 'com.esaba.downloader',
     size: '8MB',
     version: '1.8.0'
@@ -432,52 +432,52 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
                   </Button>
                   
                   {/* Launch Button - Only available after install */}
-                  <Button 
-                    onClick={() => handleLaunch(app)}
-                    disabled={!isInstalled}
-                    variant="outline"
-                    className={`${isInstalled ? 'bg-purple-600 border-purple-500 text-white hover:bg-purple-700' : 'bg-gray-600/20 border-gray-500/50 text-gray-400'}`}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Launch
-                  </Button>
+                  {isInstalled && (
+                    <Button 
+                      onClick={() => handleLaunch(app)}
+                      variant="outline"
+                      className="bg-purple-600 border-purple-500 text-white hover:bg-purple-700"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Launch
+                    </Button>
+                  )}
                 </div>
                 
                 {/* Management buttons - Only available after install */}
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => handleClearCache(app)}
-                    disabled={!isInstalled}
-                    variant="outline"
-                    size="sm"
-                    className={`flex-1 ${isInstalled ? 'bg-yellow-600/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-600/30' : 'bg-gray-600/20 border-gray-500/50 text-gray-400'}`}
-                  >
-                    <HardDrive className="w-3 h-3 mr-1" />
-                    Clear Cache
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => handleClearData(app)}
-                    disabled={!isInstalled}
-                    variant="outline"
-                    size="sm"
-                    className={`flex-1 ${isInstalled ? 'bg-orange-600/20 border-orange-500/50 text-orange-400 hover:bg-orange-600/30' : 'bg-gray-600/20 border-gray-500/50 text-gray-400'}`}
-                  >
-                    <Database className="w-3 h-3 mr-1" />
-                    Clear Data
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => handleUninstall(app)}
-                    disabled={!isInstalled}
-                    variant="outline"
-                    size="sm"
-                    className={`flex-1 ${isInstalled ? 'bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30' : 'bg-gray-600/20 border-gray-500/50 text-gray-400'}`}
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Uninstall
-                  </Button>
-                </div>
+                {isInstalled && (
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => handleClearCache(app)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-yellow-600/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-600/30"
+                    >
+                      <HardDrive className="w-3 h-3 mr-1" />
+                      Clear Cache
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => handleClearData(app)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-orange-600/20 border-orange-500/50 text-orange-400 hover:bg-orange-600/30"
+                    >
+                      <Database className="w-3 h-3 mr-1" />
+                      Clear Data
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => handleUninstall(app)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Uninstall
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
