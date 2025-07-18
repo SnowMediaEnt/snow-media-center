@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserDashboardProps {
@@ -18,6 +20,7 @@ interface UserDashboardProps {
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore }: UserDashboardProps) => {
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
+  const { wixProfile, wixOrders, wixReferrals, loading: wixLoading } = useWixIntegration();
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
 
@@ -133,60 +136,228 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </Button>
         </div>
 
-        {/* Recent Transactions */}
-        <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
-          <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-            <History className="w-6 h-6 mr-2" />
-            Recent Transactions
-          </h2>
-          
-          {transactions.length === 0 ? (
-            <p className="text-slate-400 text-center py-8">No transactions yet</p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map((transaction) => (
-                <div 
-                  key={transaction.id}
-                  className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      transaction.transaction_type === 'purchase' ? 'bg-green-400' :
-                      transaction.transaction_type === 'deduction' ? 'bg-red-400' :
-                      'bg-blue-400'
-                    }`} />
-                    <div>
-                      <p className="text-white font-medium">{transaction.description}</p>
-                      <p className="text-slate-400 text-sm">
-                        {new Date(transaction.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${
-                      transaction.transaction_type === 'purchase' ? 'text-green-400' :
-                      transaction.transaction_type === 'deduction' ? 'text-red-400' :
-                      'text-blue-400'
-                    }`}>
-                      {transaction.transaction_type === 'deduction' ? '-' : '+'}
-                      {transaction.amount.toFixed(2)} credits
-                    </p>
-                    <Badge 
-                      variant="secondary" 
-                      className={`${
-                        transaction.transaction_type === 'purchase' ? 'bg-green-600' :
-                        transaction.transaction_type === 'deduction' ? 'bg-red-600' :
-                        'bg-blue-600'
-                      } text-white`}
-                    >
-                      {transaction.transaction_type}
-                    </Badge>
+        {/* Dashboard Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-8 bg-slate-800">
+            <TabsTrigger value="overview" className="text-white data-[state=active]:bg-blue-600">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="credits" className="text-white data-[state=active]:bg-blue-600">
+              App Credits
+            </TabsTrigger>
+            <TabsTrigger value="store" className="text-white data-[state=active]:bg-blue-600">
+              Store Account
+            </TabsTrigger>
+            <TabsTrigger value="referrals" className="text-white data-[state=active]:bg-blue-600">
+              Referrals
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-0">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+              <h2 className="text-2xl font-bold text-white mb-4">Account Overview</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">Profile Information</h3>
+                  <div className="space-y-2">
+                    <p className="text-slate-300"><span className="font-medium">Name:</span> {profile?.full_name || 'Not set'}</p>
+                    <p className="text-slate-300"><span className="font-medium">Email:</span> {profile?.email || user?.email}</p>
+                    <p className="text-slate-300"><span className="font-medium">Username:</span> {profile?.username || 'Not set'}</p>
                   </div>
                 </div>
-              ))}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">Account Stats</h3>
+                  <div className="space-y-2">
+                    <p className="text-slate-300"><span className="font-medium">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
+                    <p className="text-slate-300"><span className="font-medium">Total Credits Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="credits" className="mt-0">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+              <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
+                <Sparkles className="w-6 h-6 mr-2" />
+                App Credits & AI Usage
+              </h2>
+              
+              {transactions.length === 0 ? (
+                <p className="text-slate-400 text-center py-8">No credit transactions yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {transactions.map((transaction) => (
+                    <div 
+                      key={transaction.id}
+                      className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          transaction.transaction_type === 'purchase' ? 'bg-green-400' :
+                          transaction.transaction_type === 'deduction' ? 'bg-red-400' :
+                          'bg-blue-400'
+                        }`} />
+                        <div>
+                          <p className="text-white font-medium">{transaction.description}</p>
+                          <p className="text-slate-400 text-sm">
+                            {new Date(transaction.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${
+                          transaction.transaction_type === 'purchase' ? 'text-green-400' :
+                          transaction.transaction_type === 'deduction' ? 'text-red-400' :
+                          'text-blue-400'
+                        }`}>
+                          {transaction.transaction_type === 'deduction' ? '-' : '+'}
+                          {transaction.amount.toFixed(2)} credits
+                        </p>
+                        <Badge 
+                          variant="secondary" 
+                          className={`${
+                            transaction.transaction_type === 'purchase' ? 'bg-green-600' :
+                            transaction.transaction_type === 'deduction' ? 'bg-red-600' :
+                            'bg-blue-600'
+                          } text-white`}
+                        >
+                          {transaction.transaction_type}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="store" className="mt-0">
+            <div className="space-y-6">
+              <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+                <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
+                  <ShoppingCart className="w-6 h-6 mr-2" />
+                  Store Purchase History
+                </h2>
+                
+                {wixLoading ? (
+                  <p className="text-slate-400 text-center py-8">Loading store data...</p>
+                ) : wixOrders && wixOrders.length > 0 ? (
+                  <div className="space-y-3">
+                    {wixOrders.map((order: any) => (
+                      <div 
+                        key={order.id}
+                        className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-3 h-3 rounded-full bg-blue-400" />
+                          <div>
+                            <p className="text-white font-medium">Order #{order.number}</p>
+                            <p className="text-slate-400 text-sm">
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-400">${order.total}</p>
+                          <Badge variant="secondary" className="bg-blue-600 text-white">
+                            {order.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-center py-8">No store purchases yet</p>
+                )}
+              </Card>
+
+              <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+                <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
+                  <MapPin className="w-6 h-6 mr-2" />
+                  Shipping & Billing Info
+                </h2>
+                
+                {wixProfile ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
+                      <div className="space-y-2 text-slate-300">
+                        <p>{wixProfile.shipping?.address || 'Not set'}</p>
+                        <p>{wixProfile.shipping?.city}, {wixProfile.shipping?.state} {wixProfile.shipping?.zip}</p>
+                        <p>{wixProfile.shipping?.country}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-white">Billing Address</h3>
+                      <div className="space-y-2 text-slate-300">
+                        <p>{wixProfile.billing?.address || 'Not set'}</p>
+                        <p>{wixProfile.billing?.city}, {wixProfile.billing?.state} {wixProfile.billing?.zip}</p>
+                        <p>{wixProfile.billing?.country}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-center py-8">No address information available</p>
+                )}
+              </Card>
             </div>
-          )}
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="referrals" className="mt-0">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+              <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
+                <Users className="w-6 h-6 mr-2" />
+                Referral Program
+              </h2>
+              
+              {wixReferrals ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-800/50 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">Total Referrals</h3>
+                      <p className="text-3xl font-bold text-blue-400">{wixReferrals.totalReferrals || 0}</p>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">Earnings</h3>
+                      <p className="text-3xl font-bold text-green-400">${wixReferrals.totalEarnings || '0.00'}</p>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">Pending</h3>
+                      <p className="text-3xl font-bold text-yellow-400">${wixReferrals.pendingEarnings || '0.00'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={wixReferrals.referralUrl || 'Loading...'}
+                        readOnly
+                        className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white"
+                      />
+                      <Button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(wixReferrals.referralUrl || '');
+                          toast({
+                            title: "Copied!",
+                            description: "Referral link copied to clipboard.",
+                          });
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-400 text-center py-8">Loading referral information...</p>
+              )}
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

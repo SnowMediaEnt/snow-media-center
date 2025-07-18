@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import DownloadProgress from './DownloadProgress';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -205,38 +206,22 @@ const apps: App[] = [
 
 const InstallApps = ({ onBack }: InstallAppsProps) => {
   const [downloadingApps, setDownloadingApps] = useState<Set<string>>(new Set());
+  const [installedApps, setInstalledApps] = useState<Set<string>>(new Set());
+  const [currentDownload, setCurrentDownload] = useState<App | null>(null);
   const { toast } = useToast();
 
   const handleDownload = async (app: App) => {
+    setCurrentDownload(app);
     setDownloadingApps(prev => new Set(prev.add(app.id)));
     
-    try {
-      // Create download link
-      const link = document.createElement('a');
-      link.href = app.downloadUrl;
-      link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Download Started",
-        description: `${app.name} is downloading. Check your downloads folder.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Download Failed",
-        description: `Failed to download ${app.name}. Please try again.`,
-        variant: "destructive",
-      });
-    } finally {
-      setDownloadingApps(prev => {
-        const updated = new Set(prev);
-        updated.delete(app.id);
-        return updated;
-      });
-    }
+    // Create download link
+    const link = document.createElement('a');
+    link.href = app.downloadUrl;
+    link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleInstall = (app: App) => {
@@ -245,6 +230,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     
     try {
       window.location.href = installIntent;
+      setInstalledApps(prev => new Set(prev.add(app.id)));
       toast({
         title: "Installation Started",
         description: `Opening ${app.name} installer...`,
@@ -289,79 +275,96 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
+  const handleDownloadComplete = () => {
+    if (currentDownload) {
+      setDownloadingApps(prev => {
+        const updated = new Set(prev);
+        updated.delete(currentDownload.id);
+        return updated;
+      });
+      setCurrentDownload(null);
+    }
+  };
+
   const renderAppGrid = (categoryApps: App[]) => (
     <div className="grid grid-cols-2 gap-6">
-      {categoryApps.map((app) => (
-        <Card key={app.id} className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 overflow-hidden hover:scale-105 transition-all duration-300">
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
-                <img 
-                  src={app.icon} 
-                  alt={`${app.name} icon`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      const IconComponent = getCategoryIcon(app.category);
-                      const iconElement = document.createElement('div');
-                      iconElement.className = 'w-8 h-8 text-white flex items-center justify-center';
-                      iconElement.innerHTML = '📱'; // Fallback emoji
-                      parent.appendChild(iconElement);
-                    }
-                  }}
-                />
+      {categoryApps.map((app) => {
+        const isDownloaded = downloadingApps.has(app.id);
+        const isInstalled = installedApps.has(app.id);
+        
+        return (
+          <Card key={app.id} className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 overflow-hidden hover:scale-105 transition-all duration-300">
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
+                  <img 
+                    src={app.icon} 
+                    alt={`${app.name} icon`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        const IconComponent = getCategoryIcon(app.category);
+                        const iconElement = document.createElement('div');
+                        iconElement.className = 'w-8 h-8 text-white flex items-center justify-center';
+                        iconElement.innerHTML = '📱'; // Fallback emoji
+                        parent.appendChild(iconElement);
+                      }
+                    }}
+                  />
+                </div>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xl font-bold text-white">{app.name}</h3>
+                    {app.featured && (
+                      <Badge className="bg-green-600 text-white">Featured</Badge>
+                    )}
+                  </div>
+                  <p className="text-slate-300 text-sm mb-2">{app.description}</p>
+                  <div className="flex gap-2 text-xs text-slate-400">
+                    <span>v{app.version}</span>
+                    <span>•</span>
+                    <span>{app.size}</span>
+                  </div>
+                </div>
               </div>
               
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xl font-bold text-white">{app.name}</h3>
-                  {app.featured && (
-                    <Badge className="bg-green-600 text-white">Featured</Badge>
-                  )}
-                </div>
-                <p className="text-slate-300 text-sm mb-2">{app.description}</p>
-                <div className="flex gap-2 text-xs text-slate-400">
-                  <span>v{app.version}</span>
-                  <span>•</span>
-                  <span>{app.size}</span>
-                </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleDownload(app)}
+                  disabled={isDownloaded || isInstalled}
+                  className={`flex-1 ${isDownloaded || isInstalled ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {isDownloaded ? 'Downloaded' : 'Download'}
+                </Button>
+                
+                <Button 
+                  onClick={() => handleInstall(app)}
+                  disabled={!isDownloaded || isInstalled}
+                  variant="outline"
+                  className={`${isInstalled ? 'bg-gray-600/20 border-gray-500/50 text-gray-400' : 'bg-green-600/20 border-green-500/50 text-green-400 hover:bg-green-600/30'}`}
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  {isInstalled ? 'Installed' : 'Install'}
+                </Button>
+                
+                <Button 
+                  onClick={() => handleLaunch(app)}
+                  variant="outline"
+                  className={`${isInstalled ? 'bg-purple-600 border-purple-500 text-white hover:bg-purple-700' : 'bg-purple-600/20 border-purple-500/50 text-purple-400 hover:bg-purple-600/30'}`}
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Launch
+                </Button>
               </div>
             </div>
-            
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => handleDownload(app)}
-                disabled={downloadingApps.has(app.id)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {downloadingApps.has(app.id) ? 'Downloading...' : 'Download'}
-              </Button>
-              
-              <Button 
-                onClick={() => handleInstall(app)}
-                variant="outline"
-                className="bg-green-600/20 border-green-500/50 text-green-400 hover:bg-green-600/30"
-              >
-                <Package className="w-4 h-4 mr-2" />
-                Install
-              </Button>
-              
-              <Button 
-                onClick={() => handleLaunch(app)}
-                variant="outline"
-                className="bg-purple-600/20 border-purple-500/50 text-purple-400 hover:bg-purple-600/30"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Launch
-              </Button>
-            </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        );
+      })}
     </div>
   );
 
@@ -410,6 +413,15 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Download Progress Modal */}
+      {currentDownload && (
+        <DownloadProgress 
+          app={currentDownload}
+          onClose={() => setCurrentDownload(null)}
+          onComplete={handleDownloadComplete}
+        />
+      )}
     </div>
   );
 };
