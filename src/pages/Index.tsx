@@ -38,31 +38,19 @@ const Index = () => {
       switch (event.key) {
         case 'ArrowRight':
           event.preventDefault();
-          if (layoutMode === 'grid') {
-            setFocusedButton((prev) => prev === 1 ? 3 : prev === 0 ? 1 : prev);
-          } else {
-            setFocusedButton((prev) => (prev + 1) % 4);
-          }
+          setFocusedButton((prev) => (prev + 1) % 4);
           break;
         case 'ArrowLeft':
           event.preventDefault();
-          if (layoutMode === 'grid') {
-            setFocusedButton((prev) => prev === 0 ? 1 : prev === 3 ? 1 : prev === 1 ? 0 : 2);
-          } else {
-            setFocusedButton((prev) => (prev - 1 + 4) % 4);
-          }
+          setFocusedButton((prev) => (prev - 1 + 4) % 4);
           break;
         case 'ArrowDown':
           event.preventDefault();
-          if (layoutMode === 'grid') {
-            setFocusedButton((prev) => prev < 2 ? prev + 2 : prev);
-          }
+          // No vertical navigation needed for single row
           break;
         case 'ArrowUp':
           event.preventDefault();
-          if (layoutMode === 'grid') {
-            setFocusedButton((prev) => prev >= 2 ? prev - 2 : prev);
-          }
+          // No vertical navigation needed for single row
           break;
         case 'Enter':
         case ' ':
@@ -201,8 +189,8 @@ const Index = () => {
       <NewsTicker />
 
       {/* Main Content */}
-      <div className={`relative z-10 px-16 ${layoutMode === 'grid' ? 'flex flex-col justify-center pb-16 flex-1 pt-16' : 'flex flex-col justify-end pb-16 flex-1'}`}>
-        <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-12 max-w-7xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
+      <div className={`relative z-10 px-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center pb-16 flex-1 pt-8' : 'flex flex-col justify-end pb-16 flex-1'}`}>
+        <div className={layoutMode === 'grid' ? 'grid grid-cols-4 gap-8 max-w-6xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
             const isFocused = focusedButton === index;
@@ -213,27 +201,27 @@ const Index = () => {
                 className={`
                   relative overflow-hidden cursor-pointer transition-all duration-300 transform
                   ${isFocused 
-                    ? 'scale-105 ring-4 ring-blue-400 shadow-2xl shadow-blue-500/25' 
-                    : 'hover:scale-102 shadow-lg'
+                    ? 'scale-110 ring-4 ring-blue-400 shadow-2xl shadow-blue-500/25' 
+                    : 'hover:scale-105 shadow-lg'
                   }
                   bg-gradient-to-br ${button.color} border-0 
-                  ${layoutMode === 'grid' ? 'h-48' : 'h-32 w-48'}
+                  ${layoutMode === 'grid' ? 'h-40 aspect-square' : 'h-32 w-48'}
                 `}
                 onClick={() => handleButtonClick(index)}
               >
                 <div className="absolute inset-0 bg-black/20" />
-                <div className="relative z-10 p-4 h-full flex flex-col items-center justify-center text-center">
+                <div className="relative z-10 p-3 h-full flex flex-col items-center justify-center text-center">
                   <Icon 
-                    size={layoutMode === 'grid' ? 64 : 48} 
-                    className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} transition-all duration-300 ${
+                    size={layoutMode === 'grid' ? 48 : 48} 
+                    className={`${layoutMode === 'grid' ? 'mb-3' : 'mb-2'} transition-all duration-300 ${
                       isFocused ? 'text-white scale-110' : 'text-white/90'
                     }`} 
                   />
-                  <h3 className={`${layoutMode === 'grid' ? 'text-2xl' : 'text-lg'} font-bold mb-1 text-white`}>
+                  <h3 className={`${layoutMode === 'grid' ? 'text-lg' : 'text-lg'} font-bold mb-1 text-white leading-tight`}>
                     {button.title}
                   </h3>
                   {layoutMode === 'grid' && (
-                    <p className="text-lg text-white/80">
+                    <p className="text-sm text-white/80 leading-tight">
                       {button.description}
                     </p>
                   )}
