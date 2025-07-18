@@ -166,8 +166,8 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
     try {
       setGenerating(true);
       
-      // Enhance prompt for wallpaper/background generation
-      const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background.`;
+      // Enhance prompt for wallpaper/background generation with safety filters
+      const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. Safe for work, family-friendly, no NSFW content.`;
       
       // Call our Hugging Face edge function
       const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
