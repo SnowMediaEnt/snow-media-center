@@ -23,7 +23,7 @@ export const useAppData = () => {
     const fetchApps = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://104.168.157.178/apps/apps.json.php');
+        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
