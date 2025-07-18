@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { X, Download, Package, Trash2, Database, HardDrive } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface DownloadProgressProps {
   app: {
@@ -21,6 +22,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   const [downloaded, setDownloaded] = useState('0 MB');
   const [isComplete, setIsComplete] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -56,17 +58,62 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   };
 
   const handleUninstall = () => {
-    setIsInstalled(false);
+    // Android uninstall intent
+    const uninstallIntent = `intent://uninstall?package=${app.packageName}#Intent;scheme=package;action=android.intent.action.DELETE;end`;
+    
+    try {
+      window.location.href = uninstallIntent;
+      setIsInstalled(false);
+      toast({
+        title: "Uninstalling App",
+        description: `${app.name} is being uninstalled...`,
+        variant: "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Uninstall Failed",
+        description: "Could not uninstall the app. Please try manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleClearData = () => {
-    // Simulate clearing data
-    console.log(`Clearing data for ${app.name}`);
+    // Android clear data intent
+    const clearDataIntent = `intent://${app.packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
+    
+    try {
+      window.location.href = clearDataIntent;
+      toast({
+        title: "Clearing App Data",
+        description: `Opening settings to clear ${app.name} data...`,
+      });
+    } catch (error) {
+      toast({
+        title: "Clear Data Failed",
+        description: "Could not clear app data. Please try manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleClearCache = () => {
-    // Simulate clearing cache
-    console.log(`Clearing cache for ${app.name}`);
+    // Android clear cache intent
+    const clearCacheIntent = `intent://${app.packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
+    
+    try {
+      window.location.href = clearCacheIntent;
+      toast({
+        title: "Clearing App Cache",
+        description: `Opening settings to clear ${app.name} cache...`,
+      });
+    } catch (error) {
+      toast({
+        title: "Clear Cache Failed",
+        description: "Could not clear app cache. Please try manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -134,23 +181,23 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
                 <p className="text-sm text-slate-300 mb-3">Troubleshooting:</p>
                 <div className="grid grid-cols-3 gap-2">
                   <Button 
-                    onClick={handleClearData}
+                    onClick={handleClearCache}
                     variant="outline"
                     size="sm"
                     className="bg-yellow-600/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-600/30"
                   >
-                    <Database className="w-3 h-3 mr-1" />
-                    Clear Data
+                    <HardDrive className="w-3 h-3 mr-1" />
+                    Clear Cache
                   </Button>
                   
                   <Button 
-                    onClick={handleClearCache}
+                    onClick={handleClearData}
                     variant="outline"
                     size="sm"
                     className="bg-orange-600/20 border-orange-500/50 text-orange-400 hover:bg-orange-600/30"
                   >
-                    <HardDrive className="w-3 h-3 mr-1" />
-                    Clear Cache
+                    <Database className="w-3 h-3 mr-1" />
+                    Clear Data
                   </Button>
                   
                   <Button 
