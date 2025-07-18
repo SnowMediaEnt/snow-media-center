@@ -55,7 +55,15 @@ export const useCart = () => {
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      // Remove item directly instead of calling removeFromCart to avoid circular dependency
+      setCart(prevCart => {
+        const newItems = prevCart.items.filter(item => item.id !== productId);
+        const totals = calculateTotals(newItems);
+        return {
+          items: newItems,
+          ...totals
+        };
+      });
       return;
     }
 
@@ -71,7 +79,7 @@ export const useCart = () => {
         ...totals
       };
     });
-  }, [calculateTotals, removeFromCart]);
+  }, [calculateTotals]);
 
   const clearCart = useCallback(() => {
     setCart({
