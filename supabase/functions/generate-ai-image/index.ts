@@ -52,14 +52,22 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('OpenAI response received:', JSON.stringify(data, null, 2));
+    console.log('OpenAI response structure:', {
+      hasData: !!data.data,
+      dataLength: data.data?.length,
+      firstItem: data.data?.[0] ? Object.keys(data.data[0]) : 'no first item',
+      fullResponse: JSON.stringify(data, null, 2)
+    });
 
     if (!data.data || !data.data[0]) {
-      console.error('Invalid response structure:', data);
-      throw new Error('Invalid response format from OpenAI');
+      console.error('Invalid response structure - missing data array or first item:', data);
+      throw new Error(`Invalid response format from OpenAI - missing data: ${JSON.stringify(data)}`);
     }
 
     const firstResult = data.data[0];
+    console.log('First result keys:', Object.keys(firstResult));
+    console.log('First result content:', JSON.stringify(firstResult, null, 2));
+    
     let imageData;
     
     // Handle both URL and base64 response formats
