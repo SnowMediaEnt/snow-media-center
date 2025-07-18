@@ -267,8 +267,8 @@ const Index = () => {
       <NewsTicker />
 
       {/* Main Content */}
-      <div className={`relative z-10 px-8 ${layoutMode === 'grid' ? 'flex flex-col justify-end pb-20 flex-1' : 'flex flex-col justify-end pb-16 flex-1'}`}>
-        <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 max-w-4xl mx-auto mb-16' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
+      <div className={`relative z-10 px-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center min-h-[calc(100vh-200px)] pt-32' : 'flex flex-col justify-end pb-16 flex-1'}`}>
+        <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 max-w-4xl mx-auto' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
             const isFocused = focusedButton === index;

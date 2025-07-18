@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings, HardDrive, Database, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAppData } from '@/hooks/useAppData';
 import DownloadProgress from './DownloadProgress';
 
 interface InstallAppsProps {
@@ -25,191 +26,13 @@ interface App {
   featured?: boolean;
 }
 
-// Apps from your actual server - update paths as needed
-const apps: App[] = [
-  // Featured Apps
-  {
-    id: 'dreamstreams',
-    name: 'Dreamstreams 3.0',
-    description: 'Premium IPTV streaming service',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/dreamstreams.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/dreamstreams.apk',
-    packageName: 'com.dreamstreams.tv',
-    size: '54MB',
-    version: '3.0',
-    featured: true
-  },
-  {
-    id: 'vibeztv',
-    name: 'VibezTV',
-    description: 'Live TV streaming application',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/vibeztv.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/vibeztv.apk',
-    packageName: 'com.vibeztv.android',
-    size: '96MB',
-    version: '2.1.5',
-    featured: true
-  },
-  {
-    id: 'plex',
-    name: 'Plex',
-    description: 'Stream your media library anywhere',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/plex.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/plex.apk',
-    packageName: 'com.plexapp.android',
-    size: '95MB',
-    version: '9.12.1',
-    featured: true
-  },
-  {
-    id: 'cinemahd',
-    name: 'Cinema HD',
-    description: 'Movies and TV shows streaming app',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/cinemahd.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/cinemahd.apk',
-    packageName: 'com.cinema.hd.tv',
-    size: '45MB',
-    version: '2.4.1',
-    featured: true
-  },
-  {
-    id: 'ipvanish',
-    name: 'IPVanish VPN',
-    description: 'Secure VPN for streaming and privacy',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/ipvanish.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/ipvanish.apk',
-    packageName: 'com.ipvanish.mobile',
-    size: '42MB',
-    version: '4.5.11',
-    featured: true
-  },
-
-  // Streaming Apps (Live TV, Movies, Series)
-  {
-    id: 'cinemahd',
-    name: 'Cinema HD',
-    description: 'Movies and TV shows streaming app',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/cinemahd.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/cinemahd.apk',
-    packageName: 'com.cinema.hd.tv',
-    size: '45MB',
-    version: '2.4.1'
-  },
-  {
-    id: 'beetv',
-    name: 'BeeTV',
-    description: 'Free movies and TV series streaming',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/beetv.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/beetv.apk',
-    packageName: 'com.beetv.android',
-    size: '28MB',
-    version: '2.9.8'
-  },
-  {
-    id: 'stremio',
-    name: 'Stremio',
-    description: 'Organize and watch video content from torrents',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/stremio.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/stremio.apk',
-    packageName: 'com.stremio.one',
-    size: '55MB',
-    version: '1.6.11'
-  },
-  {
-    id: 'plex',
-    name: 'Plex',
-    description: 'Stream your media library anywhere',
-    category: 'streaming',
-    icon: 'http://104.168.157.178/apps/icons/plex.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/plex.apk',
-    packageName: 'com.plexapp.android',
-    size: '95MB',
-    version: '9.12.1'
-  },
-
-  // Support Apps (Utilities, VPNs, Tools)
-  {
-    id: 'speedtest',
-    name: 'Speedtest by Ookla',
-    description: 'Test your internet speed and performance',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/speedtest.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/speedtest.apk',
-    packageName: 'org.zwanoo.android.speedtest',
-    size: '35MB',
-    version: '5.2.5'
-  },
-  {
-    id: 'ipvanish',
-    name: 'IPVanish VPN',
-    description: 'Secure VPN for streaming and privacy',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/ipvanish.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/ipvanish.apk',
-    packageName: 'com.ipvanish.mobile',
-    size: '42MB',
-    version: '4.5.11'
-  },
-  {
-    id: 'nordvpn',
-    name: 'NordVPN',
-    description: 'Fast and secure VPN service',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/nordvpn.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/nordvpn.apk',
-    packageName: 'com.nordvpn.android',
-    size: '38MB',
-    version: '5.12.4'
-  },
-  {
-    id: 'teamviewer',
-    name: 'TeamViewer',
-    description: 'Remote access and support tool',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/teamviewer.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/teamviewer.apk',
-    packageName: 'com.teamviewer.teamviewer.market.mobile',
-    size: '65MB',
-    version: '15.49.5'
-  },
-  {
-    id: 'esfileexplorer',
-    name: 'ES File Explorer',
-    description: 'File manager and network browser',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/esfileexplorer.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/esfileexplorer.apk',
-    packageName: 'com.estrongs.android.pop',
-    size: '22MB',
-    version: '4.2.9.9'
-  },
-  {
-    id: 'downloader',
-    name: 'Downloader',
-    description: 'Easy APK and file downloader for Android TV',
-    category: 'support',
-    icon: 'http://104.168.157.178/apps/icons/downloader.png',
-    downloadUrl: 'http://104.168.157.178/apps/apks/downloader.apk',
-    packageName: 'com.esaba.downloader',
-    size: '8MB',
-    version: '1.8.0'
-  }
-];
-
 const InstallApps = ({ onBack }: InstallAppsProps) => {
   const [downloadingApps, setDownloadingApps] = useState<Set<string>>(new Set());
   const [downloadedApps, setDownloadedApps] = useState<Set<string>>(new Set());
   const [installedApps, setInstalledApps] = useState<Set<string>>(new Set());
   const [currentDownload, setCurrentDownload] = useState<App | null>(null);
   const { toast } = useToast();
+  const { apps, loading, error } = useAppData();
 
   const handleDownload = async (app: App) => {
     setCurrentDownload(app);
@@ -350,6 +173,31 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   const getCategoryApps = (category: string) => {
     return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen p-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading apps...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen p-8 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">Error loading apps: {error}</p>
+          <Button onClick={onBack} variant="outline" className="bg-blue-600 border-blue-500 text-white hover:bg-blue-700">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
