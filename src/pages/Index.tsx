@@ -135,7 +135,7 @@ const Index = () => {
   const buttons = [
     {
       icon: Package,
-      title: 'Main Apps',
+      title: 'App Downloads',
       description: 'Download APKs & Streaming Tools',
       color: 'from-blue-600 to-blue-800'
     },
