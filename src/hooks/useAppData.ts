@@ -30,9 +30,23 @@ export const useAppData = () => {
         }
         
         const data = await response.json();
+        console.log('Raw JSON response:', data);
+        
+        // Handle different response formats
+        let appsArray = [];
+        if (Array.isArray(data)) {
+          appsArray = data;
+        } else if (data && typeof data === 'object' && data.apps && Array.isArray(data.apps)) {
+          appsArray = data.apps;
+        } else if (data && typeof data === 'object') {
+          // If it's an object with app data, convert to array
+          appsArray = Object.values(data);
+        } else {
+          throw new Error('Invalid JSON format - expected array or object with apps');
+        }
         
         // Transform the data to match our App interface
-        const transformedApps = data.map((app: any) => ({
+        const transformedApps = appsArray.map((app: any) => ({
           ...app,
           downloadUrl: app.apk || app.downloadUrl,
           packageName: app.packageName || `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`,
@@ -40,6 +54,7 @@ export const useAppData = () => {
           featured: app.featured || false
         }));
         
+        console.log('Transformed apps:', transformedApps);
         setApps(transformedApps);
         setError(null);
       } catch (err) {
