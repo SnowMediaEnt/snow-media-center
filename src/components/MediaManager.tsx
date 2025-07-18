@@ -56,42 +56,12 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
     return () => window.removeEventListener('resize', updateScreenInfo);
   }, []);
 
-  // Calculate optimal OpenAI image size and cost based on screen ratio
+  // Use highest resolution available for best quality that can be stretched
   const getOptimalImageConfig = () => {
-    const { width, height, ratio } = screenInfo;
-    
-    // For high resolution screens (4K, etc), use larger landscape format
-    if (width >= 3840 || height >= 2160) {
-      return {
-        size: '1792x1024',
-        credits: 12,
-        description: 'High resolution (1792x1024) for 4K+ screens'
-      };
-    }
-    
-    // For ultrawide or 16:9 screens, use landscape format
-    if (ratio === '21:9' || ratio === '16:9' || ratio === '16:10') {
-      return {
-        size: '1792x1024',
-        credits: 12,
-        description: 'Landscape format (1792x1024) for widescreen'
-      };
-    }
-    
-    // For 4:3 or square-ish screens, use square format
-    if (ratio === '4:3') {
-      return {
-        size: '1024x1024',
-        credits: 6,
-        description: 'Square format (1024x1024) for 4:3 screens'
-      };
-    }
-    
-    // Default to landscape for most modern screens
     return {
       size: '1792x1024',
       credits: 12,
-      description: 'Landscape format (1792x1024) - optimal for most screens'
+      description: 'High resolution (1792x1024) - highest quality available'
     };
   };
 
