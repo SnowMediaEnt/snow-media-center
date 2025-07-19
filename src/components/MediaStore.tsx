@@ -222,50 +222,53 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     <div className="min-h-screen text-white p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-center w-full justify-between">
             <Button 
               onClick={onBack}
               variant="gold" 
               size="lg"
-              className="mr-6"
+              className=""
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-white mb-2">Snow Media Store</h1>
-              <p className="text-xl text-blue-200">Official Wix Store Integration</p>
+            <div className="invisible">
+              <Button variant="gold" size="lg">Placeholder</Button>
             </div>
           </div>
-          
-          {/* Top Right Controls */}
-          <div className="flex items-center space-x-4">
-            {user ? (
-              <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/50 rounded-lg px-3 py-2">
-                <User className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 text-sm">Signed In</span>
-              </div>
-            ) : (
-              <Button
-                onClick={() => navigate('/auth')}
-                variant="outline"
-                size="sm"
-                className="bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30"
-              >
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign In
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="lg"
-              className="bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30"
-            >
-              <ShoppingCart className="w-5 h-5 mr-2" />
-              Cart ({cartItems.length})
-            </Button>
+          <div className="text-center mt-4">
+            <h1 className="text-4xl font-bold text-white mb-2">Snow Media Store</h1>
+            <p className="text-xl text-blue-200">Official Wix Store Integration</p>
           </div>
+        </div>
+          
+        {/* Top Right Controls */}
+        <div className="flex items-center space-x-4 mb-8">
+          {user ? (
+            <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/50 rounded-lg px-3 py-2">
+              <User className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 text-sm">Signed In</span>
+            </div>
+          ) : (
+            <Button
+              onClick={() => navigate('/auth')}
+              variant="outline"
+              size="sm"
+              className="bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30"
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              Sign In
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="lg"
+            className="bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30"
+          >
+            <ShoppingCart className="w-5 h-5 mr-2" />
+            Cart ({cartItems.length})
+          </Button>
         </div>
 
         {/* Category Filter */}

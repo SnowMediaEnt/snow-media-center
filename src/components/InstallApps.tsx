@@ -217,10 +217,10 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         const isInstalled = installedApps.has(app.id);
         
         return (
-          <Card key={app.id} className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 overflow-hidden hover:scale-105 transition-all duration-300">
+          <Card key={app.id} className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 overflow-hidden hover:scale-105 transition-all duration-300">
             <div className="p-6">
               <div className="flex items-start gap-4 mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
                   <img 
                     src={app.icon} 
                     alt={`${app.name} icon`}
@@ -247,8 +247,8 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
                       <Badge className="bg-green-600 text-white">Featured</Badge>
                     )}
                   </div>
-                  <p className="text-slate-300 text-sm mb-2">{app.description}</p>
-                  <div className="flex gap-2 text-xs text-slate-400">
+                  <p className="text-slate-400 text-sm mb-2">{app.description}</p>
+                  <div className="flex gap-2 text-xs text-slate-500">
                     <span>v{app.version}</span>
                     <span>•</span>
                     <span>{app.size}</span>
@@ -262,7 +262,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
                   <Button 
                     onClick={() => handleDownload(app)}
                     disabled={isDownloading || isDownloaded || isInstalled}
-                    className={`flex-1 ${isDownloading || isDownloaded || isInstalled ? 'bg-gray-600 text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                    className={`flex-1 ${isDownloading || isDownloaded || isInstalled ? 'bg-gray-600 text-gray-400' : 'bg-brand-ice hover:bg-brand-ice/80 text-white'}`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     {isDownloading ? 'Downloading...' : isDownloaded ? 'Downloaded' : 'Download'}
@@ -337,17 +337,22 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center mb-8">
-          <Button 
-            onClick={onBack}
-            variant="gold" 
-            size="lg"
-            className="mr-6"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
-          <div className="text-center">
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-center w-full justify-between">
+            <Button 
+              onClick={onBack}
+              variant="gold" 
+              size="lg"
+              className=""
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Back to Home
+            </Button>
+            <div className="invisible">
+              <Button variant="gold" size="lg">Placeholder</Button>
+            </div>
+          </div>
+          <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">Main Apps</h1>
             <p className="text-xl text-blue-200">Download, Install & Launch APKs</p>
           </div>

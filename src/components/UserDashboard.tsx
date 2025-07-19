@@ -63,30 +63,30 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-center w-full justify-between">
             <Button 
               onClick={() => onViewChange('home')}
               variant="gold" 
               size="lg"
-              className="mr-6"
+              className=""
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-white mb-2">Your Dashboard</h1>
-              <p className="text-xl text-blue-200">Welcome back, {profile?.full_name || user?.email}</p>
-            </div>
+            <Button 
+              onClick={handleSignOut}
+              variant="outline" 
+              className="bg-red-600 border-red-500 text-white hover:bg-red-700"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
-          <Button 
-            onClick={handleSignOut}
-            variant="outline" 
-            className="bg-red-600 border-red-500 text-white hover:bg-red-700"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="text-center mt-4">
+            <h1 className="text-4xl font-bold text-white mb-2">Your Dashboard</h1>
+            <p className="text-xl text-blue-200">Welcome back, {profile?.full_name || user?.email}</p>
+          </div>
         </div>
 
         {/* Stats Cards */}
