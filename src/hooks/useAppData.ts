@@ -23,20 +23,16 @@ export const useAppData = () => {
     try {
       console.log('Fetching apps from endpoint...');
       
-      // Try multiple endpoints and proxies
+      // Try multiple endpoints - prioritize the PHP file that exists
       const endpoints = [
-        // Try direct access first (might work in some environments)
-        'http://104.168.157.178/apps/apps.json',
-        'http://104.168.157.178/apps/apps.json.php',
-        // Try different CORS proxies
-        `https://api.allorigins.win/get?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json')}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json')}`,
+        // Try PHP file first since that's what exists
         `https://api.allorigins.win/get?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json')}`,
         `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://thingproxy.freeboard.io/fetch/http://104.168.157.178/apps/apps.json`,
-        `https://thingproxy.freeboard.io/fetch/http://104.168.157.178/apps/apps.json.php`
+        `https://thingproxy.freeboard.io/fetch/http://104.168.157.178/apps/apps.json.php`,
+        // Try raw versions
+        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
+        // Try direct access as fallback
+        'http://104.168.157.178/apps/apps.json.php'
       ];
       
       let response = null;
@@ -87,10 +83,24 @@ export const useAppData = () => {
         throw new Error('Server returned HTML instead of JSON - API may be down');
       }
       
+      // Handle allorigins.win wrapped response
+      let actualJsonData = responseText;
+      try {
+        const wrappedResponse = JSON.parse(responseText);
+        // If it's an allorigins response, extract the contents
+        if (wrappedResponse.contents) {
+          actualJsonData = wrappedResponse.contents;
+          console.log('Extracted contents from wrapped response');
+        }
+      } catch (e) {
+        // If parsing fails, use original response text
+        console.log('Not a wrapped response, using original text');
+      }
+      
       // Check if the response is valid JSON
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(actualJsonData);
         console.log('Parsed JSON response:', data);
       } catch (parseError) {
         console.error('JSON parse error:', parseError);
