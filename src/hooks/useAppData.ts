@@ -69,8 +69,19 @@ export const useAppData = () => {
         throw new Error(lastError?.message || `All proxies failed`);
       }
       
-      const data = await response.json();
-      console.log('Raw JSON response:', data);
+      // Get the response text first to validate it
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+      
+      // Check if the response is valid JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Parsed JSON response:', data);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}...`);
+      }
       
       // Handle different response formats
       let appsArray = [];
