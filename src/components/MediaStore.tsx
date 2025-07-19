@@ -102,7 +102,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             onClick={() => setSelectedProduct(null)}
             variant="outline" 
             size="lg"
-            className="mb-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+            className="mb-6 bg-brand-gold text-white hover:bg-brand-gold/80"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Products
@@ -226,14 +226,14 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           <div className="flex items-center">
             <Button 
               onClick={onBack}
-              variant="outline" 
+              variant="gold" 
               size="lg"
-              className="mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+              className="mr-6"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
-            <div>
+            <div className="text-center">
               <h1 className="text-4xl font-bold text-white mb-2">Snow Media Store</h1>
               <p className="text-xl text-blue-200">Official Wix Store Integration</p>
             </div>
@@ -283,7 +283,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   variant={isSelected ? "default" : "outline"}
                   className={`${
                     isSelected 
-                      ? 'bg-blue-600 border-blue-500 text-white' 
+                      ? 'bg-brand-gold border-brand-gold text-white' 
                       : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
                   }`}
                 >

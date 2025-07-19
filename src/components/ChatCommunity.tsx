@@ -193,14 +193,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         <div className="flex items-center mb-8">
           <Button 
             onClick={onBack}
-            variant="outline" 
+            variant="gold" 
             size="lg"
-            className="mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+            className="mr-6"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
           </Button>
-          <div>
+          <div className="text-center">
             <h1 className="text-4xl font-bold text-white mb-2">Chat & Community</h1>
             <p className="text-xl text-blue-200">Connect with admin and community</p>
           </div>
@@ -213,8 +213,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             variant={activeTab === 'admin' ? 'default' : 'outline'}
             className={`text-lg px-6 py-3 ${
               activeTab === 'admin' 
-                ? 'bg-orange-600 hover:bg-orange-700' 
-                : 'bg-transparent border-orange-500 text-orange-400 hover:bg-orange-600'
+                ? 'bg-brand-gold hover:bg-brand-gold/80' 
+                : 'bg-transparent border-brand-gold text-brand-gold hover:bg-brand-gold'
             }`}
           >
             <User className="w-5 h-5 mr-2" />
@@ -280,7 +280,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
               <Button 
                 onClick={sendAdminMessage}
                 disabled={adminLoading || !adminMessage.trim() || !adminSubject.trim() || !user}
-                className="bg-orange-600 hover:bg-orange-700 text-white text-lg px-8 py-3"
+                className="bg-brand-gold hover:bg-brand-gold/80 text-white text-lg px-8 py-3"
               >
                 {adminLoading ? (
                   <>

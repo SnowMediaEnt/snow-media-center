@@ -178,7 +178,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     return (
       <div className="min-h-screen p-8 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-ice mx-auto mb-4"></div>
           <p className="text-white text-lg">Loading apps...</p>
         </div>
       </div>
@@ -190,7 +190,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
       <div className="min-h-screen p-8 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Error loading apps: {error}</p>
-          <Button onClick={onBack} variant="outline" className="bg-blue-600 border-blue-500 text-white hover:bg-blue-700">
+          <Button onClick={onBack} variant="gold" className="">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
@@ -340,28 +340,28 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         <div className="flex items-center mb-8">
           <Button 
             onClick={onBack}
-            variant="outline" 
+            variant="gold" 
             size="lg"
-            className="mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+            className="mr-6"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
           </Button>
-          <div>
+          <div className="text-center">
             <h1 className="text-4xl font-bold text-white mb-2">Main Apps</h1>
             <p className="text-xl text-blue-200">Download, Install & Launch APKs</p>
           </div>
         </div>
 
         <Tabs defaultValue="featured" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800">
-            <TabsTrigger value="featured" className="text-white data-[state=active]:bg-blue-600">
+          <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
+            <TabsTrigger value="featured" className="text-white data-[state=active]:bg-brand-gold text-center">
               Featured ({getCategoryApps('featured').length})
             </TabsTrigger>
-            <TabsTrigger value="streaming" className="text-white data-[state=active]:bg-blue-600">
+            <TabsTrigger value="streaming" className="text-white data-[state=active]:bg-brand-gold text-center">
               Streaming ({getCategoryApps('streaming').length})
             </TabsTrigger>
-            <TabsTrigger value="support" className="text-white data-[state=active]:bg-blue-600">
+            <TabsTrigger value="support" className="text-white data-[state=active]:bg-brand-gold text-center">
               Support ({getCategoryApps('support').length})
             </TabsTrigger>
           </TabsList>
