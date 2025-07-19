@@ -25,7 +25,9 @@ const App = () => {
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             backgroundAttachment: 'fixed'
-          } : {}}
+          } : {
+            background: 'linear-gradient(135deg, hsl(220 60% 25%), hsl(220 70% 35%))'
+          }}
         >
           <div className="min-h-screen bg-black/20">
             <Toaster />

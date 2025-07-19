@@ -6,89 +6,108 @@
 
 @layer base {
   :root {
+    /* Snow Media Brand Colors */
+    --brand-ice: 189 37% 80%; /* #a1d5dc - Light blue/teal from logo */
+    --brand-charcoal: 0 0% 20%; /* #333333 - Dark gray/black */
+    --brand-gold: 39 31% 60%; /* #c3aa72 - Brown/tan */
+    --brand-silver: 0 0% 65%; /* #a6a6a6 - Medium gray */
+    --brand-navy: 214 91% 15%; /* #092145 - Dark navy */
+    --brand-purple: 296 89% 20%; /* #600468 - Purple */
+    
+    /* Default blue background when no image selected */
+    --default-bg: 220 60% 25%; /* Nice blue gradient base */
+    --default-bg-secondary: 220 70% 35%;
+    
+    /* Design System Colors using brand palette */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: var(--brand-charcoal);
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: var(--brand-charcoal);
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: var(--brand-charcoal);
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: var(--brand-ice);
+    --primary-foreground: var(--brand-charcoal);
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 189 25% 95%;
+    --secondary-foreground: var(--brand-charcoal);
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 189 20% 96%;
+    --muted-foreground: var(--brand-silver);
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: var(--brand-gold);
+    --accent-foreground: var(--brand-charcoal);
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 189 25% 90%;
+    --input: 189 25% 90%;
+    --ring: var(--brand-ice);
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
+    /* Enhanced gradients and effects */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--brand-ice)), hsl(var(--brand-navy)));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-gold)), hsl(var(--brand-charcoal)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--brand-purple)), hsl(var(--brand-ice)));
+    --gradient-default-bg: linear-gradient(135deg, hsl(var(--default-bg)), hsl(var(--default-bg-secondary)));
+    
+    /* Elegant shadows with brand colors */
+    --shadow-brand: 0 10px 30px -10px hsl(var(--brand-ice) / 0.3);
+    --shadow-deep: 0 20px 40px -15px hsl(var(--brand-navy) / 0.4);
+    --shadow-glow: 0 0 40px hsl(var(--brand-ice) / 0.6);
+
+    /* Sidebar colors */
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
+    --sidebar-foreground: var(--brand-charcoal);
+    --sidebar-primary: var(--brand-navy);
     --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 189 20% 96%;
+    --sidebar-accent-foreground: var(--brand-charcoal);
+    --sidebar-border: 189 25% 90%;
+    --sidebar-ring: var(--brand-ice);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: var(--brand-charcoal);
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: var(--brand-charcoal);
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: var(--brand-charcoal);
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: var(--brand-ice);
+    --primary-foreground: var(--brand-charcoal);
 
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: var(--brand-navy);
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: var(--brand-navy);
+    --muted-foreground: var(--brand-silver);
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: var(--brand-gold);
+    --accent-foreground: var(--brand-charcoal);
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
+    --border: var(--brand-navy);
+    --input: var(--brand-navy);
+    --ring: var(--brand-ice);
+    
+    --sidebar-background: var(--brand-charcoal);
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-primary: var(--brand-ice);
+    --sidebar-primary-foreground: var(--brand-charcoal);
+    --sidebar-accent: var(--brand-navy);
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-border: var(--brand-navy);
+    --sidebar-ring: var(--brand-ice);
   }
 }
 
@@ -98,6 +117,62 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-nunito;
+  }
+}
+
+@layer components {
+  /* Brand fonts */
+  .font-logo {
+    font-family: 'Quicksand', 'Nunito', sans-serif;
+    font-weight: 700;
+  }
+  
+  .font-nunito {
+    font-family: 'Nunito', sans-serif;
+  }
+  
+  /* Enhanced card styles */
+  .card-polished {
+    @apply shadow-lg hover:shadow-xl transition-all duration-300;
+    box-shadow: var(--shadow-brand);
+  }
+  
+  .card-polished:hover {
+    box-shadow: var(--shadow-deep);
+    transform: translateY(-2px);
+  }
+  
+  /* Glass effect */
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Brand gradients */
+  .bg-brand-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .bg-brand-secondary {
+    background: var(--gradient-secondary);
+  }
+  
+  .bg-brand-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .bg-default-blue {
+    background: var(--gradient-default-bg);
+  }
+  
+  /* Enhanced text shadows */
+  .text-shadow-soft {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  
+  .text-shadow-strong {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
   }
 }

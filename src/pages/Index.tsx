@@ -204,7 +204,7 @@ const Index = () => {
             onClick={() => setActiveView('user')}
             variant="outline"
             size="sm"
-            className="bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30"
+            className="glass-effect border-brand-ice/50 text-white hover:bg-brand-ice/20 font-quicksand font-semibold shadow-lg"
           >
             <User className="w-4 h-4 mr-2" />
             Dashboard
@@ -214,7 +214,7 @@ const Index = () => {
             onClick={() => navigate('/auth')}
             variant="outline"
             size="sm"
-            className="bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30"
+            className="glass-effect border-brand-gold/50 text-white hover:bg-brand-gold/20 font-quicksand font-semibold shadow-lg"
           >
             <LogIn className="w-4 h-4 mr-2" />
             Sign In
@@ -224,7 +224,7 @@ const Index = () => {
           onClick={() => setActiveView('settings')}
           variant="outline"
           size="sm"
-          className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+          className="glass-effect border-white/30 text-white hover:bg-white/20 font-quicksand font-semibold shadow-lg"
         >
           <SettingsIcon className="w-4 h-4 mr-2" />
           Settings
@@ -234,26 +234,26 @@ const Index = () => {
       {/* Header */}
       <div className="relative z-10 pt-16 pb-4">
         <div className="text-center">
-          <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-6xl font-logo font-bold bg-gradient-to-r from-brand-ice to-brand-gold bg-clip-text text-transparent mb-2 text-shadow-strong">
             SNOW MEDIA CENTER
           </h1>
           {layoutMode === 'grid' && (
-            <p className="text-xl text-blue-200">Your Premium Streaming Experience</p>
+            <p className="text-xl text-brand-ice/90 font-nunito font-medium text-shadow-soft">Your Premium Streaming Experience</p>
           )}
         </div>
       </div>
 
       {/* Date/Time Display */}
       <div className="absolute top-4 left-4 z-20 text-white">
-        <div className="bg-black/30 backdrop-blur-sm rounded-lg px-4 py-2">
-          <div className="text-lg font-bold">
+        <div className="glass-effect rounded-xl px-4 py-3 border border-brand-ice/30 shadow-lg">
+          <div className="text-lg font-bold font-quicksand text-shadow-soft">
             {currentDateTime.toLocaleDateString('en-US', { 
               weekday: 'short', 
               month: 'short', 
               day: 'numeric' 
             })}
           </div>
-          <div className="text-sm opacity-90">
+          <div className="text-sm opacity-90 font-nunito text-shadow-soft">
             {currentDateTime.toLocaleTimeString('en-US', { 
               hour: '2-digit', 
               minute: '2-digit',
@@ -277,35 +277,39 @@ const Index = () => {
               <Card
                 key={index}
                 className={`
-                  relative overflow-hidden cursor-pointer transition-all duration-300 transform
+                  relative overflow-hidden cursor-pointer transition-all duration-500 transform
                   ${isFocused 
-                    ? 'scale-105 ring-4 ring-white/40 shadow-2xl shadow-black/30' 
-                    : 'hover:scale-[1.02] shadow-xl'
+                    ? 'scale-110 ring-4 ring-brand-ice/60 shadow-2xl animate-glow' 
+                    : 'hover:scale-105 shadow-xl hover:shadow-2xl'
                   }
-                  bg-gradient-to-br ${button.color} border-0 rounded-2xl
+                  bg-gradient-to-br ${button.color} border-0 rounded-3xl
                   ${layoutMode === 'grid' ? 'h-52 aspect-[4/3]' : 'h-32 w-48'}
+                  card-polished
                 `}
                 onClick={() => handleButtonClick(index)}
               >
-                <div className="absolute inset-0 bg-black/10 rounded-2xl" />
+                {/* Enhanced glass overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
+                
                 <div className="relative z-10 p-6 h-full flex flex-col items-center justify-center text-center">
                   <Icon 
                     size={layoutMode === 'grid' ? 64 : 48} 
-                    className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} transition-all duration-300 text-white drop-shadow-lg`} 
+                    className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} transition-all duration-500 text-white drop-shadow-xl filter ${isFocused ? 'animate-pulse' : ''}`} 
                   />
-                  <h3 className={`${layoutMode === 'grid' ? 'text-xl' : 'text-lg'} font-bold mb-2 text-white leading-tight drop-shadow-md`}>
+                  <h3 className={`${layoutMode === 'grid' ? 'text-xl' : 'text-lg'} font-bold mb-2 text-white leading-tight text-shadow-strong font-quicksand`}>
                     {button.title}
                   </h3>
                   {layoutMode === 'grid' && (
-                    <p className="text-sm text-white/90 leading-tight drop-shadow-sm">
+                    <p className="text-sm text-white/95 leading-tight text-shadow-soft font-nunito">
                       {button.description}
                     </p>
                   )}
                 </div>
                 
-                {/* Focus indicator */}
+                {/* Enhanced focus indicator with glow */}
                 {isFocused && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 rounded-2xl animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl animate-pulse" />
                 )}
               </Card>
             );
