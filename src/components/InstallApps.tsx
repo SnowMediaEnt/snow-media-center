@@ -8,6 +8,8 @@ import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings, HardDrive
 import { useToast } from '@/hooks/use-toast';
 import { useAppData } from '@/hooks/useAppData';
 import DownloadProgress from './DownloadProgress';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -38,17 +40,53 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     setCurrentDownload(app);
     setDownloadingApps(prev => new Set(prev.add(app.id)));
     
-    // Start actual download
-    const link = document.createElement('a');
-    link.href = app.downloadUrl;
-    link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Show progress modal - the DownloadProgress component will handle the simulation
-    // while the actual file downloads in background
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Use Capacitor filesystem for native platforms
+        const fileName = `${app.name.replace(/\s+/g, '_')}.apk`;
+        
+        // Fetch the file
+        const response = await fetch(app.downloadUrl);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        // Save to device
+        await Filesystem.writeFile({
+          path: `Downloads/${fileName}`,
+          data: base64,
+          directory: Directory.External
+        });
+        
+        toast({
+          title: "Download Complete",
+          description: `${app.name} saved to Downloads folder`,
+        });
+      } else {
+        // Fallback for web - direct download
+        const link = document.createElement('a');
+        link.href = app.downloadUrl;
+        link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+      // Show progress modal
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: `Failed to download ${app.name}`,
+        variant: "destructive",
+      });
+      setDownloadingApps(prev => {
+        const updated = new Set(prev);
+        updated.delete(app.id);
+        return updated;
+      });
+      setCurrentDownload(null);
+    }
   };
 
   const handleDownloadComplete = () => {
@@ -68,21 +106,37 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleInstall = (app: App) => {
-    // Android APK installation intent
-    const installIntent = `intent://install?package=${app.packageName}#Intent;scheme=package;action=android.intent.action.INSTALL_PACKAGE;end`;
-    
+  const handleInstall = async (app: App) => {
     try {
-      window.location.href = installIntent;
-      setInstalledApps(prev => new Set(prev.add(app.id)));
-      toast({
-        title: "Installation Started",
-        description: `Opening ${app.name} installer...`,
-      });
+      if (Capacitor.isNativePlatform()) {
+        // For native Android, trigger APK installation
+        const fileName = `${app.name.replace(/\s+/g, '_')}.apk`;
+        
+        // Open file manager to the Downloads folder so user can install manually
+        const installIntent = `intent:#Intent;action=android.intent.action.VIEW;data=file:///storage/emulated/0/Download/${fileName};type=application/vnd.android.package-archive;flags=0x10000000;end`;
+        
+        if (window.open) {
+          window.open(installIntent, '_system');
+        } else {
+          window.location.href = installIntent;
+        }
+        
+        setInstalledApps(prev => new Set(prev.add(app.id)));
+        toast({
+          title: "Opening Installer",
+          description: `Please complete installation for ${app.name}`,
+        });
+      } else {
+        toast({
+          title: "Installation Not Available",
+          description: "APK installation only works on Android devices",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Installation Failed",
-        description: "Please manually install the downloaded APK file.",
+        description: "Please manually install the downloaded APK file from Downloads folder.",
         variant: "destructive",
       });
     }
