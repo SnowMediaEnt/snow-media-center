@@ -25,14 +25,14 @@ export const useAppData = () => {
       
       // Try multiple endpoints - prioritize the PHP file that exists
       const endpoints = [
-        // Try PHP file first since that's what exists
-        `https://api.allorigins.win/get?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://thingproxy.freeboard.io/fetch/http://104.168.157.178/apps/apps.json.php`,
+        // Try direct access first with domain
+        'http://snowmediaapps.com/apps/apps.json.php',
+        // Try PHP file with CORS proxies as fallback
+        `https://api.allorigins.win/get?url=${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`,
+        `https://corsproxy.io/?${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`,
+        `https://thingproxy.freeboard.io/fetch/http://snowmediaapps.com/apps/apps.json.php`,
         // Try raw versions
-        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        // Try direct access as fallback
-        'http://104.168.157.178/apps/apps.json.php'
+        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`
       ];
       
       let response = null;
