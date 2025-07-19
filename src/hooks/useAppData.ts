@@ -23,18 +23,22 @@ export const useAppData = () => {
     try {
       console.log('Fetching apps from endpoint...');
       
-      // Try multiple CORS proxies for better reliability
-      const corsProxies = [
+      // Try multiple endpoints and proxies
+      const endpoints = [
+        // Try direct JSON file first
+        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json')}`,
+        // Then try PHP file
         `https://api.allorigins.win/raw?url=${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`,
-        `https://cors-anywhere.herokuapp.com/http://104.168.157.178/apps/apps.json.php`
+        // Try different proxy
+        `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json')}`,
+        `https://corsproxy.io/?${encodeURIComponent('http://104.168.157.178/apps/apps.json.php')}`
       ];
       
       let response = null;
       let lastError = null;
       
       // Try each proxy until one works
-      for (const proxyUrl of corsProxies) {
+      for (const proxyUrl of endpoints) {
         try {
           console.log(`Trying proxy: ${proxyUrl}`);
           
