@@ -325,10 +325,6 @@ const Index = () => {
       {/* News Ticker */}
       <NewsTicker />
 
-      {/* Auto-update checker */}
-      <div className="absolute bottom-4 left-4 z-20">
-        <AppUpdater autoCheck={true} />
-      </div>
 
       {/* Main Content */}
       <div className={`relative z-10 px-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
