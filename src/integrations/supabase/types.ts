@@ -376,6 +376,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_profile_owner: {
+        Args: { profile_user_id: string }
+        Returns: boolean
+      }
       update_user_credits: {
         Args: {
           p_amount: number
