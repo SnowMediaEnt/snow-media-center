@@ -341,7 +341,7 @@ const Index = () => {
                 key={index}
                 className={`
                   relative overflow-hidden cursor-pointer border-0 rounded-3xl
-                  ${layoutMode === 'grid' ? 'h-52 aspect-[4/3]' : 'h-32 w-48'}
+                  ${layoutMode === 'grid' ? 'h-56 aspect-[4/3]' : 'h-32 w-48'}
                   ${isFocused 
                     ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                     : 'shadow-xl'

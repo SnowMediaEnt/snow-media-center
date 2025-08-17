@@ -51,23 +51,50 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         return;
       }
 
-      // Create a proper download URL with protocol
-      const downloadUrl = app.download_url?.startsWith('http') 
-        ? app.download_url 
-        : `http://${app.download_url}`;
+      // Validate and fix download URL
+      let downloadUrl = app.download_url;
+      
+      if (!downloadUrl) {
+        throw new Error("No download URL available");
+      }
+      
+      // Ensure URL has proper protocol
+      if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+        downloadUrl = `https://${downloadUrl}`;
+      }
+      
+      console.log(`Attempting to download from: ${downloadUrl}`);
 
       if (Capacitor.isNativePlatform()) {
         // Use Capacitor filesystem for native platforms
         const fileName = `${app.name.replace(/\s+/g, '_')}.apk`;
         
-        // Fetch the file
-        const response = await fetch(downloadUrl);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Fetch the file with CORS proxy for better compatibility
+        let response;
+        try {
+          // Try direct download first
+          response = await fetch(downloadUrl);
+          if (!response.ok) {
+            throw new Error(`Direct download failed: ${response.status}`);
+          }
+        } catch (directError) {
+          console.log('Direct download failed, trying CORS proxy:', directError);
+          // Fallback to CORS proxy
+          const corsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(downloadUrl)}`;
+          response = await fetch(corsProxy);
+          if (!response.ok) {
+            throw new Error(`CORS proxy download failed: ${response.status}`);
+          }
         }
         
         const blob = await response.blob();
+        
+        if (blob.size === 0) {
+          throw new Error("Downloaded file is empty");
+        }
+        
+        console.log(`Downloaded blob size: ${blob.size} bytes`);
+        
         const arrayBuffer = await blob.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
         
@@ -80,29 +107,49 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         
         toast({
           title: "Download Complete",
-          description: `${app.name} saved to Downloads folder`,
+          description: `${app.name} (${(blob.size / 1024 / 1024).toFixed(1)}MB) saved to Downloads`,
         });
       } else {
-        // Fallback for web - direct download
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast({
-          title: "Download Started",
-          description: `${app.name} download initiated`,
-        });
+        // Fallback for web - try direct download with CORS proxy if needed
+        try {
+          // Try direct download first
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast({
+            title: "Download Started",
+            description: `${app.name} download initiated`,
+          });
+        } catch (webError) {
+          console.log('Web download failed, trying CORS proxy:', webError);
+          // Fallback to CORS proxy for web
+          const corsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(downloadUrl)}`;
+          const link = document.createElement('a');
+          link.href = corsProxy;
+          link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast({
+            title: "Download Started",
+            description: `${app.name} download initiated via proxy`,
+          });
+        }
       }
       
       // Show progress modal
     } catch (error) {
+      console.error('Download error:', error);
       toast({
         title: "Download Failed",
-        description: `Failed to download ${app.name}`,
+        description: `Failed to download ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
       setDownloadingApps(prev => {
