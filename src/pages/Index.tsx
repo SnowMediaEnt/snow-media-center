@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn } from 'lucide-react';
+import { Package, Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Download, Smartphone } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 import InstallApps from '@/components/InstallApps';
 import MediaStore from '@/components/MediaStore';
@@ -180,7 +180,7 @@ const Index = () => {
 
   const buttons = [
     {
-      icon: Package,
+      icon: Smartphone,
       title: 'Main Apps',
       description: 'Download APKs & Streaming Tools',
       variant: 'blue' as const
