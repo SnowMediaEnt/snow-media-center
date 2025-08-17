@@ -22,28 +22,13 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
-  const [currentVersion, setCurrentVersion] = useState<string>(''); // Will be fetched dynamically
+  const [currentVersion, setCurrentVersion] = useState('1.0.0'); // Fixed starting version
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const { toast } = useToast();
-
-  // Get current version from your JSON file on first load
-  const getCurrentVersion = async () => {
-    try {
-      // Fetch current version from your JSON (you can update this file)
-      const response = await fetch('/version.json');
-      if (response.ok) {
-        const versionData = await response.json();
-        return versionData.currentVersion || '1.0.0';
-      }
-    } catch (error) {
-      console.log('Could not fetch current version, using default');
-    }
-    return '1.0.0'; // fallback
-  };
 
   const checkForUpdates = async () => {
     if (isChecking) return;
@@ -125,7 +110,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       }
       
       // Compare versions
-      if (data.version !== currentVersion && currentVersion && isVersionNewer(data.version, currentVersion)) {
+      if (data.version !== currentVersion && isVersionNewer(data.version, currentVersion)) {
         setUpdateInfo(data);
         setUpdateAvailable(true);
         
@@ -207,6 +192,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           description: `Version ${updateInfo.version} saved to Downloads. Tap to install.`,
         });
         
+        // Update current version after successful download
+        setCurrentVersion(updateInfo.version);
+        setUpdateAvailable(false);
+        setUpdateInfo(null);
+        
         // Try to open the APK for installation
         const installIntent = `intent:#Intent;action=android.intent.action.VIEW;data=file:///storage/emulated/0/Download/${fileName};type=application/vnd.android.package-archive;flags=0x10000000;end`;
         
@@ -232,6 +222,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           title: "Download Started",
           description: `Version ${updateInfo.version} download initiated`,
         });
+        
+        // Update current version after successful download
+        setCurrentVersion(updateInfo.version);
+        setUpdateAvailable(false);
+        setUpdateInfo(null);
       }
       
     } catch (error) {
@@ -247,26 +242,19 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     }
   };
 
-  // Load current version and auto-check for updates
+  // Auto-check for updates on component mount and every few minutes
   useEffect(() => {
-    const initializeVersion = async () => {
-      const version = await getCurrentVersion();
-      setCurrentVersion(version);
+    if (autoCheck) {
+      checkForUpdates();
       
-      if (autoCheck) {
+      // Set up interval to check every 3 minutes (180000ms)
+      const interval = setInterval(() => {
         checkForUpdates();
-        
-        // Set up interval to check every minute
-        const interval = setInterval(() => {
-          checkForUpdates();
-        }, 60000);
-        
-        // Cleanup interval on unmount
-        return () => clearInterval(interval);
-      }
-    };
-    
-    initializeVersion();
+      }, 180000);
+      
+      // Cleanup interval on unmount
+      return () => clearInterval(interval);
+    }
   }, [autoCheck]);
 
   if (!updateAvailable && autoCheck) {
@@ -305,8 +293,12 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-blue-200">New Version:</span>
-                <span className="text-white font-semibold">{updateInfo.version}</span>
+                <span className="text-blue-200">Current Version:</span>
+                <span className="text-white font-semibold">{currentVersion}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-blue-200">Available Version:</span>
+                <span className="text-green-400 font-semibold">{updateInfo.version}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-blue-200">Release Date:</span>
