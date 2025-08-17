@@ -336,6 +336,13 @@ const Index = () => {
             const Icon = button.icon;
             const isFocused = focusedButton === index;
             
+            // Debug logging for icon positioning
+            console.log(`Button ${index} (${button.title}):`, {
+              icon: Icon.name,
+              focused: isFocused,
+              layoutMode
+            });
+            
             return (
               <Card
                 key={index}
