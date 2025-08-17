@@ -325,9 +325,8 @@ const Index = () => {
       {/* News Ticker */}
       <NewsTicker />
 
-
       {/* Main Content */}
-      <div className={`relative z-10 px-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
+      <div className={`relative z-10 px-8 mt-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
         <div className={layoutMode === 'grid' ? 'grid grid-cols-2 justify-items-center w-full max-w-none px-16 gap-y-20' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
             const Icon = button.icon;
