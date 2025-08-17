@@ -28,8 +28,16 @@ const NewsTicker = () => {
         items.forEach((item) => {
           const title = item.querySelector('title')?.textContent;
           const description = item.querySelector('description')?.textContent;
+          const pubDate = item.querySelector('pubDate')?.textContent;
           
-          if (title && description) {
+          if (title && description && pubDate) {
+            const formattedDate = new Date(pubDate).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            });
+            newsArray.push(`${title} - ${description} • ${formattedDate}`);
+          } else if (title && description) {
             newsArray.push(`${title} - ${description}`);
           } else if (title) {
             newsArray.push(title);
@@ -69,7 +77,7 @@ const NewsTicker = () => {
     if (!isLoading && newsItems.length > 0) {
       const interval = setInterval(() => {
         setCurrentIndex((prev) => (prev + 1) % newsItems.length);
-      }, 15000); // Match the scroll animation duration
+      }, 22500); // Match the scroll animation duration (50% slower)
 
       return () => clearInterval(interval);
     }
