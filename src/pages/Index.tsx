@@ -12,8 +12,8 @@ import SupportVideos from '@/components/SupportVideos';
 import ChatCommunity from '@/components/ChatCommunity';
 import Settings from '@/components/Settings';
 import UserDashboard from '@/components/UserDashboard';
-import AppUpdater from '@/components/AppUpdater';
 import { useAuth } from '@/hooks/useAuth';
+import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
@@ -25,6 +25,7 @@ const Index = () => {
     return (saved as 'grid' | 'row') || 'grid';
   });
   const { user } = useAuth();
+  const { version } = useVersion();
   const navigate = useNavigate();
 
   // Update date/time every second
@@ -318,6 +319,9 @@ const Index = () => {
               minute: '2-digit',
               second: '2-digit'
             })}
+          </div>
+          <div className="text-xs font-nunito text-shadow-soft mt-1" style={{ color: '#FFD700' }}>
+            v{version}
           </div>
         </div>
       </div>
