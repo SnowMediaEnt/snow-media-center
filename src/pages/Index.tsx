@@ -359,12 +359,10 @@ const Index = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                 
                 <div className="relative z-10 p-6 h-full flex flex-col items-center justify-center text-center">
-                   <div className="flex-shrink-0 flex items-center justify-center">
-                     <Icon 
-                       size={layoutMode === 'grid' ? 64 : 48} 
-                       className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} text-white drop-shadow-xl filter`} 
-                     />
-                   </div>
+                   <Icon 
+                     size={layoutMode === 'grid' ? 64 : 48} 
+                     className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} text-white drop-shadow-xl filter flex-shrink-0`} 
+                   />
                   <h3 className={`${layoutMode === 'grid' ? 'text-xl' : 'text-lg'} font-bold mb-2 text-white leading-tight text-shadow-strong font-quicksand`}>
                     {button.title}
                   </h3>
