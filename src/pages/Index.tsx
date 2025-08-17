@@ -333,7 +333,7 @@ const Index = () => {
       <div className={`relative z-10 px-8 mt-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
         <div className={layoutMode === 'grid' ? 'grid grid-cols-2 justify-items-center w-full max-w-none px-16 gap-y-20' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
           {buttons.map((button, index) => {
-            const IconComponent = button.icon;
+            const ButtonIcon = button.icon;
             const isFocused = focusedButton === index;
             
             return (
@@ -354,14 +354,13 @@ const Index = () => {
                 `}
                 onClick={() => handleButtonClick(index)}
               >
-                {/* Enhanced glass overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                 
                 <div className="relative z-10 p-6 h-full flex flex-col items-center justify-center text-center">
-                  <IconComponent 
+                  <ButtonIcon 
                     size={layoutMode === 'grid' ? 64 : 48} 
-                    className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} text-white drop-shadow-xl`} 
+                    className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} text-white drop-shadow-xl flex-shrink-0`} 
                   />
                   <h3 className={`${layoutMode === 'grid' ? 'text-xl' : 'text-lg'} font-bold mb-2 text-white leading-tight text-shadow-strong font-quicksand`}>
                     {button.title}
@@ -373,7 +372,6 @@ const Index = () => {
                   )}
                 </div>
                 
-                {/* Focus indicator */}
                 {isFocused && (
                   <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl" />
                 )}
