@@ -56,13 +56,13 @@
     --gradient-accent: linear-gradient(135deg, hsl(var(--brand-purple)), hsl(var(--brand-ice)));
     --gradient-snowy: linear-gradient(135deg, hsl(var(--snow-white)), hsl(var(--snow-blue)));
     
-    /* Metallic gradients from background image */
-    --gradient-gold: linear-gradient(135deg, #ffd700, #b8860b);
-    --gradient-blue: linear-gradient(135deg, #87ceeb, #4682b4);
-    --gradient-silver: linear-gradient(135deg, #e5e5e5, #a9a9a9);
-    --gradient-purple: linear-gradient(135deg, #9370db, #663399);
-    --gradient-navy: linear-gradient(135deg, #092145, #0a2a5a);
-    --gradient-white: linear-gradient(135deg, #ffffff, #f8f9fa);
+    /* Metallic gradients using HSL values */
+    --gradient-gold: linear-gradient(135deg, hsl(51 100% 50%), hsl(43 77% 38%));
+    --gradient-blue: linear-gradient(135deg, hsl(194 53% 79%), hsl(207 44% 49%));
+    --gradient-silver: linear-gradient(135deg, hsl(0 0% 90%), hsl(0 0% 66%));
+    --gradient-purple: linear-gradient(135deg, hsl(248 53% 58%), hsl(267 50% 40%));
+    --gradient-navy: linear-gradient(135deg, hsl(214 91% 15%), hsl(214 91% 20%));
+    --gradient-white: linear-gradient(135deg, hsl(0 0% 100%), hsl(210 17% 98%));
     
     /* Elegant shadows with brand colors */
     --shadow-brand: 0 10px 30px -10px hsl(var(--brand-ice) / 0.3);
