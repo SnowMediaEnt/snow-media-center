@@ -203,18 +203,16 @@ const Index = () => {
   console.log('Current view:', currentView);
   
   return (
-    <div className="min-h-screen">{/* Navigation-based components */}
+    <div className="min-h-screen">
       {/* Navigation-based components */}
-      <div className="min-h-screen">
-        {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
-        {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
-        {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
-        {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
-        {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
-        {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
-        {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
-        {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} />}
-      </div>
+      {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
+      {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
+      {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
+      {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
+      {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
+      {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
+      {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
+      {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} />}
 
       {/* Home screen content */}
       {currentView === 'home' && (
