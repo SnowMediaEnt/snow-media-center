@@ -199,8 +199,11 @@ const Index = () => {
     }
   ];
 
+  // Debug: Log current view
+  console.log('Current view:', currentView);
+  
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen">{/* Navigation-based components */}
       {/* Navigation-based components */}
       <div className="min-h-screen">
         {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
