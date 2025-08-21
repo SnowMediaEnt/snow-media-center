@@ -33,18 +33,27 @@ export const useNavigation = (initialView: string = 'home') => {
           if (now - lastBackPressTime < 1000) {
             // Double press detected within 1 second
             try {
-              if (window.navigator && 'app' in window.navigator) {
-                // For mobile apps
-                (window.navigator as any).app.exitApp();
+              // For Capacitor/Cordova apps
+              if ((window as any).Capacitor) {
+                (window as any).Capacitor.Plugins.App.exitApp();
+              } else if ((window as any).device && (window as any).device.exitApp) {
+                (window as any).device.exitApp();
+              } else if ((window as any).navigator && (window as any).navigator.app) {
+                (window as any).navigator.app.exitApp();
               } else if ((window as any).Android && (window as any).Android.exitApp) {
-                // For Android WebView
                 (window as any).Android.exitApp();
               } else {
-                // For web/desktop
+                // For web/desktop - try to close window
                 window.close();
               }
             } catch (error) {
               console.log('Exit app failed:', error);
+              // Fallback: try to go to about:blank or show exit message
+              try {
+                window.location.href = 'about:blank';
+              } catch (e) {
+                alert('Press home button to exit');
+              }
             }
             return prev;
           } else {

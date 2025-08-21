@@ -20,7 +20,18 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   // Android TV/Firestick navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      event.preventDefault();
+      // Handle Android back button and other back buttons
+      if (event.key === 'Escape' || event.key === 'Backspace' || 
+          event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        onBack();
+        return;
+      }
+      
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+      }
       
       switch (event.key) {
         case 'ArrowLeft':
@@ -79,11 +90,6 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           } else if (focusedElement === 4 && activeTab === 'layout') {
             onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid');
           }
-          break;
-          
-        case 'Escape':
-        case 'Backspace':
-          onBack();
           break;
       }
     };

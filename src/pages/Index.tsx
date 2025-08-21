@@ -22,7 +22,7 @@ const Index = () => {
   const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
   const [layoutMode, setLayoutMode] = useState<'grid' | 'row'>(() => {
     const saved = localStorage.getItem('snow-media-layout');
-    return (saved as 'grid' | 'row') || 'grid';
+    return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
   const { user } = useAuth();
   const { version } = useVersion();
@@ -323,7 +323,7 @@ const Index = () => {
 
           {/* Main Content */}
           <div className={`relative z-10 px-8 mt-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
-            <div className={layoutMode === 'grid' ? 'grid grid-cols-2 justify-items-center w-full max-w-none px-16 gap-y-20' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
+            <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 justify-items-center w-full max-w-4xl mx-auto px-8' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
               {buttons.map((button, index) => {
                 const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
@@ -333,7 +333,7 @@ const Index = () => {
                     key={index}
                     className={`
                       relative overflow-hidden cursor-pointer border-0 rounded-3xl
-                      ${layoutMode === 'grid' ? 'h-56 aspect-[4/3]' : 'h-32 w-48'}
+                      ${layoutMode === 'grid' ? 'h-44 w-full max-w-xs' : 'h-32 w-48'}
                       ${isFocused 
                         ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                         : 'shadow-xl'

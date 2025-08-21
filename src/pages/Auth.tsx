@@ -37,18 +37,92 @@ const Auth = () => {
     }
   }, [user, navigate]);
 
-  // Prevent back button from closing app
+  // TV remote navigation with focus handling
+  const [focusedElement, setFocusedElement] = useState<'back' | 'tab-login' | 'tab-signup' | 'tab-qr' | 'email' | 'password' | 'submit' | 'name' | 'confirm' | 'forgot'>('back');
+  const [activeTab, setActiveTab] = useState('login');
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' || event.key === 'Backspace') {
+      // Handle Android back button and other back buttons
+      if (event.key === 'Escape' || event.key === 'Backspace' || 
+          event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
+        event.stopPropagation();
         navigate('/');
+        return;
+      }
+      
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+      }
+      
+      switch (event.key) {
+        case 'ArrowLeft':
+          if (focusedElement === 'tab-signup') setFocusedElement('tab-login');
+          else if (focusedElement === 'tab-qr') setFocusedElement('tab-signup');
+          break;
+          
+        case 'ArrowRight':
+          if (focusedElement === 'tab-login') setFocusedElement('tab-signup');
+          else if (focusedElement === 'tab-signup') setFocusedElement('tab-qr');
+          break;
+          
+        case 'ArrowUp':
+          if (focusedElement === 'email') setFocusedElement('tab-login');
+          else if (focusedElement === 'password') setFocusedElement('email');
+          else if (focusedElement === 'submit') setFocusedElement('password');
+          else if (focusedElement === 'forgot') setFocusedElement('submit');
+          else if (focusedElement === 'name') setFocusedElement('tab-signup');
+          else if (focusedElement === 'confirm') setFocusedElement('name');
+          break;
+          
+        case 'ArrowDown':
+          if (focusedElement === 'back') setFocusedElement('tab-login');
+          else if (focusedElement === 'tab-login' || focusedElement === 'tab-signup' || focusedElement === 'tab-qr') {
+            if (activeTab === 'login') setFocusedElement('email');
+            else if (activeTab === 'signup') setFocusedElement('name');
+          } else if (focusedElement === 'email') setFocusedElement('password');
+          else if (focusedElement === 'password') setFocusedElement('submit');
+          else if (focusedElement === 'submit') setFocusedElement('forgot');
+          else if (focusedElement === 'name') setFocusedElement('email');
+          break;
+          
+        case 'Enter':
+        case ' ':
+          if (focusedElement === 'back') navigate('/');
+          else if (focusedElement === 'tab-login') setActiveTab('login');
+          else if (focusedElement === 'tab-signup') setActiveTab('signup');
+          else if (focusedElement === 'tab-qr') setActiveTab('qr');
+          else if (focusedElement === 'email') {
+            const emailInput = document.getElementById(activeTab === 'login' ? 'login-email' : 'signup-email') as HTMLInputElement;
+            if (emailInput) emailInput.focus();
+          } else if (focusedElement === 'password') {
+            const passwordInput = document.getElementById(activeTab === 'login' ? 'login-password' : 'signup-password') as HTMLInputElement;
+            if (passwordInput) passwordInput.focus();
+          } else if (focusedElement === 'name') {
+            const nameInput = document.getElementById('signup-name') as HTMLInputElement;
+            if (nameInput) nameInput.focus();
+          } else if (focusedElement === 'confirm') {
+            const confirmInput = document.getElementById('signup-confirm') as HTMLInputElement;
+            if (confirmInput) confirmInput.focus();
+          } else if (focusedElement === 'submit') {
+            if (activeTab === 'login') {
+              const form = document.querySelector('form') as HTMLFormElement;
+              if (form) form.requestSubmit();
+            } else if (activeTab === 'signup') {
+              const signupForm = document.querySelectorAll('form')[1] as HTMLFormElement;
+              if (signupForm) signupForm.requestSubmit();
+            }
+          } else if (focusedElement === 'forgot') {
+            handleForgotPassword();
+          }
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigate]);
+  }, [navigate, focusedElement, activeTab]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +263,9 @@ const Auth = () => {
             onClick={() => navigate('/')}
             variant="outline" 
             size="lg"
-            className="mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+            className={`mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700 transition-all duration-200 ${
+              focusedElement === 'back' ? 'ring-4 ring-white/60 scale-105' : ''
+            }`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
@@ -206,15 +282,33 @@ const Auth = () => {
         <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm">
           <Tabs defaultValue="login" className="w-full p-6">
             <TabsList className="grid w-full grid-cols-3 bg-blue-800/50 border-blue-600">
-              <TabsTrigger value="login" className="data-[state=active]:bg-blue-600">
+              <TabsTrigger 
+                value="login" 
+                className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
+                  focusedElement === 'tab-login' ? 'ring-4 ring-white/60 scale-105' : ''
+                }`}
+                onClick={() => setActiveTab('login')}
+              >
                 <User className="w-4 h-4 mr-2" />
                 Sign In
               </TabsTrigger>
-              <TabsTrigger value="signup" className="data-[state=active]:bg-blue-600">
+              <TabsTrigger 
+                value="signup" 
+                className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
+                  focusedElement === 'tab-signup' ? 'ring-4 ring-white/60 scale-105' : ''
+                }`}
+                onClick={() => setActiveTab('signup')}
+              >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Sign Up
               </TabsTrigger>
-              <TabsTrigger value="qr" className="data-[state=active]:bg-blue-600">
+              <TabsTrigger 
+                value="qr" 
+                className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
+                  focusedElement === 'tab-qr' ? 'ring-4 ring-white/60 scale-105' : ''
+                }`}
+                onClick={() => setActiveTab('qr')}
+              >
                 <QrCode className="w-4 h-4 mr-2" />
                 QR Login
               </TabsTrigger>
@@ -232,7 +326,9 @@ const Auth = () => {
                       value={loginForm.email}
                       onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
                       placeholder="Enter your email"
-                      className="pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600"
+                      className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
+                        focusedElement === 'email' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      }`}
                       required
                     />
                   </div>
@@ -248,7 +344,9 @@ const Auth = () => {
                       value={loginForm.password}
                       onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
                       placeholder="Enter your password"
-                      className="pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600"
+                      className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
+                        focusedElement === 'password' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      }`}
                       required
                     />
                     <button
@@ -264,7 +362,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  className={`w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${
+                    focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
+                  }`}
                 >
                   {loading ? 'Signing In...' : 'Sign In'}
                 </Button>
@@ -273,7 +373,9 @@ const Auth = () => {
                   type="button"
                   onClick={handleForgotPassword}
                   disabled={resetLoading}
-                  className="w-full text-sm text-blue-300 hover:text-blue-200 mt-2 underline"
+                  className={`w-full text-sm text-blue-300 hover:text-blue-200 mt-2 underline transition-all duration-200 ${
+                    focusedElement === 'forgot' ? 'ring-4 ring-blue-400/60 scale-105 bg-blue-600/20 rounded p-2' : ''
+                  }`}
                 >
                   {resetLoading ? 'Sending...' : 'Forgot Password?'}
                 </button>

@@ -22,7 +22,8 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
-  const [currentVersion, setCurrentVersion] = useState('1.0.0'); // Fixed starting version
+  const [currentVersion, setCurrentVersion] = useState('1.0.2'); // Fixed starting version to match home screen
+  const [focusedElement, setFocusedElement] = useState(0); // 0: check button, 1: download button
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -242,6 +243,36 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     }
   };
 
+  // TV remote navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+      }
+      
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          if (focusedElement === 1 && updateAvailable) setFocusedElement(0);
+          break;
+          
+        case 'ArrowRight':
+        case 'ArrowDown':
+          if (focusedElement === 0 && updateAvailable) setFocusedElement(1);
+          break;
+          
+        case 'Enter':
+        case ' ':
+          if (focusedElement === 0) checkForUpdates();
+          else if (focusedElement === 1 && updateAvailable) downloadUpdate();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedElement, updateAvailable]);
+
   // Auto-check for updates on component mount and every few minutes
   useEffect(() => {
     if (autoCheck) {
@@ -319,7 +350,9 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             onClick={checkForUpdates}
             disabled={isChecking}
             variant="outline"
-            className="flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20"
+            className={`flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
+              focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
+            }`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
             {isChecking ? 'Checking...' : 'Check for Updates'}
@@ -329,7 +362,9 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             <Button
               onClick={downloadUpdate}
               disabled={isDownloading}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              className={`flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
+                focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
+              }`}
             >
               <Download className="w-4 h-4 mr-2" />
               {isDownloading ? `Downloading... ${downloadProgress}%` : 'Download Update'}

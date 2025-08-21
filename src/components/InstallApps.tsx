@@ -42,9 +42,9 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   // TV Remote Navigation with improved app selection
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Android back button
+      // Handle Android back button and other back buttons
       if (event.key === 'Escape' || event.key === 'Backspace' || 
-          event.keyCode === 4 || event.which === 4) {
+          event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
         onBack();
@@ -77,8 +77,8 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
           if (focusedElement.startsWith('app-')) {
             const currentCategoryApps = getCategoryApps(activeTab);
             const currentIndex = currentCategoryApps.findIndex(app => focusedElement === `app-${app.id}`);
-            if (currentIndex >= 2) {
-              setFocusedElement(`app-${currentCategoryApps[currentIndex - 2].id}`);
+            if (currentIndex > 0) {
+              setFocusedElement(`app-${currentCategoryApps[currentIndex - 1].id}`);
             } else {
               setFocusedElement('tab-0');
             }
@@ -95,8 +95,8 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
           } else if (focusedElement.startsWith('app-')) {
             const currentCategoryApps = getCategoryApps(activeTab);
             const currentIndex = currentCategoryApps.findIndex(app => focusedElement === `app-${app.id}`);
-            if (currentIndex + 2 < currentCategoryApps.length) {
-              setFocusedElement(`app-${currentCategoryApps[currentIndex + 2].id}`);
+            if (currentIndex + 1 < currentCategoryApps.length) {
+              setFocusedElement(`app-${currentCategoryApps[currentIndex + 1].id}`);
             }
           }
           break;
@@ -433,7 +433,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   // Removed handleDownloadComplete - using real Android install process
 
   const renderAppGrid = (categoryApps: App[]) => (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 gap-4 max-h-[50vh] overflow-y-auto">
       {categoryApps.map((app) => {
         const isDownloading = downloadingApps.has(app.id);
         const isDownloaded = downloadedApps.has(app.id);
