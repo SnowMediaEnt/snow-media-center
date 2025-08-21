@@ -36,6 +36,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   const [currentDownload, setCurrentDownload] = useState<App | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'tab-3' | string>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
+  const [selectedApp, setSelectedApp] = useState<App | null>(null);
   const { toast } = useToast();
   const { apps, loading, error } = useApps();
 

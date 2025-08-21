@@ -186,4 +186,77 @@
   .text-shadow-strong {
     text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
   }
+
+  /* TV-Safe Layouts with overscan protection */
+  .tv-safe {
+    padding: 5vh 5vw;
+    box-sizing: border-box;
+    margin: 0 auto;
+  }
+
+  .tv-safe-grid {
+    padding: 3vh 3vw;
+    box-sizing: border-box;
+  }
+
+  /* TV Focus States */
+  .tv-focusable {
+    outline: none;
+    transition: all 0.2s ease-in-out;
+    border-radius: 8px;
+  }
+
+  .tv-focusable:focus {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px hsl(var(--brand-ice) / 0.8), 0 0 20px hsl(var(--brand-ice) / 0.4);
+    z-index: 10;
+    position: relative;
+  }
+
+  .tv-focus-ring {
+    outline: none;
+    transition: all 0.15s ease-in-out;
+  }
+
+  .tv-focus-ring:focus {
+    outline: 3px solid hsl(var(--brand-ice));
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px hsl(var(--brand-ice) / 0.3);
+  }
+
+  /* Resolution-specific adjustments */
+  @media (max-height: 1080px) {
+    .grid-responsive {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+    
+    .tv-safe {
+      padding: 4vh 4vw;
+    }
+  }
+
+  @media (min-height: 2160px) {
+    .grid-responsive {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+    }
+    
+    .tv-safe {
+      padding: 6vh 6vw;
+    }
+  }
+
+  /* Button focus states for D-pad navigation */
+  button:focus-visible {
+    outline: 3px solid hsl(var(--brand-ice));
+    outline-offset: 2px;
+    transform: scale(1.02);
+  }
+
+  .focus-highlight:focus {
+    background: hsl(var(--brand-ice) / 0.2);
+    border: 2px solid hsl(var(--brand-ice));
+    transform: scale(1.03);
+  }
 }

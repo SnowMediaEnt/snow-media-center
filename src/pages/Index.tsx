@@ -24,19 +24,37 @@ const Index = () => {
     const saved = localStorage.getItem('snow-media-layout');
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
+  const [screenHeight, setScreenHeight] = useState(window.innerHeight);
   const { user } = useAuth();
   const { version } = useVersion();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
 
-  // Update date/time every second
+  // Update date/time every second and detect screen resolution
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDateTime(new Date());
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
+    // Detect screen resolution for TV optimization
+    const handleResize = () => {
+      setScreenHeight(window.innerHeight);
+      // Force row layout for 1080p to prevent cutoff
+      if (window.innerHeight <= 1080 && layoutMode === 'grid') {
+        setLayoutMode('row');
+        localStorage.setItem('snow-media-layout', 'row');
+      }
+    };
+
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [layoutMode]);
 
   // Show exit toast on home screen
   useEffect(() => {
@@ -227,7 +245,7 @@ const Index = () => {
 
       {/* Home screen content */}
       {currentView === 'home' && (
-        <div className={`min-h-screen text-white overflow-hidden relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`} style={{ height: '100vh', maxHeight: '100vh' }}>
+        <div className={`min-h-screen text-white overflow-hidden relative tv-safe ${layoutMode === 'row' ? 'flex flex-col' : ''}`} style={{ height: '100vh', maxHeight: '100vh' }}>
           {/* Subtle snowy background pattern - only visible when no global background is active */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
           <div className="absolute inset-0 opacity-30">
@@ -242,7 +260,8 @@ const Index = () => {
                 onClick={() => navigateTo('user')}
                 variant="white"
                 size="sm"
-                className={`transition-all duration-200 ${
+                tabIndex={0}
+                className={`tv-focusable transition-all duration-200 ${
                   focusedButton === -2 
                     ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                     : ''
@@ -256,7 +275,8 @@ const Index = () => {
                 onClick={() => navigate('/auth')}
                 variant="gold"
                 size="sm"
-                className={`transition-all duration-200 ${
+                tabIndex={0}
+                className={`tv-focusable transition-all duration-200 ${
                   focusedButton === -2 
                     ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                     : ''
@@ -270,7 +290,8 @@ const Index = () => {
               onClick={() => navigateTo('settings')}
               variant="gold"
               size="sm"
-              className={`transition-all duration-200 ${
+              tabIndex={0}
+              className={`tv-focusable transition-all duration-200 ${
                 focusedButton === -1 
                   ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                   : ''
@@ -322,8 +343,8 @@ const Index = () => {
           <NewsTicker />
 
           {/* Main Content */}
-          <div className={`relative z-10 px-8 mt-8 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-16 flex-1'}`}>
-            <div className={layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 justify-items-center w-full max-w-4xl mx-auto px-8' : 'flex gap-6 justify-center max-w-5xl mx-auto'}>
+          <div className={`relative z-10 tv-safe-grid mt-4 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-8 flex-1'}`}>
+            <div className={`grid-responsive ${layoutMode === 'grid' ? 'grid grid-cols-2 gap-6 justify-items-center w-full max-w-4xl mx-auto' : 'flex gap-4 justify-center max-w-6xl mx-auto'}`}>
               {buttons.map((button, index) => {
                 const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
@@ -331,9 +352,17 @@ const Index = () => {
                 return (
                   <Card
                     key={index}
+                    tabIndex={0}
                     className={`
-                      relative overflow-hidden cursor-pointer border-0 rounded-3xl
-                      ${layoutMode === 'grid' ? 'h-44 w-full max-w-xs' : 'h-32 w-48'}
+                      relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable
+                      ${layoutMode === 'grid' 
+                        ? screenHeight <= 1080 
+                          ? 'h-36 w-full max-w-sm' 
+                          : 'h-44 w-full max-w-xs'
+                        : screenHeight <= 1080
+                          ? 'h-28 w-44'
+                          : 'h-32 w-48'
+                      }
                       ${isFocused 
                         ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                         : 'shadow-xl'
@@ -350,19 +379,35 @@ const Index = () => {
                       else if (index === 2) navigateTo('support');
                       else if (index === 3) navigateTo('chat');
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (index === 0) navigateTo('apps');
+                        else if (index === 1) navigateTo('store');
+                        else if (index === 2) navigateTo('support');
+                        else if (index === 3) navigateTo('chat');
+                      }
+                    }}
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                     
-                    <div className="relative z-10 p-6 h-full flex flex-col items-center justify-center text-center">
+                    <div className="relative z-10 p-4 h-full flex flex-col items-center justify-center text-center">
                       <ButtonIcon 
-                        size={layoutMode === 'grid' ? 64 : 48} 
-                        className={`${layoutMode === 'grid' ? 'mb-4' : 'mb-2'} text-white drop-shadow-xl flex-shrink-0`} 
+                        size={layoutMode === 'grid' 
+                          ? screenHeight <= 1080 ? 48 : 64
+                          : screenHeight <= 1080 ? 36 : 48
+                        } 
+                        className={`${layoutMode === 'grid' ? 'mb-3' : 'mb-2'} text-white drop-shadow-xl flex-shrink-0`} 
                       />
-                      <h3 className={`${layoutMode === 'grid' ? 'text-xl' : 'text-lg'} font-bold mb-2 text-white leading-tight text-shadow-strong font-quicksand`}>
+                      <h3 className={`${
+                        layoutMode === 'grid' 
+                          ? screenHeight <= 1080 ? 'text-lg' : 'text-xl'
+                          : screenHeight <= 1080 ? 'text-base' : 'text-lg'
+                      } font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand`}>
                         {button.title}
                       </h3>
-                      {layoutMode === 'grid' && (
+                      {layoutMode === 'grid' && screenHeight > 1080 && (
                         <p className="text-sm text-white/95 leading-tight text-shadow-soft font-nunito">
                           {button.description}
                         </p>

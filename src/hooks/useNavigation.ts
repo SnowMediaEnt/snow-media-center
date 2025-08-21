@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { App as CapApp } from '@capacitor/app';
 
 interface NavigationState {
   currentView: string;
@@ -87,12 +88,52 @@ export const useNavigation = (initialView: string = 'home') => {
     setLastBackPressTime(0);
   }, [initialView]);
 
+  // Capacitor back button handling for Android TV
+  useEffect(() => {
+    let backButtonHandler: any;
+    
+    const setupBackHandler = async () => {
+      try {
+        backButtonHandler = await CapApp.addListener('backButton', ({ canGoBack }) => {
+          console.log('Capacitor back button pressed, current view:', navigationState.currentView, 'canGoBack:', canGoBack);
+          
+          // Handle back navigation based on current view
+          if (navigationState.currentView !== 'home') {
+            // If we're not on home, go back one step
+            goBack();
+          } else {
+            // We're on home - implement double-press to exit
+            const now = Date.now();
+            if (now - lastBackPressTime < 2000 && backPressCount === 1) {
+              // Double press detected within 2 seconds - exit app
+              CapApp.exitApp();
+            } else {
+              // First press - set counter and timer
+              setLastBackPressTime(now);
+              setBackPressCount(1);
+            }
+          }
+        });
+      } catch (error) {
+        console.log('Capacitor not available, using fallback back handling');
+      }
+    };
+
+    setupBackHandler();
+
+    return () => {
+      if (backButtonHandler?.remove) {
+        backButtonHandler.remove();
+      }
+    };
+  }, [navigationState.currentView, lastBackPressTime, backPressCount, goBack]);
+
   // Reset back press count after timeout
   useEffect(() => {
     if (backPressCount > 0) {
       const timeout = setTimeout(() => {
         setBackPressCount(0);
-      }, 1000);
+      }, 2000);
       return () => clearTimeout(timeout);
     }
   }, [backPressCount]);
