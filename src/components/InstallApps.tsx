@@ -434,15 +434,16 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   // Removed handleDownloadComplete - using real Android install process
 
   const renderAppGrid = (categoryApps: App[]) => (
-    <div className="grid grid-cols-1 gap-4 max-h-[50vh] overflow-y-auto">
-      {categoryApps.map((app) => {
-        const isDownloading = downloadingApps.has(app.id);
-        const isDownloaded = downloadedApps.has(app.id);
-        const isInstalled = installedApps.has(app.id) || app.is_installed;
-        const isFocused = focusedElement === `app-${app.id}` || focusedElement.startsWith(`download-${app.id}`) || focusedElement.startsWith(`install-${app.id}`) || focusedElement.startsWith(`launch-${app.id}`);
-        
-        return (
-          <Card key={app.id} className={`bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 overflow-hidden hover:scale-105 transition-all duration-300 ${isFocused ? 'ring-2 ring-brand-ice scale-105' : ''}`}>
+    <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm">
+      <div className="p-6 space-y-4">
+        {categoryApps.map((app) => {
+          const isDownloading = downloadingApps.has(app.id);
+          const isDownloaded = downloadedApps.has(app.id);
+          const isInstalled = installedApps.has(app.id) || app.is_installed;
+          const isFocused = focusedElement === `app-${app.id}` || focusedElement.startsWith(`download-${app.id}`) || focusedElement.startsWith(`install-${app.id}`) || focusedElement.startsWith(`launch-${app.id}`);
+          
+          return (
+            <Card key={app.id} className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden hover:scale-105 transition-all duration-300 ${isFocused ? 'ring-2 ring-brand-ice scale-105' : ''}`}>
             <div className="p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
@@ -554,6 +555,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
           </Card>
         );
       })}
+      </div>
     </div>
   );
 

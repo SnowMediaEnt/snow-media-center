@@ -344,7 +344,7 @@ const Index = () => {
 
           {/* Main Content */}
           <div className={`relative z-10 tv-safe-grid mt-4 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-8 flex-1'}`}>
-            <div className={`grid-responsive ${layoutMode === 'grid' ? 'grid grid-cols-2 gap-6 justify-items-center w-full max-w-4xl mx-auto' : 'flex gap-4 justify-center max-w-6xl mx-auto'}`}>
+            <div className={`grid-responsive ${layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 justify-items-center w-full max-w-5xl mx-auto' : 'flex gap-8 justify-center max-w-6xl mx-auto'}`}>
               {buttons.map((button, index) => {
                 const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
@@ -357,11 +357,11 @@ const Index = () => {
                       relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable
                       ${layoutMode === 'grid' 
                         ? screenHeight <= 1080 
-                          ? 'h-36 w-full max-w-sm' 
-                          : 'h-44 w-full max-w-xs'
+                          ? 'h-44 w-full max-w-md' 
+                          : 'h-52 w-full max-w-sm'
                         : screenHeight <= 1080
-                          ? 'h-28 w-44'
-                          : 'h-32 w-48'
+                          ? 'h-36 w-56'
+                          : 'h-40 w-64'
                       }
                       ${isFocused 
                         ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
