@@ -130,8 +130,8 @@ export const useAppData = () => {
         size: app.size || '25MB',
         description: app.description || 'No description available',
         icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
-        apk: app.apk || app.downloadUrl || '',
-        downloadUrl: app.apk || app.downloadUrl || '',
+        apk: app.url || app.apk || app.downloadUrl || '',
+        downloadUrl: app.url || app.apk || app.downloadUrl || '',
         packageName: app.packageName || `com.${(app.name || 'unknown').toLowerCase().replace(/\s+/g, '')}.app`,
         featured: app.featured || false,
         category: (app.category as 'streaming' | 'support') || 'streaming'
