@@ -138,6 +138,9 @@ export const useAppData = () => {
       }));
       
       console.log('Transformed apps:', transformedApps);
+      transformedApps.forEach(app => {
+        console.log(`App: ${app.name}, downloadUrl: ${app.downloadUrl}`);
+      });
       setApps(transformedApps);
       setError(null);
       setLoading(false);

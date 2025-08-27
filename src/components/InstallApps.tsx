@@ -136,7 +136,12 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     setDownloadingApps(prev => new Set(prev.add(app.id)));
     
     try {
+      console.log('Download attempt for app:', app.name);
+      console.log('App downloadUrl:', app.downloadUrl);
+      console.log('App object:', app);
+      
       if (!app.downloadUrl) {
+        console.error('No download URL for app:', app);
         toast({
           title: "Download Error",
           description: "No download URL available for this app",
