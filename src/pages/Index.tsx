@@ -249,50 +249,78 @@ const Index = () => {
           </div>
 
           {/* User/Auth Controls */}
-          <div className="absolute top-4 right-4 z-20 flex gap-2">
+          <div className={`absolute z-20 flex ${
+            screenHeight >= 2160 ? 'top-8 right-8 gap-4' :
+            screenHeight >= 1440 ? 'top-6 right-6 gap-3' :
+            'top-4 right-4 gap-2'
+          }`}>
             {user ? (
               <Button
                 onClick={() => navigateTo('user')}
                 variant="white"
-                size="sm"
+                size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 className={`tv-focusable transition-all duration-200 ${
+                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
+                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  ''
+                } ${
                   focusedButton === -2 
                     ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                     : ''
                 }`}
               >
-                <User className="w-4 h-4 mr-2 text-gray-800" />
+                <User className={`mr-2 text-gray-800 ${
+                  screenHeight >= 2160 ? 'w-6 h-6' :
+                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  'w-4 h-4'
+                }`} />
                 <span className="text-gray-800">Dashboard</span>
               </Button>
             ) : (
               <Button
                 onClick={() => navigate('/auth')}
                 variant="gold"
-                size="sm"
+                size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 className={`tv-focusable transition-all duration-200 ${
+                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
+                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  ''
+                } ${
                   focusedButton === -2 
                     ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                     : ''
                 }`}
               >
-                <LogIn className="w-4 h-4 mr-2" />
+                <LogIn className={`mr-2 ${
+                  screenHeight >= 2160 ? 'w-6 h-6' :
+                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  'w-4 h-4'
+                }`} />
                 Sign In
               </Button>
             )}
             <Button
               onClick={() => navigateTo('settings')}
               variant="gold"
-              size="sm"
+              size={screenHeight >= 1440 ? "default" : "sm"}
               tabIndex={0}
               className={`tv-focusable transition-all duration-200 ${
+                screenHeight >= 2160 ? 'text-xl px-6 py-3' :
+                screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                ''
+              } ${
                 focusedButton === -1 
                   ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                   : ''
               }`}
             >
-              <SettingsIcon className="w-4 h-4 mr-2" />
+              <SettingsIcon className={`mr-2 ${
+                screenHeight >= 2160 ? 'w-6 h-6' :
+                screenHeight >= 1440 ? 'w-5 h-5' :
+                'w-4 h-4'
+              }`} />
               Settings
             </Button>
           </div>
@@ -300,35 +328,71 @@ const Index = () => {
           {/* Header */}
           <div className="relative z-10 pt-16 pb-4">
             <div className="text-center">
-              <h1 className="text-6xl mb-2 text-shadow-strong">
+              <h1 className={`mb-2 text-shadow-strong ${
+                screenHeight >= 2160 ? 'text-10xl' : // 4K
+                screenHeight >= 1440 ? 'text-9xl' :  // 1440p
+                screenHeight >= 1080 ? 'text-8xl' :  // 1080p
+                'text-6xl'                           // smaller screens
+              }`}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
-                <span className="text-2xl"> </span>
+                <span className={`${
+                  screenHeight >= 2160 ? 'text-4xl' :
+                  screenHeight >= 1440 ? 'text-3xl' :
+                  screenHeight >= 1080 ? 'text-3xl' :
+                  'text-2xl'
+                }`}> </span>
                 <span className="font-center text-brand-charcoal">CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
-                <p className="text-xl text-brand-ice/90 font-nunito font-medium text-shadow-soft">Your Premium Streaming Experience</p>
+                <p className={`text-brand-ice/90 font-nunito font-medium text-shadow-soft ${
+                  screenHeight >= 2160 ? 'text-3xl' :
+                  screenHeight >= 1440 ? 'text-2xl' :
+                  screenHeight >= 1080 ? 'text-xl' :
+                  'text-lg'
+                }`}>Your Premium Streaming Experience</p>
               )}
             </div>
           </div>
 
           {/* Date/Time Display */}
-          <div className="absolute top-4 left-4 z-20 text-white">
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20 shadow-lg">
-              <div className="text-lg font-bold font-quicksand text-shadow-soft">
+          <div className={`absolute z-20 text-white ${
+            screenHeight >= 1440 ? 'top-6 left-6' : 'top-4 left-4'
+          }`}>
+            <div className={`bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 shadow-lg ${
+              screenHeight >= 2160 ? 'px-8 py-6' :
+              screenHeight >= 1440 ? 'px-6 py-4' :
+              'px-4 py-3'
+            }`}>
+              <div className={`font-bold font-quicksand text-shadow-soft ${
+                screenHeight >= 2160 ? 'text-3xl' :
+                screenHeight >= 1440 ? 'text-2xl' :
+                screenHeight >= 1080 ? 'text-xl' :
+                'text-lg'
+              }`}>
                 {currentDateTime.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   month: 'short', 
                   day: 'numeric' 
                 })}
               </div>
-              <div className="text-sm opacity-90 font-nunito text-shadow-soft">
+              <div className={`opacity-90 font-nunito text-shadow-soft ${
+                screenHeight >= 2160 ? 'text-xl' :
+                screenHeight >= 1440 ? 'text-lg' :
+                screenHeight >= 1080 ? 'text-base' :
+                'text-sm'
+              }`}>
                 {currentDateTime.toLocaleTimeString('en-US', { 
                   hour: '2-digit', 
                   minute: '2-digit',
                   second: '2-digit'
                 })}
               </div>
-              <div className="text-xs font-nunito text-shadow-soft mt-1" style={{ color: '#FFD700' }}>
+              <div className={`font-nunito text-shadow-soft mt-1 ${
+                screenHeight >= 2160 ? 'text-lg' :
+                screenHeight >= 1440 ? 'text-base' :
+                screenHeight >= 1080 ? 'text-sm' :
+                'text-xs'
+              }`} style={{ color: '#FFD700' }}>
                 v{version}
               </div>
             </div>
@@ -339,7 +403,20 @@ const Index = () => {
 
           {/* Main Content */}
           <div className={`relative z-10 tv-safe-grid mt-4 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-8 flex-1'}`}>
-            <div className={`grid-responsive ${layoutMode === 'grid' ? 'grid grid-cols-2 gap-8 justify-items-center w-full max-w-5xl mx-auto' : 'flex gap-8 justify-center max-w-6xl mx-auto'}`}>
+            <div className={`grid-responsive ${
+              layoutMode === 'grid' 
+                ? `grid grid-cols-2 justify-items-center w-full mx-auto ${
+                    screenHeight >= 2160 ? 'gap-16 max-w-8xl' :
+                    screenHeight >= 1440 ? 'gap-12 max-w-7xl' :
+                    screenHeight >= 1080 ? 'gap-10 max-w-6xl' :
+                    'gap-8 max-w-5xl'
+                  }` 
+                : `flex justify-center mx-auto ${
+                    screenHeight >= 2160 ? 'gap-12 max-w-8xl' :
+                    screenHeight >= 1440 ? 'gap-10 max-w-7xl' :
+                    'gap-8 max-w-6xl'
+                  }`
+            }`}>
               {buttons.map((button, index) => {
                 const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
@@ -351,12 +428,20 @@ const Index = () => {
                     className={`
                       relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable
                       ${layoutMode === 'grid' 
-                        ? screenHeight <= 1080 
-                          ? 'h-44 w-full max-w-md' 
-                          : 'h-52 w-full max-w-sm'
-                        : screenHeight <= 1080
-                          ? 'h-36 w-56'
-                          : 'h-40 w-64'
+                        ? screenHeight >= 2160 
+                          ? 'h-80 w-full max-w-lg' 
+                          : screenHeight >= 1440 
+                            ? 'h-72 w-full max-w-lg'
+                            : screenHeight >= 1080 
+                              ? 'h-60 w-full max-w-md'
+                              : 'h-52 w-full max-w-sm'
+                        : screenHeight >= 2160
+                          ? 'h-64 w-96'
+                          : screenHeight >= 1440
+                            ? 'h-56 w-80'
+                            : screenHeight >= 1080
+                              ? 'h-48 w-72'
+                              : 'h-40 w-64'
                       }
                       ${isFocused 
                         ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
@@ -387,23 +472,43 @@ const Index = () => {
                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                     
-                    <div className="relative z-10 p-4 h-full flex flex-col items-center justify-center text-center">
+                    <div className={`relative z-10 h-full flex flex-col items-center justify-center text-center ${
+                      screenHeight >= 2160 ? 'p-8' :
+                      screenHeight >= 1440 ? 'p-6' :
+                      'p-4'
+                    }`}>
                       <ButtonIcon 
                         size={layoutMode === 'grid' 
-                          ? screenHeight <= 1080 ? 48 : 64
-                          : screenHeight <= 1080 ? 36 : 48
+                          ? screenHeight >= 2160 ? 96 :
+                            screenHeight >= 1440 ? 80 :
+                            screenHeight >= 1080 ? 64 : 48
+                          : screenHeight >= 2160 ? 72 :
+                            screenHeight >= 1440 ? 64 :
+                            screenHeight >= 1080 ? 48 : 36
                         } 
-                        className={`${layoutMode === 'grid' ? 'mb-3' : 'mb-2'} text-white drop-shadow-xl flex-shrink-0`} 
+                        className={`text-white drop-shadow-xl flex-shrink-0 ${
+                          layoutMode === 'grid' 
+                            ? screenHeight >= 1440 ? 'mb-4' : 'mb-3'
+                            : screenHeight >= 1440 ? 'mb-3' : 'mb-2'
+                        }`} 
                       />
-                      <h3 className={`${
+                      <h3 className={`font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand ${
                         layoutMode === 'grid' 
-                          ? screenHeight <= 1080 ? 'text-lg' : 'text-xl'
-                          : screenHeight <= 1080 ? 'text-base' : 'text-lg'
-                      } font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand`}>
+                          ? screenHeight >= 2160 ? 'text-3xl' :
+                            screenHeight >= 1440 ? 'text-2xl' :
+                            screenHeight >= 1080 ? 'text-xl' : 'text-lg'
+                          : screenHeight >= 2160 ? 'text-2xl' :
+                            screenHeight >= 1440 ? 'text-xl' :
+                            screenHeight >= 1080 ? 'text-lg' : 'text-base'
+                      }`}>
                         {button.title}
                       </h3>
-                      {layoutMode === 'grid' && screenHeight > 1080 && (
-                        <p className="text-sm text-white/95 leading-tight text-shadow-soft font-nunito">
+                      {layoutMode === 'grid' && screenHeight >= 1080 && (
+                        <p className={`text-white/95 leading-tight text-shadow-soft font-nunito ${
+                          screenHeight >= 2160 ? 'text-xl' :
+                          screenHeight >= 1440 ? 'text-lg' :
+                          screenHeight >= 1080 ? 'text-base' : 'text-sm'
+                        }`}>
                           {button.description}
                         </p>
                       )}
