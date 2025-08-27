@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings, HardDrive, Database, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useApps } from '@/hooks/useApps';
+import { useAppData } from '@/hooks/useAppData';
 import DownloadProgress from './DownloadProgress';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
@@ -15,30 +15,30 @@ interface InstallAppsProps {
   onBack: () => void;
 }
 
-interface App {
+interface AppData {
   id: string;
   name: string;
-  description: string;
+  version: string;
   size: string;
-  category: string;
-  icon_url: string | null;
-  download_url: string | null;
-  is_installed: boolean;
-  is_featured: boolean;
-  created_at: string;
-  updated_at: string;
+  description: string;
+  icon: string;
+  apk: string;
+  downloadUrl: string;
+  packageName: string;
+  featured: boolean;
+  category: 'streaming' | 'support';
 }
 
 const InstallApps = ({ onBack }: InstallAppsProps) => {
   const [downloadingApps, setDownloadingApps] = useState<Set<string>>(new Set());
   const [downloadedApps, setDownloadedApps] = useState<Set<string>>(new Set());
   const [installedApps, setInstalledApps] = useState<Set<string>>(new Set());
-  const [currentDownload, setCurrentDownload] = useState<App | null>(null);
+  const [currentDownload, setCurrentDownload] = useState<AppData | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'tab-3' | string>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
-  const [selectedApp, setSelectedApp] = useState<App | null>(null);
+  const [selectedApp, setSelectedApp] = useState<AppData | null>(null);
   const { toast } = useToast();
-  const { apps, loading, error } = useApps();
+  const { apps, loading, error } = useAppData();
 
   // TV Remote Navigation with improved app selection
   useEffect(() => {
@@ -131,12 +131,12 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onBack, apps]);
 
-  const handleDownload = async (app: App) => {
+  const handleDownload = async (app: AppData) => {
     setCurrentDownload(app);
     setDownloadingApps(prev => new Set(prev.add(app.id)));
     
     try {
-      if (!app.download_url) {
+      if (!app.downloadUrl) {
         toast({
           title: "Download Error",
           description: "No download URL available for this app",
@@ -146,7 +146,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
       }
 
       // Validate and fix download URL
-      let downloadUrl = app.download_url;
+      let downloadUrl = app.downloadUrl;
       
       if (!downloadUrl) {
         throw new Error("No download URL available");
@@ -272,7 +272,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleInstall = async (app: App) => {
+  const handleInstall = async (app: AppData) => {
     try {
       if (Capacitor.isNativePlatform()) {
         // For native Android, trigger APK installation
@@ -308,7 +308,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleLaunch = (app: App) => {
+  const handleLaunch = (app: AppData) => {
     // Android app launch intent using package name derived from app name
     const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
     const launchIntent = `intent://${packageName}#Intent;scheme=package;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
@@ -328,7 +328,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleClearCache = (app: App) => {
+  const handleClearCache = (app: AppData) => {
     // Android clear cache intent using package name derived from app name
     const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
     const clearCacheIntent = `intent://${packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
@@ -348,7 +348,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleClearData = (app: App) => {
+  const handleClearData = (app: AppData) => {
     // Android clear data intent using package name derived from app name
     const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
     const clearDataIntent = `intent://${packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
@@ -368,7 +368,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleUninstall = (app: App) => {
+  const handleUninstall = (app: AppData) => {
     // Android uninstall intent using package name derived from app name
     const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
     const uninstallIntent = `intent://uninstall?package=${packageName}#Intent;scheme=package;action=android.intent.action.DELETE;end`;
@@ -395,7 +395,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   };
 
   const getCategoryApps = (category: string) => {
-    return apps.filter(app => category === 'featured' ? app.is_featured : app.category === category);
+    return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
   };
 
   if (loading) {
@@ -433,13 +433,13 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
   // Removed handleDownloadComplete - using real Android install process
 
-  const renderAppGrid = (categoryApps: App[]) => (
+  const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm">
       <div className="p-6 space-y-4">
         {categoryApps.map((app) => {
           const isDownloading = downloadingApps.has(app.id);
           const isDownloaded = downloadedApps.has(app.id);
-          const isInstalled = installedApps.has(app.id) || app.is_installed;
+          const isInstalled = installedApps.has(app.id);
           const isFocused = focusedElement === `app-${app.id}` || focusedElement.startsWith(`download-${app.id}`) || focusedElement.startsWith(`install-${app.id}`) || focusedElement.startsWith(`launch-${app.id}`);
           
           return (
@@ -448,7 +448,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
                   <img 
-                    src={app.icon_url || '/icons/default.png'} 
+                    src={app.icon || '/icons/default.png'} 
                     alt={`${app.name} icon`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -469,7 +469,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-xl font-bold text-white">{app.name}</h3>
-                    {app.is_featured && (
+                    {app.featured && (
                       <Badge className="bg-green-600 text-white">Featured</Badge>
                     )}
                   </div>
