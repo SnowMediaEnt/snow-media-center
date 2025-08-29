@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -135,15 +135,6 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onBack, apps]);
 
-  // Initialize app statuses when apps load
-  useEffect(() => {
-    if (apps.length > 0) {
-      apps.forEach(app => {
-        ensureStatus(app);
-      });
-    }
-  }, [apps]);
-
   // App status management functions
   const generateAppFileName = (app: AppData) => generateFileName(app.name, app.version);
   const generateAppPackageName = (app: AppData) => app.packageName || generatePackageName(app.name);
@@ -161,7 +152,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const ensureStatus = async (app: AppData): Promise<{ downloaded: boolean; installed: boolean }> => {
+  const ensureStatus = useCallback(async (app: AppData): Promise<{ downloaded: boolean; installed: boolean }> => {
     try {
       const downloaded = await isDownloaded(app);
       const packageName = generateAppPackageName(app);
@@ -173,7 +164,16 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
       console.error('Error checking app status:', error);
       return { downloaded: false, installed: false };
     }
-  };
+  }, []);
+
+  // Initialize app statuses when apps load
+  useEffect(() => {
+    if (apps.length > 0) {
+      apps.forEach(app => {
+        ensureStatus(app);
+      });
+    }
+  }, [apps, ensureStatus]);
 
   const handleDownload = async (app: AppData) => {
     if (!app.downloadUrl) {
