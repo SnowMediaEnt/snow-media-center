@@ -135,6 +135,15 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onBack, apps]);
 
+  // Initialize app statuses when apps load
+  useEffect(() => {
+    if (apps.length > 0) {
+      apps.forEach(app => {
+        ensureStatus(app);
+      });
+    }
+  }, [apps]);
+
   // App status management functions
   const generateAppFileName = (app: AppData) => generateFileName(app.name, app.version);
   const generateAppPackageName = (app: AppData) => app.packageName || generatePackageName(app.name);
@@ -528,14 +537,10 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         </Tabs>
       </div>
 
-      {/* Status check on component mount and focus */}
-      {apps.length > 0 && apps.map(app => {
-        // Initialize status check for each app
-        React.useEffect(() => {
-          ensureStatus(app);
-        }, [app.id]);
-        return null;
-      })}
+      {/* Initialize app status checks when apps load */}
+      <div className="hidden">
+        {/* This runs once when apps change to initialize status for all apps */}
+      </div>
     </div>
   );
 };
