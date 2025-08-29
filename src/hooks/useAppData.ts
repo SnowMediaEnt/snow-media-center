@@ -23,16 +23,20 @@ export const useAppData = () => {
     try {
       console.log('Fetching apps from endpoint...');
       
+      // Cache-bust URL to always get fresh data
+      const timestamp = Date.now();
+      const baseUrl = 'http://snowmediaapps.com/apps/apps.json.php';
+      
       // Try multiple endpoints - prioritize the PHP file that exists
       const endpoints = [
-        // Try direct access first with domain
-        'http://snowmediaapps.com/apps/apps.json.php',
+        // Try direct access first with cache-busting
+        `${baseUrl}?ts=${timestamp}`,
         // Try PHP file with CORS proxies as fallback
-        `https://api.allorigins.win/get?url=${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`,
-        `https://corsproxy.io/?${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`,
-        `https://thingproxy.freeboard.io/fetch/http://snowmediaapps.com/apps/apps.json.php`,
+        `https://api.allorigins.win/get?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
+        `https://corsproxy.io/?${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
+        `https://thingproxy.freeboard.io/fetch/${baseUrl}?ts=${timestamp}`,
         // Try raw versions
-        `https://api.allorigins.win/raw?url=${encodeURIComponent('http://snowmediaapps.com/apps/apps.json.php')}`
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`
       ];
       
       let response = null;
@@ -52,6 +56,7 @@ export const useAppData = () => {
             headers: {
               'Accept': 'application/json',
             },
+            cache: 'no-store', // Ensure fresh fetch
             signal: controller.signal
           });
           
@@ -122,20 +127,29 @@ export const useAppData = () => {
       
       console.log('Apps array before transformation:', appsArray);
       
-      // Transform the data to match our App interface
-      const transformedApps = appsArray.map((app: any) => ({
-        id: app.id || app.name?.toLowerCase().replace(/\s+/g, '') || 'unknown',
-        name: app.name || 'Unknown App',
-        version: app.version || '1.0',
-        size: app.size || '25MB',
-        description: app.description || 'No description available',
-        icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
-        apk: app.url || app.apk || app.downloadUrl || '',
-        downloadUrl: app.url || app.apk || app.downloadUrl || '',
-        packageName: app.packageName || `com.${(app.name || 'unknown').toLowerCase().replace(/\s+/g, '')}.app`,
-        featured: app.featured || false,
-        category: (app.category as 'streaming' | 'support') || 'streaming'
-      }));
+      // Transform the data to match our App interface with tolerant schema
+      const transformedApps = appsArray.map((app: any) => {
+        // Tolerant URL extraction - try multiple fields
+        const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
+          (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
+        
+        // Generate package name from app name
+        const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        return {
+          id: app.id || app.packageName || cleanName || 'unknown',
+          name: app.name || 'Unknown App',
+          version: app.version || '1.0',
+          size: app.size || '25MB',
+          description: app.description || 'No description available',
+          icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
+          apk: downloadUrl,
+          downloadUrl,
+          packageName: app.packageName || `com.${cleanName}.app`,
+          featured: app.featured || false,
+          category: (app.category as 'streaming' | 'support') || 'streaming'
+        };
+      });
       
       console.log('Transformed apps:', transformedApps);
       transformedApps.forEach(app => {

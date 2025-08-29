@@ -240,7 +240,7 @@ const Index = () => {
 
       {/* Home screen content */}
       {currentView === 'home' && (
-        <div className={`min-h-screen text-white overflow-hidden relative tv-safe ${layoutMode === 'row' ? 'flex flex-col' : ''}`} style={{ height: '100vh', maxHeight: '100vh' }}>
+        <div className={`min-h-dvh max-h-dvh overflow-y-auto overscroll-contain px-6 py-6 tv-safe text-white relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}>
           {/* Subtle snowy background pattern - only visible when no global background is active */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
           <div className="absolute inset-0 opacity-30">

@@ -1,15 +1,17 @@
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings, HardDrive, Database, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Play, Package, Smartphone, Tv, Settings, HardDrive, Database, Trash2, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppData } from '@/hooks/useAppData';
 import DownloadProgress from './DownloadProgress';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import { AppManager } from '@/capacitor/AppManager';
+import { downloadApkToCache, generateFileName, generatePackageName } from '@/utils/downloadApk';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -33,12 +35,14 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   const [downloadingApps, setDownloadingApps] = useState<Set<string>>(new Set());
   const [downloadedApps, setDownloadedApps] = useState<Set<string>>(new Set());
   const [installedApps, setInstalledApps] = useState<Set<string>>(new Set());
+  const [appStatuses, setAppStatuses] = useState<Map<string, { downloaded: boolean; installed: boolean; lastPath?: string }>>(new Map());
   const [currentDownload, setCurrentDownload] = useState<AppData | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'tab-3' | string>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [selectedApp, setSelectedApp] = useState<AppData | null>(null);
   const { toast } = useToast();
   const { apps, loading, error } = useAppData();
+  const focusedElementRef = useRef<HTMLElement>(null);
 
   // TV Remote Navigation with improved app selection
   useEffect(() => {
@@ -131,119 +135,63 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onBack, apps]);
 
+  // App status management functions
+  const generateAppFileName = (app: AppData) => generateFileName(app.name, app.version);
+  const generateAppPackageName = (app: AppData) => app.packageName || generatePackageName(app.name);
+  
+  const isDownloaded = async (app: AppData): Promise<boolean> => {
+    try {
+      const fileName = generateAppFileName(app);
+      await Filesystem.stat({
+        path: `apk/${fileName}`,
+        directory: Directory.Cache,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const ensureStatus = async (app: AppData): Promise<{ downloaded: boolean; installed: boolean }> => {
+    try {
+      const downloaded = await isDownloaded(app);
+      const packageName = generateAppPackageName(app);
+      const { installed } = await AppManager.isInstalled({ packageName });
+      
+      setAppStatuses(prev => new Map(prev.set(app.id, { downloaded, installed })));
+      return { downloaded, installed };
+    } catch (error) {
+      console.error('Error checking app status:', error);
+      return { downloaded: false, installed: false };
+    }
+  };
+
   const handleDownload = async (app: AppData) => {
-    setCurrentDownload(app);
+    if (!app.downloadUrl) {
+      toast({
+        title: "Download Error",
+        description: "No download URL available for this app",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setDownloadingApps(prev => new Set(prev.add(app.id)));
     
     try {
-      console.log('Download attempt for app:', app.name);
-      console.log('App downloadUrl:', app.downloadUrl);
-      console.log('App object:', app);
+      const fileName = generateAppFileName(app);
+      const path = await downloadApkToCache(app.downloadUrl, fileName);
       
-      if (!app.downloadUrl) {
-        console.error('No download URL for app:', app);
-        toast({
-          title: "Download Error",
-          description: "No download URL available for this app",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validate and fix download URL
-      let downloadUrl = app.downloadUrl;
+      setAppStatuses(prev => new Map(prev.set(app.id, { 
+        downloaded: true, 
+        installed: prev.get(app.id)?.installed || false,
+        lastPath: path 
+      })));
       
-      if (!downloadUrl) {
-        throw new Error("No download URL available");
-      }
-      
-      // Ensure URL has proper protocol
-      if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
-        downloadUrl = `https://${downloadUrl}`;
-      }
-      
-      console.log(`Attempting to download from: ${downloadUrl}`);
-
-      if (Capacitor.isNativePlatform()) {
-        // Use Capacitor filesystem for native platforms
-        const fileName = `${app.name.replace(/\s+/g, '_')}.apk`;
-        
-        // Fetch the file with CORS proxy for better compatibility
-        let response;
-        try {
-          // Try direct download first
-          response = await fetch(downloadUrl);
-          if (!response.ok) {
-            throw new Error(`Direct download failed: ${response.status}`);
-          }
-        } catch (directError) {
-          console.log('Direct download failed, trying CORS proxy:', directError);
-          // Fallback to CORS proxy
-          const corsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(downloadUrl)}`;
-          response = await fetch(corsProxy);
-          if (!response.ok) {
-            throw new Error(`CORS proxy download failed: ${response.status}`);
-          }
-        }
-        
-        const blob = await response.blob();
-        
-        if (blob.size === 0) {
-          throw new Error("Downloaded file is empty");
-        }
-        
-        console.log(`Downloaded blob size: ${blob.size} bytes`);
-        
-        const arrayBuffer = await blob.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        
-        // Save to device
-        await Filesystem.writeFile({
-          path: `Downloads/${fileName}`,
-          data: base64,
-          directory: Directory.External
-        });
-        
-        toast({
-          title: "Download Complete",
-          description: `${app.name} (${(blob.size / 1024 / 1024).toFixed(1)}MB) saved to Downloads`,
-        });
-      } else {
-        // Fallback for web - try direct download with CORS proxy if needed
-        try {
-          // Try direct download first
-          const link = document.createElement('a');
-          link.href = downloadUrl;
-          link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          toast({
-            title: "Download Started",
-            description: `${app.name} download initiated`,
-          });
-        } catch (webError) {
-          console.log('Web download failed, trying CORS proxy:', webError);
-          // Fallback to CORS proxy for web
-          const corsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(downloadUrl)}`;
-          const link = document.createElement('a');
-          link.href = corsProxy;
-          link.download = `${app.name.replace(/\s+/g, '_')}.apk`;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          toast({
-            title: "Download Started",
-            description: `${app.name} download initiated via proxy`,
-          });
-        }
-      }
-      
-      // Show progress modal
+      toast({
+        title: "Download Complete",
+        description: `${app.name} downloaded successfully!`,
+      });
     } catch (error) {
       console.error('Download error:', error);
       toast({
@@ -251,80 +199,55 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         description: `Failed to download ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
+    } finally {
       setDownloadingApps(prev => {
         const updated = new Set(prev);
         updated.delete(app.id);
         return updated;
-      });
-      setCurrentDownload(null);
-    }
-  };
-
-  const handleDownloadComplete = () => {
-    if (currentDownload) {
-      setDownloadingApps(prev => {
-        const updated = new Set(prev);
-        updated.delete(currentDownload.id);
-        return updated;
-      });
-      setDownloadedApps(prev => new Set(prev.add(currentDownload.id)));
-      setCurrentDownload(null);
-      
-      toast({
-        title: "Download Complete",
-        description: "APK downloaded successfully! Click Install to proceed.",
       });
     }
   };
 
   const handleInstall = async (app: AppData) => {
     try {
-      if (Capacitor.isNativePlatform()) {
-        // For native Android, trigger APK installation
-        const fileName = `${app.name.replace(/\s+/g, '_')}.apk`;
-        
-        // Open file manager to the Downloads folder so user can install manually
-        const installIntent = `intent:#Intent;action=android.intent.action.VIEW;data=file:///storage/emulated/0/Download/${fileName};type=application/vnd.android.package-archive;flags=0x10000000;end`;
-        
-        if (window.open) {
-          window.open(installIntent, '_system');
-        } else {
-          window.location.href = installIntent;
-        }
-        
-        setInstalledApps(prev => new Set(prev.add(app.id)));
-        toast({
-          title: "Opening Installer",
-          description: `Please complete installation for ${app.name}`,
-        });
-      } else {
-        toast({
-          title: "Installation Not Available",
-          description: "APK installation only works on Android devices",
-          variant: "destructive",
-        });
-      }
+      const status = appStatuses.get(app.id);
+      const path = status?.lastPath || await Filesystem.getUri({
+        path: `apk/${generateAppFileName(app)}`,
+        directory: Directory.Cache
+      }).then(r => r.uri);
+      
+      await AppManager.installApk({ filePath: path });
+      
+      // Re-check installation status after user returns from installer
+      setTimeout(async () => {
+        await ensureStatus(app);
+      }, 1000);
+      
+      toast({
+        title: "Opening Installer",
+        description: `Please complete installation for ${app.name}`,
+      });
     } catch (error) {
+      console.error('Install error:', error);
       toast({
         title: "Installation Failed",
-        description: "Please manually install the downloaded APK file from Downloads folder.",
+        description: `Could not start installer: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     }
   };
 
-  const handleLaunch = (app: AppData) => {
-    // Android app launch intent using package name derived from app name
-    const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
-    const launchIntent = `intent://${packageName}#Intent;scheme=package;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
-    
+  const handleLaunch = async (app: AppData) => {
     try {
-      window.location.href = launchIntent;
+      const packageName = generateAppPackageName(app);
+      await AppManager.launch({ packageName });
+      
       toast({
         title: "Launching App",
         description: `Opening ${app.name}...`,
       });
     } catch (error) {
+      console.error('Launch error:', error);
       toast({
         title: "Launch Failed",
         description: `Could not launch ${app.name}. Make sure it's installed.`,
@@ -333,67 +256,50 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const handleClearCache = (app: AppData) => {
-    // Android clear cache intent using package name derived from app name
-    const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
-    const clearCacheIntent = `intent://${packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
-    
+  const handleUninstall = async (app: AppData) => {
     try {
-      window.location.href = clearCacheIntent;
-      toast({
-        title: "Clearing App Cache",
-        description: `Opening settings to clear ${app.name} cache...`,
-      });
-    } catch (error) {
-      toast({
-        title: "Clear Cache Failed",
-        description: "Could not clear app cache. Please try manually.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleClearData = (app: AppData) => {
-    // Android clear data intent using package name derived from app name
-    const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
-    const clearDataIntent = `intent://${packageName}#Intent;scheme=package;action=android.settings.APPLICATION_DETAILS_SETTINGS;end`;
-    
-    try {
-      window.location.href = clearDataIntent;
-      toast({
-        title: "Clearing App Data",
-        description: `Opening settings to clear ${app.name} data...`,
-      });
-    } catch (error) {
-      toast({
-        title: "Clear Data Failed",
-        description: "Could not clear app data. Please try manually.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUninstall = (app: AppData) => {
-    // Android uninstall intent using package name derived from app name
-    const packageName = `com.${app.name.toLowerCase().replace(/\s+/g, '')}.app`;
-    const uninstallIntent = `intent://uninstall?package=${packageName}#Intent;scheme=package;action=android.intent.action.DELETE;end`;
-    
-    try {
-      window.location.href = uninstallIntent;
-      setInstalledApps(prev => {
-        const updated = new Set(prev);
-        updated.delete(app.id);
-        return updated;
-      });
+      const packageName = generateAppPackageName(app);
+      await AppManager.uninstall({ packageName });
+      
+      // Update status immediately and re-check after delay
+      setAppStatuses(prev => new Map(prev.set(app.id, { 
+        ...prev.get(app.id), 
+        installed: false 
+      })));
+      
+      setTimeout(async () => {
+        await ensureStatus(app);
+      }, 1000);
+      
       toast({
         title: "Uninstalling App",
         description: `${app.name} is being uninstalled...`,
         variant: "destructive",
       });
     } catch (error) {
+      console.error('Uninstall error:', error);
       toast({
         title: "Uninstall Failed",
-        description: "Could not uninstall the app. Please try manually.",
+        description: `Could not uninstall ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenAppSettings = async (app: AppData) => {
+    try {
+      const packageName = generateAppPackageName(app);
+      await AppManager.openAppSettings({ packageName });
+      
+      toast({
+        title: "Opening App Settings",
+        description: `${app.name} settings opened for cache/data management`,
+      });
+    } catch (error) {
+      console.error('App settings error:', error);
+      toast({
+        title: "Settings Failed",
+        description: `Could not open ${app.name} settings.`,
         variant: "destructive",
       });
     }
@@ -442,9 +348,10 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm">
       <div className="p-6 space-y-4">
         {categoryApps.map((app) => {
+          const status = appStatuses.get(app.id) || { downloaded: false, installed: false };
           const isDownloading = downloadingApps.has(app.id);
-          const isDownloaded = downloadedApps.has(app.id);
-          const isInstalled = installedApps.has(app.id);
+          const isDownloaded = status.downloaded;
+          const isInstalled = status.installed;
           const isFocused = focusedElement === `app-${app.id}` || focusedElement.startsWith(`download-${app.id}`) || focusedElement.startsWith(`install-${app.id}`) || focusedElement.startsWith(`launch-${app.id}`);
           
           return (
@@ -525,23 +432,13 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
                 {isInstalled && (
                   <div className="flex gap-2">
                     <Button 
-                      onClick={() => handleClearCache(app)}
+                      onClick={() => handleOpenAppSettings(app)}
                       variant="outline"
                       size="sm"
-                      className="flex-1 bg-yellow-600/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-600/30"
+                      className="flex-1 bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30"
                     >
-                      <HardDrive className="w-3 h-3 mr-1" />
-                      Clear Cache
-                    </Button>
-                    
-                    <Button 
-                      onClick={() => handleClearData(app)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 bg-orange-600/20 border-orange-500/50 text-orange-400 hover:bg-orange-600/30"
-                    >
-                      <Database className="w-3 h-3 mr-1" />
-                      Clear Data
+                      <Settings className="w-3 h-3 mr-1" />
+                      App Settings
                     </Button>
                     
                     <Button 
@@ -564,8 +461,15 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     </div>
   );
 
+  // Auto-scroll focused element into view
+  useEffect(() => {
+    if (focusedElementRef.current) {
+      focusedElementRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [focusedElement]);
+
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain px-6 py-6 tv-safe">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
@@ -624,14 +528,14 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
         </Tabs>
       </div>
 
-      {/* Download Progress Modal */}
-      {currentDownload && (
-        <DownloadProgress 
-          app={currentDownload}
-          onClose={() => setCurrentDownload(null)}
-          onComplete={handleDownloadComplete}
-        />
-      )}
+      {/* Status check on component mount and focus */}
+      {apps.length > 0 && apps.map(app => {
+        // Initialize status check for each app
+        React.useEffect(() => {
+          ensureStatus(app);
+        }, [app.id]);
+        return null;
+      })}
     </div>
   );
 };
