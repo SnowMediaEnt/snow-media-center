@@ -44,6 +44,11 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   const { apps, loading, error } = useAppData();
   const focusedElementRef = useRef<HTMLElement>(null);
 
+  // Helper function to get category apps
+  const getCategoryApps = useCallback((category: string) => {
+    return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
+  }, [apps]);
+
   // TV Remote Navigation with improved app selection
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -133,7 +138,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps]);
+  }, [focusedElement, activeTab, onBack, getCategoryApps]);
 
   // App status management functions
   const generateAppFileName = (app: AppData) => generateFileName(app.name, app.version);
@@ -314,9 +319,6 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     }
   };
 
-  const getCategoryApps = (category: string) => {
-    return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
-  };
 
   if (loading) {
     return (
