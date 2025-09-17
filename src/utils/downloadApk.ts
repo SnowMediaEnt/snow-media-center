@@ -1,5 +1,4 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
-import { Http } from "@capacitor-community/http";
 
 export async function downloadApkToCache(url: string, filename: string): Promise<string> {
   try {
