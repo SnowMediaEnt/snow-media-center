@@ -185,11 +185,11 @@ Deno.serve(async (req) => {
         );
 
       case 'create-cart':
-        if (!wixSiteId) {
+        if (!wixAccountId) {
           return new Response(
             JSON.stringify({ 
-              error: 'Site ID required for cart creation',
-              details: 'WIX_SITE_ID is required for eCommerce operations. Please provide your actual Site ID, not Account ID.'
+              error: 'Account ID required for cart creation',
+              details: 'WIX_ACCOUNT_ID is required for eCommerce operations like cart creation.'
             }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         // Create a cart in Wix using eCommerce API
         console.log('=== CREATE CART DEBUG ===');
         console.log('Items to add to cart:', JSON.stringify(items, null, 2));
-        console.log('Site ID being used:', wixSiteId);
+        console.log('Account ID being used:', wixAccountId);
         console.log('API Key prefix:', wixApiKey ? `${wixApiKey.substring(0, 20)}...` : 'missing');
         
         if (!items || !Array.isArray(items) || items.length === 0) {
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
-            'wix-site-id': wixSiteId,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -523,7 +523,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': wixApiKey,
-            'wix-site-id': wixSiteId,
+            'wix-account-id': wixAccountId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
