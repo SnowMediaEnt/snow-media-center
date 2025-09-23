@@ -102,15 +102,20 @@ const WixConnectionTest = ({ onBack }: { onBack?: () => void }) => {
 
   return (
     <div className="space-y-6 p-6">
-      {onBack && (
-        <Button onClick={onBack} variant="outline" className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-      )}
-      <div className="text-center">
-        <h2 className="text-2xl font-bold mb-2">Wix Store Connection Test</h2>
-        <p className="text-muted-foreground">Test your Wix integration and checkout functionality</p>
+      <div className="flex items-center justify-between">
+        <div>
+          {onBack && (
+            <Button onClick={onBack} variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+          )}
+        </div>
+        <div className="text-center flex-1">
+          <h2 className="text-2xl font-bold mb-2">Wix Store Connection Test</h2>
+          <p className="text-muted-foreground">Test your Wix integration and checkout functionality</p>
+        </div>
+        <div className="w-20">{/* Spacer for balance */}</div>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2">
