@@ -23,139 +23,15 @@ export const useAppData = () => {
     try {
       console.log('Fetching apps from endpoint...');
       
-      // Cache-bust URL to always get fresh data
-      const timestamp = Date.now();
-      const baseUrl = 'http://snowmediaapps.com/apps/apps.json.php';
+      // Fetch both remote and local apps
+      const [remoteApps, localSupportApps] = await Promise.all([
+        fetchRemoteApps(),
+        fetchLocalSupportApps()
+      ]);
       
-      // Try multiple endpoints - prioritize the PHP file that exists
-      const endpoints = [
-        // Try direct access first with cache-busting
-        `${baseUrl}?ts=${timestamp}`,
-        // Try PHP file with CORS proxies as fallback
-        `https://api.allorigins.win/get?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
-        `https://corsproxy.io/?${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
-        `https://thingproxy.freeboard.io/fetch/${baseUrl}?ts=${timestamp}`,
-        // Try raw versions
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`
-      ];
-      
-      let response = null;
-      let lastError = null;
-      
-      // Try each proxy until one works
-      for (const proxyUrl of endpoints) {
-        try {
-          console.log(`Trying proxy: ${proxyUrl}`);
-          
-          // Create AbortController for timeout (compatible with older browsers)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
-          response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-            },
-            cache: 'no-store', // Ensure fresh fetch
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            console.log('Successfully connected via proxy');
-            break;
-          } else {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-        } catch (err) {
-          console.warn(`Proxy failed: ${proxyUrl}`, err);
-          lastError = err;
-          response = null;
-        }
-      }
-      
-      if (!response || !response.ok) {
-        throw new Error(lastError?.message || `All proxies failed`);
-      }
-      
-      // Get the response text first to validate it
-      const responseText = await response.text();
-      console.log('Raw response text:', responseText.substring(0, 200));
-      
-      // Check if the response is HTML (error page)
-      if (responseText.trim().startsWith('<!DOCTYPE html') || responseText.trim().startsWith('<html')) {
-        throw new Error('Server returned HTML instead of JSON - API may be down');
-      }
-      
-      // Handle allorigins.win wrapped response
-      let actualJsonData = responseText;
-      try {
-        const wrappedResponse = JSON.parse(responseText);
-        // If it's an allorigins response, extract the contents
-        if (wrappedResponse.contents) {
-          actualJsonData = wrappedResponse.contents;
-          console.log('Extracted contents from wrapped response');
-        }
-      } catch (e) {
-        // If parsing fails, use original response text
-        console.log('Not a wrapped response, using original text');
-      }
-      
-      // Check if the response is valid JSON
-      let data;
-      try {
-        data = JSON.parse(actualJsonData);
-        console.log('Parsed JSON response:', data);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        throw new Error(`Invalid JSON response received`);
-      }
-      
-      // Handle different response formats
-      let appsArray = [];
-      if (Array.isArray(data)) {
-        appsArray = data;
-      } else if (data && typeof data === 'object' && data.apps && Array.isArray(data.apps)) {
-        appsArray = data.apps;
-      } else if (data && typeof data === 'object') {
-        // If it's an object with app data, convert to array
-        appsArray = Object.values(data);
-      } else {
-        throw new Error('Invalid JSON format - expected array or object with apps');
-      }
-      
-      console.log('Apps array before transformation:', appsArray);
-      
-      // Transform the data to match our App interface with tolerant schema
-      const transformedApps = appsArray.map((app: any) => {
-        // Tolerant URL extraction - try multiple fields
-        const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
-          (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
-        
-        // Generate package name from app name
-        const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        return {
-          id: app.id || app.packageName || cleanName || 'unknown',
-          name: app.name || 'Unknown App',
-          version: app.version || '1.0',
-          size: app.size || '25MB',
-          description: app.description || 'No description available',
-          icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
-          apk: downloadUrl,
-          downloadUrl,
-          packageName: app.packageName || `com.${cleanName}.app`,
-          featured: app.featured || false,
-          category: (app.category as 'streaming' | 'support') || 'streaming'
-        };
-      });
-      
-      console.log('Transformed apps:', transformedApps);
-      transformedApps.forEach(app => {
-        console.log(`App: ${app.name}, downloadUrl: ${app.downloadUrl}`);
-      });
-      setApps(transformedApps);
+      // Combine both app sources
+      const allApps = [...remoteApps, ...localSupportApps];
+      setApps(allApps);
       setError(null);
       setLoading(false);
     } catch (err) {
@@ -206,6 +82,179 @@ export const useAppData = () => {
       setError('Using offline app data - server connection failed');
       setLoading(false);
     }
+  };
+
+  const fetchLocalSupportApps = async () => {
+    try {
+      const response = await fetch('/apps/support.json');
+      if (!response.ok) {
+        console.log('Local support.json not found, skipping');
+        return [];
+      }
+      
+      const data = await response.json();
+      console.log('Loaded local support apps:', data);
+      
+      // Transform the data to match our App interface
+      const appsArray = Array.isArray(data) ? data : (data.apps ? data.apps : []);
+      
+      return appsArray.map((app: any) => {
+        const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
+          (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
+        
+        const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        return {
+          id: app.id || app.packageName || cleanName || 'unknown',
+          name: app.name || 'Unknown App',
+          version: app.version || '1.0',
+          size: app.size || '25MB',
+          description: app.description || 'No description available',
+          icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
+          apk: downloadUrl,
+          downloadUrl,
+          packageName: app.packageName || `com.${cleanName}.app`,
+          featured: app.featured || false,
+          category: 'support' as const // Local apps are support category
+        };
+      });
+    } catch (err) {
+      console.log('Failed to load local support apps:', err);
+      return [];
+    }
+  };
+
+  const fetchRemoteApps = async () => {
+    // Cache-bust URL to always get fresh data
+    const timestamp = Date.now();
+    const baseUrl = 'http://snowmediaapps.com/apps/apps.json.php';
+    
+    // Try multiple endpoints - prioritize the PHP file that exists
+    const endpoints = [
+      // Try direct access first with cache-busting
+      `${baseUrl}?ts=${timestamp}`,
+      // Try PHP file with CORS proxies as fallback
+      `https://api.allorigins.win/get?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
+      `https://corsproxy.io/?${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
+      `https://thingproxy.freeboard.io/fetch/${baseUrl}?ts=${timestamp}`,
+      // Try raw versions
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    // Try each proxy until one works
+    for (const proxyUrl of endpoints) {
+      try {
+        console.log(`Trying proxy: ${proxyUrl}`);
+        
+        // Create AbortController for timeout (compatible with older browsers)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          cache: 'no-store', // Ensure fresh fetch
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          console.log('Successfully connected via proxy');
+          break;
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      } catch (err) {
+        console.warn(`Proxy failed: ${proxyUrl}`, err);
+        lastError = err;
+        response = null;
+      }
+    }
+    
+    if (!response || !response.ok) {
+      throw new Error(lastError?.message || `All proxies failed`);
+    }
+    
+    // Get the response text first to validate it
+    const responseText = await response.text();
+    console.log('Raw response text:', responseText.substring(0, 200));
+    
+    // Check if the response is HTML (error page)
+    if (responseText.trim().startsWith('<!DOCTYPE html') || responseText.trim().startsWith('<html')) {
+      throw new Error('Server returned HTML instead of JSON - API may be down');
+    }
+    
+    // Handle allorigins.win wrapped response
+    let actualJsonData = responseText;
+    try {
+      const wrappedResponse = JSON.parse(responseText);
+      // If it's an allorigins response, extract the contents
+      if (wrappedResponse.contents) {
+        actualJsonData = wrappedResponse.contents;
+        console.log('Extracted contents from wrapped response');
+      }
+    } catch (e) {
+      // If parsing fails, use original response text
+      console.log('Not a wrapped response, using original text');
+    }
+    
+    // Check if the response is valid JSON
+    let data;
+    try {
+      data = JSON.parse(actualJsonData);
+      console.log('Parsed JSON response:', data);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      throw new Error(`Invalid JSON response received`);
+    }
+    
+    // Handle different response formats
+    let appsArray = [];
+    if (Array.isArray(data)) {
+      appsArray = data;
+    } else if (data && typeof data === 'object' && data.apps && Array.isArray(data.apps)) {
+      appsArray = data.apps;
+    } else if (data && typeof data === 'object') {
+      // If it's an object with app data, convert to array
+      appsArray = Object.values(data);
+    } else {
+      throw new Error('Invalid JSON format - expected array or object with apps');
+    }
+    
+    console.log('Apps array before transformation:', appsArray);
+    
+    // Transform the data to match our App interface with tolerant schema
+    const transformedApps = appsArray.map((app: any) => {
+      // Tolerant URL extraction - try multiple fields
+      const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
+        (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
+      
+      // Generate package name from app name
+      const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      return {
+        id: app.id || app.packageName || cleanName || 'unknown',
+        name: app.name || 'Unknown App',
+        version: app.version || '1.0',
+        size: app.size || '25MB',
+        description: app.description || 'No description available',
+        icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
+        apk: downloadUrl,
+        downloadUrl,
+        packageName: app.packageName || `com.${cleanName}.app`,
+        featured: app.featured || false,
+        category: (app.category as 'streaming' | 'support') || 'streaming'
+      };
+    });
+    
+    console.log('Transformed remote apps:', transformedApps);
+    return transformedApps;
   };
 
   useEffect(() => {
