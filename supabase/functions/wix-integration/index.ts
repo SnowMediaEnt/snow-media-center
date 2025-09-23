@@ -64,7 +64,14 @@ Deno.serve(async (req) => {
     const { action, email, wixMemberId, items, memberData } = await req.json();
     console.log('=== REQUEST DETAILS ===');
     console.log('Action requested:', action);
-    console.log('Request body keys:', Object.keys(await req.clone().json()));
+    const presentKeys = [
+      action !== undefined ? 'action' : null,
+      email !== undefined ? 'email' : null,
+      wixMemberId !== undefined ? 'wixMemberId' : null,
+      items !== undefined ? 'items' : null,
+      memberData !== undefined ? 'memberData' : null,
+    ].filter(Boolean);
+    console.log('Request body keys:', presentKeys);
     console.log('Items for cart:', items ? JSON.stringify(items, null, 2) : 'No items');
     console.log('=== END REQUEST DETAILS ===');
 
