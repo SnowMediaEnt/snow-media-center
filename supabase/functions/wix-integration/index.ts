@@ -62,7 +62,11 @@ Deno.serve(async (req) => {
     }
 
     const { action, email, wixMemberId, items, memberData } = await req.json();
+    console.log('=== REQUEST DETAILS ===');
     console.log('Action requested:', action);
+    console.log('Request body keys:', Object.keys(await req.clone().json()));
+    console.log('Items for cart:', items ? JSON.stringify(items, null, 2) : 'No items');
+    console.log('=== END REQUEST DETAILS ===');
 
     switch (action) {
       case 'get-products':
@@ -158,6 +162,19 @@ Deno.serve(async (req) => {
 
       case 'create-cart':
         // Create a cart in Wix using eCommerce API
+        console.log('=== CREATE CART DEBUG ===');
+        console.log('Items to add to cart:', JSON.stringify(items, null, 2));
+        console.log('Site ID being used:', wixSiteId);
+        console.log('API Key prefix:', wixApiKey ? `${wixApiKey.substring(0, 20)}...` : 'missing');
+        
+        if (!items || !Array.isArray(items) || items.length === 0) {
+          console.error('Invalid or missing items for cart creation');
+          return new Response(
+            JSON.stringify({ error: 'Items array is required for cart creation' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
         const cartResponse = await fetch(`https://www.wixapis.com/ecom/v1/carts`, {
           method: 'POST',
           headers: {
