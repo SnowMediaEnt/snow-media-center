@@ -29,25 +29,29 @@ Deno.serve(async (req) => {
     
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
+    const wixSiteId = Deno.env.get('WIX_SITE_ID');
     
     console.log('=== ENVIRONMENT VARIABLES ===');
     console.log('API Key present:', !!wixApiKey);
     console.log('Account ID present:', !!wixAccountId);
+    console.log('Site ID present:', !!wixSiteId);
     console.log('API Key format:', wixApiKey ? `${wixApiKey.substring(0, 10)}...` : 'missing');
     console.log('Account ID:', wixAccountId);
+    console.log('Site ID:', wixSiteId);
     console.log('=== END ENVIRONMENT VARIABLES ===');
     
     // Test if the function is even being reached
     console.log('Environment check passed');
     
-    if (!wixApiKey || !wixAccountId) {
-      console.error('Missing WIX_API_KEY or WIX_ACCOUNT_ID');
+    if (!wixApiKey || !wixAccountId || !wixSiteId) {
+      console.error('Missing WIX_API_KEY, WIX_ACCOUNT_ID, or WIX_SITE_ID');
       return new Response(
         JSON.stringify({ 
           error: 'Wix API credentials not configured',
           details: {
             hasApiKey: !!wixApiKey,
-            hasAccountId: !!wixAccountId
+            hasAccountId: !!wixAccountId,
+            hasSiteId: !!wixSiteId
           }
         }),
         { 
@@ -67,7 +71,7 @@ Deno.serve(async (req) => {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           }
         });
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${wixApiKey}`,
-              'wix-site-id': wixAccountId,
+              'wix-site-id': wixSiteId,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -107,7 +111,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${wixApiKey}`,
-              'wix-site-id': wixAccountId,
+              'wix-site-id': wixSiteId,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -158,7 +162,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -201,7 +205,7 @@ Deno.serve(async (req) => {
         
         const requestHeaders = {
           'Authorization': `Bearer ${wixApiKey}`,
-          'wix-site-id': wixAccountId,
+          'wix-site-id': wixSiteId,
           'Content-Type': 'application/json',
         };
         
@@ -276,7 +280,7 @@ Deno.serve(async (req) => {
         const detailResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           }
         });
@@ -321,7 +325,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${wixApiKey}`,
-              'wix-site-id': wixAccountId,
+              'wix-site-id': wixSiteId,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -406,7 +410,7 @@ Deno.serve(async (req) => {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${wixApiKey}`,
-                'wix-site-id': wixAccountId,
+                'wix-site-id': wixSiteId,
                 'wix-account-id': wixAccountId,
                 'Content-Type': 'application/json',
               },
@@ -468,7 +472,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -516,7 +520,7 @@ Deno.serve(async (req) => {
         const profileResponse = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}`, {
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           }
         });
@@ -534,7 +538,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${wixApiKey}`,
-              'wix-site-id': wixAccountId,
+              'wix-site-id': wixSiteId,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -614,7 +618,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${wixApiKey}`,
-              'wix-site-id': wixAccountId,
+              'wix-site-id': wixSiteId,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -671,7 +675,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wixApiKey}`,
-            'wix-site-id': wixAccountId,
+            'wix-site-id': wixSiteId,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
