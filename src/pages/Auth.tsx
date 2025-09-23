@@ -196,7 +196,7 @@ const Auth = () => {
       } else {
         toast({
           title: "Account created!",
-          description: "Welcome to Snow Media Ent! Please check your email to verify your account.",
+          description: "Your account has been created and is pending approval. You'll receive a notification once approved.",
         });
       }
     } catch (error) {

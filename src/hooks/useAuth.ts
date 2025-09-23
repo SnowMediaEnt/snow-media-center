@@ -36,44 +36,51 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
-      // First, verify if this email exists in Wix
+      console.log('🔧 Starting signup process for:', email);
+      
+      // Check if this email already exists in Wix
       const wixVerification = await verifyWixMember(email);
+      console.log('📋 Wix verification result:', wixVerification);
       
-      let wixMemberId = wixVerification.member?.id;
-      
-      // If Wix member doesn't exist, create one
-      if (!wixVerification.exists) {
-        console.log('Creating new Wix member account...');
-        const nameParts = fullName?.split(' ') || [];
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-        
-        try {
-          // Create member in Wix
-          const newMember = await createMember({
-            email,
-            firstName,
-            lastName,
-            nickname: firstName
-          });
-          
-          wixMemberId = newMember.member.id;
-          
-          // Add to email list
-          await addToEmailList({
-            email,
-            firstName,
-            lastName
-          });
-          
-          console.log('Successfully created Wix member:', wixMemberId);
-        } catch (wixError) {
-          console.error('Error creating Wix member:', wixError);
-          return { error: { message: 'Failed to create Wix account. Please contact support@snowmediaent.com.' } };
-        }
+      if (wixVerification.exists) {
+        console.log('❌ Email already exists in Wix member database');
+        return { error: { message: 'An account with this email already exists. Please sign in instead or contact support.' } };
       }
 
-      // Proceed with Supabase signup
+      // Create new Wix member account (this should trigger your approval workflow)
+      console.log('✅ Creating new Wix member account...');
+      const nameParts = fullName?.split(' ') || [];
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      let wixMemberId;
+      try {
+        // Create member in Wix - this should trigger your website approval process
+        const newMember = await createMember({
+          email,
+          firstName,
+          lastName,
+          nickname: firstName
+        });
+        
+        wixMemberId = newMember.member.id;
+        console.log('✅ Wix member created:', wixMemberId);
+        
+        // Add to email list for marketing
+        await addToEmailList({
+          email,
+          firstName,
+          lastName
+        });
+        console.log('✅ Added to email list');
+        
+      } catch (wixError) {
+        console.error('❌ Error creating Wix member:', wixError);
+        return { error: { message: 'Failed to create member account. Please contact support@snowmediaent.com.' } };
+      }
+
+      // Create Supabase account (for app functionality)
+      console.log('🔧 Creating Supabase account...');
       const redirectUrl = `${window.location.origin}/`;
       
       const { error } = await supabase.auth.signUp({
@@ -82,28 +89,42 @@ export const useAuth = () => {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            full_name: fullName || wixVerification.member?.name || '',
+            full_name: fullName || '',
             wix_member_id: wixMemberId
           }
         }
       });
 
-      // Send custom welcome email
-      if (!error) {
+      if (error) {
+        console.error('❌ Supabase signup failed:', error);
+        return { error };
+      }
+
+      console.log('✅ Supabase account created');
+
+      // Send welcome email
+      try {
         await supabase.functions.invoke('send-custom-email', {
           body: {
             to: email,
             type: 'welcome',
             data: {
-              name: fullName || wixVerification.member?.name || ''
+              name: fullName || ''
             }
           }
         });
+        console.log('✅ Welcome email sent');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send welcome email:', emailError);
+        // Don't fail the whole signup if email fails
       }
 
-      return { error };
+      return { 
+        error: null,
+        message: 'Account created successfully! You should receive a notification for approval. Once approved, you can sign into both the app and snowmediaent.com.'
+      };
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('💥 Signup error:', error);
       return { error: { message: 'Failed to create account. Please try again.' } };
     }
   };
