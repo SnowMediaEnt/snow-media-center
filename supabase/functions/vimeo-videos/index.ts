@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     // Add cache-busting parameter to force fresh data
     const cacheBuster = Date.now();
-    const vimeoResponse = await fetch(`https://api.vimeo.com/me/videos?per_page=10&sort=date&fields=uri,name,description,duration,pictures,player_embed_url,created_time,tags&_cb=${cacheBuster}`, {
+    const vimeoResponse = await fetch(`https://api.vimeo.com/me/videos?per_page=100&sort=date&fields=uri,name,description,duration,pictures,player_embed_url,created_time,tags&_cb=${cacheBuster}`, {
       headers: {
         'Authorization': `Bearer ${vimeoToken}`,
         'Accept': 'application/vnd.vimeo.*+json;version=3.4',
