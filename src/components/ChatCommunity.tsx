@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, Mic, MicOff, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, Mic, MicOff, ExternalLink, MessageCircle, Plus } from 'lucide-react';
 import VoiceInput from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -321,10 +321,27 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         {/* Admin Chat */}
         {activeTab === 'admin' && (
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-4">Send Private Message to Snow Media</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">Support Ticket System</h3>
             <p className="text-orange-200 mb-6">
-              Get direct support from the admin. Messages are sent via Wix - you'll get phone alerts and email notifications!
+              Create and manage support tickets. Messages are sent to support@snowmediaent.com with phone and email notifications!
             </p>
+            
+            <div className="flex gap-4 mb-4">
+              <Button 
+                onClick={() => onNavigate('support-tickets')}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                View Support Tickets
+              </Button>
+              <Button 
+                onClick={() => onNavigate('create-ticket')}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Ticket
+              </Button>
+            </div>
             
             <div className="space-y-4">
               <div>

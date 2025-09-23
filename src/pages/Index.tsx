@@ -12,6 +12,8 @@ import ChatCommunity from '@/components/ChatCommunity';
 import Settings from '@/components/Settings';
 import UserDashboard from '@/components/UserDashboard';
 import WixConnectionTest from '@/components/WixConnectionTest';
+import SupportTicketSystem from '@/components/SupportTicketSystem';
+import AIConversationSystem from '@/components/AIConversationSystem';
 import { useAuth } from '@/hooks/useAuth';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
@@ -237,6 +239,13 @@ const Index = () => {
       {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
       {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} />}
       
+      {/* New Support Ticket System */}
+      {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
+      {currentView === 'create-ticket' && <SupportTicketSystem onBack={() => goBack()} />}
+      
+      {/* New AI Conversation System */}
+      {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
+      {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
 
       {/* Home screen content */}
       {currentView === 'home' && (
