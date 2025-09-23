@@ -61,7 +61,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action, email, wixMemberId, items, memberData } = await req.json();
+    let payload: any = {};
+    try {
+      payload = await req.json();
+    } catch (e) {
+      console.warn('No/invalid JSON body, defaulting to empty payload');
+      payload = {};
+    }
+    const { action, email, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
     console.log('=== REQUEST DETAILS ===');
     console.log('Action requested:', action);
     const presentKeys = [
@@ -705,7 +712,7 @@ Deno.serve(async (req) => {
 
       case 'send-message':
         // Send message to admin via Wix
-        const { subject, message: messageText, senderEmail, senderName } = await req.json();
+        // Payload already parsed above (subject, messageText, senderEmail, senderName)
         
         if (!subject || !messageText || !senderEmail) {
           return new Response(
