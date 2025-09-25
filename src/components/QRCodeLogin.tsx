@@ -44,11 +44,10 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         throw new Error(`Database error: ${sessionError.message}`);
       }
 
-      // Create deep link URL that opens the mobile app directly
-      const appScheme = 'app.lovable.f44324110df840aea0a1fb97cafa76e7';
-      const loginUrl = `${appScheme}://qr-login?token=${token}`;
+      // For Android TV STB app - QR just contains the token, no URL needed
+      const loginUrl = `snowmedia-qr-login:${token}`;
       
-      console.log('Generated QR deep link:', loginUrl);
+      console.log('Generated QR token:', loginUrl);
 
       // Generate QR code with better error handling
       const qrDataUrl = await QRCode.toDataURL(loginUrl, {
