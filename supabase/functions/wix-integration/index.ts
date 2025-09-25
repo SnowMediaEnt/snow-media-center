@@ -220,8 +220,7 @@ Deno.serve(async (req) => {
             lineItems: items.map(item => ({
               catalogReference: {
                 appId: "1380b703-ce81-ff05-f115-39571d94dfcd", // Wix Stores app ID
-                productId: item.productId,
-                catalogItemId: item.productId
+                productId: item.productId
               },
               quantity: item.quantity
             }))

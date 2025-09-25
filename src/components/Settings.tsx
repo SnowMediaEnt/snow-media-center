@@ -143,7 +143,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-4 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
               value="layout" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
@@ -227,15 +227,21 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="media" className="mt-6">
-            <MediaManager onBack={() => setActiveTab('layout')} />
+            <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
+              <MediaManager onBack={() => setActiveTab('layout')} />
+            </Card>
           </TabsContent>
 
           <TabsContent value="wix" className="mt-6">
-            <WixConnectionTest />
+            <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 p-6">
+              <WixConnectionTest />
+            </Card>
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6">
-            <AppUpdater />
+            <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
+              <AppUpdater />
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

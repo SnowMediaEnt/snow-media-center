@@ -226,7 +226,7 @@ const Auth = () => {
             onClick={() => navigate('/')}
             variant="outline" 
             size="lg"
-            className={`mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700 transition-all duration-200 ${
+            className={`mr-6 bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
               focusedElement === 'back' ? 'ring-4 ring-white/60 scale-105' : ''
             }`}
           >
