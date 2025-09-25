@@ -44,11 +44,9 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         throw new Error(`Database error: ${sessionError.message}`);
       }
 
-      // Create the Wix login URL that includes both the token and return URL
-      const wixSiteUrl = 'https://www.snowmediaent.com'; // Your Wix website URL
-      const returnUrl = encodeURIComponent(`${window.location.origin}/qr-login?token=${token}`);
-      const loginUrl = `${wixSiteUrl}/login?returnUrl=${returnUrl}`;
-      
+      // Create direct app login URL that opens this app's QR login page
+      const loginUrl = `${window.location.origin}/qr-login?token=${token}`;
+
       // Generate QR code with better error handling
       const qrDataUrl = await QRCode.toDataURL(loginUrl, {
         width: 256,
@@ -190,7 +188,7 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
 
       <div className="text-center">
         <p className="text-xs text-white/60">
-          QR code will redirect to snowmediaent.com for secure login
+          QR code opens this app’s secure login page
         </p>
       </div>
     </div>
