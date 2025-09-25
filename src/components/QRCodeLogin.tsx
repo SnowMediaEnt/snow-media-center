@@ -44,8 +44,11 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         throw new Error(`Database error: ${sessionError.message}`);
       }
 
-      // Create direct app login URL that opens this app's QR login page
+      // Create direct app login URL - use deployed domain if available, otherwise current origin
+      const appDomain = 'https://your-deployed-app.com'; // Replace with your actual deployed domain
       const loginUrl = `${window.location.origin}/qr-login?token=${token}`;
+      
+      console.log('Generated QR login URL:', loginUrl);
 
       // Generate QR code with better error handling
       const qrDataUrl = await QRCode.toDataURL(loginUrl, {
