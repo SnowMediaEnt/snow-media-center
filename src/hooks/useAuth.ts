@@ -170,7 +170,8 @@ export const useAuth = () => {
             return { error: signUpResult.error };
           }
           
-          console.log('✅ Account created, now signing in...');
+          console.log('✅ Account created, session should be active');
+          // The onAuthStateChange listener will handle the session update
           return { error: null };
         }
         return { error };

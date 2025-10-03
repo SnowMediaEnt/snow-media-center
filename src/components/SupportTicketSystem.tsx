@@ -109,7 +109,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button onClick={() => setView('list')} variant="outline" size="sm">
+            <Button 
+              onClick={() => setView('list')} 
+              variant="outline" 
+              size="sm"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
             </Button>
@@ -173,7 +178,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button onClick={() => setView('list')} variant="outline" size="sm">
+            <Button 
+              onClick={() => setView('list')} 
+              variant="outline" 
+              size="sm"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
             </Button>
@@ -247,7 +257,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Button onClick={onBack} variant="outline" size="sm">
+            <Button 
+              onClick={onBack} 
+              variant="outline" 
+              size="sm"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
