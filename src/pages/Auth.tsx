@@ -5,11 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff, QrCode } from 'lucide-react';
+import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
-import QRCodeLogin from '@/components/QRCodeLogin';
 import { supabase } from '@/integrations/supabase/client';
 const Auth = () => {
   const navigate = useNavigate();
@@ -36,7 +35,7 @@ const Auth = () => {
   }, [user, navigate]);
 
   // TV remote navigation with focus handling
-  const [focusedElement, setFocusedElement] = useState<'back' | 'tab-login' | 'tab-signup' | 'tab-qr' | 'email' | 'password' | 'submit' | 'name' | 'confirm'>('back');
+  const [focusedElement, setFocusedElement] = useState<'back' | 'tab-login' | 'tab-signup' | 'email' | 'password' | 'submit' | 'name' | 'confirm'>('back');
   const [activeTab, setActiveTab] = useState('login');
 
   useEffect(() => {
@@ -57,12 +56,10 @@ const Auth = () => {
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'tab-signup') setFocusedElement('tab-login');
-          else if (focusedElement === 'tab-qr') setFocusedElement('tab-signup');
           break;
           
         case 'ArrowRight':
           if (focusedElement === 'tab-login') setFocusedElement('tab-signup');
-          else if (focusedElement === 'tab-signup') setFocusedElement('tab-qr');
           break;
           
         case 'ArrowUp':
@@ -75,7 +72,7 @@ const Auth = () => {
           
         case 'ArrowDown':
           if (focusedElement === 'back') setFocusedElement('tab-login');
-          else if (focusedElement === 'tab-login' || focusedElement === 'tab-signup' || focusedElement === 'tab-qr') {
+          else if (focusedElement === 'tab-login' || focusedElement === 'tab-signup') {
             if (activeTab === 'login') setFocusedElement('email');
             else if (activeTab === 'signup') setFocusedElement('name');
           } else if (focusedElement === 'email') setFocusedElement('password');
@@ -88,7 +85,6 @@ const Auth = () => {
           if (focusedElement === 'back') navigate('/');
           else if (focusedElement === 'tab-login') setActiveTab('login');
           else if (focusedElement === 'tab-signup') setActiveTab('signup');
-          else if (focusedElement === 'tab-qr') setActiveTab('qr');
           else if (focusedElement === 'email') {
             const emailInput = document.getElementById(activeTab === 'login' ? 'login-email' : 'signup-email') as HTMLInputElement;
             if (emailInput) emailInput.focus();
@@ -219,13 +215,6 @@ const Auth = () => {
     }
   };
 
-  const handleQRSuccess = () => {
-    toast({
-      title: "Welcome back!",
-      description: "Successfully logged in via QR code.",
-    });
-    navigate('/');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto">
@@ -253,7 +242,7 @@ const Auth = () => {
 
         <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm">
           <Tabs defaultValue="login" className="w-full p-6">
-            <TabsList className="grid w-full grid-cols-3 bg-blue-800/50 border-blue-600">
+            <TabsList className="grid w-full grid-cols-2 bg-blue-800/50 border-blue-600">
               <TabsTrigger 
                 value="login" 
                 className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
@@ -273,16 +262,6 @@ const Auth = () => {
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Sign Up
-              </TabsTrigger>
-              <TabsTrigger 
-                value="qr" 
-                className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
-                  focusedElement === 'tab-qr' ? 'ring-4 ring-white/60 scale-105' : ''
-                }`}
-                onClick={() => setActiveTab('qr')}
-              >
-                <QrCode className="w-4 h-4 mr-2" />
-                QR Login
               </TabsTrigger>
             </TabsList>
 
@@ -433,9 +412,6 @@ const Auth = () => {
               </form>
             </TabsContent>
 
-            <TabsContent value="qr">
-              <QRCodeLogin onSuccess={() => navigate('/')} />
-            </TabsContent>
           </Tabs>
         </Card>
       </div>
