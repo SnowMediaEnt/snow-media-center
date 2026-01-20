@@ -79,10 +79,19 @@ serve(async (req) => {
       throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
     }
 
-    // Get the image as a blob
+    // Get the image as a blob and convert to base64 efficiently
     const imageBlob = await response.blob();
     const arrayBuffer = await imageBlob.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Convert to base64 in chunks to avoid stack overflow
+    let base64 = '';
+    const chunkSize = 32768;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      base64 += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    base64 = btoa(base64);
 
     console.log('Successfully generated image with Hugging Face for user:', userId);
 
