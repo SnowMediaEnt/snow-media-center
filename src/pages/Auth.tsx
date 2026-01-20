@@ -124,31 +124,35 @@ const Auth = () => {
       if (error) {
         toast({
           title: "Login failed",
-          description: error.message,
+          description: error.message || "Invalid email or password. Please try again.",
           variant: "destructive",
         });
+        setLoading(false);
+        return; // Stay on auth page - don't navigate
+      }
+      
+      // Double-check there's an active session before navigating
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        toast({
+          title: "Welcome back!",
+          description: "Successfully logged in.",
+        });
+        navigate('/');
       } else {
-        // Double-check there's an active session before navigating
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          toast({
-            title: "Welcome back!",
-            description: "Successfully logged in.",
-          });
-          navigate('/');
-        } else {
-          toast({
-            title: "Check your email",
-            description: "We created your account. Please confirm your email before signing in.",
-          });
-        }
+        toast({
+          title: "Check your email",
+          description: "We created your account. Please confirm your email before signing in.",
+        });
+        // Stay on auth page
       }
     } catch (error) {
       toast({
         title: "Login failed",
-        description: "An unexpected error occurred.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
+      // Stay on auth page
     } finally {
       setLoading(false);
     }

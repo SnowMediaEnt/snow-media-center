@@ -34,12 +34,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
 
-  const communityMessages = [
-    { user: "TechUser2024", message: "Anyone know how to install Cinema HD?", time: "2 min ago" },
-    { user: "StreamFan", message: "Check the Install Apps section, works great!", time: "5 min ago" },
-    { user: "AndroidTVPro", message: "Snow Media added new tutorials today 🔥", time: "8 min ago" },
-    { user: "MediaLover", message: "The new store update is amazing", time: "12 min ago" }
-  ];
+  // Community messages will be loaded from the database once users start posting
 
   const handleAiFunction = (functionCall: any) => {
     const { name, arguments: args } = functionCall;
@@ -399,21 +394,16 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             <Card className="bg-gradient-to-br from-green-900/30 to-slate-900 border-green-700 p-6">
               <h3 className="text-2xl font-bold text-white mb-4">Community Forum</h3>
               <p className="text-green-200 mb-6">
-                Join our official Wix Groups forum to connect with other users, share tips, and get help from the community.
+                Connect with other Snow Media users, share tips, and get help from the community.
               </p>
               
               <div className="bg-slate-800 rounded-lg p-6 mb-6">
-                <h4 className="text-xl font-semibold text-white mb-4">Recent Forum Activity</h4>
-                <div className="space-y-3">
-                  {communityMessages.map((msg, index) => (
-                    <div key={index} className="border-l-4 border-green-500 pl-4 py-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-green-400 font-semibold">{msg.user}</span>
-                        <span className="text-slate-400 text-sm">{msg.time}</span>
-                      </div>
-                      <p className="text-white">{msg.message}</p>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <MessageSquare className="w-16 h-16 mx-auto text-green-400/50 mb-4" />
+                  <h4 className="text-xl font-semibold text-white mb-2">Coming Soon!</h4>
+                  <p className="text-slate-400 mb-4">
+                    The community forum is being set up. In the meantime, visit our official website to connect with other users.
+                  </p>
                 </div>
               </div>
               

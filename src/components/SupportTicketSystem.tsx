@@ -21,10 +21,11 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
+  initialView?: 'list' | 'create';
 }
 
-const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
-  const [view, setView] = useState<'list' | 'ticket' | 'create'>('list');
+const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSystemProps) => {
+  const [view, setView] = useState<'list' | 'ticket' | 'create'>(initialView);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');

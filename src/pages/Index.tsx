@@ -240,8 +240,8 @@ const Index = () => {
       {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} />}
       
       {/* New Support Ticket System */}
-      {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
-      {currentView === 'create-ticket' && <SupportTicketSystem onBack={() => goBack()} />}
+      {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} initialView="list" />}
+      {currentView === 'create-ticket' && <SupportTicketSystem onBack={() => goBack()} initialView="create" />}
       
       {/* New AI Conversation System */}
       {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
