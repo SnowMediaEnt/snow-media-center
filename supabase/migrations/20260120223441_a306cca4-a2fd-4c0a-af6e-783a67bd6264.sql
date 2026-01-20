@@ -1,0 +1,18 @@
+-- Insert the Buffering Walkthrough Guide into the knowledge base
+INSERT INTO public.knowledge_documents (
+  title,
+  description,
+  file_path,
+  file_type,
+  content_preview,
+  category,
+  is_active
+) VALUES (
+  'Buffering Walkthrough Guide by Snow Media Ent.',
+  'Interactive troubleshooting guide for buffering issues on Dreamstreams, VibezTV, Plex, IPTV-style apps, and Kodi/Cinema-style apps. Includes speed test thresholds, VPN recommendations, and step-by-step diagnostics.',
+  'guides/buffering-walkthrough-v1.json',
+  'application/json',
+  E'BUFFERING WALKTHROUGH GUIDE v1.0.0 by Snow Media Ent.\n\nApplies to: Dreamstreams, VibezTV, Plex, IPTV-style apps, Kodi/Cinema-style apps\nNot for: Netflix, Disney+, Hulu\nSupport: support@snowmediaent.com | https://snowmediaent.com\n\nDOWNLOADS:\n- Speedtest: Downloader code 783792\n- IPVanish: Code 805133, https://affiliate.ipvanish.com/SHd\n- Surfshark: Code 3829522, https://surfshark.com\n\nMINIMUM SPEED: 15 Mbps\n\nSTEP 1: APP TYPE\nQuestion: Which type of app are you using?\n- Premium (Dreamstreams/VibezTV/Plex): More stable, buffering often internet/ISP related\n- Free (Kodi/Cinema/TeaTV): Often have multiple links to try\n\nSTEP 2: CHECK SOURCE\nQuestion: Do other videos/channels play without buffering?\n- Yes (other content works): Likely link/server issue for that specific title. Try different link (free apps) or report title to support (premium apps).\n- No (everything buffers): Continue to Step 3.\n\nSTEP 3: RESTART + CLEAR CACHE\nInstructions:\n1. Restart your streaming device\n2. Restart modem & router (unplug 10 seconds, plug back in)\n3. Clear cache/data for the buffering app\n\nDevice steps:\n- Fire TV: Settings > Applications > Manage Installed Applications > (Your App) > Clear Cache\n- Android X96: Main Screen > Settings > Apps > (App) > Clear Data/Storage\n\nIf fixed: Great! Come back if buffering returns.\nIf not fixed: Continue to Step 4.\n\nSTEP 4: SPEED TEST\nGoal: 15 Mbps or higher on your streaming device\nOptions:\n- Open Speedtest app and run test\n- No Speedtest? Use Downloader code 783792 to install it\n- Fire TV: Settings > Network > click your Wi-Fi > run speed test\n- VibezTV: Check Settings for built-in speed test\n\nIf below 15 Mbps:\n- Switch to 5GHz Wi-Fi if available\n- Move closer to router (distance is #1 speed killer)\n- Try Ethernet if possible\n- Restart modem/router and re-test\n\nSTEP 5: VPN TEST (ISP Throttling)\nSome ISPs slow streaming during high traffic. A VPN can help by hiding your streaming activity.\n\nGetting a VPN:\n- Contact support@snowmediaent.com for test account\n- IPVanish: Downloader code 805133, https://affiliate.ipvanish.com/SHd\n- Surfshark: Downloader code 3829522, https://surfshark.com\n\nUsing VPN:\n1. Connect to closest city (closest is usually fastest)\n2. Verify speed still 15+ Mbps with VPN on\n3. If speed dropped, try different VPN server/city\n4. Test the stream with VPN on\n\nRESULTS:\n- VPN fixed it: Your ISP was throttling. Keep VPN on while streaming.\n- Still buffering: Email support@snowmediaent.com with your walkthrough results.\n\nSUPPORT SUMMARY TEMPLATE:\nSnow Media Buffering Walkthrough Results:\n- App type: [Premium/Free/Unsure]\n- Other content works: [Yes/No]\n- Restart + clear cache fixed it: [Yes/No]\n- Speed test (Mbps): [number] (goal 15+)\n- VPN installed: [Yes/No]\n- VPN speed 15+ with VPN: [Yes/No]\n- VPN result: [Fixed/Not fixed]\n\nExtra details:\n- Device type: [Fire TV / X96 / other Android box]\n- App name that is buffering:\n- Time of day it happens most:',
+  'troubleshooting',
+  true
+);
