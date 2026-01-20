@@ -115,6 +115,9 @@ export const useMediaAssets = () => {
 
       if (updateError) throw updateError;
       await fetchAssets();
+      
+      // Dispatch event for instant background refresh
+      window.dispatchEvent(new CustomEvent('backgroundRefresh'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update asset';
       setError(errorMessage);

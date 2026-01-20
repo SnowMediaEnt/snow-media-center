@@ -195,7 +195,21 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
         throw new Error('Please sign in to generate images');
       }
 
-      // Call our Hugging Face edge function with user's auth token
+      // Calculate optimal dimensions based on screen resolution (capped at 1536)
+      const maxDim = 1536;
+      const targetWidth = Math.min(screenInfo.width, maxDim);
+      const targetHeight = Math.min(screenInfo.height, maxDim);
+      
+      // Ensure dimensions are multiples of 64 for best results
+      const width = Math.round(targetWidth / 64) * 64;
+      const height = Math.round(targetHeight / 64) * 64;
+
+      toast({
+        title: "Generating high-quality image",
+        description: `Using FLUX.1-dev at ${width}x${height}. This may take 15-30 seconds...`,
+      });
+
+      // Call our Hugging Face edge function with user's auth token and screen dimensions
       const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
         method: 'POST',
         headers: {
@@ -203,7 +217,9 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          prompt: enhancedPrompt
+          prompt: enhancedPrompt,
+          width,
+          height
         })
       });
 

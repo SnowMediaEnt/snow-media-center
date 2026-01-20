@@ -19,6 +19,7 @@ import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useToast } from '@/hooks/use-toast';
+import { useDynamicBackground } from '@/hooks/useDynamicBackground';
 
 const Index = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -33,6 +34,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
+  const { backgroundUrl, hasBackground } = useDynamicBackground('home');
 
   // Update date/time every second and detect screen resolution
   useEffect(() => {
@@ -258,12 +260,23 @@ const Index = () => {
       {/* Home screen content */}
       {currentView === 'home' && (
         <div className={`min-h-dvh max-h-dvh overflow-y-auto overscroll-contain px-6 py-6 tv-safe text-white relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}>
-          {/* Subtle snowy background pattern - only visible when no global background is active */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.4),transparent_30%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(135,206,235,0.3),transparent_40%)]" />
-          </div>
+          {/* Dynamic background image or fallback gradient */}
+          {hasBackground ? (
+            <div 
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-500"
+              style={{ backgroundImage: `url(${backgroundUrl})` }}
+            />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
+              <div className="absolute inset-0 opacity-30">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.4),transparent_30%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(135,206,235,0.3),transparent_40%)]" />
+              </div>
+            </>
+          )}
+          {/* Dark overlay for text readability when using custom background */}
+          {hasBackground && <div className="absolute inset-0 bg-black/30" />}
 
           {/* User/Auth Controls */}
           <div className={`absolute z-20 flex ${

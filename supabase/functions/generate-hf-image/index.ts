@@ -45,7 +45,7 @@ serve(async (req) => {
     const userId = claimsData.claims.sub;
     console.log('Authenticated user:', userId);
 
-    const { prompt } = await req.json()
+    const { prompt, width = 1024, height = 1024 } = await req.json()
 
     if (!prompt) {
       return new Response(
@@ -54,15 +54,20 @@ serve(async (req) => {
       )
     }
 
-    console.log('Generating image with Hugging Face FLUX.1-schnell, prompt:', prompt)
+    // Validate and cap dimensions (FLUX.1-dev max is typically 1024x1024, but supports up to 1536)
+    const maxDim = 1536;
+    const validWidth = Math.min(Math.max(512, width), maxDim);
+    const validHeight = Math.min(Math.max(512, height), maxDim);
+    
+    console.log(`Generating image with Hugging Face FLUX.1-dev at ${validWidth}x${validHeight}, prompt:`, prompt)
 
     const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN')
     if (!hfToken) {
       throw new Error('HUGGING_FACE_ACCESS_TOKEN is not set')
     }
 
-    // Use the new Hugging Face router endpoint directly
-    const response = await fetch('https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell', {
+    // Use FLUX.1-dev for higher quality wallpapers (slower but better)
+    const response = await fetch('https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-dev', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${hfToken}`,
@@ -70,6 +75,12 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         inputs: prompt,
+        parameters: {
+          width: validWidth,
+          height: validHeight,
+          num_inference_steps: 30,
+          guidance_scale: 7.5
+        }
       }),
     });
 
