@@ -174,12 +174,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       const { checkoutUrl } = await createCart(wixCartItems);
       
       if (checkoutUrl) {
-        window.open(checkoutUrl, '_blank');
         clearCart();
         toast({
           title: "Redirecting to Checkout",
-          description: "Opening Wix checkout in a new window",
+          description: "Taking you to secure Wix checkout...",
         });
+        // Navigate in same window for a smoother experience
+        window.location.href = checkoutUrl;
       }
     } catch (error) {
       console.error('Checkout error:', error);
