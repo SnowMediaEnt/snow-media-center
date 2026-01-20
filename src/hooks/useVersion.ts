@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 
+// Hook to fetch and display the app version
 export const useVersion = () => {
-  const [version, setVersion] = useState<string>('');
+  const [version, setVersion] = useState<string>('1.0.0');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
