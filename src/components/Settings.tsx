@@ -3,10 +3,9 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, Zap } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
-import WixConnectionTest from '@/components/WixConnectionTest';
 
 interface SettingsProps {
   onBack: () => void;
@@ -16,7 +15,7 @@ interface SettingsProps {
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const [activeTab, setActiveTab] = useState('layout');
-  const [focusedElement, setFocusedElement] = useState(0); // 0: back button, 1-4: tabs, 5: layout toggle
+  const [focusedElement, setFocusedElement] = useState(0); // 0: back button, 1-3: tabs, 4: layout toggle
 
   // Android TV/Firestick navigation
   useEffect(() => {
@@ -49,18 +48,15 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
       
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement === 5) {
+          if (focusedElement === 4) {
             // From layout toggle back to layout tab
             setFocusedElement(1);
           } else if (focusedElement === 2) {
             // From media tab to layout tab
             setFocusedElement(1);
           } else if (focusedElement === 3) {
-            // From wix tab to media tab
+            // From updates tab to media tab
             setFocusedElement(2);
-          } else if (focusedElement === 4) {
-            // From updates tab to wix tab
-            setFocusedElement(3);
           }
           break;
           
@@ -69,11 +65,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             // From layout tab to media tab
             setFocusedElement(2);
           } else if (focusedElement === 2) {
-            // From media tab to wix tab
+            // From media tab to updates tab
             setFocusedElement(3);
-          } else if (focusedElement === 3) {
-            // From wix tab to updates tab
-            setFocusedElement(4);
           }
           break;
           
@@ -153,7 +146,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
               value="layout" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
@@ -173,18 +166,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               Media Manager
             </TabsTrigger>
             <TabsTrigger 
-              value="wix" 
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              Wix Test
-            </TabsTrigger>
-            <TabsTrigger 
               value="updates" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -199,7 +183,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
                <div className="flex items-center justify-center">
                  <div 
                    className={`flex bg-slate-800 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:bg-slate-700 ${
-                     focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+                     focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
                    }`}
                    onClick={() => onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid')}
                 >
@@ -240,12 +224,6 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
               <h2 className="text-2xl font-bold text-white mb-6">Media Manager</h2>
               <MediaManager onBack={() => setActiveTab('layout')} />
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="wix" className="mt-6">
-            <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 p-6">
-              <WixConnectionTest />
             </Card>
           </TabsContent>
 
