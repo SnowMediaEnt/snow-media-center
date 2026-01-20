@@ -144,47 +144,43 @@ Deno.serve(async (req) => {
         );
 
       case 'create-cart':
-        if (!wixAccountId) {
+        if (!wixSiteId) {
           return new Response(
             JSON.stringify({ 
-              error: 'Account ID required for cart creation',
-              details: 'WIX_ACCOUNT_ID is required for eCommerce operations like cart creation.'
+              error: 'Site ID required for checkout',
+              details: 'WIX_SITE_ID is required for eCommerce operations.'
             }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         
-        console.log('=== CREATE CART DEBUG ===');
-        console.log('Items to add to cart:', JSON.stringify(items, null, 2));
-        console.log('Account ID being used:', wixAccountId);
+        console.log('=== CREATE CHECKOUT DEBUG ===');
+        console.log('Items:', JSON.stringify(items, null, 2));
         console.log('Site ID being used:', wixSiteId);
         
         if (!items || !Array.isArray(items) || items.length === 0) {
-          console.error('Invalid or missing items for cart creation');
+          console.error('Invalid or missing items');
           return new Response(
-            JSON.stringify({ error: 'Items array is required for cart creation' }),
+            JSON.stringify({ error: 'Items array is required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         
-        const cartHeaders: Record<string, string> = {
+        const checkoutHeaders: Record<string, string> = {
           'Authorization': wixApiKey,
-          'wix-account-id': wixAccountId,
+          'wix-site-id': wixSiteId,
           'Content-Type': 'application/json',
         };
         
-        // Add site ID if available (may be required for some Wix configurations)
-        if (wixSiteId) {
-          cartHeaders['wix-site-id'] = wixSiteId;
-        }
-        
-        const cartResponse = await fetch(`https://www.wixapis.com/ecom/v1/carts`, {
+        // Create checkout directly with line items (skip cart creation)
+        const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
           method: 'POST',
-          headers: cartHeaders,
+          headers: checkoutHeaders,
           body: JSON.stringify({
+            channelType: 'WEB',
             lineItems: items.map((item: any) => ({
               catalogReference: {
-                appId: "1380b703-ce81-ff05-f115-39571d94dfcd",
+                appId: "215238eb-22a5-4c36-9e7b-e7c08025e04e",
                 catalogItemId: item.productId
               },
               quantity: item.quantity
@@ -192,39 +188,61 @@ Deno.serve(async (req) => {
           })
         });
 
-        console.log('Cart API response status:', cartResponse.status);
-        const responseText = await cartResponse.text();
-        console.log('Cart API full response:', responseText);
+        console.log('Checkout API response status:', checkoutResponse.status);
+        const checkoutText = await checkoutResponse.text();
+        console.log('Checkout API full response:', checkoutText);
         
-        if (!cartResponse.ok) {
-          console.error('Cart API error - Status:', cartResponse.status);
-          console.error('Cart API error - Response:', responseText);
+        if (!checkoutResponse.ok) {
+          console.error('Checkout API error - Status:', checkoutResponse.status);
+          console.error('Checkout API error - Response:', checkoutText);
           
-          // Return detailed error from Wix
           return new Response(
             JSON.stringify({ 
-              error: `Wix Cart API error: ${cartResponse.status} ${cartResponse.statusText}`,
-              details: responseText,
-              wixErrorDetails: responseText ? JSON.parse(responseText) : null,
+              error: `Wix Checkout API error: ${checkoutResponse.status} ${checkoutResponse.statusText}`,
+              details: checkoutText,
               requestInfo: {
-                hasAccountId: !!wixAccountId,
                 hasSiteId: !!wixSiteId,
                 itemCount: items.length
               }
             }),
             { 
-              status: cartResponse.status, 
+              status: checkoutResponse.status, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             }
           );
         }
 
-        const cartData = JSON.parse(responseText);
+        const checkoutData = JSON.parse(checkoutText);
+        const checkoutId = checkoutData.checkout?.id;
+        
+        // Get the checkout URL for redirect
+        let checkoutUrl = null;
+        if (checkoutId) {
+          console.log('Checkout created with ID:', checkoutId);
+          
+          const redirectResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts/${checkoutId}/getCheckoutUrl`, {
+            method: 'POST',
+            headers: checkoutHeaders,
+            body: JSON.stringify({})
+          });
+          
+          console.log('Redirect URL response status:', redirectResponse.status);
+          
+          if (redirectResponse.ok) {
+            const redirectData = await redirectResponse.json();
+            checkoutUrl = redirectData.checkoutUrl;
+            console.log('Checkout URL:', checkoutUrl);
+          } else {
+            const redirectError = await redirectResponse.text();
+            console.error('Failed to get checkout URL:', redirectError);
+          }
+        }
         
         return new Response(
           JSON.stringify({ 
-            cart: cartData.cart,
-            checkoutUrl: cartData.cart?.checkoutUrl
+            checkout: checkoutData.checkout,
+            checkoutUrl: checkoutUrl,
+            cart: { id: checkoutId } // For backward compatibility
           }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
