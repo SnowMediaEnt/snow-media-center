@@ -60,6 +60,10 @@ export const useMediaAssets = () => {
         .from('media-assets')
         .getPublicUrl(filePath);
 
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User must be logged in to upload assets');
+
       // Insert record into database
       const { data, error: insertError } = await supabase
         .from('media_assets')
@@ -70,7 +74,8 @@ export const useMediaAssets = () => {
           section: section,
           description: description,
           is_active: false,
-          rotation_order: 0
+          rotation_order: 0,
+          uploaded_by: user.id
         })
         .select()
         .single();
