@@ -11,6 +11,7 @@ import { useMediaAssets, MediaAsset } from '@/hooks/useMediaAssets';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MediaManagerProps {
   onBack: () => void;
@@ -188,12 +189,18 @@ const MediaManager = ({ onBack }: MediaManagerProps) => {
       // Enhance prompt for wallpaper/background generation with safety filters
       const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. Safe for work, family-friendly, no NSFW content.`;
       
-      // Call our Hugging Face edge function
+      // Get the user's session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Please sign in to generate images');
+      }
+
+      // Call our Hugging Face edge function with user's auth token
       const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhbG13emh2eG9lZnZrZnNpeWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4MjIwNDMsImV4cCI6MjA2NzM5ODA0M30.I-YfvZxAuOvhehrdoZOgrANirZv0-ucGUKbW9gOfQak`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           prompt: enhancedPrompt
