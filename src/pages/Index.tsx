@@ -73,9 +73,17 @@ const Index = () => {
   // Handle keyboard navigation for TV remote
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle both standard back buttons and Android hardware back button
-      if (event.key === 'Escape' || event.key === 'Backspace' || 
-          event.keyCode === 4 || event.which === 4) { // Android back button
+      // Skip navigation handling when user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      // Allow Backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return; // Let the default behavior happen
+      }
+      
+      // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
+      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
         event.stopPropagation();
         
@@ -89,8 +97,8 @@ const Index = () => {
         return; // Let individual components handle their own navigation
       }
       
-      // Prevent default for navigation keys on home screen
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+      // Prevent default for navigation keys on home screen (only when not typing)
+      if (!isTyping && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
 

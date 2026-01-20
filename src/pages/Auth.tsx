@@ -40,12 +40,25 @@ const Auth = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Android back button and other back buttons
-      if (event.key === 'Escape' || event.key === 'Backspace' || 
-          event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
+      // Skip navigation handling when user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      // Allow Backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return; // Let the default behavior happen
+      }
+      
+      // Handle Android back button and other back buttons (but not Backspace when typing)
+      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
         navigate('/');
+        return;
+      }
+      
+      // Skip navigation when typing
+      if (isTyping) {
         return;
       }
       

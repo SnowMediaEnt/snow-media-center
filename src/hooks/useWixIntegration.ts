@@ -45,11 +45,22 @@ interface CreateMemberData {
   nickname?: string;
 }
 
+interface WixLoyalty {
+  points: number;
+  tier: string;
+}
+
+interface WixReferralStats {
+  totalReferrals: number;
+  earnings: string;
+}
+
 export const useWixIntegration = () => {
   const [loading, setLoading] = useState(false);
   const [wixProfile, setWixProfile] = useState<any>(null);
   const [wixOrders, setWixOrders] = useState<WixOrder[]>([]);
   const [wixReferrals, setWixReferrals] = useState<WixReferralInfo | null>(null);
+  const [wixLoyalty, setWixLoyalty] = useState<WixLoyalty | null>(null);
 
   const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
     try {
@@ -122,6 +133,43 @@ export const useWixIntegration = () => {
     }
   }, []);
 
+  const getOrders = useCallback(async (userEmail: string): Promise<WixOrder[]> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'get-orders',
+          email: userEmail
+        }
+      });
+
+      if (error) throw error;
+      return data.orders || [];
+    } catch (error) {
+      console.error('Error getting Wix orders:', error);
+      return [];
+    }
+  }, []);
+
+  const getLoyaltyAndReferrals = useCallback(async (userEmail: string): Promise<{ loyalty: WixLoyalty | null; referrals: WixReferralStats | null }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'get-loyalty',
+          email: userEmail
+        }
+      });
+
+      if (error) throw error;
+      return {
+        loyalty: data.loyalty || null,
+        referrals: data.referrals || null
+      };
+    } catch (error) {
+      console.error('Error getting loyalty/referrals:', error);
+      return { loyalty: null, referrals: null };
+    }
+  }, []);
+
   const fetchWixData = useCallback(async (userEmail: string) => {
     if (!userEmail || loading) return;
     
@@ -153,29 +201,31 @@ export const useWixIntegration = () => {
           console.error('Error fetching profile:', error);
         }
 
-        // Fetch orders (mock data for now)
-        setWixOrders([
-          {
-            id: '1',
-            number: '1001',
-            total: '29.99',
-            status: 'completed',
-            created_at: new Date().toISOString()
-          }
-        ]);
-
-        // Fetch referral info
+        // Fetch real orders from Wix
         try {
-          const referralResult = await getReferralInfo(memberResult.member.id);
-          setWixReferrals({
-            ...referralResult.referral,
-            referralUrl: referralResult.referral.link, // Use the actual referral URL from Wix
-            totalReferrals: 0,
-            totalEarnings: '0.00',
-            pendingEarnings: '0.00'
-          });
+          const orders = await getOrders(userEmail);
+          setWixOrders(orders);
         } catch (error) {
-          console.error('Error fetching referral info:', error);
+          console.error('Error fetching orders:', error);
+        }
+
+        // Fetch loyalty and referral info
+        try {
+          const { loyalty, referrals } = await getLoyaltyAndReferrals(userEmail);
+          setWixLoyalty(loyalty);
+          if (referrals) {
+            setWixReferrals({
+              code: '',
+              link: '',
+              memberId: memberResult.member.id,
+              referralUrl: '',
+              totalReferrals: referrals.totalReferrals,
+              totalEarnings: referrals.earnings,
+              pendingEarnings: '0.00'
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching loyalty/referrals:', error);
         }
       }
     } catch (error) {
@@ -183,7 +233,7 @@ export const useWixIntegration = () => {
     } finally {
       setLoading(false);
     }
-  }, [loading, verifyWixMember, getProfile, getReferralInfo]);
+  }, [loading, verifyWixMember, getProfile, getOrders, getLoyaltyAndReferrals]);
 
   const testConnection = useCallback(async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
     setLoading(true);
@@ -272,12 +322,15 @@ export const useWixIntegration = () => {
     wixProfile,
     wixOrders,
     wixReferrals,
+    wixLoyalty,
     verifyWixMember,
     getWixMember,
     testConnection,
     createMember,
     getProfile,
     getReferralInfo,
+    getOrders,
+    getLoyaltyAndReferrals,
     addToEmailList,
     sendMessage,
     fetchWixData

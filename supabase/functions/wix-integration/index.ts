@@ -379,6 +379,213 @@ Deno.serve(async (req) => {
           }
         );
 
+      case 'create-member':
+        console.log('Creating new Wix member:', memberData);
+        
+        if (!wixSiteId) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Site ID required for member creation',
+              details: 'WIX_SITE_ID is required for member operations.'
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (!memberData || !memberData.email) {
+          return new Response(
+            JSON.stringify({ error: 'Email is required for member creation' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Create a new member in Wix
+        const createMemberResponse = await fetch('https://www.wixapis.com/members/v1/members', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-site-id': wixSiteId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            member: {
+              loginEmail: memberData.email,
+              profile: {
+                firstName: memberData.firstName || '',
+                lastName: memberData.lastName || '',
+                nickname: memberData.nickname || memberData.email.split('@')[0]
+              },
+              status: 'APPROVED'
+            }
+          })
+        });
+        
+        console.log('Create member response status:', createMemberResponse.status);
+        const createMemberText = await createMemberResponse.text();
+        console.log('Create member response:', createMemberText);
+        
+        if (!createMemberResponse.ok) {
+          return new Response(
+            JSON.stringify({ 
+              error: `Failed to create Wix member: ${createMemberResponse.status}`,
+              details: createMemberText
+            }),
+            { status: createMemberResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const createdMemberData = JSON.parse(createMemberText);
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            member: {
+              id: createdMemberData.member?.id,
+              email: createdMemberData.member?.loginEmail,
+              name: createdMemberData.member?.profile?.firstName || memberData.email.split('@')[0]
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
+      case 'get-orders':
+        console.log('Getting orders for member:', wixMemberId || email);
+        
+        if (!wixSiteId) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Site ID required for orders API',
+              details: 'WIX_SITE_ID is required for eCommerce operations.'
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Query orders from Wix eCommerce
+        const ordersResponse = await fetch('https://www.wixapis.com/ecom/v1/orders/query', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-site-id': wixSiteId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: {
+              filter: email ? { 'buyerInfo.email': { $eq: email } } : {},
+              paging: { limit: 50 },
+              sort: [{ fieldName: 'createdDate', order: 'DESC' }]
+            }
+          })
+        });
+        
+        console.log('Orders API response status:', ordersResponse.status);
+        
+        if (!ordersResponse.ok) {
+          const errorText = await ordersResponse.text();
+          console.error('Orders API error:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              orders: [],
+              error: `Orders API error: ${ordersResponse.status}`,
+              details: errorText
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const ordersData = await ordersResponse.json();
+        const orders = (ordersData.orders || []).map((order: any) => ({
+          id: order.id,
+          number: order.number,
+          total: order.priceSummary?.total?.formattedAmount || '$0.00',
+          status: order.fulfillmentStatus || order.paymentStatus || 'unknown',
+          created_at: order.createdDate,
+          items: (order.lineItems || []).map((item: any) => ({
+            name: item.productName?.original || item.name,
+            quantity: item.quantity,
+            price: item.price?.formattedAmount
+          }))
+        }));
+        
+        return new Response(
+          JSON.stringify({ orders, total: ordersData.totalResults || 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
+      case 'get-loyalty':
+        console.log('Getting loyalty/referral info for:', email || wixMemberId);
+        
+        if (!wixSiteId) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Site ID required for loyalty API'
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Try to get loyalty program info
+        const loyaltyResponse = await fetch('https://www.wixapis.com/loyalty/v1/accounts/query', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-site-id': wixSiteId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: {
+              filter: email ? { contactId: { $exists: true } } : {},
+              paging: { limit: 1 }
+            }
+          })
+        });
+        
+        console.log('Loyalty API response status:', loyaltyResponse.status);
+        
+        // Also try referrals API
+        const referralResponse = await fetch('https://www.wixapis.com/loyalty-referrals/v1/referrals/query', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-site-id': wixSiteId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: { paging: { limit: 50 } }
+          })
+        });
+        
+        console.log('Referrals API response status:', referralResponse.status);
+        
+        let loyaltyData = { points: 0, tier: 'None' };
+        let referralData = { totalReferrals: 0, earnings: '$0.00' };
+        
+        if (loyaltyResponse.ok) {
+          const loyalty = await loyaltyResponse.json();
+          if (loyalty.accounts?.[0]) {
+            loyaltyData = {
+              points: loyalty.accounts[0].points?.balance || 0,
+              tier: loyalty.accounts[0].tier?.name || 'Standard'
+            };
+          }
+        }
+        
+        if (referralResponse.ok) {
+          const referrals = await referralResponse.json();
+          referralData = {
+            totalReferrals: referrals.totalResults || 0,
+            earnings: referrals.referrals?.[0]?.earnings?.formattedAmount || '$0.00'
+          };
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            loyalty: loyaltyData,
+            referrals: referralData,
+            success: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),

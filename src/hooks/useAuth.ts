@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -6,6 +6,32 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Sync user to Wix after signup
+  const syncUserToWix = useCallback(async (email: string, fullName?: string) => {
+    try {
+      const nameParts = fullName?.split(' ') || [];
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'create-member',
+          memberData: {
+            email,
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || '',
+            nickname: email.split('@')[0]
+          }
+        }
+      });
+      
+      if (error) {
+        console.warn('Wix member sync failed (user may already exist):', error);
+      } else {
+        console.log('User synced to Wix:', data);
+      }
+    } catch (error) {
+      console.warn('Wix sync error:', error);
+    }
+  }, []);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -28,7 +54,7 @@ export const useAuth = () => {
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -38,6 +64,15 @@ export const useAuth = () => {
           }
         }
       });
+      
+      // If signup successful, sync to Wix
+      if (!error && data.user) {
+        // Use setTimeout to avoid blocking the auth flow
+        setTimeout(() => {
+          syncUserToWix(email, fullName);
+        }, 0);
+      }
+      
       return { error };
     } catch (error) {
       return { error: { message: 'Failed to create account. Please try again.' } } as any;

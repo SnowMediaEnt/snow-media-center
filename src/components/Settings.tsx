@@ -21,12 +21,25 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   // Android TV/Firestick navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Android back button and other back buttons
-      if (event.key === 'Escape' || event.key === 'Backspace' || 
-          event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
+      // Skip navigation handling when user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      // Handle Android back button and other back buttons (but not Backspace when typing)
+      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
         onBack();
+        return;
+      }
+      
+      // Allow Backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return; // Let the default behavior happen
+      }
+      
+      // Skip arrow/enter navigation when typing
+      if (isTyping) {
         return;
       }
       
