@@ -163,6 +163,14 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     if (cartItems.length === 0) return;
 
     setCheckoutLoading(true);
+    
+    // For web: Open window BEFORE async call to avoid popup blocker
+    // Must open synchronously in response to user action
+    let checkoutWindow: Window | null = null;
+    if (!Capacitor.isNativePlatform()) {
+      checkoutWindow = window.open('about:blank', '_blank');
+    }
+    
     try {
       const wixCartItems: CartItem[] = cartItems.map(item => ({
         productId: item.id,
@@ -190,16 +198,37 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             toolbarColor: '#000000'
           });
         } else {
-          // Web fallback - open in new tab
-          toast({
-            title: "Opening Checkout",
-            description: "Checkout opened in a new tab. Close it to return here.",
-          });
-          window.open(checkoutUrl, '_blank');
+          // Web: Navigate the pre-opened window to checkout URL
+          if (checkoutWindow) {
+            checkoutWindow.location.href = checkoutUrl;
+            toast({
+              title: "Opening Checkout",
+              description: "Checkout opened in a new tab. Close it to return here.",
+            });
+          } else {
+            // Fallback if popup was blocked
+            toast({
+              title: "Popup Blocked",
+              description: "Please allow popups or click the link below.",
+              variant: "destructive",
+            });
+            // Use location.href as last resort
+            window.location.href = checkoutUrl;
+          }
         }
+      } else {
+        // No checkout URL - close the blank window
+        checkoutWindow?.close();
+        toast({
+          title: "Checkout Error",
+          description: "Could not get checkout URL. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Checkout error:', error);
+      // Close blank window on error
+      checkoutWindow?.close();
       toast({
         title: "Checkout Error",
         description: "Unable to process checkout. Please try again.",
