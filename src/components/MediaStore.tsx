@@ -115,8 +115,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            // From back, go to signin (not logged in) or categories (logged in)
-            setFocusedElement(user ? (categoryIds.length > 0 ? categoryIds[0] : `product-${filteredProducts[0]?.id}`) : 'signin');
+            // From back, always go to signin first (even for logged-in users, for navigation consistency)
+            setFocusedElement('signin');
           } else if (focusedElement === 'signin') {
             // From signin, go to cart
             setFocusedElement('cart');
@@ -169,15 +169,25 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart]);
 
-  // Scroll focused element into view for TV navigation - works for ALL elements
+  // Scroll focused element into view for TV navigation - auto-scroll when off-screen
   useEffect(() => {
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
-    if (el) {
-      // For header elements (back, signin, cart), scroll to top of page
-      if (['back', 'signin', 'cart'].includes(focusedElement)) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
+    if (!el) return;
+    
+    // For header elements (back, signin, cart, categories), scroll to top
+    if (['back', 'signin', 'cart'].includes(focusedElement) || focusedElement.startsWith('category-')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      // Check if element is visible in viewport
+      const rect = el.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      if (rect.top < 0) {
+        // Element is above viewport - scroll up
+        window.scrollTo({ top: window.scrollY + rect.top - 100, behavior: 'smooth' });
+      } else if (rect.bottom > viewportHeight) {
+        // Element is below viewport - scroll down
+        window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + 100, behavior: 'smooth' });
       }
     }
   }, [focusedElement]);

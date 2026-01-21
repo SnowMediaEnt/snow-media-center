@@ -100,6 +100,18 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             if (assets.length > 0) {
               setFocusedElement('asset-0');
             }
+          } else if (focusedElement.startsWith('asset-toggle-')) {
+            // From toggle, go to delete
+            const assetId = focusedElement.replace('asset-toggle-', '');
+            setFocusedElement(`asset-delete-${assetId}`);
+          } else if (focusedElement.startsWith('asset-delete-')) {
+            // From delete, go to next row image
+            const assetId = focusedElement.replace('asset-delete-', '');
+            const currentIndex = assets.findIndex(a => a.id === assetId);
+            const nextIndex = currentIndex + gridCols;
+            if (nextIndex < assets.length) {
+              setFocusedElement(`asset-${nextIndex}`);
+            }
           } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex + gridCols;
@@ -116,6 +128,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'file-input') {
             setFocusedElement('asset-type');
+          } else if (focusedElement.startsWith('asset-delete-')) {
+            // From delete, go to toggle
+            const assetId = focusedElement.replace('asset-delete-', '');
+            setFocusedElement(`asset-toggle-${assetId}`);
+          } else if (focusedElement.startsWith('asset-toggle-')) {
+            // From toggle, go back to image card
+            const assetId = focusedElement.replace('asset-toggle-', '');
+            const currentIndex = assets.findIndex(a => a.id === assetId);
+            setFocusedElement(`asset-${currentIndex}`);
           } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex - gridCols;
@@ -130,6 +151,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         case 'ArrowRight':
           if (focusedElement === 'prompt-input') {
             setFocusedElement('generate-btn');
+          } else if (focusedElement.startsWith('asset-toggle-')) {
+            // From toggle go to delete
+            const assetId = focusedElement.replace('asset-toggle-', '');
+            setFocusedElement(`asset-delete-${assetId}`);
           } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             // Move to next image if not at end of row
@@ -142,6 +167,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         case 'ArrowLeft':
           if (focusedElement === 'generate-btn') {
             setFocusedElement('prompt-input');
+          } else if (focusedElement.startsWith('asset-delete-')) {
+            // From delete go to toggle
+            const assetId = focusedElement.replace('asset-delete-', '');
+            setFocusedElement(`asset-toggle-${assetId}`);
           } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             // Move to previous image if not at start of row
@@ -161,11 +190,21 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             handleGenerateImage();
           } else if (focusedElement === 'file-input') {
             fileInputRef.current?.click();
+          } else if (focusedElement.startsWith('asset-toggle-')) {
+            // Toggle the asset active/inactive
+            const assetId = focusedElement.replace('asset-toggle-', '');
+            const asset = assets.find(a => a.id === assetId);
+            if (asset) handleToggleActive(asset.id, asset.is_active);
+          } else if (focusedElement.startsWith('asset-delete-')) {
+            // Delete the asset
+            const assetId = focusedElement.replace('asset-delete-', '');
+            const asset = assets.find(a => a.id === assetId);
+            if (asset) handleDelete(asset.id, asset.file_path, asset.name);
           } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
-            // Toggle the asset when pressing Enter on the image card
+            // On image card, navigate into the card actions (toggle)
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const asset = assets[currentIndex];
-            if (asset) handleToggleActive(asset.id, asset.is_active);
+            if (asset) setFocusedElement(`asset-toggle-${asset.id}`);
           }
           break;
       }
@@ -527,13 +566,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
           <h2 className="text-2xl font-bold text-white mb-4">Upload New Asset</h2>
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
-            <div data-focus-id="asset-type" className={`transition-all ${getFocusClass('asset-type')}`}>
+            <div data-focus-id="asset-type">
               <Label htmlFor="asset-type" className="text-white mb-2 block">Asset Type</Label>
               <Select value={uploadForm.assetType} onValueChange={(value) => setUploadForm({...uploadForm, assetType: value as MediaAsset['asset_type']})}>
-                <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                <SelectTrigger className={`bg-white/10 border-white/20 text-white transition-all rounded-md ${focusedElement === 'asset-type' ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-slate-800 border-slate-600">
                   <SelectItem value="background">Background</SelectItem>
                   <SelectItem value="icon">Icon</SelectItem>
                   <SelectItem value="logo">Logo</SelectItem>
@@ -543,16 +582,24 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             </div>
           </div>
           
-          <div className="flex items-center gap-4" data-focus-id="file-input">
+          <div data-focus-id="file-input">
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all rounded-md ${focusedElement === 'file-input' ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+            >
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Choose File
+            </Button>
             <Input
               type="file"
               ref={fileInputRef}
               accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff"
               onChange={handleFileUpload}
               disabled={uploading}
-              className={`bg-white/10 border-white/20 text-white file:bg-primary file:text-primary-foreground file:border-0 file:rounded file:px-4 file:py-2 transition-all ${getFocusClass('file-input')}`}
+              className="hidden"
             />
-            {uploading && <Loader2 className="w-5 h-5 animate-spin text-white" />}
           </div>
         </Card>
 
@@ -562,14 +609,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {assets.map((asset, index) => {
               const isFocused = focusedElement === `asset-${index}`;
+              const isToggleFocused = focusedElement === `asset-toggle-${asset.id}`;
+              const isDeleteFocused = focusedElement === `asset-delete-${asset.id}`;
               return (
                 <Card 
                   key={asset.id} 
                   data-focus-id={`asset-${index}`}
-                  className={`bg-gradient-to-br from-muted to-background border-border p-4 transition-all cursor-pointer ${
+                  className={`bg-gradient-to-br from-muted to-background border-border p-4 transition-all ${
                     asset.is_active ? 'ring-2 ring-green-500' : ''
                   } ${isFocused ? 'ring-4 ring-brand-ice scale-105 z-10' : ''}`}
-                  onClick={() => handleToggleActive(asset.id, asset.is_active)}
                 >
                   <div className="aspect-video bg-muted rounded mb-3 overflow-hidden">
                     <img 
@@ -586,7 +634,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   <p className="text-sm text-muted-foreground mb-2 capitalize">{asset.asset_type} - {asset.section}</p>
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 p-1 rounded">
+                    <div 
+                      data-focus-id={`asset-toggle-${asset.id}`}
+                      className={`flex items-center space-x-2 p-1 rounded cursor-pointer transition-all ${isToggleFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+                      onClick={() => handleToggleActive(asset.id, asset.is_active)}
+                    >
                       <Switch
                         checked={asset.is_active}
                         onCheckedChange={() => handleToggleActive(asset.id, asset.is_active)}
@@ -599,6 +651,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                     <Button
                       size="sm"
                       variant="destructive"
+                      data-focus-id={`asset-delete-${asset.id}`}
+                      className={`transition-all ${isDeleteFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(asset.id, asset.file_path, asset.name);

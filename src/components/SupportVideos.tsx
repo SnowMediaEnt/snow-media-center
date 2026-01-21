@@ -127,15 +127,22 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, selectedVideo, videos, onBack]);
 
-  // Scroll focused element into view for TV navigation - scroll ALL elements
+  // Scroll focused element into view for TV navigation - auto-scroll when off-screen
   useEffect(() => {
     // For header elements (back, tabs), scroll to top of page
     if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
-      if (el) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
+      if (!el) return;
+      
+      const rect = el.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      if (rect.top < 0) {
+        window.scrollTo({ top: window.scrollY + rect.top - 100, behavior: 'smooth' });
+      } else if (rect.bottom > viewportHeight) {
+        window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + 100, behavior: 'smooth' });
       }
     }
   }, [focusedElement]);

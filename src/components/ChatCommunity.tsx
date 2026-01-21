@@ -321,17 +321,34 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       switch (event.key) {
         case 'ArrowDown':
           setFocusIndex(prev => {
+            // From back button (index 0), go to the current active tab
+            if (prev === 0) {
+              const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
+              return tabIndex;
+            }
             // From tabs (indices 1, 2, 3), go to first content item (index 4)
             if (prev >= 1 && prev <= 3) {
               return 4;
             }
-            // Otherwise just move to next
+            // Otherwise just move to next item vertically
             return Math.min(maxIndex, prev + 1);
           });
           break;
 
         case 'ArrowUp':
-          setFocusIndex(prev => Math.max(0, prev - 1));
+          setFocusIndex(prev => {
+            // From first content item (index 4), return to the currently active tab
+            if (prev === 4) {
+              const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
+              return tabIndex;
+            }
+            // From any tab, go to back button
+            if (prev >= 1 && prev <= 3) {
+              return 0;
+            }
+            // Otherwise move up
+            return Math.max(0, prev - 1);
+          });
           break;
 
         case 'ArrowRight':
