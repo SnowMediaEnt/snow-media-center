@@ -23,7 +23,7 @@ serve(async (req) => {
       {
         name: 'GitHub Repository',
         type: 'github',
-        url: 'https://api.github.com/repos/YOUR_USERNAME/snow-media-knowledge/contents/',
+        url: 'https://api.github.com/repos/YOUR_USERNAME/snow-media-center/contents/',
         headers: {
           'Authorization': `token ${Deno.env.get('GITHUB_TOKEN')}`,
           'Accept': 'application/vnd.github.v3+json'
