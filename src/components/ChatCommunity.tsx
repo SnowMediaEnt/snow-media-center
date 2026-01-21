@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,12 +27,13 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [aiLoading, setAiLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'send' | 'voice' | string>('back');
+  const [focusIndex, setFocusIndex] = useState(0);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Community messages will be loaded from the database once users start posting
 
@@ -249,8 +250,135 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     }
   };
 
+  // Build focusable elements list based on active tab
+  // For Admin: back, tabs(0-2), view-tickets, create-ticket, subject, message, send
+  // For Community: back, tabs(0-2), visit-forum, join-groups
+  // For AI: back, tabs(0-2), ai-input, ai-send
+  const getFocusableIds = useCallback(() => {
+    const base = ['back', 'tab-admin', 'tab-community', 'tab-ai'];
+    if (activeTab === 'admin') {
+      return [...base, 'view-tickets', 'create-ticket', 'subject', 'message', 'admin-send'];
+    } else if (activeTab === 'community') {
+      return [...base, 'visit-forum', 'join-groups'];
+    } else {
+      return [...base, 'ai-input', 'ai-send'];
+    }
+  }, [activeTab]);
+
+  const focusableIds = getFocusableIds();
+  const currentFocusId = focusableIds[Math.min(focusIndex, focusableIds.length - 1)];
+  const isFocused = (id: string) => currentFocusId === id;
+  const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice scale-105' : '';
+
+  // D-pad Navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      // Handle back button (always)
+      if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        onBack();
+        return;
+      }
+
+      // Allow backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return;
+      }
+
+      // Allow normal typing except arrow navigation
+      if (isTyping && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        return;
+      }
+
+      // CRITICAL: preventDefault on ALL arrow keys to stop WebView scrolling
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      const ids = getFocusableIds();
+      const maxIndex = ids.length - 1;
+
+      switch (event.key) {
+        case 'ArrowUp':
+          setFocusIndex(prev => Math.max(0, prev - 1));
+          break;
+        case 'ArrowDown':
+          setFocusIndex(prev => Math.min(maxIndex, prev + 1));
+          break;
+        case 'ArrowLeft':
+          // For horizontal navigation on tabs
+          if (currentFocusId.startsWith('tab-')) {
+            const tabIndex = ids.indexOf(currentFocusId);
+            if (tabIndex > 1) setFocusIndex(tabIndex - 1);
+          } else if (currentFocusId === 'join-groups') {
+            setFocusIndex(ids.indexOf('visit-forum'));
+          } else if (currentFocusId === 'create-ticket') {
+            setFocusIndex(ids.indexOf('view-tickets'));
+          } else if (currentFocusId === 'ai-send') {
+            setFocusIndex(ids.indexOf('ai-input'));
+          } else if (currentFocusId === 'admin-send') {
+            setFocusIndex(ids.indexOf('message'));
+          }
+          break;
+        case 'ArrowRight':
+          if (currentFocusId.startsWith('tab-')) {
+            const tabIndex = ids.indexOf(currentFocusId);
+            if (tabIndex < 3) setFocusIndex(tabIndex + 1);
+          } else if (currentFocusId === 'visit-forum') {
+            setFocusIndex(ids.indexOf('join-groups'));
+          } else if (currentFocusId === 'view-tickets') {
+            setFocusIndex(ids.indexOf('create-ticket'));
+          } else if (currentFocusId === 'ai-input') {
+            setFocusIndex(ids.indexOf('ai-send'));
+          } else if (currentFocusId === 'message') {
+            setFocusIndex(ids.indexOf('admin-send'));
+          }
+          break;
+        case 'Enter':
+        case ' ':
+          if (currentFocusId === 'back') onBack();
+          else if (currentFocusId === 'tab-admin') setActiveTab('admin');
+          else if (currentFocusId === 'tab-community') setActiveTab('community');
+          else if (currentFocusId === 'tab-ai') setActiveTab('ai');
+          else if (currentFocusId === 'view-tickets') onNavigate?.('support-tickets');
+          else if (currentFocusId === 'create-ticket') onNavigate?.('create-ticket');
+          else if (currentFocusId === 'visit-forum') onNavigate?.('wix-forum');
+          else if (currentFocusId === 'join-groups') window.open('https://snowmediaent.com/groups', '_blank');
+          else if (currentFocusId === 'subject' || currentFocusId === 'message' || currentFocusId === 'ai-input') {
+            // Focus the input element
+            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
+            if (el) (el as HTMLElement).focus();
+          }
+          else if (currentFocusId === 'admin-send') sendAdminMessage();
+          else if (currentFocusId === 'ai-send') sendAiMessage();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [focusIndex, currentFocusId, getFocusableIds, onBack, onNavigate, activeTab]);
+
+  // Scroll focused element into view
+  useEffect(() => {
+    // For header elements, scroll to top
+    if (currentFocusId === 'back' || currentFocusId.startsWith('tab-')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [currentFocusId]);
+
   return (
-    <div className="tv-scroll-container tv-safe">
+    <div ref={containerRef} className="tv-scroll-container tv-safe">
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
@@ -258,7 +386,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
               onClick={onBack}
               variant="gold" 
               size="lg"
-              className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
+              data-focus-id="back"
+              className={`transition-all ${focusRing('back')}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -278,7 +407,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           <Button
             onClick={() => setActiveTab('admin')}
             variant={activeTab === 'admin' ? 'default' : 'outline'}
-            className={`text-lg px-6 py-3 ${focusedElement === 'tab-0' ? 'ring-2 ring-white' : ''} ${
+            data-focus-id="tab-admin"
+            className={`text-lg px-6 py-3 transition-all ${focusRing('tab-admin')} ${
               activeTab === 'admin' 
                 ? 'bg-brand-gold hover:bg-brand-gold/80' 
                 : 'bg-transparent border-brand-gold text-brand-gold hover:bg-brand-gold'
@@ -290,7 +420,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           <Button
             onClick={() => setActiveTab('community')}
             variant={activeTab === 'community' ? 'default' : 'outline'}
-            className={`text-lg px-6 py-3 ${focusedElement === 'tab-1' ? 'ring-2 ring-white' : ''} ${
+            data-focus-id="tab-community"
+            className={`text-lg px-6 py-3 transition-all ${focusRing('tab-community')} ${
               activeTab === 'community' 
                 ? 'bg-green-600 hover:bg-green-700' 
                 : 'bg-transparent border-green-500 text-green-400 hover:bg-green-600'
@@ -302,7 +433,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           <Button
             onClick={() => setActiveTab('ai')}
             variant={activeTab === 'ai' ? 'default' : 'outline'}
-            className={`text-lg px-6 py-3 ${focusedElement === 'tab-2' ? 'ring-2 ring-white' : ''} ${
+            data-focus-id="tab-ai"
+            className={`text-lg px-6 py-3 transition-all ${focusRing('tab-ai')} ${
               activeTab === 'ai' 
                 ? 'bg-purple-600 hover:bg-purple-700' 
                 : 'bg-transparent border-purple-500 text-purple-400 hover:bg-purple-600'
@@ -323,15 +455,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             
             <div className="flex gap-4 mb-4">
               <Button 
-                onClick={() => onNavigate('support-tickets')}
-                className="bg-orange-600 hover:bg-orange-700"
+                onClick={() => onNavigate?.('support-tickets')}
+                data-focus-id="view-tickets"
+                className={`bg-orange-600 hover:bg-orange-700 transition-all ${focusRing('view-tickets')}`}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 View Support Tickets
               </Button>
               <Button 
-                onClick={() => onNavigate('create-ticket')}
-                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => onNavigate?.('create-ticket')}
+                data-focus-id="create-ticket"
+                className={`bg-blue-600 hover:bg-blue-700 transition-all ${focusRing('create-ticket')}`}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Ticket
@@ -345,7 +479,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   value={adminSubject}
                   onChange={(e) => setAdminSubject(e.target.value)}
                   placeholder="What do you need help with?"
-                  className="bg-slate-800 border-slate-600 text-white text-lg py-3"
+                  data-focus-id="subject"
+                  className={`bg-slate-800 border-slate-600 text-white text-lg py-3 transition-all ${isFocused('subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={adminLoading}
                 />
               </div>
@@ -356,7 +491,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   value={adminMessage}
                   onChange={(e) => setAdminMessage(e.target.value)}
                   placeholder="Describe your issue or question in detail..."
-                  className="bg-slate-800 border-slate-600 text-white min-h-32 text-lg"
+                  data-focus-id="message"
+                  className={`bg-slate-800 border-slate-600 text-white min-h-32 text-lg transition-all ${isFocused('message') ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={adminLoading}
                 />
               </div>
@@ -364,7 +500,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
               <Button 
                 onClick={sendAdminMessage}
                 disabled={adminLoading || !adminMessage.trim() || !adminSubject.trim() || !user}
-                className={`bg-brand-gold hover:bg-brand-gold/80 text-white text-lg px-8 py-3 ${focusedElement === 'send' && activeTab === 'admin' ? 'ring-2 ring-white' : ''}`}
+                data-focus-id="admin-send"
+                className={`bg-brand-gold hover:bg-brand-gold/80 text-white text-lg px-8 py-3 transition-all ${focusRing('admin-send')}`}
               >
                 {adminLoading ? (
                   <>
@@ -409,16 +546,18 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
               
               <div className="flex gap-4">
                 <Button 
-                  onClick={() => window.open('https://snowmediaent.com/forum', '_blank')}
-                  className="bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 flex-1"
+                  onClick={() => onNavigate?.('wix-forum')}
+                  data-focus-id="visit-forum"
+                  className={`bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 flex-1 transition-all ${focusRing('visit-forum')}`}
                 >
-                  <ExternalLink className="w-5 h-5 mr-2" />
+                  <MessageSquare className="w-5 h-5 mr-2" />
                   Visit Community Forum
                 </Button>
                 <Button 
                   onClick={() => window.open('https://snowmediaent.com/groups', '_blank')}
                   variant="outline"
-                  className="border-green-500 text-green-400 hover:bg-green-600 hover:text-white text-lg px-8 py-3"
+                  data-focus-id="join-groups"
+                  className={`border-green-500 text-green-400 hover:bg-green-600 hover:text-white text-lg px-8 py-3 transition-all ${focusRing('join-groups')}`}
                 >
                   <MessageSquare className="w-5 h-5 mr-2" />
                   Join Groups
@@ -487,7 +626,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   value={aiMessage}
                   onChange={(e) => setAiMessage(e.target.value)}
                   placeholder="Ask Snow Media AI anything..."
-                  className="bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1"
+                  data-focus-id="ai-input"
+                  className={`bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1 transition-all ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={aiLoading || !user}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && !aiLoading) {
@@ -495,14 +635,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     }
                   }}
                 />
-                <VoiceInput 
+                <VoiceInput
                   onTranscription={(text) => setAiMessage(text)}
-                  className={focusedElement === 'voice' ? 'ring-2 ring-white' : ''}
+                  className=""
                 />
                 <Button 
                   onClick={sendAiMessage}
                   disabled={aiLoading || !aiMessage.trim() || !user}
-                  className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 ${focusedElement === 'send' && activeTab === 'ai' ? 'ring-2 ring-white' : ''}`}
+                  data-focus-id="ai-send"
+                  className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 transition-all ${focusRing('ai-send')}`}
                 >
                   {aiLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
