@@ -3,10 +3,20 @@ import { Capacitor } from "@capacitor/core";
 
 export async function downloadApkToCache(url: string, filename: string, onProgress?: (progress: number) => void): Promise<string> {
   try {
+    const platform = Capacitor.getPlatform();
+    const isNative = Capacitor.isNativePlatform();
+    
+    console.log('=== APK Download Debug ===');
+    console.log('Platform:', platform);
+    console.log('Is Native Platform:', isNative);
+    console.log('Download URL:', url);
+    console.log('Filename:', filename);
+    
     // On native platform, fetch directly (no CORS issues)
     // On web, we can't download APKs anyway
-    if (!Capacitor.isNativePlatform()) {
-      throw new Error('APK downloads are only available on Android devices');
+    if (!isNative) {
+      console.error('Not on native platform - APK download blocked');
+      throw new Error(`APK downloads are only available on Android devices (detected platform: ${platform})`);
     }
 
     console.log('Starting APK download from:', url);
