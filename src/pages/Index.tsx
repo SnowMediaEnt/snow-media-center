@@ -356,7 +356,7 @@ const Index = () => {
           </div>
 
           {/* Header - positioned in upper third */}
-          <div className="relative z-10 flex-shrink-0" style={{ height: '14vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '3vh' }}>
+          <div className="relative z-10 flex-shrink-0" style={{ height: '21vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '3vh' }}>
             <div className="text-center">
               <h1 className="mb-2 text-shadow-strong" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
