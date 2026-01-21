@@ -100,7 +100,7 @@ export const useAppData = () => {
       
       return appsArray.map((app: any) => {
         const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
-          (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
+          (app.downloadUrl || app.apk || app.url || `https://snowmediaapps.com/apps/${app.file}`) : '';
         
         const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
         
@@ -127,7 +127,7 @@ export const useAppData = () => {
   const fetchRemoteApps = async () => {
     // Cache-bust URL to always get fresh data
     const timestamp = Date.now();
-    const baseUrl = 'http://snowmediaapps.com/apps/apps.json.php';
+    const baseUrl = 'https://snowmediaapps.com/apps/apps.json.php';
     
     // Try multiple endpoints - prioritize the PHP file that exists
     const endpoints = [
@@ -233,7 +233,7 @@ export const useAppData = () => {
     const transformedApps = appsArray.map((app: any) => {
       // Tolerant URL extraction - try multiple fields
       const downloadUrl = app.downloadUrl || app.apk || app.url || app.file ? 
-        (app.downloadUrl || app.apk || app.url || `http://snowmediaapps.com/apps/${app.file}`) : '';
+        (app.downloadUrl || app.apk || app.url || `https://snowmediaapps.com/apps/${app.file}`) : '';
       
       // Generate package name from app name
       const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
