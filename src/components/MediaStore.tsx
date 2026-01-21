@@ -567,12 +567,12 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                     </div>
                     
                     <CardContent className="p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2 cursor-pointer hover:text-blue-300 transition-colors"
+                      <h3 className="text-lg font-semibold text-white mb-2 cursor-pointer hover:text-blue-300 transition-colors line-clamp-1"
                           onClick={() => setSelectedProduct(product)}>
                         {product.name}
                       </h3>
                        <div 
-                         className="text-white/70 text-sm mb-3 line-clamp-2"
+                         className="text-white/70 text-sm mb-3 line-clamp-2 max-h-10 overflow-hidden"
                          dangerouslySetInnerHTML={{ __html: product.description }}
                        />
                       

@@ -13,9 +13,11 @@ interface SettingsProps {
   onLayoutChange: (mode: 'grid' | 'row') => void;
 }
 
+type FocusType = 'back' | 'tab-layout' | 'tab-media' | 'tab-updates' | 'layout-toggle';
+
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const [activeTab, setActiveTab] = useState('layout');
-  const [focusedElement, setFocusedElement] = useState(0); // 0: back button, 1-3: tabs, 4: layout toggle
+  const [focusedElement, setFocusedElement] = useState<FocusType>('back');
 
   // Android TV/Firestick navigation
   useEffect(() => {
@@ -34,7 +36,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
       
       // Allow Backspace when typing
       if (event.key === 'Backspace' && isTyping) {
-        return; // Let the default behavior happen
+        return;
       }
       
       // Skip arrow/enter navigation when typing
@@ -45,62 +47,52 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
+
+      const tabs: FocusType[] = ['tab-layout', 'tab-media', 'tab-updates'];
+      const currentTabIdx = tabs.indexOf(focusedElement as FocusType);
       
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement === 4) {
-            // From layout toggle back to layout tab
-            setFocusedElement(1);
-          } else if (focusedElement === 2) {
-            // From media tab to layout tab
-            setFocusedElement(1);
-          } else if (focusedElement === 3) {
-            // From updates tab to media tab
-            setFocusedElement(2);
+          if (currentTabIdx > 0) {
+            setFocusedElement(tabs[currentTabIdx - 1]);
+          } else if (focusedElement === 'layout-toggle') {
+            setFocusedElement('tab-layout');
           }
           break;
           
         case 'ArrowRight':
-          if (focusedElement === 1) {
-            // From layout tab to media tab
-            setFocusedElement(2);
-          } else if (focusedElement === 2) {
-            // From media tab to updates tab
-            setFocusedElement(3);
+          if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
+            setFocusedElement(tabs[currentTabIdx + 1]);
           }
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 4) {
-            // From layout toggle back to layout tab
-            setFocusedElement(1);
-          } else if (focusedElement >= 1 && focusedElement <= 3) {
-            // From any tab to back button
-            setFocusedElement(0);
+          if (focusedElement === 'layout-toggle') {
+            setFocusedElement('tab-layout');
+          } else if (currentTabIdx >= 0) {
+            setFocusedElement('back');
           }
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 0) {
-            // From back button to layout tab
-            setFocusedElement(1);
-          } else if (focusedElement === 1 && activeTab === 'layout') {
-            // From layout tab down to layout toggle (only when on layout tab)
-            setFocusedElement(4);
+          if (focusedElement === 'back') {
+            setFocusedElement('tab-layout');
+          } else if (focusedElement === 'tab-layout' && activeTab === 'layout') {
+            setFocusedElement('layout-toggle');
           }
           break;
           
         case 'Enter':
         case ' ':
-          if (focusedElement === 0) {
+          if (focusedElement === 'back') {
             onBack();
-          } else if (focusedElement === 1) {
+          } else if (focusedElement === 'tab-layout') {
             setActiveTab('layout');
-          } else if (focusedElement === 2) {
+          } else if (focusedElement === 'tab-media') {
             setActiveTab('media');
-          } else if (focusedElement === 3) {
+          } else if (focusedElement === 'tab-updates') {
             setActiveTab('updates');
-          } else if (focusedElement === 4 && activeTab === 'layout') {
+          } else if (focusedElement === 'layout-toggle') {
             onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid');
           }
           break;
@@ -111,29 +103,28 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange]);
 
-  // Update focused element when tab changes
+  // Scroll focused element into view
   useEffect(() => {
-    // When switching tabs via keyboard, keep focus on the tab
-    if (focusedElement >= 1 && focusedElement <= 3) {
-      if (activeTab === 'layout') setFocusedElement(1);
-      else if (activeTab === 'media') setFocusedElement(2);
-      else if (activeTab === 'updates') setFocusedElement(3);
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [activeTab]);
+  }, [focusedElement]);
 
+  const isFocused = (id: string) => focusedElement === id;
+  const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' : '';
 
   return (
-    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+    <div className="tv-scroll-container tv-safe text-white">
       <div className="max-w-4xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-start w-full">
             <Button 
+              data-focus-id="back"
               onClick={onBack}
               variant="gold" 
               size="lg"
-              className={`transition-all duration-200 ${
-                focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
+              className={`transition-all duration-200 ${focusRing('back')}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -148,28 +139,25 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
+              data-focus-id="tab-layout"
               value="layout" 
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
+              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-layout')}`}
             >
               <Layout className="w-4 h-4 mr-2" />
               Layout
             </TabsTrigger>
             <TabsTrigger 
+              data-focus-id="tab-media"
               value="media" 
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 2 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
+              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
               <Image className="w-4 h-4 mr-2" />
               Media Manager
             </TabsTrigger>
             <TabsTrigger 
+              data-focus-id="tab-updates"
               value="updates" 
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
+              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Updates
@@ -182,9 +170,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               
                <div className="flex items-center justify-center">
                  <div 
-                   className={`flex bg-slate-800 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:bg-slate-700 ${
-                     focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
-                   }`}
+                   data-focus-id="layout-toggle"
+                   className={`flex bg-slate-800 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:bg-slate-700 ${focusRing('layout-toggle')}`}
                    onClick={() => onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid')}
                 >
                   {/* Grid Layout Option */}

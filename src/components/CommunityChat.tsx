@@ -24,6 +24,8 @@ interface CommunityChatProps {
   onBack: () => void;
 }
 
+type FocusType = 'back' | `room-${string}` | 'input' | 'send';
+
 const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -32,7 +34,9 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('general');
+  const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const rooms = [
     { id: 'general', name: 'General', description: 'General discussion' },
@@ -40,6 +44,97 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
     { id: 'products', name: 'Products', description: 'Product discussions' },
     { id: 'feedback', name: 'Feedback', description: 'Share your feedback' }
   ];
+
+  // D-pad Navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      // Handle back button
+      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        onBack();
+        return;
+      }
+
+      // Allow typing in input
+      if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) {
+        return;
+      }
+
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+      }
+
+      const roomIds = rooms.map(r => `room-${r.id}`);
+      const currentRoomIdx = roomIds.indexOf(focusedElement);
+
+      switch (event.key) {
+        case 'ArrowUp':
+          if (focusedElement === 'input' || focusedElement === 'send') {
+            setFocusedElement(`room-${rooms[rooms.length - 1].id}` as FocusType);
+          } else if (currentRoomIdx > 0) {
+            setFocusedElement(`room-${rooms[currentRoomIdx - 1].id}` as FocusType);
+          } else if (currentRoomIdx === 0) {
+            setFocusedElement('back');
+          }
+          break;
+
+        case 'ArrowDown':
+          if (focusedElement === 'back') {
+            setFocusedElement(`room-${rooms[0].id}` as FocusType);
+          } else if (currentRoomIdx >= 0 && currentRoomIdx < rooms.length - 1) {
+            setFocusedElement(`room-${rooms[currentRoomIdx + 1].id}` as FocusType);
+          } else if (currentRoomIdx === rooms.length - 1) {
+            setFocusedElement('input');
+          }
+          break;
+
+        case 'ArrowRight':
+          if (focusedElement === 'input') {
+            setFocusedElement('send');
+          } else if (focusedElement === 'back') {
+            setFocusedElement(`room-${rooms[0].id}` as FocusType);
+          }
+          break;
+
+        case 'ArrowLeft':
+          if (focusedElement === 'send') {
+            setFocusedElement('input');
+          } else if (focusedElement.startsWith('room-')) {
+            setFocusedElement('back');
+          }
+          break;
+
+        case 'Enter':
+        case ' ':
+          if (focusedElement === 'back') {
+            onBack();
+          } else if (focusedElement.startsWith('room-')) {
+            const roomId = focusedElement.replace('room-', '');
+            setSelectedRoom(roomId);
+          } else if (focusedElement === 'input') {
+            inputRef.current?.focus();
+          } else if (focusedElement === 'send') {
+            sendMessage();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedElement, onBack, rooms, newMessage]);
+
+  // Scroll focused element into view
+  useEffect(() => {
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focusedElement]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,17 +229,21 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
     };
   }, [selectedRoom]);
 
+  const isFocused = (id: string) => focusedElement === id;
+  const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' : '';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="tv-scroll-container tv-safe text-white">
+      <div className="max-w-6xl mx-auto pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <Button 
+              data-focus-id="back"
               onClick={onBack}
-              variant="outline" 
+              variant="gold" 
               size="lg"
-              className="mr-6 bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+              className={`mr-6 transition-all duration-200 ${focusRing('back')}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -171,9 +270,10 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                 {rooms.map((room) => (
                   <Button
                     key={room.id}
+                    data-focus-id={`room-${room.id}`}
                     onClick={() => setSelectedRoom(room.id)}
                     variant={selectedRoom === room.id ? "default" : "outline"}
-                    className={`w-full justify-start ${
+                    className={`w-full justify-start transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
                       selectedRoom === room.id 
                         ? 'bg-blue-600 border-blue-500 text-white' 
                         : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
@@ -215,11 +315,11 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                 ) : (
                   messages.map((message) => (
                     <div key={message.id} className="flex space-x-3">
-                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
                         {message.username.charAt(0).toUpperCase()}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1 flex-wrap">
                           <span className="font-medium text-white">{message.username}</span>
                           <span className="text-xs text-white/60 flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
@@ -232,7 +332,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                             </Badge>
                           )}
                         </div>
-                        <div className="text-white/90 bg-white/5 rounded-lg p-3">
+                        <div className="text-white/90 bg-white/5 rounded-lg p-3 break-words">
                           {message.message}
                         </div>
                       </div>
@@ -247,17 +347,20 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                 {user ? (
                   <div className="flex space-x-2">
                     <Input
+                      ref={inputRef}
+                      data-focus-id="input"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder={`Message #${rooms.find(r => r.id === selectedRoom)?.name}...`}
-                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      className={`flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all duration-200 ${focusRing('input')}`}
                       onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                       disabled={sending}
                     />
                     <Button
+                      data-focus-id="send"
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || sending}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${focusRing('send')}`}
                     >
                       <Send className="w-4 h-4" />
                     </Button>

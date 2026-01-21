@@ -63,20 +63,39 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   return <InstallAppsContent onBack={onBack} apps={apps} />;
 };
 
+// Focus types for navigation
+type FocusType = 
+  | 'back' 
+  | 'tab-0' | 'tab-1' | 'tab-2' 
+  | `app-${string}` 
+  | `download-${string}` 
+  | `launch-${string}` 
+  | `settings-${string}` 
+  | `uninstall-${string}`;
+
 const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppData[] }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
-  const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'tab-3' | string>('back');
+  const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const { toast } = useToast();
-  const focusedElementRef = useRef<HTMLElement>(null);
+  const focusedRef = useRef<HTMLElement>(null);
 
   // Helper function to get category apps
   const getCategoryApps = useCallback((category: string) => {
     return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
   }, [apps]);
 
-  // TV Remote Navigation with improved app selection
+  // Get buttons for an app based on install status
+  const getAppButtons = useCallback((app: AppData): string[] => {
+    const status = appStatuses.get(app.id);
+    if (status?.installed) {
+      return [`launch-${app.id}`, `settings-${app.id}`, `uninstall-${app.id}`];
+    }
+    return [`download-${app.id}`];
+  }, [appStatuses]);
+
+  // TV Remote Navigation with button-level focus
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Handle Android back button and other back buttons
@@ -92,68 +111,142 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         event.preventDefault();
       }
       
-      const categoryApps = apps.filter(app => activeTab === 'featured' ? app.featured : app.category === activeTab);
+      const categoryApps = getCategoryApps(activeTab);
+      const tabs = ['tab-0', 'tab-1', 'tab-2'];
+      
+      // Build a flat list of focusable elements in order
+      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1', 'tab-2'];
+      categoryApps.forEach(app => {
+        focusOrder.push(`app-${app.id}` as FocusType);
+        getAppButtons(app).forEach(btn => focusOrder.push(btn as FocusType));
+      });
+      
+      const currentIdx = focusOrder.indexOf(focusedElement);
       
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-2') setFocusedElement('tab-1');
-          else if (focusedElement === 'tab-3') setFocusedElement('tab-2');
-          else if (focusedElement.startsWith('app-')) setFocusedElement('back');
+          else if (focusedElement.startsWith('app-') || focusedElement === 'tab-0') {
+            setFocusedElement('back');
+          } else if (focusedElement.includes('-') && !focusedElement.startsWith('tab-')) {
+            // From a button, go to the app card
+            const appId = focusedElement.split('-').slice(1).join('-');
+            setFocusedElement(`app-${appId}` as FocusType);
+          }
           break;
           
         case 'ArrowRight':
           if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (focusedElement === 'tab-1') setFocusedElement('tab-2');
-          else if (focusedElement === 'tab-2') setFocusedElement('tab-3');
           else if (focusedElement === 'back') {
-            if (categoryApps.length > 0) setFocusedElement(`app-${categoryApps[0].id}`);
+            setFocusedElement('tab-0');
+          } else if (focusedElement.startsWith('app-')) {
+            // From app card, go to first button
+            const appId = focusedElement.replace('app-', '');
+            const app = categoryApps.find(a => a.id === appId);
+            if (app) {
+              const buttons = getAppButtons(app);
+              if (buttons.length > 0) {
+                setFocusedElement(buttons[0] as FocusType);
+              }
+            }
           }
           break;
           
         case 'ArrowUp':
-          if (focusedElement.startsWith('app-')) {
-            const currentIndex = categoryApps.findIndex(app => focusedElement === `app-${app.id}`);
-            if (currentIndex > 0) {
-              setFocusedElement(`app-${categoryApps[currentIndex - 1].id}`);
-            } else {
+          if (focusedElement.startsWith('tab-')) {
+            setFocusedElement('back');
+          } else if (focusedElement === 'back') {
+            // Stay on back
+          } else {
+            // Find current app and go to previous app or tabs
+            const appId = focusedElement.includes('-') 
+              ? focusedElement.split('-').slice(1).join('-').replace('app-', '')
+              : '';
+            const currentAppIdx = categoryApps.findIndex(app => 
+              focusedElement === `app-${app.id}` || 
+              focusedElement.endsWith(`-${app.id}`)
+            );
+            
+            if (currentAppIdx > 0) {
+              setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
+            } else if (currentAppIdx === 0) {
               setFocusedElement('tab-0');
             }
-          } else if (focusedElement.startsWith('tab-')) {
-            setFocusedElement('back');
           }
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back') setFocusedElement('tab-0');
-          else if (focusedElement.startsWith('tab-')) {
-            if (categoryApps.length > 0) setFocusedElement(`app-${categoryApps[0].id}`);
-          } else if (focusedElement.startsWith('app-')) {
-            const currentIndex = categoryApps.findIndex(app => focusedElement === `app-${app.id}`);
-            if (currentIndex + 1 < categoryApps.length) {
-              setFocusedElement(`app-${categoryApps[currentIndex + 1].id}`);
+          if (focusedElement === 'back') {
+            setFocusedElement('tab-0');
+          } else if (focusedElement.startsWith('tab-')) {
+            if (categoryApps.length > 0) {
+              setFocusedElement(`app-${categoryApps[0].id}` as FocusType);
+            }
+          } else {
+            // Find current app and go to next app or next button row
+            const currentAppIdx = categoryApps.findIndex(app => 
+              focusedElement === `app-${app.id}` || 
+              focusedElement.endsWith(`-${app.id}`)
+            );
+            
+            if (focusedElement.startsWith('app-')) {
+              // From app card, go to first button
+              const app = categoryApps[currentAppIdx];
+              if (app) {
+                const buttons = getAppButtons(app);
+                if (buttons.length > 0) {
+                  setFocusedElement(buttons[0] as FocusType);
+                } else if (currentAppIdx + 1 < categoryApps.length) {
+                  setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
+                }
+              }
+            } else {
+              // From a button, go to next app
+              if (currentAppIdx + 1 < categoryApps.length) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
+              }
             }
           }
           break;
           
         case 'Enter':
         case ' ':
-          if (focusedElement === 'back') onBack();
-          else if (focusedElement === 'tab-0') setActiveTab('featured');
-          else if (focusedElement === 'tab-1') setActiveTab('streaming');
-          else if (focusedElement === 'tab-2') setActiveTab('support');
-          else if (focusedElement === 'tab-3') setActiveTab('other');
-          else if (focusedElement.startsWith('app-')) {
-            // Find the focused app and show its actions
-            const app = categoryApps.find(a => focusedElement === `app-${a.id}`);
-            if (app) {
-              setFocusedElement(`download-${app.id}`);
-            }
+          if (focusedElement === 'back') {
+            onBack();
+          } else if (focusedElement === 'tab-0') {
+            setActiveTab('featured');
+          } else if (focusedElement === 'tab-1') {
+            setActiveTab('streaming');
+          } else if (focusedElement === 'tab-2') {
+            setActiveTab('support');
           } else if (focusedElement.startsWith('download-')) {
-            // Trigger download
             const appId = focusedElement.replace('download-', '');
             const app = categoryApps.find(a => a.id === appId);
             if (app) handleDownload(app);
+          } else if (focusedElement.startsWith('launch-')) {
+            const appId = focusedElement.replace('launch-', '');
+            const app = categoryApps.find(a => a.id === appId);
+            if (app) handleLaunch(app);
+          } else if (focusedElement.startsWith('settings-')) {
+            const appId = focusedElement.replace('settings-', '');
+            const app = categoryApps.find(a => a.id === appId);
+            if (app) handleOpenAppSettings(app);
+          } else if (focusedElement.startsWith('uninstall-')) {
+            const appId = focusedElement.replace('uninstall-', '');
+            const app = categoryApps.find(a => a.id === appId);
+            if (app) handleUninstall(app);
+          } else if (focusedElement.startsWith('app-')) {
+            // Pressing enter on app card goes to first button
+            const appId = focusedElement.replace('app-', '');
+            const app = categoryApps.find(a => a.id === appId);
+            if (app) {
+              const buttons = getAppButtons(app);
+              if (buttons.length > 0) {
+                setFocusedElement(buttons[0] as FocusType);
+              }
+            }
           }
           break;
       }
@@ -161,7 +254,15 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses]);
+
+  // Scroll focused element into view
+  useEffect(() => {
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focusedElement]);
 
   // App status management functions
   const generateAppPackageName = (app: AppData) => app.packageName || generatePackageName(app.name);
@@ -310,8 +411,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
-
-
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'streaming': return Tv;
@@ -320,21 +419,25 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
-  // Removed handleDownloadComplete - using real Android install process
+  const isFocused = (id: string) => focusedElement === id;
+  const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="space-y-4 pb-8">
-      <div className="space-y-4">
-        {categoryApps.map((app) => {
-          const status = appStatuses.get(app.id) || { installed: false };
-          const isInstalled = status.installed;
-          const isFocused = focusedElement === `app-${app.id}` || focusedElement.startsWith(`download-${app.id}`) || focusedElement.startsWith(`launch-${app.id}`);
-          
-          return (
-            <Card key={app.id} className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden hover:scale-105 transition-all duration-300 ${isFocused ? 'ring-2 ring-brand-ice scale-105' : ''}`}>
+    <div className="space-y-6 pb-8">
+      {categoryApps.map((app) => {
+        const status = appStatuses.get(app.id) || { installed: false };
+        const isInstalled = status.installed;
+        const appFocused = isFocused(`app-${app.id}`);
+        
+        return (
+          <Card 
+            key={app.id} 
+            data-focus-id={`app-${app.id}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''}`}
+          >
             <div className="p-6">
               <div className="flex items-start gap-4 mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img 
                     src={app.icon || '/icons/default.png'} 
                     alt={`${app.name} icon`}
@@ -342,96 +445,78 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent) {
-                        const IconComponent = getCategoryIcon(app.category);
-                        const iconElement = document.createElement('div');
-                        iconElement.className = 'w-8 h-8 text-white flex items-center justify-center';
-                        iconElement.innerHTML = '📱'; // Fallback emoji
-                        parent.appendChild(iconElement);
-                      }
                     }}
                   />
                 </div>
                 
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white">{app.name}</h3>
                     {app.featured && (
                       <Badge className="bg-green-600 text-white">Featured</Badge>
                     )}
                   </div>
-                  <p className="text-slate-400 text-sm mb-2">{app.description}</p>
+                  <p className="text-slate-400 text-sm mb-2 line-clamp-2">{app.description}</p>
                   <div className="flex gap-2 text-xs text-slate-500">
                     <span>{app.size}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  {/* Show Download button if NOT installed */}
-                  {!isInstalled && (
+              {/* Action Buttons - each individually focusable */}
+              <div className="space-y-3">
+                {!isInstalled && (
+                  <Button 
+                    data-focus-id={`download-${app.id}`}
+                    onClick={() => handleDownload(app)}
+                    className={`w-full transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </Button>
+                )}
+                
+                {isInstalled && (
+                  <>
                     <Button 
-                      onClick={() => handleDownload(app)}
-                      className={`flex-1 ${focusedElement === `download-${app.id}` ? 'ring-2 ring-white' : ''} bg-brand-ice hover:bg-brand-ice/80 text-white`}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </Button>
-                  )}
-                  
-                  {/* Launch Button - Only available if installed */}
-                  {isInstalled && (
-                    <Button 
+                      data-focus-id={`launch-${app.id}`}
                       onClick={() => handleLaunch(app)}
-                      className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
+                      className={`w-full transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Launch
                     </Button>
-                  )}
-                </div>
-                
-                {/* Management buttons - Only available after install */}
-                {isInstalled && (
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => handleOpenAppSettings(app)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30"
-                    >
-                      <Settings className="w-3 h-3 mr-1" />
-                      App Settings
-                    </Button>
                     
-                    <Button 
-                      onClick={() => handleUninstall(app)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Uninstall
-                    </Button>
-                  </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        data-focus-id={`settings-${app.id}`}
+                        onClick={() => handleOpenAppSettings(app)}
+                        variant="outline"
+                        className={`flex-1 transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30`}
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        App Settings
+                      </Button>
+                      
+                      <Button 
+                        data-focus-id={`uninstall-${app.id}`}
+                        onClick={() => handleUninstall(app)}
+                        variant="outline"
+                        className={`flex-1 transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Uninstall
+                      </Button>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
           </Card>
         );
       })}
-      </div>
     </div>
   );
-
-  // Auto-scroll focused element into view
-  useEffect(() => {
-    if (focusedElementRef.current) {
-      focusedElementRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }, [focusedElement]);
 
   return (
     <div className="tv-scroll-container tv-safe">
@@ -439,10 +524,11 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <Button 
+            data-focus-id="back"
             onClick={onBack}
             variant="gold" 
             size="lg"
-            className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
+            className={`transition-all duration-200 ${focusRing('back')}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
@@ -460,20 +546,23 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
+              data-focus-id="tab-0"
               value="featured" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-0' ? 'ring-2 ring-brand-ice' : ''}`}
+              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-0')}`}
             >
               Featured ({getCategoryApps('featured').length})
             </TabsTrigger>
             <TabsTrigger 
+              data-focus-id="tab-1"
               value="streaming" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-1' ? 'ring-2 ring-brand-ice' : ''}`}
+              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-1')}`}
             >
               Streaming ({getCategoryApps('streaming').length})
             </TabsTrigger>
             <TabsTrigger 
+              data-focus-id="tab-2"
               value="support" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-2' ? 'ring-2 ring-brand-ice' : ''}`}
+              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-2')}`}
             >
               Support ({getCategoryApps('support').length})
             </TabsTrigger>
