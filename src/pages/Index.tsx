@@ -361,16 +361,7 @@ const Index = () => {
               <h1 className="mb-2 text-shadow-strong" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
-                <span 
-                  className="font-center"
-                  style={{ 
-                    background: 'linear-gradient(180deg, #E8D9A0 0%, #D4C078 30%, #C9B370 50%, #D4C078 70%, #E8D9A0 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    filter: 'drop-shadow(0 2px 3px rgba(180, 160, 100, 0.4))'
-                  }}
-                >CENTER</span>
+                <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
                 <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>
