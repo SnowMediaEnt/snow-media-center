@@ -123,6 +123,16 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, selectedVideo, videos, onBack]);
 
+  // Scroll focused element into view for TV navigation
+  useEffect(() => {
+    if (focusedElement.startsWith('video-')) {
+      const el = document.querySelector(`[data-focus-id="video-${focusedElement.replace('video-', '')}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [focusedElement]);
+
   const handleVideoClick = (embedUrl: string) => {
     // Add fullscreen parameters to the embed URL
     const fullscreenUrl = embedUrl.includes('?') 
@@ -158,7 +168,11 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   const renderVideoGrid = (videoList: typeof videos) => (
     <div className="grid grid-cols-2 gap-6">
       {videoList.map((video) => (
-        <Card key={video.id} className={`bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 overflow-hidden hover:scale-105 transition-all duration-300 ${focusedElement === `video-${video.id}` ? 'ring-2 ring-brand-ice scale-105' : ''}`}>
+        <Card 
+          key={video.id} 
+          data-focus-id={`video-${video.id}`}
+          className={`bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 overflow-hidden hover:scale-105 transition-all duration-300 ${focusedElement === `video-${video.id}` ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+        >
           <div className="relative">
             <img 
               src={video.thumbnail} 

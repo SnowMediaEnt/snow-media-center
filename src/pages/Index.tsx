@@ -405,8 +405,8 @@ const Index = () => {
             <div 
               className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex'}`} 
               style={{ 
-                gap: 'clamp(1rem, 2vw, 3rem)',
-                maxWidth: layoutMode === 'grid' ? 'clamp(450px, 50vw, 1100px)' : 'none'
+                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1.5rem, 2.5vw, 3.5rem)',
+                maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : 'none'
               }}
             >
               {buttons.map((button, index) => {

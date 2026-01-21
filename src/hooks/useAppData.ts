@@ -129,15 +129,21 @@ export const useAppData = () => {
     const timestamp = Date.now();
     const baseUrl = 'https://snowmediaapps.com/apps/apps.json.php';
     
-    // Try multiple endpoints - prioritize the PHP file that exists
-    const endpoints = [
-      // Try direct access first with cache-busting
+    // Import Capacitor to check if we're on native platform
+    const isNative = typeof window !== 'undefined' && 
+      (window as any).Capacitor?.isNativePlatform?.() === true;
+    
+    // On native platforms, try direct access first (no CORS restrictions)
+    // On web, use CORS proxies
+    const endpoints = isNative ? [
+      // Direct access on native - no CORS needed
       `${baseUrl}?ts=${timestamp}`,
-      // Try PHP file with CORS proxies as fallback
+      // HTTP fallback for older Android/cleartext
+      `http://snowmediaapps.com/apps/apps.json.php?ts=${timestamp}`,
+    ] : [
+      // Web needs CORS proxies
       `https://api.allorigins.win/get?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
       `https://corsproxy.io/?${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`,
-      `https://thingproxy.freeboard.io/fetch/${baseUrl}?ts=${timestamp}`,
-      // Try raw versions
       `https://api.allorigins.win/raw?url=${encodeURIComponent(`${baseUrl}?ts=${timestamp}`)}`
     ];
     

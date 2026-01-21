@@ -123,6 +123,16 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory]);
 
+  // Scroll focused element into view for TV navigation
+  useEffect(() => {
+    if (focusedElement.startsWith('product-')) {
+      const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [focusedElement]);
+
   const cartItems = cart.items;
   const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
 
@@ -551,7 +561,11 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 const isInCart = !!cartItem;
                 
                 return (
-                  <Card key={product.id} className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-2 ring-brand-ice scale-105' : ''}`}>
+                  <Card 
+                    key={product.id} 
+                    data-focus-id={`product-${product.id}`}
+                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+                  >
                     <div className="relative">
                       <img 
                         src={product.images[0]} 

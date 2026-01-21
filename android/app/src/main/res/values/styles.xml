@@ -8,10 +8,14 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!-- Splash Screen Theme - Full Screen Image -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- Use splash.png as full background, not just an icon -->
         <item name="windowSplashScreenBackground">#1e293b</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>
         <item name="windowSplashScreenIconBackgroundColor">#1e293b</item>
+        <!-- Make the icon fill more of the screen (max is 288dp) -->
+        <item name="windowSplashScreenAnimatedIconExitAnimationDuration">0</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
