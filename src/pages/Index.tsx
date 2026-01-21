@@ -356,12 +356,12 @@ const Index = () => {
           </div>
 
           {/* Header - positioned in upper third */}
-          <div className="relative z-10 flex-shrink-0" style={{ height: '35vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '5vh' }}>
+          <div className="relative z-10 flex-shrink-0" style={{ height: '28vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '5vh' }}>
             <div className="text-center">
               <h1 className="mb-2 text-shadow-strong" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
-                <span className="font-center text-brand-charcoal">CENTER</span>
+                <span className="font-center text-brand-gold">CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
                 <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>
