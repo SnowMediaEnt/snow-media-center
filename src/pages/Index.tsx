@@ -259,7 +259,7 @@ const Index = () => {
 
       {/* Home screen content */}
       {currentView === 'home' && (
-        <div className={`tv-scroll-container tv-safe text-white relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}>
+        <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
           {/* Dynamic background image or fallback gradient */}
           {hasBackground ? (
             <div 
@@ -355,31 +355,18 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Header */}
-          <div className="relative z-10 pt-16 pb-4">
+          {/* Header - positioned in upper third */}
+          <div className="relative z-10 flex-shrink-0" style={{ height: '35vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '5vh' }}>
             <div className="text-center">
-              <h1 className={`mb-2 text-shadow-strong ${
-                screenHeight >= 2160 ? 'text-10xl' : // 4K
-                screenHeight >= 1440 ? 'text-9xl' :  // 1440p
-                screenHeight >= 1080 ? 'text-8xl' :  // 1080p
-                'text-6xl'                           // smaller screens
-              }`}>
+              <h1 className="mb-2 text-shadow-strong" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
-                <span className={`${
-                  screenHeight >= 2160 ? 'text-4xl' :
-                  screenHeight >= 1440 ? 'text-3xl' :
-                  screenHeight >= 1080 ? 'text-3xl' :
-                  'text-2xl'
-                }`}> </span>
+                <span> </span>
                 <span className="font-center text-brand-charcoal">CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
-                <p className={`text-brand-ice/90 font-nunito font-medium text-shadow-soft ${
-                  screenHeight >= 2160 ? 'text-3xl' :
-                  screenHeight >= 1440 ? 'text-2xl' :
-                  screenHeight >= 1080 ? 'text-xl' :
-                  'text-lg'
-                }`}>Your Premium Streaming Experience</p>
+                <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>
+                  Your Premium Streaming Experience
+                </p>
               )}
             </div>
           </div>
@@ -431,48 +418,25 @@ const Index = () => {
           {/* News Ticker */}
           <NewsTicker />
 
-          {/* Main Content */}
-          <div className={`relative z-10 tv-safe-grid mt-4 ${layoutMode === 'grid' ? 'flex flex-col justify-center items-center flex-1 overflow-y-auto' : 'flex flex-col justify-end pb-8 flex-1'}`}>
-            <div className={`grid-responsive ${
-              layoutMode === 'grid' 
-                ? `grid grid-cols-2 justify-items-center w-full mx-auto ${
-                    screenHeight >= 2160 ? 'gap-16 max-w-8xl' :
-                    screenHeight >= 1440 ? 'gap-12 max-w-7xl' :
-                    screenHeight >= 1080 ? 'gap-10 max-w-6xl' :
-                    'gap-8 max-w-5xl'
-                  }` 
-                : `flex justify-center mx-auto ${
-                    screenHeight >= 2160 ? 'gap-12 max-w-8xl' :
-                    screenHeight >= 1440 ? 'gap-10 max-w-7xl' :
-                    'gap-8 max-w-6xl'
-                  }`
-            }`}>
+          {/* Main Content - Cards positioned at bottom */}
+          <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '5vw', paddingRight: '5vw' }}>
+            <div className={`flex justify-center w-full ${layoutMode === 'grid' ? 'flex-wrap' : ''}`} style={{ gap: 'clamp(1rem, 2vw, 3rem)' }}>
               {buttons.map((button, index) => {
                 const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
+                
+                // Card dimensions based on layout mode using viewport units for proportional scaling
+                const cardStyle = layoutMode === 'grid' 
+                  ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
+                  : { width: 'clamp(180px, 20vw, 400px)', height: 'clamp(140px, 22vh, 280px)' };
                 
                 return (
                   <Card
                     key={index}
                     tabIndex={0}
+                    style={cardStyle}
                     className={`
-                      relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable
-                      ${layoutMode === 'grid' 
-                        ? screenHeight >= 2160 
-                          ? 'h-80 w-full max-w-lg' 
-                          : screenHeight >= 1440 
-                            ? 'h-72 w-full max-w-lg'
-                            : screenHeight >= 1080 
-                              ? 'h-60 w-full max-w-md'
-                              : 'h-52 w-full max-w-sm'
-                        : screenHeight >= 2160
-                          ? 'h-64 w-96'
-                          : screenHeight >= 1440
-                            ? 'h-56 w-80'
-                            : screenHeight >= 1080
-                              ? 'h-48 w-72'
-                              : 'h-40 w-64'
-                      }
+                      relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable flex-shrink-0
                       ${isFocused 
                         ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
                         : 'shadow-xl'
@@ -502,43 +466,16 @@ const Index = () => {
                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                     
-                    <div className={`relative z-10 h-full flex flex-col items-center justify-center text-center ${
-                      screenHeight >= 2160 ? 'p-8' :
-                      screenHeight >= 1440 ? 'p-6' :
-                      'p-4'
-                    }`}>
+                    <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
                       <ButtonIcon 
-                        size={layoutMode === 'grid' 
-                          ? screenHeight >= 2160 ? 96 :
-                            screenHeight >= 1440 ? 80 :
-                            screenHeight >= 1080 ? 64 : 48
-                          : screenHeight >= 2160 ? 72 :
-                            screenHeight >= 1440 ? 64 :
-                            screenHeight >= 1080 ? 48 : 36
-                        } 
-                        className={`text-white drop-shadow-xl flex-shrink-0 ${
-                          layoutMode === 'grid' 
-                            ? screenHeight >= 1440 ? 'mb-4' : 'mb-3'
-                            : screenHeight >= 1440 ? 'mb-3' : 'mb-2'
-                        }`} 
+                        className="text-white drop-shadow-xl flex-shrink-0 mb-2"
+                        style={{ width: 'clamp(36px, 5vw, 80px)', height: 'clamp(36px, 5vw, 80px)' }}
                       />
-                      <h3 className={`font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand ${
-                        layoutMode === 'grid' 
-                          ? screenHeight >= 2160 ? 'text-3xl' :
-                            screenHeight >= 1440 ? 'text-2xl' :
-                            screenHeight >= 1080 ? 'text-xl' : 'text-lg'
-                          : screenHeight >= 2160 ? 'text-2xl' :
-                            screenHeight >= 1440 ? 'text-xl' :
-                            screenHeight >= 1080 ? 'text-lg' : 'text-base'
-                      }`}>
+                      <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
                         {button.title}
                       </h3>
-                      {layoutMode === 'grid' && screenHeight >= 1080 && (
-                        <p className={`text-white/95 leading-tight text-shadow-soft font-nunito ${
-                          screenHeight >= 2160 ? 'text-xl' :
-                          screenHeight >= 1440 ? 'text-lg' :
-                          screenHeight >= 1080 ? 'text-base' : 'text-sm'
-                        }`}>
+                      {layoutMode === 'grid' && (
+                        <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
                           {button.description}
                         </p>
                       )}
