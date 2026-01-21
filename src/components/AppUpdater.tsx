@@ -38,72 +38,87 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     try {
       // Try multiple update sources
       let data: UpdateInfo | null = null;
+      const updateUrl = 'https://snowmediaapps.com/smc/update.json';
+      const timestamp = Date.now();
       
-      // Try multiple CORS proxies since direct IP is blocked by Cloudflare
-      const corsProxies = [
-        'https://cors-anywhere.herokuapp.com/',
-        'https://api.codetabs.com/v1/proxy?quest=',
-        'https://cors.bridged.cc/',
-        'https://api.allorigins.win/get?url='
-      ];
-      
-      for (const proxy of corsProxies) {
+      // On native platform, fetch directly (no CORS issues)
+      if (Capacitor.isNativePlatform()) {
+        console.log('Native platform: fetching update.json directly');
         try {
-          console.log(`Trying proxy: ${proxy}`);
-          let url = proxy + encodeURIComponent('https://snowmediaapps.com/smc/update.json');
-          
-          // Handle different proxy response formats
-          const isAllOrigins = proxy.includes('allorigins.win');
-          
-          const response = await fetch(url, {
+          const response = await fetch(`${updateUrl}?ts=${timestamp}`, {
             method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              ...(proxy.includes('cors-anywhere') && {
-                'X-Requested-With': 'XMLHttpRequest'
-              })
-            },
-            signal: AbortSignal.timeout(10000)
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
           });
           
           if (response.ok) {
             const text = await response.text();
-            console.log(`Response from ${proxy}:`, text);
+            console.log('Direct fetch response:', text.substring(0, 200));
             
-            if (isAllOrigins) {
-              // allorigins.win wraps response in JSON
-              try {
-                const wrapped = JSON.parse(text);
-                if (wrapped.contents) {
-                  data = JSON.parse(wrapped.contents);
-                  break;
-                }
-              } catch (e) {
-                console.log('Failed to parse allorigins response');
-                continue;
-              }
-            } else {
-              // Other proxies return raw content
-              if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
-                try {
-                  data = JSON.parse(text);
-                  break;
-                } catch (e) {
-                  console.log('Failed to parse JSON from proxy');
-                  continue;
-                }
-              }
+            if (text.trim().startsWith('{')) {
+              data = JSON.parse(text);
             }
           }
         } catch (error) {
-          console.log(`Proxy ${proxy} failed:`, error);
-          continue;
+          console.log('Direct fetch failed:', error);
         }
       }
       
-      // If all proxies failed, throw error
+      // If direct fetch failed or we're on web, try CORS proxies
       if (!data) {
-        throw new Error('All update servers are currently unavailable. The server may be experiencing high traffic or maintenance.');
+        const corsProxies = [
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(updateUrl + '?ts=' + timestamp)}`,
+          `https://corsproxy.io/?${encodeURIComponent(updateUrl + '?ts=' + timestamp)}`,
+          `https://api.allorigins.win/get?url=${encodeURIComponent(updateUrl + '?ts=' + timestamp)}`
+        ];
+        
+        for (const proxyUrl of corsProxies) {
+          try {
+            console.log(`Trying proxy: ${proxyUrl}`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            
+            const response = await fetch(proxyUrl, {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+              cache: 'no-store',
+              signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+              const text = await response.text();
+              console.log(`Response from proxy:`, text.substring(0, 200));
+              
+              // Handle allorigins.win wrapped response
+              if (proxyUrl.includes('allorigins.win/get')) {
+                try {
+                  const wrapped = JSON.parse(text);
+                  if (wrapped.contents) {
+                    data = JSON.parse(wrapped.contents);
+                    break;
+                  }
+                } catch (e) {
+                  console.log('Failed to parse allorigins wrapped response');
+                  continue;
+                }
+              } else if (text.trim().startsWith('{')) {
+                data = JSON.parse(text);
+                break;
+              }
+            }
+          } catch (error) {
+            console.log(`Proxy failed:`, error);
+            continue;
+          }
+        }
+      }
+      
+      // If all methods failed, throw error
+      if (!data) {
+        throw new Error('Unable to check for updates. Please check your internet connection and try again.');
       }
       
       if (!data || !data.version || !data.downloadUrl) {
