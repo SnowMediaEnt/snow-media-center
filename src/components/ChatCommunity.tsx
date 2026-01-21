@@ -321,19 +321,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       switch (event.key) {
         case 'ArrowDown':
           setFocusIndex(prev => {
-            const next = Math.min(maxIndex, prev + 1);
-            // Skip horizontal pairs when going down
-            const nextEl = elements[next];
-            if (nextEl?.id === 'create-ticket' && prev < 4) {
-              return elements.findIndex(e => e.id === 'view-tickets');
+            // From tabs (indices 1, 2, 3), go to first content item (index 4)
+            if (prev >= 1 && prev <= 3) {
+              return 4;
             }
-            if (nextEl?.id === 'join-groups' && prev < 4) {
-              return elements.findIndex(e => e.id === 'visit-forum');
-            }
-            if (nextEl?.id === 'ai-send' && prev < 4) {
-              return elements.findIndex(e => e.id === 'ai-input');
-            }
-            return next;
+            // Otherwise just move to next
+            return Math.min(maxIndex, prev + 1);
           });
           break;
 

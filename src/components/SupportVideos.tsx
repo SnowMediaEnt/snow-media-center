@@ -76,13 +76,17 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
             } else {
               setFocusedElement('tab-0');
             }
-          } else if (focusedElement.startsWith('tab-')) {
+          } else if (focusedElement === 'tab-0') {
             setFocusedElement('back');
+          } else if (focusedElement === 'tab-1' || focusedElement === 'tab-2') {
+            setFocusedElement('tab-0');
           }
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back') setFocusedElement('tab-0');
+          if (focusedElement === 'back') {
+            setFocusedElement('tab-0');
+          }
           else if (focusedElement.startsWith('tab-')) {
             if (currentVideos.length > 0) setFocusedElement(`video-${currentVideos[0].id}`);
           } else if (focusedElement.startsWith('video-')) {

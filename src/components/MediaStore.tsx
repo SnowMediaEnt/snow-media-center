@@ -106,22 +106,20 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           } else if (focusedElement.startsWith('category-')) {
             // Move from categories to signin/cart row
             setFocusedElement(user ? 'cart' : 'signin');
-          } else if (focusedElement === 'signin' || focusedElement === 'cart') {
+          } else if (focusedElement === 'signin') {
             setFocusedElement('back');
+          } else if (focusedElement === 'cart') {
+            setFocusedElement(user ? 'back' : 'signin');
           }
           break;
           
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            // From back, go to signin (if not logged in) or cart (if logged in)
-            setFocusedElement(user ? 'cart' : 'signin');
+            // From back, go to signin (not logged in) or categories (logged in)
+            setFocusedElement(user ? (categoryIds.length > 0 ? categoryIds[0] : `product-${filteredProducts[0]?.id}`) : 'signin');
           } else if (focusedElement === 'signin') {
-            // From signin, go to categories
-            if (categoryIds.length > 0) {
-              setFocusedElement(categoryIds[0]);
-            } else if (filteredProducts.length > 0) {
-              setFocusedElement(`product-${filteredProducts[0].id}`);
-            }
+            // From signin, go to cart
+            setFocusedElement('cart');
           } else if (focusedElement === 'cart') {
             // From cart, go to categories
             if (categoryIds.length > 0) {
