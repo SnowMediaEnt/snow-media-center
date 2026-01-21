@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">snow-tv-hub-center</string>
-    <string name="title_activity_main">snow-tv-hub-center</string>
+    <string name="app_name">Snow Media Center</string>
+    <string name="title_activity_main">Snow Media Center</string>
     <string name="package_name">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
     <string name="custom_url_scheme">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
 </resources>
