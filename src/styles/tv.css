@@ -1,11 +1,21 @@
+/* TV-safe area padding for overscan - 5% margins for TV screens */
 .tv-safe { 
   padding: 24px; 
 }
 
+/* Desktop/TV screens - increase safe area */
 @media (min-width: 1280px) { 
   .tv-safe { 
-    padding: 32px; 
+    /* 5% padding for standard TV overscan */
+    padding: 5vh 5vw; 
   } 
+}
+
+/* 4K screens need more generous safe areas */
+@media (min-width: 1920px) and (min-height: 1080px) {
+  .tv-safe {
+    padding: 5vh 5vw;
+  }
 }
 
 /* Focus styles for TV navigation */
@@ -14,8 +24,32 @@
   outline-offset: 2px;
 }
 
-/* Scrollable containers for TV */
+/* Scrollable containers for TV - allows proper scroll-into-view */
 .tv-safe-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+/* TV scroll container - fills viewport with proper safe areas */
+.tv-scroll-container {
+  min-height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  /* Ensure content can be scrolled to */
+  padding-bottom: 10vh;
+}
+
+/* Focused element highlight for TV navigation */
+.tv-focus-highlight {
+  transition: all 0.2s ease-out;
+}
+
+.tv-focus-highlight:focus,
+.tv-focus-highlight.focused {
+  outline: 3px solid #60a5fa;
+  outline-offset: 4px;
+  transform: scale(1.02);
 }

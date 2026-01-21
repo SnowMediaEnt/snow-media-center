@@ -113,7 +113,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-8 flex items-center justify-center">
+      <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
           <p className="text-xl text-blue-200">Loading your dashboard...</p>
@@ -123,8 +123,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+      <div className="max-w-6xl mx-auto pb-16">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">

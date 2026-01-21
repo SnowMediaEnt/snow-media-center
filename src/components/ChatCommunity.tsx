@@ -250,8 +250,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   };
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="tv-scroll-container tv-safe">
+      <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
             <Button 

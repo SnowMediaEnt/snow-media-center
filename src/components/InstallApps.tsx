@@ -38,7 +38,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
   // Early returns MUST happen before any other hooks
   if (loading) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-ice mx-auto mb-4"></div>
           <p className="text-white text-lg">Loading apps...</p>
@@ -49,7 +49,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
   if (error) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Error loading apps: {error}</p>
           <Button onClick={onBack} variant="gold" className="">
@@ -360,8 +360,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // Removed handleDownloadComplete - using real Android install process
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm">
-      <div className="p-6 space-y-4">
+    <div className="space-y-4 pb-8">
+      <div className="space-y-4">
         {categoryApps.map((app) => {
           const status = appStatuses.get(app.id) || { downloaded: false, installed: false };
           const isDownloading = downloadingApps.has(app.id);
@@ -484,8 +484,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   }, [focusedElement]);
 
   return (
-    <div className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain px-6 py-6 tv-safe">
-      <div className="max-w-6xl mx-auto">
+    <div className="tv-scroll-container tv-safe">
+      <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <Button 
