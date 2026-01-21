@@ -125,20 +125,14 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
 
   // Scroll focused element into view for TV navigation - scroll ALL elements
   useEffect(() => {
-    let selector = '';
-    if (focusedElement === 'back') {
-      selector = 'button'; // First button is back
-    } else if (focusedElement.startsWith('tab-')) {
-      selector = `[data-state]`; // Tab triggers
-    } else if (focusedElement.startsWith('video-')) {
-      selector = `[data-focus-id="video-${focusedElement.replace('video-', '')}"]`;
-    }
-    
-    // Always scroll to keep focused element visible
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) || 
-               (focusedElement === 'back' ? document.querySelector('button[variant="gold"]') : null);
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // For header elements (back, tabs), scroll to top of page
+    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
   }, [focusedElement]);
 

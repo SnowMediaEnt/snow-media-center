@@ -48,9 +48,11 @@ const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to get focus ring class
-  const getFocusClass = (id: FocusElement) => 
-    focusedElement === id ? 'ring-4 ring-brand-ice scale-105' : '';
+  // Helper to get focus ring class - use rounded ring for inputs
+  const getFocusClass = (id: FocusElement, isRounded = false) => 
+    focusedElement === id 
+      ? `ring-4 ring-brand-ice scale-105 ${isRounded ? 'rounded-md' : ''}` 
+      : '';
 
   // TV Navigation - D-pad support
   useEffect(() => {
@@ -479,7 +481,7 @@ const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
               )}
             </div>
             <div className="flex gap-4">
-              <div className={`flex-1 transition-all ${getFocusClass('prompt-input')}`} data-focus-id="prompt-input">
+              <div className="flex-1" data-focus-id="prompt-input">
                 <Label htmlFor="generate-prompt" className="text-white mb-2 block">Describe the background you want</Label>
                 <Input
                   id="generate-prompt"
@@ -487,7 +489,7 @@ const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
                   value={generatePrompt}
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                   placeholder="e.g., A serene mountain landscape at sunset with purple sky"
-                  className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                  className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={generating || !user}
                 />
               </div>

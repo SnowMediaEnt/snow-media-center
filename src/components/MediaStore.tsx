@@ -175,7 +175,12 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   useEffect(() => {
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
     if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // For header elements (back, signin, cart), scroll to top of page
+      if (['back', 'signin', 'cart'].includes(focusedElement)) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
   }, [focusedElement]);
 
