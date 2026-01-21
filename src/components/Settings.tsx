@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,21 +12,42 @@ interface SettingsProps {
   onLayoutChange: (mode: 'grid' | 'row') => void;
 }
 
-type FocusType = 'back' | 'tab-layout' | 'tab-media' | 'tab-updates' | 'layout-toggle';
+// Focus states: Settings owns all navigation, MediaManager is passive when embedded
+type SettingsFocus = 
+  | 'back' 
+  | 'tab-layout' 
+  | 'tab-media' 
+  | 'tab-updates' 
+  | 'layout-toggle'
+  | 'media-content'; // When in media tab, this signals MediaManager should handle focus
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const [activeTab, setActiveTab] = useState('layout');
-  const [focusedElement, setFocusedElement] = useState<FocusType>('back');
+  const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
+  const [mediaManagerActive, setMediaManagerActive] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Android TV/Firestick navigation
+  // When tab changes, reset focus appropriately
   useEffect(() => {
+    if (activeTab === 'media') {
+      // Don't immediately enter media manager - let user press down first
+      setMediaManagerActive(false);
+    } else {
+      setMediaManagerActive(false);
+    }
+  }, [activeTab]);
+
+  // Main navigation handler for Settings shell
+  useEffect(() => {
+    // Skip if MediaManager is active and handling its own navigation
+    if (mediaManagerActive) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Skip navigation handling when user is typing in an input or textarea
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       
-      // Handle Android back button and other back buttons (but not Backspace when typing)
-      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
+      // Handle back button globally
+      if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
         onBack();
@@ -39,17 +59,18 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         return;
       }
       
-      // Skip arrow/enter navigation when typing
+      // Skip when typing
       if (isTyping) {
         return;
       }
       
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
+        event.stopPropagation();
       }
 
-      const tabs: FocusType[] = ['tab-layout', 'tab-media', 'tab-updates'];
-      const currentTabIdx = tabs.indexOf(focusedElement as FocusType);
+      const tabs: SettingsFocus[] = ['tab-layout', 'tab-media', 'tab-updates'];
+      const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
       
       switch (event.key) {
         case 'ArrowLeft':
@@ -79,6 +100,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setFocusedElement('tab-layout');
           } else if (focusedElement === 'tab-layout' && activeTab === 'layout') {
             setFocusedElement('layout-toggle');
+          } else if (focusedElement === 'tab-media' && activeTab === 'media') {
+            // Enter MediaManager mode
+            setMediaManagerActive(true);
           }
           break;
           
@@ -99,28 +123,38 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange]);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive]);
 
   // Scroll focused element into view
   useEffect(() => {
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
   }, [focusedElement]);
 
-  const isFocused = (id: string) => focusedElement === id;
+  const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
   const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' : '';
 
+  // Callback when MediaManager wants to exit back to Settings tabs
+  const handleMediaManagerBack = () => {
+    setMediaManagerActive(false);
+    setFocusedElement('tab-media');
+  };
+
   return (
-    <div className="tv-scroll-container tv-safe text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
       <div className="max-w-4xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-start w-full">
             <Button 
-              data-focus-id="back"
+              data-settings-focus="back"
               onClick={onBack}
               variant="gold" 
               size="lg"
@@ -139,7 +173,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
-              data-focus-id="tab-layout"
+              data-settings-focus="tab-layout"
               value="layout" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-layout')}`}
             >
@@ -147,7 +181,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               Layout
             </TabsTrigger>
             <TabsTrigger 
-              data-focus-id="tab-media"
+              data-settings-focus="tab-media"
               value="media" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
@@ -155,7 +189,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               Media Manager
             </TabsTrigger>
             <TabsTrigger 
-              data-focus-id="tab-updates"
+              data-settings-focus="tab-updates"
               value="updates" 
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
             >
@@ -170,7 +204,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               
                <div className="flex items-center justify-center">
                  <div 
-                   data-focus-id="layout-toggle"
+                   data-settings-focus="layout-toggle"
                    className={`flex bg-slate-800 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:bg-slate-700 ${focusRing('layout-toggle')}`}
                    onClick={() => onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid')}
                 >
@@ -210,7 +244,11 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           <TabsContent value="media" className="mt-6">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
               <h2 className="text-2xl font-bold text-white mb-6">Media Manager</h2>
-              <MediaManager onBack={() => setActiveTab('layout')} embedded={true} />
+              <MediaManager 
+                onBack={handleMediaManagerBack} 
+                embedded={true}
+                isActive={mediaManagerActive}
+              />
             </Card>
           </TabsContent>
 

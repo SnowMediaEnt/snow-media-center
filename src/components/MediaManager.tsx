@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface MediaManagerProps {
   onBack: () => void;
   embedded?: boolean; // When true, hides the "Back to Home" button (used in Settings)
+  isActive?: boolean; // When true and embedded, MediaManager handles its own navigation
 }
 
 // Focus element types for TV navigation
@@ -28,7 +29,7 @@ type FocusElement =
   | `asset-toggle-${string}` 
   | `asset-delete-${string}`;
 
-const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
+const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
@@ -54,8 +55,10 @@ const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
       ? `ring-4 ring-brand-ice scale-105 ${isRounded ? 'rounded-md' : ''}` 
       : '';
 
-  // TV Navigation - D-pad support
+  // TV Navigation - D-pad support (only when active)
   useEffect(() => {
+    if (!isActive) return; // Don't handle navigation when not active
+    
     const handleKeyDown = (event: KeyboardEvent) => {
       // Don't intercept when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
@@ -164,7 +167,7 @@ const MediaManager = ({ onBack, embedded = false }: MediaManagerProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, assets, onBack]);
+  }, [focusedElement, assets, onBack, isActive]);
 
   // Scroll focused element into view
   useEffect(() => {
