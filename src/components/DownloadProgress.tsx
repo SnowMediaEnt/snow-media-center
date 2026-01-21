@@ -5,7 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { X, Download, Package, Play, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
-import { downloadApkToCache, generateFileName } from '@/utils/downloadApk';
+import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
 import { AppManager } from '@/capacitor/AppManager';
 
 interface DownloadProgressProps {
@@ -113,8 +113,15 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         description: `${app.name} installer opened`,
       });
       
-      // Give time for install dialog, then complete
-      setTimeout(() => {
+      // Clean up the APK file after install is triggered (no longer needed)
+      // Give time for install dialog, then cleanup and complete
+      setTimeout(async () => {
+        try {
+          await cleanupOldApks(); // Clean ALL APKs since install was triggered
+          console.log('Cleaned up APK files after install');
+        } catch (e) {
+          console.log('Cleanup skipped:', e);
+        }
         onComplete();
       }, 2000);
       

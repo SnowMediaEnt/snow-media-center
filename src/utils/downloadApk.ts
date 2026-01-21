@@ -1,6 +1,29 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 
+// Clean up old APK files from cache to prevent storage bloat
+export async function cleanupOldApks(keepFilename?: string): Promise<void> {
+  try {
+    const result = await Filesystem.readdir({
+      path: 'apk',
+      directory: Directory.Cache
+    });
+    
+    for (const file of result.files) {
+      if (file.name.endsWith('.apk') && file.name !== keepFilename) {
+        await Filesystem.deleteFile({
+          path: `apk/${file.name}`,
+          directory: Directory.Cache
+        });
+        console.log('Cleaned up old APK:', file.name);
+      }
+    }
+  } catch (e) {
+    // Directory might not exist yet, that's fine
+    console.log('No APK cache to clean');
+  }
+}
+
 export async function downloadApkToCache(url: string, filename: string, onProgress?: (progress: number) => void): Promise<string> {
   try {
     const platform = Capacitor.getPlatform();
@@ -12,12 +35,13 @@ export async function downloadApkToCache(url: string, filename: string, onProgre
     console.log('Download URL:', url);
     console.log('Filename:', filename);
     
-    // On native platform, fetch directly (no CORS issues)
-    // On web, we can't download APKs anyway
     if (!isNative) {
       console.error('Not on native platform - APK download blocked');
       throw new Error(`APK downloads are only available on Android devices (detected platform: ${platform})`);
     }
+
+    // Clean up old APKs before downloading new one
+    await cleanupOldApks(filename);
 
     console.log('Starting APK download from:', url);
     
@@ -96,6 +120,9 @@ export async function downloadApkToCache(url: string, filename: string, onProgre
     });
     
     console.log('APK saved to:', uri.uri);
+    
+    // Clean up after successful install (delete the APK we just used)
+    // The APK is no longer needed after Android installs it
     return uri.uri;
   } catch (error) {
     console.error('APK download failed:', error);
