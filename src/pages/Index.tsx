@@ -355,26 +355,29 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Header - positioned in upper third */}
-          <div className="relative z-10 flex-shrink-0" style={{ height: '21vh', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '3vh' }}>
+          {/* Spacer for info bar */}
+          <div className="flex-shrink-0" style={{ height: '8vh' }}></div>
+
+          {/* Header - tight container around title */}
+          <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
             <div className="text-center">
-              <h1 className="mb-2 text-shadow-strong" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
+              <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
-                <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-7px' }}>
+                <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '4px' }}>
                   Your Premium Streaming Experience
                 </p>
               )}
             </div>
           </div>
 
-          {/* Date/Time Display - Horizontal bar at top */}
-          <div className="absolute z-20 top-2 left-1/2 transform -translate-x-1/2">
-            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-6 py-2 flex items-center gap-4">
-              <div className="font-bold font-quicksand text-shadow-soft text-white" style={{ fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
+          {/* Date/Time Display - Left side horizontal bar */}
+          <div className="absolute z-20 top-4 left-4">
+            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-5 py-2 flex items-center gap-3">
+              <div className="font-bold font-quicksand text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 {currentDateTime.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   month: 'short', 
@@ -382,7 +385,7 @@ const Index = () => {
                 })}
               </div>
               <div className="w-px h-4 bg-white/40"></div>
-              <div className="opacity-90 font-nunito text-shadow-soft text-white" style={{ fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
+              <div className="opacity-90 font-nunito text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 {currentDateTime.toLocaleTimeString('en-US', { 
                   hour: '2-digit', 
                   minute: '2-digit',
@@ -390,7 +393,7 @@ const Index = () => {
                 })}
               </div>
               <div className="w-px h-4 bg-white/40"></div>
-              <div className="font-nunito text-shadow-soft" style={{ color: '#FFD700', fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
+              <div className="font-nunito text-shadow-soft" style={{ color: '#FFD700', fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 v{version}
               </div>
             </div>
