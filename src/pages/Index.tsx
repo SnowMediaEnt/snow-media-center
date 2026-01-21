@@ -366,7 +366,7 @@ const Index = () => {
                 <span> </span>
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
-              <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '4px' }}>
+              <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px' }}>
                 Your Premium Streaming Experience
               </p>
             </div>
