@@ -72,14 +72,33 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Authenticate user
-    const { userId, error: authError } = await authenticateUser(req);
-    if (authError) {
-      return authError;
+    // Parse request body early to check action
+    let payload: any = {};
+    try {
+      payload = await req.json();
+    } catch (e) {
+      console.warn('No/invalid JSON body, defaulting to empty payload');
+      payload = {};
+    }
+    
+    const { action, email, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
+    
+    // Define public actions that don't require authentication
+    const publicActions = ['get-products', 'test-connection'];
+    const isPublicAction = publicActions.includes(action);
+    
+    // Only authenticate for non-public actions
+    let userId: string | null = null;
+    if (!isPublicAction) {
+      const { userId: authUserId, error: authError } = await authenticateUser(req);
+      if (authError) {
+        return authError;
+      }
+      userId = authUserId;
     }
 
     console.log('=== WIX INTEGRATION FUNCTION START ===');
-    console.log('Wix integration function called by user:', userId);
+    console.log('Wix integration function called, action:', action, 'public:', isPublicAction, 'user:', userId);
     
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
@@ -112,14 +131,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    let payload: any = {};
-    try {
-      payload = await req.json();
-    } catch (e) {
-      console.warn('No/invalid JSON body, defaulting to empty payload');
-      payload = {};
-    }
-    const { action, email, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
     console.log('=== REQUEST DETAILS ===');
     console.log('Action requested:', action);
     console.log('Items for cart:', items ? JSON.stringify(items, null, 2) : 'No items');
