@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.getcapacitor.*
+import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
 
 @CapacitorPlugin(name = "AppManager")
