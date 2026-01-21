@@ -259,7 +259,7 @@ const Index = () => {
 
       {/* Home screen content */}
       {currentView === 'home' && (
-        <div className={`min-h-dvh max-h-dvh overflow-y-auto overscroll-contain px-6 py-6 tv-safe text-white relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}>
+        <div className={`tv-scroll-container tv-safe text-white relative ${layoutMode === 'row' ? 'flex flex-col' : ''}`}>
           {/* Dynamic background image or fallback gradient */}
           {hasBackground ? (
             <div 

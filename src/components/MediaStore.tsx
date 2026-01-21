@@ -241,8 +241,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
   if (selectedProduct) {
     return (
-      <div className="min-h-screen text-white p-8">
-        <div className="max-w-6xl mx-auto">
+      <div className="tv-scroll-container tv-safe text-white">
+        <div className="max-w-6xl mx-auto pb-16">
           <Button 
             onClick={() => setSelectedProduct(null)}
             variant="outline" 
@@ -364,8 +364,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   }
 
   return (
-    <div className="min-h-screen text-white p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="tv-scroll-container tv-safe text-white">
+      <div className="max-w-7xl mx-auto pb-16">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">

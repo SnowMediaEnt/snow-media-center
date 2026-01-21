@@ -207,7 +207,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-4" />
           <p className="text-xl text-blue-200">Loading support videos...</p>
@@ -218,7 +218,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
 
   if (error) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <p className="text-xl text-red-400 mb-4">Error loading videos: {error}</p>
@@ -232,8 +232,8 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   }
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="tv-scroll-container tv-safe">
+      <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
             <Button 
