@@ -401,12 +401,12 @@ const Index = () => {
           <NewsTicker />
 
           {/* Main Content - Cards positioned at bottom */}
-          <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '5vw', paddingRight: '5vw' }}>
+          <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
             <div 
-              className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex'}`} 
+              className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
               style={{ 
-                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1.5rem, 2.5vw, 3.5rem)',
-                maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : 'none'
+                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1rem, 1.5vw, 2rem)',
+                maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
               }}
             >
               {buttons.map((button, index) => {
@@ -416,7 +416,7 @@ const Index = () => {
                 // Card dimensions based on layout mode using viewport units for proportional scaling
                 const cardStyle = layoutMode === 'grid' 
                   ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
-                  : { width: 'clamp(180px, 20vw, 400px)', height: 'clamp(140px, 22vh, 280px)' };
+                  : { width: 'clamp(160px, 18vw, 320px)', height: 'clamp(130px, 20vh, 250px)' };
                 
                 return (
                   <Card
