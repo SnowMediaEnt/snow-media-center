@@ -455,10 +455,14 @@ const Index = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
                     
                     <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
-                      <ButtonIcon 
-                        className="text-white drop-shadow-xl flex-shrink-0 mb-2"
-                        style={{ width: 'clamp(36px, 5vw, 80px)', height: 'clamp(36px, 5vw, 80px)' }}
-                      />
+                      <div className="flex-shrink-0 mb-2" style={{ 
+                        width: layoutMode === 'grid' ? 'clamp(48px, 6vw, 100px)' : 'clamp(40px, 5vw, 80px)',
+                        aspectRatio: '1 / 1'
+                      }}>
+                        <ButtonIcon 
+                          className="text-white drop-shadow-xl w-full h-full"
+                        />
+                      </div>
                       <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
                         {button.title}
                       </h3>
