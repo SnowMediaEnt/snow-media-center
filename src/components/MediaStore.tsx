@@ -26,6 +26,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const [focusedElement, setFocusedElement] = useState<'back' | 'signin' | 'cart' | string>('back');
 
   // TV Remote Navigation with checkout support
+  // Focus types: 'back', 'signin', 'cart', 'category-{id}', 'product-{id}'
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Handle Android back button
@@ -46,20 +47,31 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       }
       
       const filteredProducts = getFilteredProducts();
+      const categoryIds = categories.map(c => `category-${c.id}`);
+      
+      // Define sections in order: header (back, signin, cart) -> categories -> products
+      const headerItems = user ? ['back', 'cart'] : ['back', 'signin', 'cart'];
+      const productItems = filteredProducts.map(p => `product-${p.id}`);
+      
+      // Get grid dimensions (assume 4 columns for products)
+      const gridCols = 4;
       
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement.startsWith('product-')) {
-            const currentIndex = filteredProducts.findIndex(p => focusedElement === `product-${p.id}`);
-            if (currentIndex > 0) {
-              setFocusedElement(`product-${filteredProducts[currentIndex - 1].id}`);
-            } else {
-              setFocusedElement('back');
-            }
-          } else if (focusedElement === 'cart') {
-            setFocusedElement('signin');
+          if (focusedElement === 'cart') {
+            setFocusedElement(user ? 'back' : 'signin');
           } else if (focusedElement === 'signin') {
             setFocusedElement('back');
+          } else if (focusedElement.startsWith('category-')) {
+            const idx = categoryIds.indexOf(focusedElement);
+            if (idx > 0) {
+              setFocusedElement(categoryIds[idx - 1]);
+            }
+          } else if (focusedElement.startsWith('product-')) {
+            const currentIndex = filteredProducts.findIndex(p => focusedElement === `product-${p.id}`);
+            if (currentIndex > 0 && currentIndex % gridCols !== 0) {
+              setFocusedElement(`product-${filteredProducts[currentIndex - 1].id}`);
+            }
           }
           break;
           
@@ -68,9 +80,14 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             setFocusedElement(user ? 'cart' : 'signin');
           } else if (focusedElement === 'signin') {
             setFocusedElement('cart');
+          } else if (focusedElement.startsWith('category-')) {
+            const idx = categoryIds.indexOf(focusedElement);
+            if (idx < categoryIds.length - 1) {
+              setFocusedElement(categoryIds[idx + 1]);
+            }
           } else if (focusedElement.startsWith('product-')) {
             const currentIndex = filteredProducts.findIndex(p => focusedElement === `product-${p.id}`);
-            if (currentIndex < filteredProducts.length - 1) {
+            if (currentIndex < filteredProducts.length - 1 && (currentIndex + 1) % gridCols !== 0) {
               setFocusedElement(`product-${filteredProducts[currentIndex + 1].id}`);
             }
           }
@@ -79,21 +96,39 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         case 'ArrowUp':
           if (focusedElement.startsWith('product-')) {
             const currentIndex = filteredProducts.findIndex(p => focusedElement === `product-${p.id}`);
-            if (currentIndex >= 4) {
-              setFocusedElement(`product-${filteredProducts[currentIndex - 4].id}`);
+            if (currentIndex >= gridCols) {
+              // Move up one row in grid
+              setFocusedElement(`product-${filteredProducts[currentIndex - gridCols].id}`);
             } else {
-              setFocusedElement('back');
+              // Move from first row of products to categories
+              setFocusedElement(categoryIds[0] || 'back');
             }
+          } else if (focusedElement.startsWith('category-')) {
+            // Move from categories to header
+            setFocusedElement('back');
+          } else if (focusedElement === 'signin' || focusedElement === 'cart') {
+            setFocusedElement('back');
           }
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'signin' || focusedElement === 'cart') {
-            if (filteredProducts.length > 0) setFocusedElement(`product-${filteredProducts[0].id}`);
+          if (headerItems.includes(focusedElement)) {
+            // Move from header to first category
+            if (categoryIds.length > 0) {
+              setFocusedElement(categoryIds[0]);
+            } else if (filteredProducts.length > 0) {
+              setFocusedElement(`product-${filteredProducts[0].id}`);
+            }
+          } else if (focusedElement.startsWith('category-')) {
+            // Move from categories to first product
+            if (filteredProducts.length > 0) {
+              setFocusedElement(`product-${filteredProducts[0].id}`);
+            }
           } else if (focusedElement.startsWith('product-')) {
             const currentIndex = filteredProducts.findIndex(p => focusedElement === `product-${p.id}`);
-            if (currentIndex + 4 < filteredProducts.length) {
-              setFocusedElement(`product-${filteredProducts[currentIndex + 4].id}`);
+            if (currentIndex + gridCols < filteredProducts.length) {
+              // Move down one row in grid
+              setFocusedElement(`product-${filteredProducts[currentIndex + gridCols].id}`);
             }
           }
           break;
@@ -103,7 +138,10 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           if (focusedElement === 'back') onBack();
           else if (focusedElement === 'signin') navigate('/auth');
           else if (focusedElement === 'cart') handleCheckout();
-          else if (focusedElement.startsWith('product-')) {
+          else if (focusedElement.startsWith('category-')) {
+            const catId = focusedElement.replace('category-', '');
+            setSelectedCategory(catId);
+          } else if (focusedElement.startsWith('product-')) {
             const product = filteredProducts.find(p => focusedElement === `product-${p.id}`);
             if (product) setSelectedProduct(product);
           }
@@ -121,7 +159,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory]);
+  }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart]);
 
   // Scroll focused element into view for TV navigation
   useEffect(() => {
@@ -437,13 +475,14 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               return (
                 <Button
                   key={category.id}
+                  data-focus-id={`category-${category.id}`}
                   onClick={() => setSelectedCategory(category.id)}
                   variant={isSelected ? "default" : "outline"}
                   className={`${
                     isSelected 
                       ? 'bg-brand-gold border-brand-gold text-white' 
                       : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                  }`}
+                  } ${focusedElement === `category-${category.id}` ? 'ring-2 ring-brand-ice scale-105' : ''}`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {category.name}

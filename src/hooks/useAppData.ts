@@ -97,23 +97,29 @@ export const useAppData = () => {
     const timestamp = Date.now();
     const url = `${REMOTE_APPS_URL}?ts=${timestamp}`;
     
-    console.log(`Fetching remote apps (native: ${isNative})...`);
+    console.log(`Fetching remote apps (native: ${isNative}) from: ${url}`);
     
     try {
+      // For native, use direct fetch without any CORS proxy
+      // For web, let robustFetch handle fallback to CORS proxies if needed
       const response = await robustFetch(url, {
-        timeout: 15000,
+        timeout: 20000,
         retries: 3,
-        useCorsProxy: !isNative,
+        retryDelay: 1500,
+        useCorsProxy: false, // Always try direct first
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       });
 
       const responseText = await response.text();
-      console.log('Raw response:', responseText.substring(0, 200));
+      console.log('Apps raw response length:', responseText.length);
+      console.log('Apps raw response preview:', responseText.substring(0, 300));
       
       // Check for HTML error pages
       if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.error('Server returned HTML instead of JSON');
         throw new Error('Server returned HTML instead of JSON');
       }
       
@@ -121,7 +127,8 @@ export const useAppData = () => {
       let actualJson = responseText;
       try {
         const parsed = JSON.parse(responseText);
-        if (parsed.contents) {
+        if (parsed.contents && typeof parsed.contents === 'string') {
+          console.log('Unwrapping CORS proxy response');
           actualJson = parsed.contents;
         }
       } catch {
@@ -129,7 +136,7 @@ export const useAppData = () => {
       }
       
       const data = JSON.parse(actualJson);
-      console.log('Parsed JSON:', data);
+      console.log('Parsed apps data type:', typeof data, Array.isArray(data) ? `array(${data.length})` : '');
       
       // Handle different response formats
       let appsArray: any[] = [];
@@ -143,11 +150,21 @@ export const useAppData = () => {
         );
       }
 
-      console.log('Apps array:', appsArray);
+      console.log(`Processing ${appsArray.length} apps from remote`);
 
       return appsArray.map((app: any, index: number) => {
-        let downloadUrl = app.downloadUrl || app.apk || app.url || 
-          (app.file ? `https://snowmediaapps.com/apps/${app.file}` : '');
+        // Build download URL - try multiple fields
+        let downloadUrl = app.downloadUrl || app.download_url || app.apk || app.url || '';
+        
+        // If we have a file field, construct the full URL
+        if (!downloadUrl && app.file) {
+          downloadUrl = `https://snowmediaapps.com/apps/${app.file}`;
+        }
+        
+        // Ensure URL has protocol
+        if (downloadUrl && !downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+          downloadUrl = `https://${downloadUrl}`;
+        }
         
         // Normalize to HTTPS
         if (downloadUrl.startsWith('http://')) {
@@ -156,7 +173,7 @@ export const useAppData = () => {
         
         const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-        return {
+        const appData: AppData = {
           id: app.id || app.packageName || `remote-${index}`,
           name: app.name || 'Unknown App',
           version: app.version || '1.0',
@@ -165,10 +182,13 @@ export const useAppData = () => {
           icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
           apk: downloadUrl,
           downloadUrl,
-          packageName: app.packageName || `com.${cleanName}.app`,
+          packageName: app.packageName || app.package_name || `com.${cleanName}.app`,
           featured: Boolean(app.featured || app.is_featured),
-          category: (app.support === true ? 'support' : 'streaming') as 'streaming' | 'support'
+          category: (app.support === true || app.category === 'support' ? 'support' : 'streaming') as 'streaming' | 'support'
         };
+        
+        console.log(`App: ${appData.name} -> ${appData.downloadUrl}`);
+        return appData;
       });
     } catch (error) {
       console.error('Failed to fetch remote apps:', error);

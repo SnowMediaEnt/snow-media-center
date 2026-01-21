@@ -236,12 +236,13 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto">
       <div className="max-w-md mx-auto">
-        <div className="flex items-center mb-8">
+        {/* Back Button - Fixed to top left corner like other pages */}
+        <div className="fixed top-4 left-4 z-50">
           <Button 
             onClick={() => navigate('/')}
             variant="outline" 
             size="lg"
-            className={`mr-6 bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
+            className={`bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
               focusedElement === 'back' ? 'ring-4 ring-white/60 scale-105' : ''
             }`}
           >
@@ -249,6 +250,8 @@ const Auth = () => {
             Back to Home
           </Button>
         </div>
+        
+        <div className="pt-16"></div>
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">

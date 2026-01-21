@@ -2,8 +2,8 @@
 import { isNativePlatform } from './platform';
 
 const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
   'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
 ];
 
 export interface FetchOptions extends RequestInit {
@@ -19,7 +19,7 @@ export const robustFetch = async (
   options: FetchOptions = {}
 ): Promise<Response> => {
   const {
-    timeout = 15000,
+    timeout = 20000,
     retries = 3,
     retryDelay = 1000,
     useCorsProxy = false,
@@ -28,12 +28,20 @@ export const robustFetch = async (
 
   const isNative = isNativePlatform();
   
-  // On native platforms, always try direct fetch first (no CORS issues)
-  const urlsToTry: string[] = isNative 
-    ? [url]
-    : useCorsProxy 
-      ? [...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url)), url]
-      : [url, ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))];
+  // On native platforms, ALWAYS use direct fetch - no CORS issues exist
+  // On web, try direct first, then CORS proxies if that fails
+  let urlsToTry: string[];
+  
+  if (isNative) {
+    // Native: only use direct URL, no proxies needed
+    urlsToTry = [url];
+  } else if (useCorsProxy) {
+    // Web with explicit CORS proxy request: try proxies first
+    urlsToTry = [...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url)), url];
+  } else {
+    // Web default: try direct first, then proxies as fallback
+    urlsToTry = [url, ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))];
+  }
 
   let lastError: Error | null = null;
 
@@ -43,6 +51,8 @@ export const robustFetch = async (
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+        console.log(`Fetching (attempt ${attempt + 1}/${retries}): ${tryUrl.substring(0, 100)}...`);
+
         const response = await fetch(tryUrl, {
           ...fetchOptions,
           signal: controller.signal,
@@ -51,6 +61,7 @@ export const robustFetch = async (
         clearTimeout(timeoutId);
 
         if (response.ok) {
+          console.log(`Fetch successful: ${tryUrl.substring(0, 50)}...`);
           return response;
         }
         
@@ -58,12 +69,17 @@ export const robustFetch = async (
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       } catch (error) {
         lastError = error as Error;
-        console.warn(`Fetch attempt failed for ${tryUrl}:`, error);
+        // Only log on non-abort errors to reduce noise
+        if ((error as Error).name !== 'AbortError') {
+          console.warn(`Fetch attempt failed for ${tryUrl.substring(0, 50)}...`, 
+            (error as Error).message);
+        }
       }
     }
 
     // Wait before retry
     if (attempt < retries - 1) {
+      console.log(`Retrying in ${retryDelay * (attempt + 1)}ms...`);
       await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
     }
   }
