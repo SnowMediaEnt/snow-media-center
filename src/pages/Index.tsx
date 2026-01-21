@@ -364,52 +364,33 @@ const Index = () => {
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
               {layoutMode === 'grid' && (
-                <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>
+                <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-7px' }}>
                   Your Premium Streaming Experience
                 </p>
               )}
             </div>
           </div>
 
-          {/* Date/Time Display */}
-          <div className={`absolute z-20 text-white ${
-            screenHeight >= 1440 ? 'top-6 left-6' : 'top-4 left-4'
-          }`}>
-            <div className={`bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 shadow-lg ${
-              screenHeight >= 2160 ? 'px-8 py-6' :
-              screenHeight >= 1440 ? 'px-6 py-4' :
-              'px-4 py-3'
-            }`}>
-              <div className={`font-bold font-quicksand text-shadow-soft ${
-                screenHeight >= 2160 ? 'text-3xl' :
-                screenHeight >= 1440 ? 'text-2xl' :
-                screenHeight >= 1080 ? 'text-xl' :
-                'text-lg'
-              }`}>
+          {/* Date/Time Display - Horizontal bar at top */}
+          <div className="absolute z-20 top-2 left-1/2 transform -translate-x-1/2">
+            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-6 py-2 flex items-center gap-4">
+              <div className="font-bold font-quicksand text-shadow-soft text-white" style={{ fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
                 {currentDateTime.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   month: 'short', 
                   day: 'numeric' 
                 })}
               </div>
-              <div className={`opacity-90 font-nunito text-shadow-soft ${
-                screenHeight >= 2160 ? 'text-xl' :
-                screenHeight >= 1440 ? 'text-lg' :
-                screenHeight >= 1080 ? 'text-base' :
-                'text-sm'
-              }`}>
+              <div className="w-px h-4 bg-white/40"></div>
+              <div className="opacity-90 font-nunito text-shadow-soft text-white" style={{ fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
                 {currentDateTime.toLocaleTimeString('en-US', { 
                   hour: '2-digit', 
                   minute: '2-digit',
                   second: '2-digit'
                 })}
               </div>
-              <div className={`font-nunito text-shadow-soft mt-1 ${
-                screenHeight >= 2160 ? 'text-lg' :
-                screenHeight >= 1440 ? 'text-base' :
-                screenHeight >= 1080 ? 'text-sm' :
-                'text-xs'
-              }`} style={{ color: '#FFD700' }}>
+              <div className="w-px h-4 bg-white/40"></div>
+              <div className="font-nunito text-shadow-soft" style={{ color: '#FFD700', fontSize: 'clamp(0.875rem, 1.2vw, 1.25rem)' }}>
                 v{version}
               </div>
             </div>
