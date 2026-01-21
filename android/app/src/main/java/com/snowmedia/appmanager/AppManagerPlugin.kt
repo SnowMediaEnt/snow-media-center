@@ -24,14 +24,39 @@ class AppManagerPlugin : Plugin() {
   fun installApk(call: PluginCall) {
     val path = call.getString("filePath")
     if (path.isNullOrBlank()) { call.reject("filePath required"); return }
-    val file = File(path)
-    if (!file.exists()) { call.reject("APK file not found"); return }
+    
+    // Handle different path formats (file:// URI or raw path)
+    val cleanPath = path
+      .removePrefix("file://")
+      .removePrefix("content://")
+    
+    val file = File(cleanPath)
+    if (!file.exists()) { 
+      // Try the cache directory path
+      val cacheFile = File(context.cacheDir, cleanPath.substringAfter("cache/"))
+      if (!cacheFile.exists()) {
+        call.reject("APK file not found at $cleanPath or ${cacheFile.absolutePath}"); 
+        return 
+      }
+      // Use the cache file instead
+      val uri = FileProvider.getUriForFile(
+        context,
+        context.packageName + ".fileprovider",
+        cacheFile
+      )
+      startInstallIntent(uri, call)
+      return
+    }
 
     val uri = FileProvider.getUriForFile(
       context,
       context.packageName + ".fileprovider",
       file
     )
+    startInstallIntent(uri, call)
+  }
+  
+  private fun startInstallIntent(uri: Uri, call: PluginCall) {
     val intent = Intent(Intent.ACTION_VIEW)
       .setDataAndType(uri, "application/vnd.android.package-archive")
       .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

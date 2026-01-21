@@ -10,6 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { AppManager } from '@/capacitor/AppManager';
 import { generatePackageName } from '@/utils/downloadApk';
+import DownloadProgress from '@/components/DownloadProgress';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -66,6 +67,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | 'tab-3' | string>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
+  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const { toast } = useToast();
   const focusedElementRef = useRef<HTMLElement>(null);
 
@@ -202,39 +204,22 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
 
-    try {
-      // Ensure URL has proper protocol
+    // On native platform, use in-app download with progress
+    if (Capacitor.isNativePlatform()) {
+      setDownloadingApp(app);
+    } else {
+      // On web, open in browser (fallback)
       let url = app.downloadUrl;
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = `https://${url}`;
       }
-      
-      console.log('Opening download URL:', url);
-      
-      // Simply open the URL - let the system handle the download
-      if (Capacitor.isNativePlatform()) {
-        await Browser.open({ url });
-      } else {
-        window.open(url, '_blank');
-      }
-      
+      window.open(url, '_blank');
       toast({
         title: "Download Started",
-        description: `${app.name} download opened. Check your downloads folder or install prompt.`,
-      });
-      
-      // Re-check install status after a delay (user might install it)
-      setTimeout(() => ensureStatus(app), 5000);
-      
-    } catch (error) {
-      console.error('Download error:', error);
-      toast({
-        title: "Download Failed",
-        description: `Failed to open download: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
+        description: `${app.name} download opened in browser.`,
       });
     }
-  }, [toast, ensureStatus]);
+  }, [toast]);
 
   // Initialize app statuses when apps load
   useEffect(() => {
@@ -508,10 +493,18 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         </Tabs>
       </div>
 
-      {/* Initialize app status checks when apps load */}
-      <div className="hidden">
-        {/* This runs once when apps change to initialize status for all apps */}
-      </div>
+      {/* Download Progress Modal */}
+      {downloadingApp && (
+        <DownloadProgress
+          app={downloadingApp}
+          onClose={() => setDownloadingApp(null)}
+          onComplete={() => {
+            // Refresh the app status after download/install
+            ensureStatus(downloadingApp);
+            setDownloadingApp(null);
+          }}
+        />
+      )}
     </div>
   );
 };
