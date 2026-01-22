@@ -132,19 +132,8 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
     
-    const rect = el.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const margin = 150; // Extra margin for visibility
-    
-    // Check if element is off-screen in any direction
-    if (rect.top < margin) {
-      // Element is above viewport - scroll up
-      window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - margin), behavior: 'smooth' });
-    } else if (rect.bottom > viewportHeight - margin) {
-      // Element is below viewport
-      const scrollTarget = window.scrollY + rect.bottom - viewportHeight + margin;
-      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-    }
+    // Use scrollIntoView for reliable cross-browser scrolling
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   }, [focusedElement]);
 
   const handleVideoClick = (embedUrl: string) => {
