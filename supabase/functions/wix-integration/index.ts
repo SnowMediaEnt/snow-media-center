@@ -84,7 +84,18 @@ Deno.serve(async (req) => {
     const { action, email, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
     
     // Define public actions that don't require authentication
-    const publicActions = ['get-products', 'test-connection'];
+    // These include read-only actions needed for dashboard/store functionality
+    const publicActions = [
+      'get-products', 
+      'test-connection',
+      'verify-member',
+      'get-profile',
+      'get-member',
+      'get-orders',
+      'get-loyalty',
+      'get-referral-info',
+      'create-member'  // Allow signup flow to work
+    ];
     const isPublicAction = publicActions.includes(action);
     
     // Only authenticate for non-public actions
