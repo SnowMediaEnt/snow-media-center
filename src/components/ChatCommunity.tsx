@@ -30,6 +30,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [focusIndex, setFocusIndex] = useState(0);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
+  const [replySending, setReplySending] = useState(false);
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
@@ -56,12 +57,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   };
 
   const handleSendReply = async () => {
-    if (!selectedTicket || !replyMessage.trim()) return;
+    if (!selectedTicket || !replyMessage.trim() || replySending) return;
+    const messageToSend = replyMessage.trim();
+    setReplyMessage(''); // Clear immediately to prevent double-send
+    setReplySending(true);
     try {
-      await sendTicketMessage(selectedTicket.id, replyMessage);
-      setReplyMessage('');
+      await sendTicketMessage(selectedTicket.id, messageToSend);
     } catch (error) {
       console.error('Error sending reply:', error);
+      setReplyMessage(messageToSend); // Restore message if failed
+    } finally {
+      setReplySending(false);
     }
   };
 
@@ -766,16 +772,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply..."
                       data-focus-id="reply-input"
+                      disabled={replySending}
                       className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
                     />
                     <Button 
                       type="button"
                       onClick={handleSendReply}
-                      disabled={!replyMessage.trim()}
+                      disabled={!replyMessage.trim() || replySending}
                       data-focus-id="reply-send"
                       className={`bg-brand-gold hover:bg-brand-gold/80 transition-all duration-200 ${focusRing('reply-send')}`}
                     >
-                      <Send className="w-4 h-4" />
+                      {replySending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
                 )}
