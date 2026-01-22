@@ -93,9 +93,10 @@ export const useSupportTickets = () => {
     try {
       setLoading(true);
       
-      // Create ticket
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      // Create ticket - use getSession for more reliable auth check
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error('User not authenticated');
+      const user = session.user;
 
       const { data: ticket, error: ticketError } = await supabase
         .from('support_tickets')
@@ -148,8 +149,9 @@ export const useSupportTickets = () => {
   // Send a message to an existing ticket
   const sendMessage = async (ticketId: string, message: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error('User not authenticated');
+      const user = session.user;
 
       const { error } = await supabase
         .from('support_messages')
@@ -238,7 +240,8 @@ export const useSupportTickets = () => {
   // Send email notification
   const sendSupportEmail = async (ticketId: string, subject: string, message: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       
       await supabase.functions.invoke('send-custom-email', {
         body: {
