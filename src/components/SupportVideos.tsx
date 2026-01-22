@@ -127,23 +127,30 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, selectedVideo, videos, onBack]);
 
-  // Scroll focused element into view for TV navigation - auto-scroll when off-screen
+  // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
-    // For header elements (back, tabs), scroll to top of page
+    // For header elements (back, tabs), scroll to absolute top
     if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
-      if (!el) return;
-      
-      const rect = el.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      
-      if (rect.top < 0) {
-        window.scrollTo({ top: window.scrollY + rect.top - 100, behavior: 'smooth' });
-      } else if (rect.bottom > viewportHeight) {
-        window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + 100, behavior: 'smooth' });
-      }
+      return;
+    }
+    
+    // For content elements, ensure they're visible
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
+    if (!el) return;
+    
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const margin = 120; // Extra space for visibility
+    
+    if (rect.top < margin) {
+      // Element is above viewport or too close to top
+      const scrollTarget = window.scrollY + rect.top - margin;
+      window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+    } else if (rect.bottom > viewportHeight - margin) {
+      // Element is below viewport
+      const scrollTarget = window.scrollY + rect.bottom - viewportHeight + margin;
+      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
     }
   }, [focusedElement]);
 

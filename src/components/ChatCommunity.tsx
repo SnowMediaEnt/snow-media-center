@@ -330,15 +330,36 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             if (prev >= 1 && prev <= 3) {
               return 4;
             }
-            // Otherwise just move to next item vertically
-            return Math.min(maxIndex, prev + 1);
+            // Admin tab: view-tickets(4) -> subject(6), create-ticket(5) -> subject(6), subject(6) -> message(7), message(7) -> admin-send(8)
+            // Community tab: visit-forum(4) and join-groups(5) are on same row - no down action
+            // AI tab: ai-input(4) -> ai-send handled by right arrow
+            if (activeTab === 'admin') {
+              if (prev === 4 || prev === 5) return 6; // view-tickets or create-ticket -> subject
+              if (prev === 6) return 7; // subject -> message
+              if (prev === 7) return 8; // message -> admin-send
+            }
+            return prev; // Stay in place if no valid move
           });
           break;
 
         case 'ArrowUp':
           setFocusIndex(prev => {
-            // From first content item (index 4), return to the currently active tab
-            if (prev === 4) {
+            // From any content item, navigate up logically
+            if (prev >= 4) {
+              // Admin tab: admin-send(8) -> message(7), message(7) -> subject(6), subject(6) -> view-tickets(4)
+              if (activeTab === 'admin') {
+                if (prev === 8) return 7; // admin-send -> message
+                if (prev === 7) return 6; // message -> subject
+                if (prev === 6) return 4; // subject -> view-tickets
+                if (prev === 4 || prev === 5) return 1; // view-tickets/create-ticket -> tab-admin
+              } else if (activeTab === 'community') {
+                // visit-forum(4) or join-groups(5) -> tab-community
+                if (prev === 4 || prev === 5) return 2;
+              } else if (activeTab === 'ai') {
+                // ai-input(4) or ai-send(5) -> tab-ai
+                if (prev === 4 || prev === 5) return 3;
+              }
+              // Default: go to current tab
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
@@ -346,13 +367,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             if (prev >= 1 && prev <= 3) {
               return 0;
             }
-            // Otherwise move up
-            return Math.max(0, prev - 1);
+            return 0;
           });
           break;
 
         case 'ArrowRight':
-          // Handle horizontal navigation
+          // Handle horizontal navigation ONLY for items on the same row
           if (currentFocusId === 'tab-admin') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
           } else if (currentFocusId === 'tab-community') {
@@ -363,8 +383,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-send'));
-          } else if (currentFocusId === 'message') {
-            setFocusIndex(elements.findIndex(e => e.id === 'admin-send'));
           }
           break;
 
@@ -379,8 +397,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-input'));
-          } else if (currentFocusId === 'admin-send') {
-            setFocusIndex(elements.findIndex(e => e.id === 'message'));
           }
           break;
 

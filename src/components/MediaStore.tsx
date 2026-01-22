@@ -169,26 +169,30 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart]);
 
-  // Scroll focused element into view for TV navigation - auto-scroll when off-screen
+  // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
+    // For header elements, always scroll to absolute top
+    if (['back', 'signin', 'cart'].includes(focusedElement) || focusedElement.startsWith('category-')) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    // For content elements, ensure they're visible
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
     
-    // For header elements (back, signin, cart, categories), scroll to top
-    if (['back', 'signin', 'cart'].includes(focusedElement) || focusedElement.startsWith('category-')) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      // Check if element is visible in viewport
-      const rect = el.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      
-      if (rect.top < 0) {
-        // Element is above viewport - scroll up
-        window.scrollTo({ top: window.scrollY + rect.top - 100, behavior: 'smooth' });
-      } else if (rect.bottom > viewportHeight) {
-        // Element is below viewport - scroll down
-        window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + 100, behavior: 'smooth' });
-      }
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const margin = 120; // Extra space for visibility
+    
+    if (rect.top < margin) {
+      // Element is above viewport or too close to top - scroll up
+      const scrollTarget = window.scrollY + rect.top - margin;
+      window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+    } else if (rect.bottom > viewportHeight - margin) {
+      // Element is below viewport - scroll down
+      const scrollTarget = window.scrollY + rect.bottom - viewportHeight + margin;
+      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
     }
   }, [focusedElement]);
 

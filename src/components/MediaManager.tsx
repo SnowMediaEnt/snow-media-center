@@ -214,11 +214,27 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, assets, onBack, isActive]);
 
-  // Scroll focused element into view
+  // Scroll focused element into view - always keep selector visible
   useEffect(() => {
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // For header elements, scroll to top
+    if (focusedElement === 'back' || focusedElement === 'prompt-input' || focusedElement === 'generate-btn') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
+    if (!el) return;
+    
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const margin = 120;
+    
+    if (rect.top < margin) {
+      const scrollTarget = window.scrollY + rect.top - margin;
+      window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+    } else if (rect.bottom > viewportHeight - margin) {
+      const scrollTarget = window.scrollY + rect.bottom - viewportHeight + margin;
+      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
     }
   }, [focusedElement]);
 
