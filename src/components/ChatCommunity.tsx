@@ -3,13 +3,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X } from 'lucide-react';
 import VoiceInput from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
+import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 
 interface ChatCommunityProps {
   onBack: () => void;
@@ -25,12 +28,76 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [aiLoading, setAiLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [showNewTicketForm, setShowNewTicketForm] = useState(false);
+  const [newSubject, setNewSubject] = useState('');
+  const [newMessage, setNewMessage] = useState('');
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
+  const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Helper to check if ticket is active (has activity in last 24 hours)
+  const isTicketActive = (ticket: SupportTicket) => {
+    if (ticket.status === 'closed' || ticket.status === 'resolved') return false;
+    const lastActivity = new Date(ticket.last_message_at);
+    const now = new Date();
+    const hoursDiff = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
+    return hoursDiff < 24;
+  };
+
+  const handleViewTicket = async (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    await fetchTicketMessages(ticket.id);
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedTicket || !replyMessage.trim()) return;
+    try {
+      await sendTicketMessage(selectedTicket.id, replyMessage);
+      setReplyMessage('');
+    } catch (error) {
+      console.error('Error sending reply:', error);
+    }
+  };
+
+  const handleCreateTicket = async () => {
+    if (!newSubject.trim() || !newMessage.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in both subject and message.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const ticketId = await createTicket(newSubject, newMessage);
+      setNewSubject('');
+      setNewMessage('');
+      setShowNewTicketForm(false);
+      // Auto-open the new ticket
+      const newTicket = tickets.find(t => t.id === ticketId);
+      if (newTicket) {
+        handleViewTicket(newTicket);
+      }
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+    }
+  };
+
+  const handleCloseTicket = async () => {
+    if (!selectedTicket) return;
+    try {
+      await closeTicket(selectedTicket.id);
+      setSelectedTicket(null);
+    } catch (error) {
+      console.error('Error closing ticket:', error);
+    }
+  };
 
   // AI function handler
   const handleAiFunction = useCallback((functionCall: any) => {
@@ -504,19 +571,208 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         {/* User Support Tab Content */}
         {activeTab === 'admin' && (
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-4">User Support</h3>
-            <p className="text-orange-200 mb-6">
-              View and manage your support tickets.
-            </p>
-            
-            <Button 
-              onClick={() => onNavigate?.('support-tickets')}
-              data-focus-id="view-tickets"
-              className={`bg-orange-600 hover:bg-orange-700 transition-all duration-200 ${focusRing('view-tickets')}`}
-            >
-              <MessageCircle className="w-4 h-4 mr-2" />
-              View Support Tickets
-            </Button>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-white">User Support</h3>
+              {!selectedTicket && !showNewTicketForm && (
+                <Button 
+                  onClick={() => setShowNewTicketForm(true)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create New Ticket
+                </Button>
+              )}
+              {(selectedTicket || showNewTicketForm) && (
+                <Button 
+                  onClick={() => { setSelectedTicket(null); setShowNewTicketForm(false); }}
+                  variant="outline"
+                  className="border-orange-500 text-orange-400 hover:bg-orange-600"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Tickets
+                </Button>
+              )}
+            </div>
+
+            {/* New Ticket Form */}
+            {showNewTicketForm && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white font-semibold mb-2">Subject</label>
+                  <Input 
+                    value={newSubject}
+                    onChange={(e) => setNewSubject(e.target.value)}
+                    placeholder="What do you need help with?"
+                    className="bg-slate-800 border-slate-600 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white font-semibold mb-2">Message</label>
+                  <Textarea 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Describe your issue in detail..."
+                    className="bg-slate-800 border-slate-600 text-white min-h-32"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <Button 
+                    onClick={handleCreateTicket}
+                    disabled={loading}
+                    className="bg-brand-gold hover:bg-brand-gold/80"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                    Submit Ticket
+                  </Button>
+                  <Button 
+                    onClick={() => setShowNewTicketForm(false)}
+                    variant="outline"
+                    className="border-slate-600 text-slate-300"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* View Single Ticket */}
+            {selectedTicket && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xl font-semibold text-white">{selectedTicket.subject}</h4>
+                    <p className="text-slate-400 text-sm">
+                      Created {format(new Date(selectedTicket.created_at), 'MMM d, yyyy h:mm a')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={
+                      selectedTicket.status === 'closed' ? 'bg-slate-600' :
+                      isTicketActive(selectedTicket) ? 'bg-green-600' : 'bg-orange-600'
+                    }>
+                      {selectedTicket.status === 'closed' ? 'Closed' : isTicketActive(selectedTicket) ? 'Active' : 'Open'}
+                    </Badge>
+                    {selectedTicket.status !== 'closed' && (
+                      <Button 
+                        onClick={handleCloseTicket}
+                        variant="outline"
+                        size="sm"
+                        className="border-red-500 text-red-400 hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3 mr-1" />
+                        Close Ticket
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div className="bg-slate-800 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
+                  {(messages[selectedTicket.id] || []).map((msg) => (
+                    <div 
+                      key={msg.id}
+                      className={`p-3 rounded-lg ${
+                        msg.sender_type === 'user' 
+                          ? 'bg-blue-900/50 ml-8' 
+                          : 'bg-orange-900/50 mr-8'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-xs font-semibold ${
+                          msg.sender_type === 'user' ? 'text-blue-300' : 'text-orange-300'
+                        }`}>
+                          {msg.sender_type === 'user' ? 'You' : 'Support'}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {format(new Date(msg.created_at), 'MMM d, h:mm a')}
+                        </span>
+                      </div>
+                      <p className="text-white text-sm">{msg.message}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Reply box */}
+                {selectedTicket.status !== 'closed' && (
+                  <div className="flex gap-2">
+                    <Textarea 
+                      value={replyMessage}
+                      onChange={(e) => setReplyMessage(e.target.value)}
+                      placeholder="Type your reply..."
+                      className="bg-slate-800 border-slate-600 text-white flex-1"
+                    />
+                    <Button 
+                      onClick={handleSendReply}
+                      disabled={!replyMessage.trim()}
+                      className="bg-brand-gold hover:bg-brand-gold/80"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tickets List */}
+            {!selectedTicket && !showNewTicketForm && (
+              <div className="space-y-3">
+                {loading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 mx-auto animate-spin text-orange-400" />
+                    <p className="text-slate-400 mt-2">Loading tickets...</p>
+                  </div>
+                ) : tickets.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageCircle className="w-16 h-16 mx-auto text-orange-400/50 mb-4" />
+                    <h4 className="text-xl font-semibold text-white mb-2">No Support Tickets</h4>
+                    <p className="text-slate-400 mb-4">
+                      Create a new ticket to get help from our support team.
+                    </p>
+                    <Button 
+                      onClick={() => setShowNewTicketForm(true)}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Ticket
+                    </Button>
+                  </div>
+                ) : (
+                  tickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      onClick={() => handleViewTicket(ticket)}
+                      className="bg-slate-800 hover:bg-slate-700 rounded-lg p-4 cursor-pointer transition-colors border border-slate-700 hover:border-orange-500"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-white">{ticket.subject}</h4>
+                            {ticket.user_has_unread && (
+                              <Badge className="bg-red-600 text-xs">New Reply</Badge>
+                            )}
+                          </div>
+                          <p className="text-slate-400 text-sm mt-1">
+                            Last activity: {format(new Date(ticket.last_message_at), 'MMM d, yyyy h:mm a')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isTicketActive(ticket) && ticket.status !== 'closed' && (
+                            <Clock className="w-4 h-4 text-green-400 animate-pulse" />
+                          )}
+                          <Badge className={
+                            ticket.status === 'closed' ? 'bg-slate-600' :
+                            ticket.status === 'resolved' ? 'bg-green-600' :
+                            'bg-orange-600'
+                          }>
+                            {ticket.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </Card>
         )}
 
