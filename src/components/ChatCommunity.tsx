@@ -570,7 +570,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
         {/* User Support Tab Content */}
         {activeTab === 'admin' && (
-          <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6">
+          <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6 min-h-[60vh]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-bold text-white">Support Tickets</h3>
               {!selectedTicket && !showNewTicketForm && (
