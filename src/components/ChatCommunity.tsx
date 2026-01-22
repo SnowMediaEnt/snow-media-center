@@ -687,17 +687,20 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         {activeTab === 'admin' && (
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6 min-h-[60vh]">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-2xl font-bold text-white">Support Tickets</h3>
-                {!user && (
-                  <p className="text-sm text-orange-300 mt-1">
-                    Please sign in to create and view support tickets.
-                  </p>
-                )}
-              </div>
+              <h3 className="text-2xl font-bold text-white">Support Tickets</h3>
               {!selectedTicket && !showNewTicketForm && (
                 <Button 
-                  onClick={() => setShowNewTicketForm(true)}
+                  onClick={() => {
+                    if (!user) {
+                      toast({
+                        title: "Sign in required",
+                        description: "Please sign in to create a support ticket.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setShowNewTicketForm(true);
+                  }}
                   data-focus-id="create-ticket"
                   className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${focusRing('create-ticket')}`}
                 >
