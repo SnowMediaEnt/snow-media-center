@@ -439,15 +439,22 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAdminMessage, sendAiMessage]);
 
-  // Scroll focused element into view
+  // Scroll focused element into view - always keep selector visible
   useEffect(() => {
-    if (currentFocusId === 'back' || currentFocusId.startsWith('tab-')) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
-      if (el) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
+    const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
+    if (!el) return;
+    
+    const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const margin = 150; // Extra margin for visibility
+    
+    // Check if element is off-screen in any direction
+    if (rect.top < margin) {
+      // Element is above viewport - scroll up
+      window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - margin), behavior: 'smooth' });
+    } else if (rect.bottom > viewportHeight - margin) {
+      // Element is below viewport - scroll down to make it visible
+      window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + margin, behavior: 'smooth' });
     }
   }, [currentFocusId]);
 
