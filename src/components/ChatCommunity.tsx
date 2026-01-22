@@ -544,9 +544,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(4); // Back to create-ticket button
           } else if (currentFocusId === 'close-ticket') {
             handleCloseTicket();
-          } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input') {
-            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
-            el?.focus();
+          } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input' || currentFocusId === 'ai-input') {
+            // Focus the actual input/textarea element for typing
+            setTimeout(() => {
+              const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
+              if (el) {
+                el.focus();
+                // Move cursor to end
+                const len = el.value?.length || 0;
+                el.setSelectionRange(len, len);
+              }
+            }, 0);
           } else if (currentFocusId === 'submit-ticket') {
             handleCreateTicket();
           } else if (currentFocusId === 'cancel-ticket') {
@@ -558,9 +566,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             onNavigate?.('wix-forum');
           } else if (currentFocusId === 'join-groups') {
             window.open('https://snowmediaent.com/groups', '_blank');
-          } else if (currentFocusId === 'ai-input') {
-            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
-            el?.focus();
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
           }
@@ -833,16 +838,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   <div className="text-center py-8">
                     <MessageCircle className="w-16 h-16 mx-auto text-orange-400/50 mb-4" />
                     <h4 className="text-xl font-semibold text-white mb-2">No Support Tickets</h4>
-                    <p className="text-slate-400 mb-4">
-                      Create a new ticket to get help from our support team.
+                    <p className="text-slate-400">
+                      Use the "Create New Ticket" button above to get help from our support team.
                     </p>
-                    <Button 
-                      onClick={() => setShowNewTicketForm(true)}
-                      className="bg-orange-600 hover:bg-orange-700"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Your First Ticket
-                    </Button>
                   </div>
                 ) : (
                   tickets.map((ticket, index) => (
