@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { User } from '@supabase/supabase-js';
 
 export interface SupportTicket {
   id: string;
@@ -25,12 +25,11 @@ export interface SupportMessage {
   created_at: string;
 }
 
-export const useSupportTickets = () => {
+export const useSupportTickets = (user: User | null) => {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Record<string, SupportMessage[]>>({});
   const { toast } = useToast();
-  const { user } = useAuth();
 
   // Fetch all user's tickets
   const fetchTickets = async () => {

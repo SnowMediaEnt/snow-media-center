@@ -17,6 +17,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDistanceToNow } from 'date-fns';
 
 interface SupportTicketSystemProps {
@@ -30,6 +31,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
 
+  const { user } = useAuth();
   const {
     tickets,
     messages,
@@ -38,7 +40,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     createTicket,
     sendMessage,
     closeTicket
-  } = useSupportTickets();
+  } = useSupportTickets(user);
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
