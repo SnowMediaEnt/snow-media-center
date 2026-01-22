@@ -678,6 +678,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 </div>
                 <div className="flex gap-4">
                   <Button 
+                    type="button"
                     onClick={handleCreateTicket}
                     disabled={loading}
                     data-focus-id="submit-ticket"
@@ -687,6 +688,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     Submit Ticket
                   </Button>
                   <Button 
+                    type="button"
                     onClick={() => setShowNewTicketForm(false)}
                     variant="outline"
                     data-focus-id="cancel-ticket"
@@ -767,6 +769,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                       className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
                     />
                     <Button 
+                      type="button"
                       onClick={handleSendReply}
                       disabled={!replyMessage.trim()}
                       data-focus-id="reply-send"
