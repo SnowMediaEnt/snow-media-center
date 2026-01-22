@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface SupportTicket {
   id: string;
@@ -29,6 +30,7 @@ export const useSupportTickets = () => {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Record<string, SupportMessage[]>>({});
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch all user's tickets
   const fetchTickets = async () => {
@@ -93,10 +95,8 @@ export const useSupportTickets = () => {
     try {
       setLoading(true);
       
-      // Create ticket - use getSession for more reliable auth check
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error('User not authenticated');
-      const user = session.user;
+      // Use user from useAuth hook directly
+      if (!user) throw new Error('User not authenticated');
 
       const { data: ticket, error: ticketError } = await supabase
         .from('support_tickets')
@@ -149,9 +149,7 @@ export const useSupportTickets = () => {
   // Send a message to an existing ticket
   const sendMessage = async (ticketId: string, message: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error('User not authenticated');
-      const user = session.user;
+      if (!user) throw new Error('User not authenticated');
 
       const { error } = await supabase
         .from('support_messages')
@@ -240,8 +238,6 @@ export const useSupportTickets = () => {
   // Send email notification
   const sendSupportEmail = async (ticketId: string, subject: string, message: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
       
       await supabase.functions.invoke('send-custom-email', {
         body: {

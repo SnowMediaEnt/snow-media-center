@@ -577,13 +577,23 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply]);
 
-  // Scroll focused element into view - always keep selector visible
+  // Auto-focus input/textarea when navigating to them with D-pad
   useEffect(() => {
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
     
     // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    
+    // Auto-focus input/textarea elements when navigated to
+    if (['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId)) {
+      setTimeout(() => {
+        const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
+        inputEl.focus();
+        const len = inputEl.value?.length || 0;
+        inputEl.setSelectionRange(len, len);
+      }, 100);
+    }
   }, [currentFocusId]);
 
   // Reset focus when tab changes
