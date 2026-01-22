@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check } from 'lucide-react';
 import VoiceInput from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -351,10 +351,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         const elements = [
           ...header,
           { id: 'back-to-tickets', type: 'button' },
-          { id: 'message-scroll', type: 'scroll' }, // Virtual element for scrolling messages
         ];
         if (selectedTicket.status !== 'closed') {
           elements.push({ id: 'close-ticket', type: 'button' });
+        }
+        elements.push({ id: 'message-scroll', type: 'scroll' }); // Virtual element for scrolling messages
+        if (selectedTicket.status !== 'closed') {
           elements.push({ id: 'reply-input', type: 'textarea' });
           elements.push({ id: 'reply-send', type: 'button' });
         }
@@ -770,41 +772,50 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
             {/* View Single Ticket */}
             {selectedTicket && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xl font-semibold text-white">{selectedTicket.subject}</h4>
-                    <p className="text-slate-400 text-sm">
-                      Created {format(new Date(selectedTicket.created_at), 'MMM d, yyyy h:mm a')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={
+              <div className="flex flex-col h-[calc(100vh-280px)]">
+                {/* Header Row - Back, Subject, Status, Close all inline */}
+                <div className="flex items-center gap-3 mb-4">
+                  <Button 
+                    onClick={() => { setSelectedTicket(null); setShowNewTicketForm(false); }}
+                    variant="outline"
+                    size="sm"
+                    data-focus-id="back-to-tickets"
+                    className={`border-orange-500 text-orange-400 hover:bg-orange-600 transition-all duration-200 shrink-0 ${focusRing('back-to-tickets')}`}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </Button>
+                  {selectedTicket.status !== 'closed' && (
+                    <Button 
+                      onClick={handleCloseTicket}
+                      variant="outline"
+                      size="sm"
+                      data-focus-id="close-ticket"
+                      className={`border-green-500 text-green-400 hover:bg-green-600 transition-all duration-200 shrink-0 ${focusRing('close-ticket')}`}
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      Close Ticket
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <h4 className="text-xl font-semibold text-slate-900 truncate">{selectedTicket.subject}</h4>
+                    <Badge className={`shrink-0 ${
                       selectedTicket.status === 'closed' ? 'bg-slate-600' :
                       isTicketActive(selectedTicket) ? 'bg-green-600' : 'bg-orange-600'
-                    }>
+                    }`}>
                       {selectedTicket.status === 'closed' ? 'Closed' : isTicketActive(selectedTicket) ? 'Active' : 'Open'}
                     </Badge>
-                    {selectedTicket.status !== 'closed' && (
-                      <Button 
-                        onClick={handleCloseTicket}
-                        variant="outline"
-                        size="sm"
-                        data-focus-id="close-ticket"
-                        className={`border-red-500 text-red-400 hover:bg-red-600 transition-all duration-200 ${focusRing('close-ticket')}`}
-                      >
-                        <X className="w-3 h-3 mr-1" />
-                        Close Ticket
-                      </Button>
-                    )}
                   </div>
+                  <span className="text-white text-sm shrink-0">
+                    {format(new Date(selectedTicket.created_at), 'MMM d, yyyy h:mm a')}
+                  </span>
                 </div>
 
-                {/* Messages - Scrollable with D-pad */}
+                {/* Messages - Scrollable with D-pad - Takes remaining space */}
                 <div 
                   ref={messagesContainerRef}
                   data-focus-id="message-scroll"
-                  className={`bg-slate-800 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3 transition-all duration-200 ${isFocused('message-scroll') ? 'ring-4 ring-brand-ice' : ''}`}
+                  className={`bg-slate-800 rounded-lg p-4 flex-1 overflow-y-auto space-y-3 transition-all duration-200 ${isFocused('message-scroll') ? 'ring-4 ring-brand-ice' : ''}`}
                 >
                   {isFocused('message-scroll') && (
                     <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
@@ -826,7 +837,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                         }`}>
                           {msg.sender_type === 'user' ? 'You' : 'Support'}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-white">
                           {format(new Date(msg.created_at), 'MMM d, h:mm a')}
                         </span>
                       </div>
@@ -835,9 +846,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   ))}
                 </div>
 
-                {/* Reply box */}
+                {/* Reply box - Fixed at bottom */}
                 {selectedTicket.status !== 'closed' && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-4 shrink-0">
                     <Textarea 
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
