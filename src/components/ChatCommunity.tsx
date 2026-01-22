@@ -242,7 +242,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   // Define all focusable elements by index
   // 0: back, 1: tab-admin, 2: tab-community, 3: tab-ai
-  // Admin tab (4+): view-tickets, create-ticket, subject, message, admin-send
+  // Admin tab (4+): view-tickets only
   // Community tab (4+): visit-forum, join-groups
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
@@ -257,10 +257,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       return [
         ...header,
         { id: 'view-tickets', type: 'button' },
-        { id: 'create-ticket', type: 'button' },
-        { id: 'subject', type: 'input' },
-        { id: 'message', type: 'textarea' },
-        { id: 'admin-send', type: 'button' },
       ];
     } else if (activeTab === 'community') {
       return [
@@ -330,14 +326,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             if (prev >= 1 && prev <= 3) {
               return 4;
             }
-            // Admin tab: view-tickets(4) -> subject(6), create-ticket(5) -> subject(6), subject(6) -> message(7), message(7) -> admin-send(8)
+            // Admin tab: view-tickets(4) is the only item - no down action needed
             // Community tab: visit-forum(4) and join-groups(5) are on same row - no down action
             // AI tab: ai-input(4) -> ai-send handled by right arrow
-            if (activeTab === 'admin') {
-              if (prev === 4 || prev === 5) return 6; // view-tickets or create-ticket -> subject
-              if (prev === 6) return 7; // subject -> message
-              if (prev === 7) return 8; // message -> admin-send
-            }
             return prev; // Stay in place if no valid move
           });
           break;
@@ -346,12 +337,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           setFocusIndex(prev => {
             // From any content item, navigate up logically
             if (prev >= 4) {
-              // Admin tab: admin-send(8) -> message(7), message(7) -> subject(6), subject(6) -> view-tickets(4)
+              // Admin tab: view-tickets(4) -> tab-admin
               if (activeTab === 'admin') {
-                if (prev === 8) return 7; // admin-send -> message
-                if (prev === 7) return 6; // message -> subject
-                if (prev === 6) return 4; // subject -> view-tickets
-                if (prev === 4 || prev === 5) return 1; // view-tickets/create-ticket -> tab-admin
+                if (prev === 4) return 1; // view-tickets -> tab-admin
               } else if (activeTab === 'community') {
                 // visit-forum(4) or join-groups(5) -> tab-community
                 if (prev === 4 || prev === 5) return 2;
@@ -377,8 +365,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
           } else if (currentFocusId === 'tab-community') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-ai'));
-          } else if (currentFocusId === 'view-tickets') {
-            setFocusIndex(elements.findIndex(e => e.id === 'create-ticket'));
           } else if (currentFocusId === 'visit-forum') {
             setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
@@ -391,8 +377,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-admin'));
           } else if (currentFocusId === 'tab-ai') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
-          } else if (currentFocusId === 'create-ticket') {
-            setFocusIndex(elements.findIndex(e => e.id === 'view-tickets'));
           } else if (currentFocusId === 'join-groups') {
             setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
@@ -416,18 +400,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(3);
           } else if (currentFocusId === 'view-tickets') {
             onNavigate?.('support-tickets');
-          } else if (currentFocusId === 'create-ticket') {
-            onNavigate?.('create-ticket');
           } else if (currentFocusId === 'visit-forum') {
             onNavigate?.('wix-forum');
           } else if (currentFocusId === 'join-groups') {
             window.open('https://snowmediaent.com/groups', '_blank');
-          } else if (currentFocusId === 'subject' || currentFocusId === 'message' || currentFocusId === 'ai-input') {
+          } else if (currentFocusId === 'ai-input') {
             // Focus the actual input element
             const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
             el?.focus();
-          } else if (currentFocusId === 'admin-send') {
-            sendAdminMessage();
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
           }
@@ -491,7 +471,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             }`}
           >
             <User className="w-5 h-5 mr-2" />
-            Admin Support
+            User Support
           </Button>
           <Button
             onClick={() => setActiveTab('community')}
@@ -521,83 +501,22 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           </Button>
         </div>
 
-        {/* Admin Tab Content */}
+        {/* User Support Tab Content */}
         {activeTab === 'admin' && (
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-4">Support Ticket System</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">User Support</h3>
             <p className="text-orange-200 mb-6">
-              Create and manage support tickets. Messages are sent to support@snowmediaent.com.
+              View and manage your support tickets.
             </p>
             
-            <div className="flex gap-4 mb-6">
-              <Button 
-                onClick={() => onNavigate?.('support-tickets')}
-                data-focus-id="view-tickets"
-                className={`bg-orange-600 hover:bg-orange-700 transition-all duration-200 ${focusRing('view-tickets')}`}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                View Support Tickets
-              </Button>
-              <Button 
-                onClick={() => onNavigate?.('create-ticket')}
-                data-focus-id="create-ticket"
-                className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${focusRing('create-ticket')}`}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Ticket
-              </Button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white font-semibold mb-2">Subject</label>
-                <Input 
-                  value={adminSubject}
-                  onChange={(e) => setAdminSubject(e.target.value)}
-                  placeholder="What do you need help with?"
-                  data-focus-id="subject"
-                  className={`bg-slate-800 border-slate-600 text-white text-lg py-3 transition-all duration-200 rounded-md ${isFocused('subject') ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={adminLoading}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white font-semibold mb-2">Message</label>
-                <Textarea 
-                  value={adminMessage}
-                  onChange={(e) => setAdminMessage(e.target.value)}
-                  placeholder="Describe your issue or question in detail..."
-                  data-focus-id="message"
-                  className={`bg-slate-800 border-slate-600 text-white min-h-32 text-lg transition-all duration-200 rounded-md ${isFocused('message') ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={adminLoading}
-                />
-              </div>
-              
-              <Button 
-                onClick={sendAdminMessage}
-                disabled={adminLoading || !adminMessage.trim() || !adminSubject.trim() || !user}
-                data-focus-id="admin-send"
-                className={`bg-brand-gold hover:bg-brand-gold/80 text-white text-lg px-8 py-3 transition-all duration-200 ${focusRing('admin-send')}`}
-              >
-                {adminLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-5 h-5 mr-2" />
-                    Send to Snow Media
-                  </>
-                )}
-              </Button>
-              
-              {!user && (
-                <p className="text-orange-300 text-sm mt-2">
-                  Please sign in to send messages to admin
-                </p>
-              )}
-            </div>
+            <Button 
+              onClick={() => onNavigate?.('support-tickets')}
+              data-focus-id="view-tickets"
+              className={`bg-orange-600 hover:bg-orange-700 transition-all duration-200 ${focusRing('view-tickets')}`}
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              View Support Tickets
+            </Button>
           </Card>
         )}
 
