@@ -73,6 +73,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   };
 
   const handleCreateTicket = async () => {
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please sign in to create a support ticket.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!newSubject.trim() || !newMessage.trim()) {
       toast({
         title: "Missing information",
@@ -403,6 +411,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       // Allow backspace when typing
       if (event.key === 'Backspace' && isTyping) {
         return;
+      }
+
+      // When in a textarea, allow arrow keys to navigate away (not inside the field)
+      // We blur the element first to allow D-pad navigation
+      if (isTyping && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+        (target as HTMLElement).blur();
       }
 
       // Allow normal typing except arrows
