@@ -309,7 +309,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   // Define all focusable elements by index
   // 0: back, 1: tab-admin, 2: tab-community, 3: tab-ai
-  // Admin tab (4+): view-tickets only
+  // Admin tab (4+): depends on view state (list, new ticket form, or viewing ticket)
   // Community tab (4+): visit-forum, join-groups
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
@@ -321,9 +321,39 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     ];
 
     if (activeTab === 'admin') {
+      // New ticket form view
+      if (showNewTicketForm) {
+        return [
+          ...header,
+          { id: 'new-subject', type: 'input' },
+          { id: 'new-message', type: 'textarea' },
+          { id: 'submit-ticket', type: 'button' },
+          { id: 'cancel-ticket', type: 'button' },
+        ];
+      }
+      // Viewing a ticket
+      if (selectedTicket) {
+        const elements = [
+          ...header,
+          { id: 'back-to-tickets', type: 'button' },
+        ];
+        if (selectedTicket.status !== 'closed') {
+          elements.push({ id: 'close-ticket', type: 'button' });
+          elements.push({ id: 'reply-input', type: 'textarea' });
+          elements.push({ id: 'reply-send', type: 'button' });
+        }
+        return elements;
+      }
+      // Ticket list view
+      const ticketElements = tickets.map((ticket, index) => ({
+        id: `ticket-${index}`,
+        type: 'button',
+        ticketId: ticket.id,
+      }));
       return [
         ...header,
-        { id: 'view-tickets', type: 'button' },
+        { id: 'create-ticket', type: 'button' },
+        ...ticketElements,
       ];
     } else if (activeTab === 'community') {
       return [
@@ -338,7 +368,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         { id: 'ai-send', type: 'button' },
       ];
     }
-  }, [activeTab]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -391,32 +421,26 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             }
             // From tabs (indices 1, 2, 3), go to first content item (index 4)
             if (prev >= 1 && prev <= 3) {
-              return 4;
+              return Math.min(4, maxIndex);
             }
-            // Admin tab: view-tickets(4) is the only item - no down action needed
-            // Community tab: visit-forum(4) and join-groups(5) are on same row - no down action
-            // AI tab: ai-input(4) -> ai-send handled by right arrow
-            return prev; // Stay in place if no valid move
+            // Move down through content items
+            if (prev < maxIndex) {
+              return prev + 1;
+            }
+            return prev; // Stay in place if at bottom
           });
           break;
 
         case 'ArrowUp':
           setFocusIndex(prev => {
-            // From any content item, navigate up logically
-            if (prev >= 4) {
-              // Admin tab: view-tickets(4) -> tab-admin
-              if (activeTab === 'admin') {
-                if (prev === 4) return 1; // view-tickets -> tab-admin
-              } else if (activeTab === 'community') {
-                // visit-forum(4) or join-groups(5) -> tab-community
-                if (prev === 4 || prev === 5) return 2;
-              } else if (activeTab === 'ai') {
-                // ai-input(4) or ai-send(5) -> tab-ai
-                if (prev === 4 || prev === 5) return 3;
-              }
-              // Default: go to current tab
+            // From first content item (index 4), go to active tab
+            if (prev === 4) {
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
+            }
+            // From other content items, go up one
+            if (prev > 4) {
+              return prev - 1;
             }
             // From any tab, go to back button
             if (prev >= 1 && prev <= 3) {
@@ -436,6 +460,13 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-send'));
+          } else if (currentFocusId === 'submit-ticket') {
+            setFocusIndex(elements.findIndex(e => e.id === 'cancel-ticket'));
+          } else if (currentFocusId === 'back-to-tickets') {
+            const closeIdx = elements.findIndex(e => e.id === 'close-ticket');
+            if (closeIdx !== -1) setFocusIndex(closeIdx);
+          } else if (currentFocusId === 'reply-input') {
+            setFocusIndex(elements.findIndex(e => e.id === 'reply-send'));
           }
           break;
 
@@ -448,6 +479,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-input'));
+          } else if (currentFocusId === 'cancel-ticket') {
+            setFocusIndex(elements.findIndex(e => e.id === 'submit-ticket'));
+          } else if (currentFocusId === 'close-ticket') {
+            setFocusIndex(elements.findIndex(e => e.id === 'back-to-tickets'));
+          } else if (currentFocusId === 'reply-send') {
+            setFocusIndex(elements.findIndex(e => e.id === 'reply-input'));
           }
           break;
 
@@ -458,21 +495,41 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             onBack();
           } else if (currentFocusId === 'tab-admin') {
             setActiveTab('admin');
-            setFocusIndex(1); // Stay on this tab
+            setFocusIndex(1);
           } else if (currentFocusId === 'tab-community') {
             setActiveTab('community');
             setFocusIndex(2);
           } else if (currentFocusId === 'tab-ai') {
             setActiveTab('ai');
             setFocusIndex(3);
-          } else if (currentFocusId === 'view-tickets') {
-            onNavigate?.('support-tickets');
+          } else if (currentFocusId === 'create-ticket') {
+            setShowNewTicketForm(true);
+            setFocusIndex(4); // Focus on subject input
+          } else if (currentFocusId.startsWith('ticket-')) {
+            const ticketIndex = parseInt(currentFocusId.replace('ticket-', ''));
+            const ticket = tickets[ticketIndex];
+            if (ticket) handleViewTicket(ticket);
+          } else if (currentFocusId === 'back-to-tickets') {
+            setSelectedTicket(null);
+            setShowNewTicketForm(false);
+            setFocusIndex(4); // Back to create-ticket button
+          } else if (currentFocusId === 'close-ticket') {
+            handleCloseTicket();
+          } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input') {
+            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
+            el?.focus();
+          } else if (currentFocusId === 'submit-ticket') {
+            handleCreateTicket();
+          } else if (currentFocusId === 'cancel-ticket') {
+            setShowNewTicketForm(false);
+            setFocusIndex(4);
+          } else if (currentFocusId === 'reply-send') {
+            handleSendReply();
           } else if (currentFocusId === 'visit-forum') {
             onNavigate?.('wix-forum');
           } else if (currentFocusId === 'join-groups') {
             window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-input') {
-            // Focus the actual input element
             const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
             el?.focus();
           } else if (currentFocusId === 'ai-send') {
@@ -484,7 +541,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAdminMessage, sendAiMessage]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply]);
 
   // Scroll focused element into view - always keep selector visible
   useEffect(() => {
@@ -576,7 +633,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
               {!selectedTicket && !showNewTicketForm && (
                 <Button 
                   onClick={() => setShowNewTicketForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-focus-id="create-ticket"
+                  className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${focusRing('create-ticket')}`}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Create New Ticket
@@ -586,7 +644,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 <Button 
                   onClick={() => { setSelectedTicket(null); setShowNewTicketForm(false); }}
                   variant="outline"
-                  className="border-orange-500 text-orange-400 hover:bg-orange-600"
+                  data-focus-id="back-to-tickets"
+                  className={`border-orange-500 text-orange-400 hover:bg-orange-600 transition-all duration-200 ${focusRing('back-to-tickets')}`}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Tickets
@@ -603,7 +662,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
                     placeholder="What do you need help with?"
-                    className="bg-slate-800 border-slate-600 text-white"
+                    data-focus-id="new-subject"
+                    className={`bg-slate-800 border-slate-600 text-white transition-all duration-200 ${isFocused('new-subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
                 </div>
                 <div>
@@ -612,14 +672,16 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Describe your issue in detail..."
-                    className="bg-slate-800 border-slate-600 text-white min-h-32"
+                    data-focus-id="new-message"
+                    className={`bg-slate-800 border-slate-600 text-white min-h-32 transition-all duration-200 ${isFocused('new-message') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
                 </div>
                 <div className="flex gap-4">
                   <Button 
                     onClick={handleCreateTicket}
                     disabled={loading}
-                    className="bg-brand-gold hover:bg-brand-gold/80"
+                    data-focus-id="submit-ticket"
+                    className={`bg-brand-gold hover:bg-brand-gold/80 transition-all duration-200 ${focusRing('submit-ticket')}`}
                   >
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                     Submit Ticket
@@ -627,7 +689,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   <Button 
                     onClick={() => setShowNewTicketForm(false)}
                     variant="outline"
-                    className="border-slate-600 text-slate-300"
+                    data-focus-id="cancel-ticket"
+                    className={`border-slate-600 text-slate-300 transition-all duration-200 ${focusRing('cancel-ticket')}`}
                   >
                     Cancel
                   </Button>
@@ -657,7 +720,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                         onClick={handleCloseTicket}
                         variant="outline"
                         size="sm"
-                        className="border-red-500 text-red-400 hover:bg-red-600"
+                        data-focus-id="close-ticket"
+                        className={`border-red-500 text-red-400 hover:bg-red-600 transition-all duration-200 ${focusRing('close-ticket')}`}
                       >
                         <X className="w-3 h-3 mr-1" />
                         Close Ticket
@@ -699,12 +763,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply..."
-                      className="bg-slate-800 border-slate-600 text-white flex-1"
+                      data-focus-id="reply-input"
+                      className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
                     />
                     <Button 
                       onClick={handleSendReply}
                       disabled={!replyMessage.trim()}
-                      className="bg-brand-gold hover:bg-brand-gold/80"
+                      data-focus-id="reply-send"
+                      className={`bg-brand-gold hover:bg-brand-gold/80 transition-all duration-200 ${focusRing('reply-send')}`}
                     >
                       <Send className="w-4 h-4" />
                     </Button>
@@ -737,11 +803,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     </Button>
                   </div>
                 ) : (
-                  tickets.map((ticket) => (
+                  tickets.map((ticket, index) => (
                     <div
                       key={ticket.id}
                       onClick={() => handleViewTicket(ticket)}
-                      className="bg-slate-800 hover:bg-slate-700 rounded-lg p-4 cursor-pointer transition-colors border border-slate-700 hover:border-orange-500"
+                      data-focus-id={`ticket-${index}`}
+                      className={`bg-slate-800 hover:bg-slate-700 rounded-lg p-4 cursor-pointer transition-all duration-200 border border-slate-700 hover:border-orange-500 ${isFocused(`ticket-${index}`) ? 'ring-4 ring-brand-ice scale-[1.02]' : ''}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
