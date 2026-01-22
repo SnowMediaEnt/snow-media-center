@@ -216,25 +216,20 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
   // Scroll focused element into view - always keep selector visible
   useEffect(() => {
-    // For header elements, scroll to top
-    if (focusedElement === 'back' || focusedElement === 'prompt-input' || focusedElement === 'generate-btn') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
     
     const rect = el.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const margin = 120;
+    const margin = 150; // Extra margin for visibility
     
+    // Check if element is off-screen in any direction
     if (rect.top < margin) {
-      const scrollTarget = window.scrollY + rect.top - margin;
-      window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+      // Element is above viewport - scroll up
+      window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - margin), behavior: 'smooth' });
     } else if (rect.bottom > viewportHeight - margin) {
-      const scrollTarget = window.scrollY + rect.bottom - viewportHeight + margin;
-      window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+      // Element is below viewport - scroll down to make it visible
+      window.scrollTo({ top: window.scrollY + rect.bottom - viewportHeight + margin, behavior: 'smooth' });
     }
   }, [focusedElement]);
 
