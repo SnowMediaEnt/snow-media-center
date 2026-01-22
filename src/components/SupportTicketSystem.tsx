@@ -21,11 +21,10 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
-  initialView?: 'list' | 'create';
 }
 
-const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSystemProps) => {
-  const [view, setView] = useState<'list' | 'ticket' | 'create'>(initialView);
+const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
+  const [view, setView] = useState<'list' | 'ticket' | 'create'>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
@@ -37,7 +36,8 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
     loading,
     fetchTicketMessages,
     createTicket,
-    sendMessage
+    sendMessage,
+    closeTicket
   } = useSupportTickets();
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
@@ -75,7 +75,30 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
     await fetchTicketMessages(ticketId);
   };
 
-  const getStatusIcon = (status: string) => {
+  const handleCloseTicket = async () => {
+    if (!selectedTicketId) return;
+    try {
+      await closeTicket(selectedTicketId);
+      setView('list');
+      setSelectedTicketId(null);
+    } catch (error) {
+      console.error('Failed to close ticket:', error);
+    }
+  };
+
+  // Determine if ticket is "active" based on recent message activity (within last 24 hours)
+  const isTicketActive = (ticket: { last_message_at: string; status: string }) => {
+    if (ticket.status === 'closed' || ticket.status === 'resolved') return false;
+    const lastMessage = new Date(ticket.last_message_at);
+    const now = new Date();
+    const hoursDiff = (now.getTime() - lastMessage.getTime()) / (1000 * 60 * 60);
+    return hoursDiff <= 24;
+  };
+
+  const getStatusIcon = (status: string, isActive?: boolean) => {
+    if (isActive && status !== 'closed' && status !== 'resolved') {
+      return <Clock className="h-4 w-4 text-green-500 animate-pulse" />;
+    }
     switch (status) {
       case 'open':
         return <AlertCircle className="h-4 w-4 text-yellow-500" />;
@@ -90,7 +113,10 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, isActive?: boolean) => {
+    if (isActive && status !== 'closed' && status !== 'resolved') {
+      return 'bg-green-100 text-green-800';
+    }
     switch (status) {
       case 'open':
         return 'bg-yellow-100 text-yellow-800';
@@ -175,24 +201,39 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
   }
 
   if (view === 'ticket' && selectedTicket) {
+    const ticketActive = isTicketActive(selectedTicket);
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <Button 
-              onClick={() => setView('list')} 
-              variant="outline" 
-              size="sm"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Tickets
-            </Button>
-            <h1 className="text-3xl font-bold">{selectedTicket.subject}</h1>
-            <Badge className={getStatusColor(selectedTicket.status)}>
-              {getStatusIcon(selectedTicket.status)}
-              <span className="ml-1 capitalize">{selectedTicket.status.replace('_', ' ')}</span>
-            </Badge>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <Button 
+                onClick={() => setView('list')} 
+                variant="outline" 
+                size="sm"
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Tickets
+              </Button>
+              <h1 className="text-3xl font-bold">{selectedTicket.subject}</h1>
+              <Badge className={getStatusColor(selectedTicket.status, ticketActive)}>
+                {getStatusIcon(selectedTicket.status, ticketActive)}
+                <span className="ml-1 capitalize">
+                  {ticketActive ? 'Active' : selectedTicket.status.replace('_', ' ')}
+                </span>
+              </Badge>
+            </div>
+            {selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved' && (
+              <Button 
+                onClick={handleCloseTicket}
+                variant="outline"
+                className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Close Ticket
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-6">
@@ -267,7 +308,7 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <h1 className="text-3xl font-bold">Support Tickets</h1>
+            <h1 className="text-3xl font-bold">User Support</h1>
           </div>
           <Button 
             onClick={() => setView('create')}
@@ -279,41 +320,46 @@ const SupportTicketSystem = ({ onBack, initialView = 'list' }: SupportTicketSyst
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tickets.map((ticket) => (
-            <Card 
-              key={ticket.id}
-              className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
-                ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
-              }`}
-              onClick={() => handleViewTicket(ticket.id)}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-white text-lg line-clamp-2">
-                    {ticket.subject}
-                  </CardTitle>
-                  {ticket.user_has_unread && (
-                    <Badge className="bg-blue-600 text-white ml-2">New</Badge>
-                  )}
+          {tickets.map((ticket) => {
+            const ticketActive = isTicketActive(ticket);
+            return (
+              <Card 
+                key={ticket.id}
+                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
+                  ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => handleViewTicket(ticket.id)}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-white text-lg line-clamp-2">
+                      {ticket.subject}
+                    </CardTitle>
+                    {ticket.user_has_unread && (
+                      <Badge className="bg-blue-600 text-white ml-2">New</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusColor(ticket.status, ticketActive)}>
+                      {getStatusIcon(ticket.status, ticketActive)}
+                      <span className="ml-1 capitalize">
+                        {ticketActive ? 'Active' : ticket.status.replace('_', ' ')}
+                      </span>
+                    </Badge>
+                    <Badge variant="outline" className="text-slate-300">
+                      {ticket.priority}
+                    </Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={getStatusColor(ticket.status)}>
-                    {getStatusIcon(ticket.status)}
-                    <span className="ml-1 capitalize">{ticket.status.replace('_', ' ')}</span>
-                  </Badge>
-                  <Badge variant="outline" className="text-slate-300">
-                    {ticket.priority}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-400">
-                  <p>Created: {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</p>
-                  <p>Last updated: {formatDistanceToNow(new Date(ticket.last_message_at), { addSuffix: true })}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm text-slate-400">
+                    <p>Created: {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</p>
+                    <p>Last updated: {formatDistanceToNow(new Date(ticket.last_message_at), { addSuffix: true })}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
 
           {tickets.length === 0 && !loading && (
             <div className="col-span-full text-center py-12">

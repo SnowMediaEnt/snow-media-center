@@ -203,6 +203,38 @@ export const useSupportTickets = () => {
     }
   };
 
+  // Close a ticket (user marks as resolved)
+  const closeTicket = async (ticketId: string) => {
+    try {
+      const { error } = await supabase
+        .from('support_tickets')
+        .update({ status: 'closed' })
+        .eq('id', ticketId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Ticket has been closed"
+      });
+
+      // Update local state
+      setTickets(prev => prev.map(ticket => 
+        ticket.id === ticketId 
+          ? { ...ticket, status: 'closed' }
+          : ticket
+      ));
+    } catch (error) {
+      console.error('Error closing ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to close ticket",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
   // Send email notification
   const sendSupportEmail = async (ticketId: string, subject: string, message: string) => {
     try {
@@ -247,6 +279,7 @@ export const useSupportTickets = () => {
     fetchTicketMessages,
     createTicket,
     sendMessage,
-    markTicketAsRead
+    markTicketAsRead,
+    closeTicket
   };
 };
