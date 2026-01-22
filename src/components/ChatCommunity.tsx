@@ -41,6 +41,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets();
   const containerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Helper to check if ticket is active (has activity in last 24 hours)
   const isTicketActive = (ticket: SupportTicket) => {
@@ -342,6 +343,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         const elements = [
           ...header,
           { id: 'back-to-tickets', type: 'button' },
+          { id: 'message-scroll', type: 'scroll' }, // Virtual element for scrolling messages
         ];
         if (selectedTicket.status !== 'closed') {
           elements.push({ id: 'close-ticket', type: 'button' });
@@ -417,8 +419,24 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       const elements = getFocusableElements();
       const maxIndex = elements.length - 1;
 
+      // Handle message scrolling when focused on the scroll element
+      const scrollMessages = (direction: 'up' | 'down') => {
+        if (messagesContainerRef.current) {
+          const scrollAmount = 100;
+          messagesContainerRef.current.scrollBy({
+            top: direction === 'down' ? scrollAmount : -scrollAmount,
+            behavior: 'smooth',
+          });
+        }
+      };
+
       switch (event.key) {
         case 'ArrowDown':
+          // If focused on message-scroll, scroll down instead of changing focus
+          if (currentFocusId === 'message-scroll') {
+            scrollMessages('down');
+            return;
+          }
           setFocusIndex(prev => {
             // From back button (index 0), go to the current active tab
             if (prev === 0) {
@@ -438,6 +456,11 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           break;
 
         case 'ArrowUp':
+          // If focused on message-scroll, scroll up instead of changing focus
+          if (currentFocusId === 'message-scroll') {
+            scrollMessages('up');
+            return;
+          }
           setFocusIndex(prev => {
             // From first content item (index 4), go to active tab
             if (prev === 4) {
@@ -738,8 +761,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="bg-slate-800 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3">
+                {/* Messages - Scrollable with D-pad */}
+                <div 
+                  ref={messagesContainerRef}
+                  data-focus-id="message-scroll"
+                  className={`bg-slate-800 rounded-lg p-4 max-h-64 overflow-y-auto space-y-3 transition-all duration-200 ${isFocused('message-scroll') ? 'ring-4 ring-brand-ice' : ''}`}
+                >
+                  {isFocused('message-scroll') && (
+                    <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
+                      ↑↓ Use D-pad to scroll messages
+                    </div>
+                  )}
                   {(messages[selectedTicket.id] || []).map((msg) => (
                     <div 
                       key={msg.id}
