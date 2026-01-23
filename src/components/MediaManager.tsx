@@ -61,13 +61,33 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     if (!isActive) return; // Don't handle navigation when not active
     
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't intercept when typing in inputs
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        if (event.key === 'Escape' || (event.key === 'Backspace' && !(event.target as HTMLInputElement).value)) {
+      const target = event.target as HTMLElement;
+      const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+      
+      // When typing in inputs, only handle escape/navigation keys to exit
+      if (isTyping) {
+        if (event.key === 'Escape') {
           event.preventDefault();
-          setFocusedElement('prompt-input');
-          (event.target as HTMLElement).blur();
+          (target as HTMLInputElement).blur();
+          return;
         }
+        // Allow ArrowRight to exit input and go to generate button
+        if (event.key === 'ArrowRight' && focusedElement === 'prompt-input') {
+          event.preventDefault();
+          (target as HTMLInputElement).blur();
+          setFocusedElement('generate-btn');
+          return;
+        }
+        // Allow ArrowDown to exit input and go to asset-type
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          (target as HTMLInputElement).blur();
+          if (focusedElement === 'prompt-input') {
+            setFocusedElement('asset-type');
+          }
+          return;
+        }
+        // Let normal typing happen
         return;
       }
       
