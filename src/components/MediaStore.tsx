@@ -24,6 +24,29 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const [selectedProduct, setSelectedProduct] = useState<WixProduct | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [focusedElement, setFocusedElement] = useState<'back' | 'signin' | 'cart' | string>('back');
+  const [detailFocusedElement, setDetailFocusedElement] = useState<string>('detail-back');
+  
+  const cartItems = cart.items;
+  const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
+
+  // Build detail view focusable elements list
+  const getDetailFocusableElements = () => {
+    if (!selectedProduct) return [];
+    const elements: string[] = ['detail-back'];
+    
+    // Add option choices
+    if (selectedProduct.productOptions) {
+      selectedProduct.productOptions.forEach((option, optIndex) => {
+        option.choices.forEach((_, choiceIndex) => {
+          elements.push(`detail-option-${optIndex}-${choiceIndex}`);
+        });
+      });
+    }
+    
+    // Add to cart button
+    elements.push('detail-add-cart');
+    return elements;
+  };
 
   // TV Remote Navigation with checkout support
   // Focus types: 'back', 'signin', 'cart', 'category-{id}', 'product-{id}'
@@ -36,6 +59,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         event.stopPropagation();
         if (selectedProduct) {
           setSelectedProduct(null);
+          setDetailFocusedElement('detail-back');
         } else {
           onBack();
         }
@@ -45,13 +69,71 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
+
+      // Handle product detail view navigation separately
+      if (selectedProduct) {
+        const detailElements = getDetailFocusableElements();
+        const currentIndex = detailElements.indexOf(detailFocusedElement);
+        
+        switch (event.key) {
+          case 'ArrowUp':
+            if (currentIndex > 0) {
+              setDetailFocusedElement(detailElements[currentIndex - 1]);
+            }
+            break;
+          case 'ArrowDown':
+            if (currentIndex < detailElements.length - 1) {
+              setDetailFocusedElement(detailElements[currentIndex + 1]);
+            }
+            break;
+          case 'ArrowLeft':
+            // For options grid, move left within same option group
+            if (detailFocusedElement.startsWith('detail-option-')) {
+              const parts = detailFocusedElement.split('-');
+              const optIndex = parseInt(parts[2]);
+              const choiceIndex = parseInt(parts[3]);
+              if (choiceIndex > 0) {
+                setDetailFocusedElement(`detail-option-${optIndex}-${choiceIndex - 1}`);
+              }
+            }
+            break;
+          case 'ArrowRight':
+            // For options grid, move right within same option group
+            if (detailFocusedElement.startsWith('detail-option-') && selectedProduct.productOptions) {
+              const parts = detailFocusedElement.split('-');
+              const optIndex = parseInt(parts[2]);
+              const choiceIndex = parseInt(parts[3]);
+              const maxChoices = selectedProduct.productOptions[optIndex]?.choices.length || 0;
+              if (choiceIndex < maxChoices - 1) {
+                setDetailFocusedElement(`detail-option-${optIndex}-${choiceIndex + 1}`);
+              }
+            }
+            break;
+          case 'Enter':
+          case ' ':
+            if (detailFocusedElement === 'detail-back') {
+              setSelectedProduct(null);
+              setDetailFocusedElement('detail-back');
+            } else if (detailFocusedElement === 'detail-add-cart') {
+              const cartItem = cartItems.find(item => item.id === selectedProduct.id);
+              if (cartItem) {
+                updateQuantity(selectedProduct.id, cartItem.cartQuantity + 1);
+              } else {
+                addToCart(selectedProduct as any, 1);
+              }
+              toast({
+                title: "Added to cart!",
+                description: `${selectedProduct.name} has been added to your cart.`,
+              });
+            }
+            // Option selection could be implemented here
+            break;
+        }
+        return;
+      }
       
       const filteredProducts = getFilteredProducts();
       const categoryIds = categories.map(c => `category-${c.id}`);
-      
-      // Define sections in order: header (back, signin, cart) -> categories -> products
-      const headerItems = user ? ['back', 'cart'] : ['back', 'signin', 'cart'];
-      const productItems = filteredProducts.map(p => `product-${p.id}`);
       
       // Get grid dimensions (assume 4 columns for products)
       const gridCols = 4;
@@ -151,7 +233,10 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             setSelectedCategory(catId);
           } else if (focusedElement.startsWith('product-')) {
             const product = filteredProducts.find(p => focusedElement === `product-${p.id}`);
-            if (product) setSelectedProduct(product);
+            if (product) {
+              setSelectedProduct(product);
+              setDetailFocusedElement('detail-back');
+            }
           }
           break;
           
@@ -167,19 +252,18 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart]);
+  }, [focusedElement, detailFocusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart, cartItems, addToCart, updateQuantity, toast]);
 
   // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
+    const focusId = selectedProduct ? detailFocusedElement : focusedElement;
+    const el = document.querySelector(`[data-focus-id="${focusId}"]`) as HTMLElement;
     if (!el) return;
     
     // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-  }, [focusedElement]);
+  }, [focusedElement, detailFocusedElement, selectedProduct]);
 
-  const cartItems = cart.items;
-  const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
 
   // Category configuration
   const categories = [
@@ -302,7 +386,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             onClick={() => setSelectedProduct(null)}
             variant="outline" 
             size="lg"
-            className="mb-6 bg-brand-gold text-white hover:bg-brand-gold/80"
+            data-focus-id="detail-back"
+            className={`mb-6 bg-brand-gold text-white hover:bg-brand-gold/80 ${detailFocusedElement === 'detail-back' ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Products
@@ -348,14 +433,15 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-3">Product Options:</h3>
                   <div className="space-y-4">
-                    {selectedProduct.productOptions.map((option, index) => (
-                      <div key={index} className="bg-white/5 p-4 rounded-lg">
+                    {selectedProduct.productOptions.map((option, optIndex) => (
+                      <div key={optIndex} className="bg-white/5 p-4 rounded-lg">
                         <label className="text-white font-medium mb-2 block">{option.name}:</label>
                         <div className="grid grid-cols-2 gap-2">
                           {option.choices.map((choice, choiceIndex) => (
                             <button
                               key={choiceIndex}
-                              className="bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors"
+                              data-focus-id={`detail-option-${optIndex}-${choiceIndex}`}
+                              className={`bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors ${detailFocusedElement === `detail-option-${optIndex}-${choiceIndex}` ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
                             >
                               {choice.value}
                               {(choice as any).priceModifier && (
@@ -389,7 +475,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   }}
                   disabled={!selectedProduct.inStock}
                   size="lg"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-lg"
+                  data-focus-id="detail-add-cart"
+                  className={`flex-1 bg-green-600 hover:bg-green-700 text-white text-lg ${detailFocusedElement === 'detail-add-cart' ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   Add to Cart - ${selectedProduct.price.toFixed(2)}
