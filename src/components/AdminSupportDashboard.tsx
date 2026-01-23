@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +53,39 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const filteredTickets = statusFilter === 'all' 
     ? tickets 
     : tickets.filter(t => t.status === statusFilter);
+
+  // Hierarchical back button handling
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
+      // Allow Backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return;
+      }
+      
+      // Handle back button - hierarchical exit from nested containers
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // If viewing a ticket, go back to list first
+        if (view === 'ticket') {
+          setView('list');
+          setSelectedTicketId(null);
+          return;
+        }
+        
+        // Otherwise exit to previous page
+        onBack();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view, onBack]);
 
   const handleViewTicket = async (ticketId: string) => {
     setSelectedTicketId(ticketId);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,45 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
   const conversationMessages = selectedConversationId ? messages[selectedConversationId] || [] : [];
+
+  // Hierarchical back button handling
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
+      // Allow Backspace when typing
+      if (event.key === 'Backspace' && isTyping) {
+        return;
+      }
+      
+      // Handle back button - hierarchical exit from nested containers
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // If viewing a conversation, go back to list first
+        if (view === 'conversation') {
+          setView('list');
+          setSelectedConversationId(null);
+          return;
+        }
+        
+        // If in create form, go back to list
+        if (view === 'create') {
+          setView('list');
+          return;
+        }
+        
+        // Otherwise exit to previous page
+        onBack();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view, onBack]);
 
   const handleCreateConversation = async () => {
     if (!newMessage.trim()) return;
