@@ -32,7 +32,7 @@ type FocusElement =
 
 const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   
@@ -49,6 +49,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Check if user is authenticated (prefer session over user state for reliability)
+  const isAuthenticated = !!(session?.user || user);
 
   // Helper to get focus ring class - use rounded ring for inputs and selects
   const getFocusClass = (id: FocusElement) => 
@@ -552,7 +555,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   </p>
                 )}
               </div>
-              {!user && (
+              {!isAuthenticated && (
                 <p className="text-sm text-purple-200 italic">Sign in to generate images</p>
               )}
             </div>
@@ -566,13 +569,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                   placeholder="e.g., A serene mountain landscape at sunset with purple sky"
                   className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={generating || !user}
+                  disabled={generating || !isAuthenticated}
                 />
               </div>
               <div className="flex items-end">
                 <Button
                   onClick={handleGenerateImage}
-                  disabled={generating || !generatePrompt.trim() || !user || (profile && profile.credits < (imageConfig.credits * 0.01))}
+                  disabled={generating || !generatePrompt.trim() || !isAuthenticated || (profile && profile.credits < (imageConfig.credits * 0.01))}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
                 >
