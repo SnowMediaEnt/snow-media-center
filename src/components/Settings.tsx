@@ -39,17 +39,37 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
 
   // Main navigation handler for Settings shell
   useEffect(() => {
-    // Skip if MediaManager is active and handling its own navigation
-    if (mediaManagerActive) return;
-
     const handleKeyDown = (event: KeyboardEvent) => {
+      // If MediaManager is active, only intercept global back to allow hierarchical exit
+      if (mediaManagerActive) {
+        if (event.key === 'Escape' || event.key === 'Backspace' || 
+            event.keyCode === 4 || event.which === 4) {
+          const target = event.target as HTMLElement;
+          const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+          if (isTyping && event.key === 'Backspace') return; // Allow typing
+          
+          // MediaManager will call handleMediaManagerBack when it wants to exit
+          // Don't intercept here - let MediaManager handle first
+        }
+        return; // Let MediaManager handle all other navigation
+      }
+
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       
-      // Handle back button globally
-      if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack') {
+      // Handle back button globally - hierarchical exit
+      if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack' ||
+          (event.key === 'Backspace' && !isTyping)) {
         event.preventDefault();
         event.stopPropagation();
+        
+        // If on a tab content element, go back to tab first
+        if (focusedElement === 'layout-toggle') {
+          setFocusedElement('tab-layout');
+          return;
+        }
+        
+        // Otherwise exit Settings entirely
         onBack();
         return;
       }

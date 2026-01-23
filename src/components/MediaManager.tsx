@@ -98,8 +98,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       if (event.key === 'Escape' || event.key === 'Backspace' || 
           event.keyCode === 4 || event.which === 4) {
         event.preventDefault();
+        event.stopPropagation();
         
-        // If inside asset card (toggle/delete buttons), exit to parent card first
+        // Level 1: If inside asset card (toggle/delete buttons), exit to parent card first
         if (focusedElement.startsWith('asset-toggle-') || focusedElement.startsWith('asset-delete-')) {
           const assetId = focusedElement.replace('asset-toggle-', '').replace('asset-delete-', '');
           const assetIndex = assets.findIndex(a => a.id === assetId);
@@ -109,7 +110,31 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           }
         }
         
-        // Otherwise exit to previous page/container
+        // Level 2: If in assets grid, go back to file input (upload area)
+        if (focusedElement.startsWith('asset-')) {
+          setFocusedElement('file-input');
+          return;
+        }
+        
+        // Level 3: If in file input/upload area, go back to asset-type
+        if (focusedElement === 'file-input') {
+          setFocusedElement('asset-type');
+          return;
+        }
+        
+        // Level 4: If in asset-type, go back to prompt/generate area
+        if (focusedElement === 'asset-type') {
+          setFocusedElement('prompt-input');
+          return;
+        }
+        
+        // Level 5: If at top of MediaManager (prompt-input or generate-btn), exit to parent
+        if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn' || focusedElement === 'back') {
+          onBack();
+          return;
+        }
+        
+        // Fallback: exit to parent
         onBack();
         return;
       }
