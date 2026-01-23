@@ -45,7 +45,7 @@ serve(async (req) => {
     const userId = claimsData.claims.sub;
     console.log('Authenticated user:', userId);
 
-    const { prompt, width = 1024, height = 1024 } = await req.json()
+    const { prompt } = await req.json()
 
     if (!prompt) {
       return new Response(
@@ -54,60 +54,52 @@ serve(async (req) => {
       )
     }
 
-    // Validate and cap dimensions (FLUX.1-dev max is typically 1024x1024, but supports up to 1536)
-    const maxDim = 1536;
-    const validWidth = Math.min(Math.max(512, width), maxDim);
-    const validHeight = Math.min(Math.max(512, height), maxDim);
-    
-    console.log(`Generating image with Hugging Face FLUX.1-dev at ${validWidth}x${validHeight}, prompt:`, prompt)
+    console.log(`Generating image with Lovable AI Gateway (Gemini), prompt:`, prompt)
 
-    const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN')
-    if (!hfToken) {
-      throw new Error('HUGGING_FACE_ACCESS_TOKEN is not set')
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY is not set')
     }
 
-    // Use FLUX.1-dev for higher quality wallpapers (slower but better)
-    const response = await fetch('https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-dev', {
+    // Use Lovable AI Gateway with Gemini for image generation
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${hfToken}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          width: validWidth,
-          height: validHeight,
-          num_inference_steps: 30,
-          guidance_scale: 7.5
-        }
+        model: 'google/gemini-2.5-flash-image-preview',
+        messages: [
+          {
+            role: 'user',
+            content: `Generate a high quality wallpaper background image: ${prompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. Safe for work, family-friendly.`
+          }
+        ],
+        modalities: ['image', 'text']
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Hugging Face API error:', response.status, errorText);
-      throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
+      console.error('Lovable AI Gateway error:', response.status, errorText);
+      throw new Error(`Lovable AI Gateway error: ${response.status} - ${errorText}`);
     }
 
-    // Get the image as a blob and convert to base64 efficiently
-    const imageBlob = await response.blob();
-    const arrayBuffer = await imageBlob.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const data = await response.json();
     
-    // Convert to base64 in chunks to avoid stack overflow
-    let base64 = '';
-    const chunkSize = 32768;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      base64 += String.fromCharCode.apply(null, Array.from(chunk));
+    // Extract the generated image from the response
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    if (!imageUrl) {
+      console.error('No image in response:', JSON.stringify(data));
+      throw new Error('No image generated in response');
     }
-    base64 = btoa(base64);
 
-    console.log('Successfully generated image with Hugging Face for user:', userId);
+    console.log('Successfully generated image with Lovable AI Gateway for user:', userId);
 
     return new Response(
-      JSON.stringify({ image: `data:image/png;base64,${base64}` }),
+      JSON.stringify({ image: imageUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
