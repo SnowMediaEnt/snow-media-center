@@ -379,7 +379,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       return;
     }
 
-    if (!user) {
+    // Check for session first, then fall back to user state
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession?.user) {
       toast({
         title: "Login required",
         description: "Please sign in to generate AI images.",
@@ -420,8 +422,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       const height = Math.round(targetHeight / 64) * 64;
 
       toast({
-        title: "Generating high-quality image",
-        description: `Using FLUX.1-dev at ${width}x${height}. This may take 15-30 seconds...`,
+        title: "Now generating image",
+        description: "Please wait...",
       });
 
       // Call our Hugging Face edge function with user's auth token and screen dimensions
@@ -471,8 +473,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         });
       } else {
         toast({
-          title: "Image generated successfully",
-          description: `Your AI-generated background has been created. ${imageCost.toFixed(2)} credits deducted.`,
+          title: "Image complete!",
+          description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} credits used.`,
         });
       }
       
