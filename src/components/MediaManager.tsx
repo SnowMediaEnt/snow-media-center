@@ -94,10 +94,22 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         return;
       }
       
-      // Handle Android back button
+      // Handle Android back button - hierarchical exit from nested containers
       if (event.key === 'Escape' || event.key === 'Backspace' || 
           event.keyCode === 4 || event.which === 4) {
         event.preventDefault();
+        
+        // If inside asset card (toggle/delete buttons), exit to parent card first
+        if (focusedElement.startsWith('asset-toggle-') || focusedElement.startsWith('asset-delete-')) {
+          const assetId = focusedElement.replace('asset-toggle-', '').replace('asset-delete-', '');
+          const assetIndex = assets.findIndex(a => a.id === assetId);
+          if (assetIndex >= 0) {
+            setFocusedElement(`asset-${assetIndex}`);
+            return;
+          }
+        }
+        
+        // Otherwise exit to previous page/container
         onBack();
         return;
       }

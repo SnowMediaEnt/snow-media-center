@@ -402,10 +402,27 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
-      // Handle back button (always works)
+      // Handle back button - hierarchical exit from nested containers
       if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
+        
+        // If viewing a ticket, go back to ticket list first
+        if (selectedTicket) {
+          setSelectedTicket(null);
+          setShowNewTicketForm(false);
+          setFocusIndex(4); // Back to create-ticket button
+          return;
+        }
+        
+        // If in new ticket form, go back to list
+        if (showNewTicketForm) {
+          setShowNewTicketForm(false);
+          setFocusIndex(4); // Back to create-ticket button
+          return;
+        }
+        
+        // Otherwise exit to previous page
         onBack();
         return;
       }

@@ -29,6 +29,27 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
+  // Keyboard back button handling
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Allow Backspace when typing
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      if (event.key === 'Backspace' && isTyping) return;
+      
+      // Handle back button - no nested containers, just exit
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
+        event.preventDefault();
+        event.stopPropagation();
+        onBack();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onBack]);
+
   useEffect(() => {
     fetchCreditPackages();
   }, []);
