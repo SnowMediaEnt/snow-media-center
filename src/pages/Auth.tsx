@@ -1,19 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
+import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { supabase } from '@/integrations/supabase/client';
 const Auth = () => {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
+  const { verifyWixMember } = useWixIntegration();
+  const [verifyingWix, setVerifyingWix] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -130,8 +132,24 @@ const Auth = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setVerifyingWix(true);
 
     try {
+      // First verify the user exists in Wix
+      const wixResult = await verifyWixMember(loginForm.email);
+      setVerifyingWix(false);
+      
+      if (!wixResult.exists) {
+        toast({
+          title: "Not a Wix Member",
+          description: "This email is not registered in our Wix membership system. Please contact support or sign up with a valid Wix account email.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // User exists in Wix, proceed with Supabase login
       const { error } = await signIn(loginForm.email, loginForm.password);
       
       if (error) {
@@ -141,31 +159,37 @@ const Auth = () => {
           variant: "destructive",
         });
         setLoading(false);
-        return; // Stay on auth page - don't navigate
+        return;
       }
       
       // Double-check there's an active session before navigating
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        // Update profile with Wix account ID if available
+        if (wixResult.member?.id) {
+          await supabase.from('profiles').update({
+            wix_account_id: wixResult.member.id
+          }).eq('user_id', session.user.id);
+        }
+        
         toast({
           title: "Welcome back!",
-          description: "Successfully logged in.",
+          description: `Successfully logged in. Wix member verified: ${wixResult.member?.name || loginForm.email}`,
         });
         navigate('/');
       } else {
         toast({
           title: "Check your email",
-          description: "We created your account. Please confirm your email before signing in.",
+          description: "Please confirm your email before signing in.",
         });
-        // Stay on auth page
       }
     } catch (error) {
+      setVerifyingWix(false);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-      // Stay on auth page
     } finally {
       setLoading(false);
     }
@@ -193,12 +217,28 @@ const Auth = () => {
     }
 
     setLoading(true);
+    setVerifyingWix(true);
 
     try {
+      // First verify the user exists in Wix
+      const wixResult = await verifyWixMember(signupForm.email);
+      setVerifyingWix(false);
+      
+      if (!wixResult.exists) {
+        toast({
+          title: "Not a Wix Member",
+          description: "This email is not registered in our Wix membership system. Please use the email associated with your Wix account, or contact support to become a member first.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // User exists in Wix, proceed with Supabase signup
       const { error } = await signUp(
         signupForm.email, 
         signupForm.password, 
-        signupForm.fullName
+        signupForm.fullName || wixResult.member?.name
       );
       
       if (error) {
@@ -218,10 +258,11 @@ const Auth = () => {
       } else {
         toast({
           title: "Account created!",
-          description: "Your account has been created and is pending approval. You'll receive a notification once approved.",
+          description: `Your account has been linked to Wix member: ${wixResult.member?.name || signupForm.email}. Check your email to confirm.`,
         });
       }
     } catch (error) {
+      setVerifyingWix(false);
       toast({
         title: "Signup failed",
         description: "An unexpected error occurred.",
@@ -337,7 +378,12 @@ const Auth = () => {
                     focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
                   }`}
                 >
-                  {loading ? 'Signing In...' : 'Sign In'}
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {verifyingWix ? 'Verifying Wix Member...' : 'Signing In...'}
+                    </span>
+                  ) : 'Sign In'}
                 </Button>
 
               </form>
@@ -427,7 +473,12 @@ const Auth = () => {
                   disabled={loading}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                 >
-                  {loading ? 'Creating Account...' : 'Create Account'}
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {verifyingWix ? 'Verifying Wix Member...' : 'Creating Account...'}
+                    </span>
+                  ) : 'Create Account'}
                 </Button>
               </form>
             </TabsContent>
