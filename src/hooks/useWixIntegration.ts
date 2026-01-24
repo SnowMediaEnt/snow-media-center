@@ -64,17 +64,24 @@ export const useWixIntegration = () => {
 
   const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
     try {
+      // Add timeout to prevent hanging on slow networks (especially Android)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
       const { data, error } = await supabase.functions.invoke('wix-integration', {
         body: {
           action: 'verify-member',
           email
         }
       });
+      
+      clearTimeout(timeoutId);
 
       if (error) throw error;
       return data;
     } catch (error) {
       console.error('Error verifying Wix member:', error);
+      // Return a more informative error state
       return { exists: false, member: null };
     }
   }, []);
