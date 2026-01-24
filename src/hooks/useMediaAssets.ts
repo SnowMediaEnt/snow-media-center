@@ -24,19 +24,26 @@ export const useMediaAssets = () => {
       setLoading(true);
       setError(null);
 
-      // Add timeout for Android
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 15000)
-      );
+      console.log('Fetching media assets...');
 
-      const fetchPromise = supabase
+      // Use AbortController for proper timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const { data, error: fetchError } = await supabase
         .from('media_assets')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .abortSignal(controller.signal);
 
-      const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('Media assets fetch error:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log(`Loaded ${data?.length || 0} media assets`);
       setAssets(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch assets';

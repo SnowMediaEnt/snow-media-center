@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/utils/edgeFunctions';
 
 export interface WixProduct {
   id: string;
@@ -103,16 +103,15 @@ export const useWixStore = () => {
     try {
       console.log('Calling Wix integration function...');
       
-      // Add timeout for Android
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout - please check your connection')), 20000)
-      );
-      
-      const fetchPromise = supabase.functions.invoke('wix-integration', {
-        body: { action: 'get-products' }
+      const { data, error: funcError } = await invokeEdgeFunction<{
+        products?: any[];
+        error?: string;
+        details?: unknown;
+      }>('wix-integration', {
+        body: { action: 'get-products' },
+        timeout: 20000,
+        retries: 2,
       });
-
-      const { data, error: funcError } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (funcError) {
         console.error('Function error:', funcError);
@@ -127,7 +126,7 @@ export const useWixStore = () => {
       console.log('Wix products loaded:', data);
       
       // Transform Wix product data to our format
-      const transformedProducts = (data.products || []).map((product: any) => ({
+      const transformedProducts = (data?.products || []).map((product: any) => ({
         id: product.id,
         name: product.name,
         description: product.description || '',
@@ -154,21 +153,26 @@ export const useWixStore = () => {
 
   const createCart = async (items: CartItem[]) => {
     try {
-      const { data, error: funcError } = await supabase.functions.invoke('wix-integration', {
+      const { data, error: funcError } = await invokeEdgeFunction<{
+        cart: unknown;
+        checkoutUrl: string;
+      }>('wix-integration', {
         body: { 
           action: 'create-cart',
           items: items.map(item => ({
             productId: item.productId,
             quantity: item.quantity
           }))
-        }
+        },
+        timeout: 20000,
+        retries: 2,
       });
 
       if (funcError) throw funcError;
 
       return {
-        cart: data.cart,
-        checkoutUrl: data.checkoutUrl
+        cart: data?.cart,
+        checkoutUrl: data?.checkoutUrl
       };
     } catch (err) {
       console.error('Error creating cart:', err);

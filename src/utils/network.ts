@@ -19,8 +19,8 @@ export const robustFetch = async (
   options: FetchOptions = {}
 ): Promise<Response> => {
   const {
-    timeout = 20000,
-    retries = 3,
+    timeout = 15000, // Reduced from 20s to 15s for faster failover
+    retries = 2, // Reduced retries, rely on multiple URLs instead
     retryDelay = 1000,
     useCorsProxy = false,
     ...fetchOptions
@@ -28,18 +28,15 @@ export const robustFetch = async (
 
   const isNative = isNativePlatform();
   
-  // On native platforms, ALWAYS use direct fetch - no CORS issues exist
-  // On web, try direct first, then CORS proxies if that fails
+  // IMPORTANT: On Android/native, network requests can fail for various reasons
+  // (SSL issues, DNS, firewall). Always include CORS proxies as fallback for ALL platforms.
   let urlsToTry: string[];
   
-  if (isNative) {
-    // Native: only use direct URL, no proxies needed
-    urlsToTry = [url];
-  } else if (useCorsProxy) {
-    // Web with explicit CORS proxy request: try proxies first
+  if (useCorsProxy) {
+    // Explicit CORS proxy request: try proxies first, then direct
     urlsToTry = [...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url)), url];
   } else {
-    // Web default: try direct first, then proxies as fallback
+    // Default: try direct first, then proxies as fallback (works for both native and web)
     urlsToTry = [url, ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))];
   }
 
@@ -69,18 +66,25 @@ export const robustFetch = async (
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       } catch (error) {
         lastError = error as Error;
-        // Only log on non-abort errors to reduce noise
-        if ((error as Error).name !== 'AbortError') {
-          console.warn(`Fetch attempt failed for ${tryUrl.substring(0, 50)}...`, 
-            (error as Error).message);
+        const errorName = (error as Error).name;
+        const errorMsg = (error as Error).message;
+        
+        // Log with more context
+        if (errorName === 'AbortError') {
+          console.warn(`Timeout after ${timeout}ms: ${tryUrl.substring(0, 50)}...`);
+        } else {
+          console.warn(`Fetch failed: ${tryUrl.substring(0, 50)}... - ${errorMsg}`);
         }
+        
+        // Continue to next URL in the list
+        continue;
       }
     }
 
     // Wait before retry
     if (attempt < retries - 1) {
-      console.log(`Retrying in ${retryDelay * (attempt + 1)}ms...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+      console.log(`Retrying in ${retryDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }
 

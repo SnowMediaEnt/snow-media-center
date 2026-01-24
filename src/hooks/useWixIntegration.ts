@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/utils/edgeFunctions';
 
 interface WixMember {
   id: string;
@@ -64,24 +64,18 @@ export const useWixIntegration = () => {
 
   const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
     try {
-      // Add timeout to prevent hanging on slow networks (especially Android)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      console.log('Verifying Wix member:', email);
       
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'verify-member',
-          email
-        }
+      const { data, error } = await invokeEdgeFunction<{ exists: boolean; member: WixMember | null }>('wix-integration', {
+        body: { action: 'verify-member', email },
+        timeout: 15000,
+        retries: 2,
       });
-      
-      clearTimeout(timeoutId);
 
       if (error) throw error;
-      return data;
+      return data || { exists: false, member: null };
     } catch (error) {
       console.error('Error verifying Wix member:', error);
-      // Return a more informative error state
       return { exists: false, member: null };
     }
   }, []);
@@ -89,20 +83,14 @@ export const useWixIntegration = () => {
   const getWixMember = useCallback(async (wixMemberId: string): Promise<{ member: WixMember }> => {
     setLoading(true);
     try {
-      // Add timeout for Android
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 15000)
-      );
-      
-      const fetchPromise = supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-member',
-          wixMemberId
-        }
+      const { data, error } = await invokeEdgeFunction<{ member: WixMember }>('wix-integration', {
+        body: { action: 'get-member', wixMemberId },
+        timeout: 15000,
+        retries: 2,
       });
 
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) throw error;
+      if (!data?.member) throw new Error('No member data returned');
       return data;
     } catch (error) {
       console.error('Error getting Wix member:', error);
@@ -114,14 +102,14 @@ export const useWixIntegration = () => {
 
   const getProfile = useCallback(async (wixMemberId: string): Promise<{ profile: WixProfile }> => {
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-profile',
-          wixMemberId
-        }
+      const { data, error } = await invokeEdgeFunction<{ profile: WixProfile }>('wix-integration', {
+        body: { action: 'get-profile', wixMemberId },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
+      if (!data?.profile) throw new Error('No profile data returned');
       return data;
     } catch (error) {
       console.error('Error getting Wix profile:', error);
@@ -131,14 +119,14 @@ export const useWixIntegration = () => {
 
   const getReferralInfo = useCallback(async (wixMemberId: string): Promise<{ referral: WixReferralInfo }> => {
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-referral-info',
-          wixMemberId
-        }
+      const { data, error } = await invokeEdgeFunction<{ referral: WixReferralInfo }>('wix-integration', {
+        body: { action: 'get-referral-info', wixMemberId },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
+      if (!data?.referral) throw new Error('No referral data returned');
       return data;
     } catch (error) {
       console.error('Error getting referral info:', error);
@@ -148,15 +136,14 @@ export const useWixIntegration = () => {
 
   const getOrders = useCallback(async (userEmail: string): Promise<WixOrder[]> => {
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-orders',
-          email: userEmail
-        }
+      const { data, error } = await invokeEdgeFunction<{ orders: WixOrder[] }>('wix-integration', {
+        body: { action: 'get-orders', email: userEmail },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
-      return data.orders || [];
+      return data?.orders || [];
     } catch (error) {
       console.error('Error getting Wix orders:', error);
       return [];
@@ -165,17 +152,16 @@ export const useWixIntegration = () => {
 
   const getLoyaltyAndReferrals = useCallback(async (userEmail: string): Promise<{ loyalty: WixLoyalty | null; referrals: WixReferralStats | null }> => {
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'get-loyalty',
-          email: userEmail
-        }
+      const { data, error } = await invokeEdgeFunction<{ loyalty: WixLoyalty; referrals: WixReferralStats }>('wix-integration', {
+        body: { action: 'get-loyalty', email: userEmail },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
       return {
-        loyalty: data.loyalty || null,
-        referrals: data.referrals || null
+        loyalty: data?.loyalty || null,
+        referrals: data?.referrals || null
       };
     } catch (error) {
       console.error('Error getting loyalty/referrals:', error);
@@ -251,14 +237,14 @@ export const useWixIntegration = () => {
   const testConnection = useCallback(async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'test-connection'
-        }
+      const { data, error } = await invokeEdgeFunction<{ connected: boolean; totalMembers?: number; error?: string; message?: string }>('wix-integration', {
+        body: { action: 'test-connection' },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
-      return data;
+      return data || { connected: false, error: 'No response' };
     } catch (error) {
       console.error('Error testing Wix connection:', error);
       throw error;
@@ -270,14 +256,14 @@ export const useWixIntegration = () => {
   const createMember = useCallback(async (memberData: CreateMemberData): Promise<{ member: WixMember }> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'create-member',
-          memberData
-        }
+      const { data, error } = await invokeEdgeFunction<{ member: WixMember }>('wix-integration', {
+        body: { action: 'create-member', memberData },
+        timeout: 20000,
+        retries: 2,
       });
 
       if (error) throw error;
+      if (!data?.member) throw new Error('No member data returned');
       return data;
     } catch (error) {
       console.error('Error creating Wix member:', error);
@@ -290,15 +276,14 @@ export const useWixIntegration = () => {
   const addToEmailList = useCallback(async (memberData: CreateMemberData): Promise<{ success: boolean; contact?: any }> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'add-to-email-list',
-          memberData
-        }
+      const { data, error } = await invokeEdgeFunction<{ success: boolean; contact?: any }>('wix-integration', {
+        body: { action: 'add-to-email-list', memberData },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
-      return data;
+      return data || { success: false };
     } catch (error) {
       console.error('Error adding to email list:', error);
       throw error;
@@ -310,18 +295,14 @@ export const useWixIntegration = () => {
   const sendMessage = useCallback(async (subject: string, message: string, senderEmail: string, senderName?: string): Promise<{ success: boolean; message?: string }> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'send-message',
-          subject,
-          message,
-          senderEmail,
-          senderName
-        }
+      const { data, error } = await invokeEdgeFunction<{ success: boolean; message?: string }>('wix-integration', {
+        body: { action: 'send-message', subject, message, senderEmail, senderName },
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
-      return data;
+      return data || { success: false };
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;

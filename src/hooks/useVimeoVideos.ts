@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunction } from '@/utils/edgeFunctions';
 
 export interface VimeoVideo {
   id: string;
@@ -24,18 +24,14 @@ export const useVimeoVideos = () => {
 
       console.log('Fetching Vimeo videos (public access)...');
 
-      // Add timeout for Android
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout - please check your connection')), 20000)
-      );
+      const { data, error: funcError } = await invokeEdgeFunction<{ videos: VimeoVideo[]; error?: string }>('vimeo-videos', {
+        timeout: 20000,
+        retries: 2,
+      });
 
-      const fetchPromise = supabase.functions.invoke('vimeo-videos');
-      
-      const { data, error: functionError } = await Promise.race([fetchPromise, timeoutPromise]);
-
-      if (functionError) {
-        console.error('Vimeo function error:', functionError);
-        throw new Error(functionError.message);
+      if (funcError) {
+        console.error('Vimeo function error:', funcError);
+        throw funcError;
       }
 
       if (data?.error) {
