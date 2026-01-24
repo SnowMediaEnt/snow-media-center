@@ -24,10 +24,17 @@ export const useMediaAssets = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      // Add timeout for Android
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 15000)
+      );
+
+      const fetchPromise = supabase
         .from('media_assets')
         .select('*')
         .order('created_at', { ascending: false });
+
+      const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (fetchError) throw fetchError;
       setAssets(data || []);

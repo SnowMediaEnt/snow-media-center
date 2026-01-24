@@ -7,10 +7,17 @@
         </trust-anchors>
     </base-config>
     
-    <!-- Explicitly allow HTTP for snowmediaapps.com -->
+    <!-- Explicitly allow all required domains -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">snowmediaapps.com</domain>
         <domain includeSubdomains="true">lovableproject.com</domain>
         <domain includeSubdomains="true">lovable.app</domain>
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">vimeo.com</domain>
+        <domain includeSubdomains="true">vimeocdn.com</domain>
+        <domain includeSubdomains="true">wixstatic.com</domain>
+        <domain includeSubdomains="true">wix.com</domain>
+        <domain includeSubdomains="true">corsproxy.io</domain>
+        <domain includeSubdomains="true">allorigins.win</domain>
     </domain-config>
 </network-security-config>

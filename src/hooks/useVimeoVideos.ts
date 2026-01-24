@@ -24,8 +24,14 @@ export const useVimeoVideos = () => {
 
       console.log('Fetching Vimeo videos (public access)...');
 
-      // Support videos are public - no auth required
-      const { data, error: functionError } = await supabase.functions.invoke('vimeo-videos');
+      // Add timeout for Android
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout - please check your connection')), 20000)
+      );
+
+      const fetchPromise = supabase.functions.invoke('vimeo-videos');
+      
+      const { data, error: functionError } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (functionError) {
         console.error('Vimeo function error:', functionError);

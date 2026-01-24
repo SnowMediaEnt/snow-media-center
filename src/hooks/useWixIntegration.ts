@@ -89,13 +89,19 @@ export const useWixIntegration = () => {
   const getWixMember = useCallback(async (wixMemberId: string): Promise<{ member: WixMember }> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
+      // Add timeout for Android
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 15000)
+      );
+      
+      const fetchPromise = supabase.functions.invoke('wix-integration', {
         body: {
           action: 'get-member',
           wixMemberId
         }
       });
 
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) throw error;
       return data;
     } catch (error) {

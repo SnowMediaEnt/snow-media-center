@@ -102,9 +102,17 @@ export const useWixStore = () => {
     
     try {
       console.log('Calling Wix integration function...');
-      const { data, error: funcError } = await supabase.functions.invoke('wix-integration', {
+      
+      // Add timeout for Android
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout - please check your connection')), 20000)
+      );
+      
+      const fetchPromise = supabase.functions.invoke('wix-integration', {
         body: { action: 'get-products' }
       });
+
+      const { data, error: funcError } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (funcError) {
         console.error('Function error:', funcError);
@@ -137,6 +145,8 @@ export const useWixStore = () => {
     } catch (err) {
       console.error('Error loading products:', err);
       setError(err instanceof Error ? err.message : 'Failed to load products');
+      // Fall back to mock products on error
+      setProducts(mockProducts);
     } finally {
       setLoading(false);
     }
