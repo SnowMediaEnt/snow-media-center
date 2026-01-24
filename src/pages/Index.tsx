@@ -444,9 +444,10 @@ const Index = () => {
                 const isFocused = focusedButton === index;
                 
                 // Card dimensions based on layout mode using viewport units for proportional scaling
+                // Row mode: Use fixed aspect ratio to prevent squishing on Android TV
                 const cardStyle = layoutMode === 'grid' 
                   ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
-                  : { width: 'clamp(160px, 18vw, 320px)', height: 'clamp(130px, 20vh, 250px)' };
+                  : { width: 'clamp(180px, 20vw, 360px)', aspectRatio: '1 / 0.85' as const };
                 
                 return (
                   <Card
