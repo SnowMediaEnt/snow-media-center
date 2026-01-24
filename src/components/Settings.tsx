@@ -147,14 +147,22 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive]);
 
-  // Scroll focused element into view
+  // Scroll focused element into view - ensure back button is always reachable
   useEffect(() => {
-    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+    if (focusedElement === 'back') {
+      // Force scroll to absolute top for back button
+      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (focusedElement.startsWith('tab-')) {
+      // Tabs should also be near top
+      const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
     } else {
       const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
       if (el) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     }
   }, [focusedElement]);
