@@ -134,12 +134,23 @@ const Auth = () => {
     setLoading(true);
     setVerifyingWix(true);
 
+    let wixResult: { exists: boolean; member: any } | null = null;
+    let wixFailed = false;
+
     try {
-      // First verify the user exists in Wix
-      const wixResult = await verifyWixMember(loginForm.email);
+      // Try to verify the user exists in Wix (with fallback if Wix fails)
+      wixResult = await verifyWixMember(loginForm.email);
       setVerifyingWix(false);
-      
-      if (!wixResult.exists) {
+    } catch (wixError) {
+      // Wix verification failed (timeout, network error, etc.)
+      console.warn('[Auth] Wix verification failed, falling back to Supabase-only auth:', wixError);
+      wixFailed = true;
+      setVerifyingWix(false);
+    }
+
+    try {
+      // If Wix worked and user doesn't exist, show error
+      if (!wixFailed && wixResult && !wixResult.exists) {
         toast({
           title: "Not a Wix Member",
           description: "This email is not registered in our Wix membership system. Please contact support or sign up with a valid Wix account email.",
@@ -149,7 +160,7 @@ const Auth = () => {
         return;
       }
 
-      // User exists in Wix, proceed with Supabase login
+      // Proceed with Supabase login (whether Wix verified or failed)
       const { error } = await signIn(loginForm.email, loginForm.password);
       
       if (error) {
@@ -166,15 +177,19 @@ const Auth = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         // Update profile with Wix account ID if available
-        if (wixResult.member?.id) {
+        if (wixResult?.member?.id) {
           await supabase.from('profiles').update({
             wix_account_id: wixResult.member.id
           }).eq('user_id', session.user.id);
         }
         
+        const welcomeMsg = wixFailed 
+          ? 'Successfully logged in (Wix verification skipped due to network issues).'
+          : `Successfully logged in. Wix member verified: ${wixResult?.member?.name || loginForm.email}`;
+        
         toast({
           title: "Welcome back!",
-          description: `Successfully logged in. Wix member verified: ${wixResult.member?.name || loginForm.email}`,
+          description: welcomeMsg,
         });
         navigate('/');
       } else {
@@ -184,7 +199,7 @@ const Auth = () => {
         });
       }
     } catch (error) {
-      setVerifyingWix(false);
+      console.error('[Auth] Login error:', error);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred. Please try again.",
@@ -219,12 +234,23 @@ const Auth = () => {
     setLoading(true);
     setVerifyingWix(true);
 
+    let wixResult: { exists: boolean; member: any } | null = null;
+    let wixFailed = false;
+
     try {
-      // First verify the user exists in Wix
-      const wixResult = await verifyWixMember(signupForm.email);
+      // Try to verify the user exists in Wix (with fallback if Wix fails)
+      wixResult = await verifyWixMember(signupForm.email);
       setVerifyingWix(false);
-      
-      if (!wixResult.exists) {
+    } catch (wixError) {
+      // Wix verification failed (timeout, network error, etc.)
+      console.warn('[Auth] Wix verification failed during signup, proceeding with Supabase-only:', wixError);
+      wixFailed = true;
+      setVerifyingWix(false);
+    }
+
+    try {
+      // If Wix worked and user doesn't exist, show error
+      if (!wixFailed && wixResult && !wixResult.exists) {
         toast({
           title: "Not a Wix Member",
           description: "This email is not registered in our Wix membership system. Please use the email associated with your Wix account, or contact support to become a member first.",
@@ -234,11 +260,11 @@ const Auth = () => {
         return;
       }
 
-      // User exists in Wix, proceed with Supabase signup
+      // Proceed with Supabase signup (whether Wix verified or failed)
       const { error } = await signUp(
         signupForm.email, 
         signupForm.password, 
-        signupForm.fullName || wixResult.member?.name
+        signupForm.fullName || wixResult?.member?.name
       );
       
       if (error) {
@@ -256,13 +282,17 @@ const Auth = () => {
           });
         }
       } else {
+        const successMsg = wixFailed
+          ? 'Account created! Wix sync will happen when connection is restored. Check your email to confirm.'
+          : `Your account has been linked to Wix member: ${wixResult?.member?.name || signupForm.email}. Check your email to confirm.`;
+        
         toast({
           title: "Account created!",
-          description: `Your account has been linked to Wix member: ${wixResult.member?.name || signupForm.email}. Check your email to confirm.`,
+          description: successMsg,
         });
       }
     } catch (error) {
-      setVerifyingWix(false);
+      console.error('[Auth] Signup error:', error);
       toast({
         title: "Signup failed",
         description: "An unexpected error occurred.",

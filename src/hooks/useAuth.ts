@@ -65,16 +65,19 @@ export const useAuth = () => {
         }
       });
       
-      // If signup successful, sync to Wix
+      // If signup successful, sync to Wix (fire-and-forget, don't block auth)
       if (!error && data.user) {
         // Use setTimeout to avoid blocking the auth flow
         setTimeout(() => {
-          syncUserToWix(email, fullName);
+          syncUserToWix(email, fullName).catch(err => {
+            console.warn('[Auth] Wix sync failed (non-blocking):', err);
+          });
         }, 0);
       }
       
       return { error };
     } catch (error) {
+      console.error('[Auth] SignUp error:', error);
       return { error: { message: 'Failed to create account. Please try again.' } } as any;
     }
   };
