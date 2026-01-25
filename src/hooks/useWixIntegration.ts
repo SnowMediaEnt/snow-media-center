@@ -63,22 +63,22 @@ export const useWixIntegration = () => {
   const [wixLoyalty, setWixLoyalty] = useState<WixLoyalty | null>(null);
 
   const verifyWixMember = useCallback(async (email: string): Promise<{ exists: boolean; member: WixMember | null }> => {
-    try {
-      console.log('[WixIntegration] Verifying Wix member:', email);
-      
-      const { data, error } = await invokeEdgeFunction<{ exists: boolean; member: WixMember | null }>('wix-integration', {
-        body: { action: 'verify-member', email },
-        timeout: 15000,
-        retries: 2,
-      });
+    console.log('[WixIntegration] Verifying Wix member:', email);
+    
+    const { data, error } = await invokeEdgeFunction<{ exists: boolean; member: WixMember | null }>('wix-integration', {
+      body: { action: 'verify-member', email },
+      timeout: 15000,
+      retries: 2,
+    });
 
-      if (error) throw error;
-      console.log('[WixIntegration] Member verification result:', data?.exists);
-      return data || { exists: false, member: null };
-    } catch (error) {
-      console.error('[WixIntegration] Error verifying Wix member:', error);
-      return { exists: false, member: null };
+    // CRITICAL: Throw on error so Auth.tsx fallback can catch it
+    if (error) {
+      console.error('[WixIntegration] Wix verification network error:', error);
+      throw error;
     }
+    
+    console.log('[WixIntegration] Member verification result:', data?.exists);
+    return data || { exists: false, member: null };
   }, []);
 
   const getWixMember = useCallback(async (wixMemberId: string): Promise<{ member: WixMember }> => {

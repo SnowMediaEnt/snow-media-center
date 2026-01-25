@@ -93,7 +93,7 @@ const mockProducts: WixProduct[] = [
 
 export const useWixStore = () => {
   const [products, setProducts] = useState<WixProduct[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading=true so UI shows spinner
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = async () => {

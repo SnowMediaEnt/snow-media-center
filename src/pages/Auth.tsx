@@ -149,15 +149,10 @@ const Auth = () => {
     }
 
     try {
-      // If Wix worked and user doesn't exist, show error
+      // If Wix worked and user doesn't exist, just proceed - we allow Supabase-only users
+      // Only log the status, don't block login
       if (!wixFailed && wixResult && !wixResult.exists) {
-        toast({
-          title: "Not a Wix Member",
-          description: "This email is not registered in our Wix membership system. Please contact support or sign up with a valid Wix account email.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        console.log('[Auth] User not found in Wix, proceeding with Supabase-only login');
       }
 
       // Proceed with Supabase login (whether Wix verified or failed)
@@ -249,15 +244,10 @@ const Auth = () => {
     }
 
     try {
-      // If Wix worked and user doesn't exist, show error
+      // If Wix verification failed or user not in Wix, still allow signup
+      // Wix member will be created automatically after Supabase signup
       if (!wixFailed && wixResult && !wixResult.exists) {
-        toast({
-          title: "Not a Wix Member",
-          description: "This email is not registered in our Wix membership system. Please use the email associated with your Wix account, or contact support to become a member first.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        console.log('[Auth] User not found in Wix, will create new Wix member after signup');
       }
 
       // Proceed with Supabase signup (whether Wix verified or failed)
