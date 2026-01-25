@@ -25,8 +25,8 @@ export const invokeEdgeFunction = async <T = unknown>(
 ): Promise<InvokeResult<T>> => {
   const {
     body,
-    timeout = 20000, // Increased default timeout for Android
-    retries = 3, // Increased retries for unreliable connections
+    timeout = 15000, // 15s timeout (server usually responds in 2-5s)
+    retries = 2, // 2 retries for unreliable connections
   } = options;
 
   let lastError: Error | null = null;
@@ -93,8 +93,8 @@ export const invokeEdgeFunction = async <T = unknown>(
 export const fetchWixProducts = async () => {
   return invokeEdgeFunction('wix-integration', {
     body: { action: 'get-products' },
-    timeout: 25000, // Increased for product catalog
-    retries: 3,
+    timeout: 15000,
+    retries: 2,
   });
 };
 
@@ -103,8 +103,8 @@ export const fetchWixProducts = async () => {
  */
 export const fetchVimeoVideos = async () => {
   return invokeEdgeFunction('vimeo-videos', {
-    timeout: 25000, // Increased for video catalog
-    retries: 3,
+    timeout: 15000,
+    retries: 2,
   });
 };
 

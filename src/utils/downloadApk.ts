@@ -1,6 +1,12 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNativePlatform } from "@/utils/platform";
 
+// CORS proxies for APK downloads on Android
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+];
+
 // Clean up old APK files from cache to prevent storage bloat
 export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   try {
@@ -24,6 +30,48 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   }
 }
 
+// Try fetch with multiple URL strategies (direct + CORS proxies)
+async function fetchWithFallback(url: string): Promise<Response> {
+  const urlsToTry = [
+    url,
+    ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))
+  ];
+  
+  let lastError: Error | null = null;
+  
+  for (const tryUrl of urlsToTry) {
+    try {
+      console.log('[APK Download] Trying:', tryUrl.substring(0, 80) + '...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for large files
+      
+      const response = await fetch(tryUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.android.package-archive,application/octet-stream,*/*',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        console.log('[APK Download] Success with:', tryUrl.substring(0, 50));
+        return response;
+      }
+      
+      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      console.warn('[APK Download] Failed:', response.status, response.statusText);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn('[APK Download] Error with URL:', err);
+    }
+  }
+  
+  throw lastError || new Error('All download attempts failed');
+}
+
 export async function downloadApkToCache(
   url: string, 
   filename: string, 
@@ -43,18 +91,10 @@ export async function downloadApkToCache(
   // Clean up old APKs before downloading new one
   await cleanupOldApks(filename);
 
-  console.log('Starting APK download...');
+  console.log('Starting APK download with fallback...');
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/vnd.android.package-archive,*/*',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
-  }
+  // Use our fallback fetch that tries CORS proxies
+  const response = await fetchWithFallback(url);
   
   const contentLength = response.headers.get('content-length');
   const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
