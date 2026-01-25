@@ -68,8 +68,8 @@ export const useWixIntegration = () => {
       
       const { data, error } = await invokeEdgeFunction<{ exists: boolean; member: WixMember | null }>('wix-integration', {
         body: { action: 'verify-member', email },
-        timeout: 25000, // 25s for Android WebView
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -86,8 +86,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ member: WixMember }>('wix-integration', {
         body: { action: 'get-member', wixMemberId },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -105,8 +105,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ profile: WixProfile }>('wix-integration', {
         body: { action: 'get-profile', wixMemberId },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -122,8 +122,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ referral: WixReferralInfo }>('wix-integration', {
         body: { action: 'get-referral-info', wixMemberId },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -139,8 +139,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ orders: WixOrder[] }>('wix-integration', {
         body: { action: 'get-orders', email: userEmail },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -155,8 +155,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ loyalty: WixLoyalty; referrals: WixReferralStats }>('wix-integration', {
         body: { action: 'get-loyalty', email: userEmail },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -240,8 +240,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ connected: boolean; totalMembers?: number; error?: string; message?: string }>('wix-integration', {
         body: { action: 'test-connection' },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -259,8 +259,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ member: WixMember }>('wix-integration', {
         body: { action: 'create-member', memberData },
-        timeout: 30000, // 30s for member creation
-        retries: 3,
+        timeout: 20000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -279,8 +279,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ success: boolean; contact?: any }>('wix-integration', {
         body: { action: 'add-to-email-list', memberData },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;
@@ -298,8 +298,8 @@ export const useWixIntegration = () => {
     try {
       const { data, error } = await invokeEdgeFunction<{ success: boolean; message?: string }>('wix-integration', {
         body: { action: 'send-message', subject, message, senderEmail, senderName },
-        timeout: 25000,
-        retries: 3,
+        timeout: 15000,
+        retries: 2,
       });
 
       if (error) throw error;

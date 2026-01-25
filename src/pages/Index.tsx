@@ -435,7 +435,7 @@ const Index = () => {
             <div 
               className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
               style={{ 
-                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1rem, 1.5vw, 2rem)',
+                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1.5rem, 2.5vw, 3rem)',
                 maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
               }}
             >
