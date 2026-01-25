@@ -109,8 +109,8 @@ export const useWixStore = () => {
         details?: unknown;
       }>('wix-integration', {
         body: { action: 'get-products' },
-        timeout: 20000,
-        retries: 2,
+        timeout: 30000, // 30s timeout for product catalog
+        retries: 3,
       });
 
       if (funcError) {
@@ -164,8 +164,8 @@ export const useWixStore = () => {
             quantity: item.quantity
           }))
         },
-        timeout: 20000,
-        retries: 2,
+        timeout: 30000,
+        retries: 3,
       });
 
       if (funcError) throw funcError;

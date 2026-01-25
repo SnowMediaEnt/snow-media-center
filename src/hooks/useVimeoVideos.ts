@@ -25,8 +25,8 @@ export const useVimeoVideos = () => {
       console.log('Fetching Vimeo videos (public access)...');
 
       const { data, error: funcError } = await invokeEdgeFunction<{ videos: VimeoVideo[]; error?: string }>('vimeo-videos', {
-        timeout: 20000,
-        retries: 2,
+        timeout: 30000, // 30s timeout for video catalog
+        retries: 3,
       });
 
       if (funcError) {

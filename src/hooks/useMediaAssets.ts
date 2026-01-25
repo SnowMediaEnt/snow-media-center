@@ -26,9 +26,9 @@ export const useMediaAssets = () => {
 
       console.log('Fetching media assets...');
 
-      // Use AbortController for proper timeout handling
+      // Use AbortController for proper timeout handling - 30s for Android
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const { data, error: fetchError } = await supabase
         .from('media_assets')

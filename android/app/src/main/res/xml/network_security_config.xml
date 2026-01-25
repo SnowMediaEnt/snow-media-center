@@ -13,10 +13,12 @@
         <domain includeSubdomains="true">lovableproject.com</domain>
         <domain includeSubdomains="true">lovable.app</domain>
         <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">falmwzhvxoefvkfsiylp.supabase.co</domain>
         <domain includeSubdomains="true">vimeo.com</domain>
         <domain includeSubdomains="true">vimeocdn.com</domain>
         <domain includeSubdomains="true">wixstatic.com</domain>
         <domain includeSubdomains="true">wix.com</domain>
+        <domain includeSubdomains="true">wixapis.com</domain>
         <domain includeSubdomains="true">corsproxy.io</domain>
         <domain includeSubdomains="true">allorigins.win</domain>
     </domain-config>

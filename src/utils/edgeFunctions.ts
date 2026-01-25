@@ -15,6 +15,9 @@ interface InvokeResult<T = unknown> {
 /**
  * Robust edge function invocation with timeout and retry support.
  * Designed to handle Android WebView network issues.
+ * 
+ * Uses Promise.race with a simple timeout since supabase.functions.invoke
+ * doesn't accept AbortController signal directly.
  */
 export const invokeEdgeFunction = async <T = unknown>(
   functionName: string,
@@ -22,71 +25,65 @@ export const invokeEdgeFunction = async <T = unknown>(
 ): Promise<InvokeResult<T>> => {
   const {
     body,
-    timeout = 15000,
-    retries = 2,
+    timeout = 20000, // Increased default timeout for Android
+    retries = 3, // Increased retries for unreliable connections
   } = options;
 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      console.log(`Invoking ${functionName} (attempt ${attempt + 1}/${retries})...`);
+      console.log(`[EdgeFn] Invoking ${functionName} (attempt ${attempt + 1}/${retries}, timeout: ${timeout}ms)...`);
+      const startTime = Date.now();
 
-      // Create abort controller for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.warn(`Edge function ${functionName} timed out after ${timeout}ms`);
-        controller.abort();
-      }, timeout);
+      // Create timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Edge function ${functionName} timed out after ${timeout}ms`));
+        }, timeout);
+      });
 
-      // Invoke the function
+      // Invoke the function - supabase client handles the actual fetch
       const invokePromise = supabase.functions.invoke(functionName, {
         body,
       });
 
-      // Race between the invoke and a timeout rejection
-      const result = await Promise.race([
-        invokePromise,
-        new Promise<never>((_, reject) => {
-          const checkAbort = setInterval(() => {
-            if (controller.signal.aborted) {
-              clearInterval(checkAbort);
-              reject(new Error(`Request timeout after ${timeout}ms`));
-            }
-          }, 100);
-          // Clean up interval after timeout
-          setTimeout(() => clearInterval(checkAbort), timeout + 1000);
-        })
-      ]);
+      // Race between the invoke and timeout
+      const result = await Promise.race([invokePromise, timeoutPromise]);
 
-      clearTimeout(timeoutId);
+      const elapsed = Date.now() - startTime;
+      console.log(`[EdgeFn] ${functionName} completed in ${elapsed}ms`);
 
       if (result.error) {
         throw new Error(result.error.message || 'Edge function error');
       }
 
-      console.log(`Edge function ${functionName} succeeded`);
+      console.log(`[EdgeFn] ${functionName} succeeded`);
       return { data: result.data as T, error: null };
 
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`Edge function ${functionName} attempt ${attempt + 1} failed:`, lastError.message);
+      console.warn(`[EdgeFn] ${functionName} attempt ${attempt + 1} failed:`, lastError.message);
 
       // Don't retry on certain errors
       if (lastError.message.includes('not found') || 
-          lastError.message.includes('unauthorized')) {
+          lastError.message.includes('unauthorized') ||
+          lastError.message.includes('401') ||
+          lastError.message.includes('404')) {
+        console.log(`[EdgeFn] Not retrying ${functionName} due to error type`);
         break;
       }
 
       // Wait before retry with exponential backoff
       if (attempt < retries - 1) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-        console.log(`Retrying ${functionName} in ${delay}ms...`);
+        const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+        console.log(`[EdgeFn] Retrying ${functionName} in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
 
+  console.error(`[EdgeFn] ${functionName} failed after ${retries} attempts:`, lastError?.message);
   return { data: null, error: lastError };
 };
 
@@ -96,8 +93,8 @@ export const invokeEdgeFunction = async <T = unknown>(
 export const fetchWixProducts = async () => {
   return invokeEdgeFunction('wix-integration', {
     body: { action: 'get-products' },
-    timeout: 20000,
-    retries: 2,
+    timeout: 25000, // Increased for product catalog
+    retries: 3,
   });
 };
 
@@ -106,8 +103,8 @@ export const fetchWixProducts = async () => {
  */
 export const fetchVimeoVideos = async () => {
   return invokeEdgeFunction('vimeo-videos', {
-    timeout: 20000,
-    retries: 2,
+    timeout: 25000, // Increased for video catalog
+    retries: 3,
   });
 };
 
@@ -117,7 +114,7 @@ export const fetchVimeoVideos = async () => {
 export const verifyWixMember = async (email: string) => {
   return invokeEdgeFunction('wix-integration', {
     body: { action: 'verify-member', email },
-    timeout: 15000,
-    retries: 2,
+    timeout: 20000,
+    retries: 3,
   });
 };
