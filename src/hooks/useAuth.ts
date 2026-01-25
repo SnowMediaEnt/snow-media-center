@@ -7,29 +7,50 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync user to Wix after signup
+  // Sync user to Wix after signup (create member + add to email list)
   const syncUserToWix = useCallback(async (email: string, fullName?: string) => {
+    const nameParts = fullName?.split(' ') || [];
+    const memberData = {
+      email,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      nickname: email.split('@')[0]
+    };
+
+    // Create Wix member
     try {
-      const nameParts = fullName?.split(' ') || [];
       const { data, error } = await supabase.functions.invoke('wix-integration', {
         body: {
           action: 'create-member',
-          memberData: {
-            email,
-            firstName: nameParts[0] || '',
-            lastName: nameParts.slice(1).join(' ') || '',
-            nickname: email.split('@')[0]
-          }
+          memberData
         }
       });
       
       if (error) {
-        console.warn('Wix member sync failed (user may already exist):', error);
+        console.warn('[Auth] Wix member sync failed (user may already exist):', error);
       } else {
-        console.log('User synced to Wix:', data);
+        console.log('[Auth] User synced to Wix:', data);
       }
     } catch (error) {
-      console.warn('Wix sync error:', error);
+      console.warn('[Auth] Wix member sync error:', error);
+    }
+
+    // Add to email subscription list (fire-and-forget)
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'add-to-email-list',
+          memberData
+        }
+      });
+      
+      if (error) {
+        console.warn('[Auth] Wix email list sync failed:', error);
+      } else {
+        console.log('[Auth] User added to Wix email list:', data);
+      }
+    } catch (error) {
+      console.warn('[Auth] Wix email list sync error:', error);
     }
   }, []);
 
