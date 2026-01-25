@@ -93,37 +93,36 @@ const mockProducts: WixProduct[] = [
 
 export const useWixStore = () => {
   const [products, setProducts] = useState<WixProduct[]>([]);
-  const [loading, setLoading] = useState(true); // Start with loading=true so UI shows spinner
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = async () => {
+    console.log('[WixStore] Starting product fetch...');
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Calling Wix integration function...');
-      
       const { data, error: funcError } = await invokeEdgeFunction<{
         products?: any[];
         error?: string;
         details?: unknown;
       }>('wix-integration', {
         body: { action: 'get-products' },
-        timeout: 30000, // 30s timeout for product catalog
-        retries: 3,
+        timeout: 20000, // 20s timeout
+        retries: 2,
       });
 
       if (funcError) {
-        console.error('Function error:', funcError);
+        console.error('[WixStore] Function error:', funcError);
         throw funcError;
       }
 
       if (data?.error) {
-        console.error('API error response:', data);
+        console.error('[WixStore] API error response:', data);
         throw new Error(data.error + (data.details ? ` - ${JSON.stringify(data.details)}` : ''));
       }
 
-      console.log('Wix products loaded:', data);
+      console.log('[WixStore] Products loaded:', data?.products?.length || 0);
       
       // Transform Wix product data to our format
       const transformedProducts = (data?.products || []).map((product: any) => ({
@@ -140,9 +139,9 @@ export const useWixStore = () => {
       }));
 
       setProducts(transformedProducts.length > 0 ? transformedProducts : mockProducts);
-      console.log('Products set successfully');
+      console.log('[WixStore] Products set successfully');
     } catch (err) {
-      console.error('Error loading products:', err);
+      console.error('[WixStore] Error loading products:', err);
       setError(err instanceof Error ? err.message : 'Failed to load products');
       // Fall back to mock products on error
       setProducts(mockProducts);
@@ -181,7 +180,22 @@ export const useWixStore = () => {
   };
 
   useEffect(() => {
+    console.log('[WixStore] useEffect mounting, calling fetchProducts...');
     fetchProducts();
+    
+    // Safety fallback: if loading takes too long, show mock products
+    const safetyTimeout = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          console.warn('[WixStore] Safety timeout - loading took too long, showing fallback');
+          setProducts(mockProducts);
+          return false;
+        }
+        return prev;
+      });
+    }, 25000);
+    
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   return {

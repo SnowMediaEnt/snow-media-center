@@ -257,22 +257,37 @@ export const useAppData = () => {
   };
 
   useEffect(() => {
+    console.log('[AppData] useEffect mounting, calling fetchApps...');
     fetchApps();
+    
+    // Safety fallback: if loading takes too long, show fallback apps
+    const safetyTimeout = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          console.warn('[AppData] Safety timeout - loading took too long, showing fallback');
+          setApps(fallbackApps);
+          setError('Loading timed out. Using offline data.');
+          return false;
+        }
+        return prev;
+      });
+    }, 30000);
     
     // Poll every 30 seconds
     const interval = setInterval(() => {
-      console.log('Polling for app updates...');
+      console.log('[AppData] Polling for app updates...');
       fetchApps();
     }, 30000);
     
     // Refresh when coming back online
     const handleOnline = () => {
-      console.log('Network restored, refreshing...');
+      console.log('[AppData] Network restored, refreshing...');
       fetchApps();
     };
     window.addEventListener('online', handleOnline);
     
     return () => {
+      clearTimeout(safetyTimeout);
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
     };

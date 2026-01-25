@@ -20,15 +20,14 @@ export const useMediaAssets = () => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAssets = async () => {
+    console.log('[MediaAssets] Starting asset fetch...');
     try {
       setLoading(true);
       setError(null);
 
-      console.log('Fetching media assets...');
-
-      // Use AbortController for proper timeout handling - 30s for Android
+      // Use AbortController for proper timeout handling - 20s timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       const { data, error: fetchError } = await supabase
         .from('media_assets')
@@ -39,16 +38,16 @@ export const useMediaAssets = () => {
       clearTimeout(timeoutId);
 
       if (fetchError) {
-        console.error('Media assets fetch error:', fetchError);
+        console.error('[MediaAssets] Fetch error:', fetchError);
         throw fetchError;
       }
       
-      console.log(`Loaded ${data?.length || 0} media assets`);
+      console.log(`[MediaAssets] Loaded ${data?.length || 0} assets`);
       setAssets(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch assets';
       setError(errorMessage);
-      console.error('Error fetching media assets:', err);
+      console.error('[MediaAssets] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -180,7 +179,22 @@ export const useMediaAssets = () => {
   };
 
   useEffect(() => {
+    console.log('[MediaAssets] useEffect mounting, calling fetchAssets...');
     fetchAssets();
+    
+    // Safety fallback: if loading takes too long, stop spinner
+    const safetyTimeout = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          console.warn('[MediaAssets] Safety timeout - loading took too long');
+          setError('Loading timed out. Please try again.');
+          return false;
+        }
+        return prev;
+      });
+    }, 25000);
+    
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   return {
