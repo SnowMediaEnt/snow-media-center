@@ -19,13 +19,26 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
   const generateQRCode = async () => {
     setLoading(true);
     try {
-      // Check if we're in a secure context (required for crypto.randomUUID)
+      // Generate cryptographically secure token
       let token: string;
       if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         token = crypto.randomUUID();
+      } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        // Secure fallback using crypto.getRandomValues
+        const array = new Uint8Array(16);
+        crypto.getRandomValues(array);
+        token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
       } else {
-        // Fallback for non-secure contexts
-        token = 'qr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        // Final fallback - should rarely happen in modern browsers
+        // Combine multiple entropy sources for better randomness
+        const timestamp = Date.now().toString(36);
+        const performance = typeof window !== 'undefined' && window.performance 
+          ? Math.floor(window.performance.now() * 1000).toString(36) 
+          : '';
+        const random1 = Math.random().toString(36).substring(2, 15);
+        const random2 = Math.random().toString(36).substring(2, 15);
+        token = `qr_${timestamp}${performance}${random1}${random2}`;
+        console.warn('[Security] Using weak random fallback for token generation - crypto API not available');
       }
       
       setLoginToken(token);
