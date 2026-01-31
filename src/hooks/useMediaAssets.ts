@@ -55,6 +55,13 @@ export const useMediaAssets = () => {
 
   const uploadAsset = async (file: File, assetType: MediaAsset['asset_type'], section: string, description?: string) => {
     try {
+      // Check authentication FIRST before any operations
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error('Please sign in to upload assets');
+      }
+      const user = session.user;
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${assetType}/${section}/${fileName}`;
@@ -72,10 +79,6 @@ export const useMediaAssets = () => {
       const { data: { publicUrl } } = supabase.storage
         .from('media-assets')
         .getPublicUrl(filePath);
-
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be logged in to upload assets');
 
       // Insert record into database
       const { data, error: insertError } = await supabase
