@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAppData } from '@/hooks/useAppData';
+import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { AppManager } from '@/capacitor/AppManager';
@@ -14,20 +14,6 @@ import DownloadProgress from '@/components/DownloadProgress';
 
 interface InstallAppsProps {
   onBack: () => void;
-}
-
-interface AppData {
-  id: string;
-  name: string;
-  version: string;
-  size: string;
-  description: string;
-  icon: string;
-  apk: string;
-  downloadUrl: string;
-  packageName: string;
-  featured: boolean;
-  category: 'streaming' | 'support';
 }
 
 const InstallApps = ({ onBack }: InstallAppsProps) => {
