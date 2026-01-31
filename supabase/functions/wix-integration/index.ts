@@ -339,7 +339,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             filter: {
               loginEmail: { $eq: email }
-            }
+            },
+            fieldsets: ['FULL'] // Required to get loginEmail in response
           })
         });
 
@@ -362,15 +363,35 @@ Deno.serve(async (req) => {
         }
 
         const memberData = await memberResponse.json();
-        const member = memberData.members?.[0];
+        
+        // DEBUG: Log response info
+        console.log('Wix query filter used:', JSON.stringify({ loginEmail: { $eq: email } }));
+        console.log('Total members returned from Wix:', memberData.members?.length || 0);
+        
+        // CRITICAL FIX: The Wix API seems to ignore the filter and return all members
+        // We MUST manually find the matching member by email
+        const normalizedEmail = email?.toLowerCase().trim();
+        const matchingMember = memberData.members?.find((m: any) => 
+          m.loginEmail?.toLowerCase().trim() === normalizedEmail
+        );
+        
+        if (matchingMember) {
+          console.log(`Found matching member: id=${matchingMember.id}, email=${matchingMember.loginEmail}, name=${matchingMember.profile?.firstName || matchingMember.profile?.nickname}`);
+        } else {
+          console.log(`No member found matching email: ${email}`);
+          // Log first few members for debugging
+          memberData.members?.slice(0, 5).forEach((m: any, idx: number) => {
+            console.log(`Sample member ${idx}: loginEmail=${m.loginEmail}`);
+          });
+        }
 
         return new Response(
           JSON.stringify({ 
-            exists: !!member,
-            member: member ? {
-              id: member.id,
-              email: member.loginEmail,
-              name: member.profile?.firstName || member.profile?.nickname || 'Unknown'
+            exists: !!matchingMember,
+            member: matchingMember ? {
+              id: matchingMember.id,
+              email: matchingMember.loginEmail,
+              name: matchingMember.profile?.firstName || matchingMember.profile?.nickname || 'Unknown'
             } : null
           }),
           { 
