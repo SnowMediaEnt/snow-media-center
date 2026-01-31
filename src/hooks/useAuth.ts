@@ -57,17 +57,54 @@ export const useAuth = () => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth] Auth state changed:', event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // If session was invalidated server-side, clear local state
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('[Auth] Token refresh failed, clearing session');
+        setSession(null);
+        setUser(null);
+      }
     });
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // THEN validate the session with the server (not just cache)
+    const validateSession = async () => {
+      try {
+        // First get cached session
+        const { data: { session: cachedSession } } = await supabase.auth.getSession();
+        
+        if (cachedSession) {
+          // Validate with server to ensure session is still valid
+          const { data: { user: validatedUser }, error } = await supabase.auth.getUser();
+          
+          if (error || !validatedUser) {
+            // Session is invalid, clear it
+            console.log('[Auth] Session invalid, signing out:', error?.message);
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+          } else {
+            // Session is valid
+            setSession(cachedSession);
+            setUser(validatedUser);
+          }
+        } else {
+          setSession(null);
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('[Auth] Session validation error:', err);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    validateSession();
 
     return () => subscription.unsubscribe();
   }, []);
