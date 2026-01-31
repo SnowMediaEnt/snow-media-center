@@ -100,13 +100,13 @@ export const useAppData = () => {
     console.log(`Fetching remote apps (native: ${isNative}) from: ${url}`);
     
     try {
-      // Use robustFetch with CORS proxy fallback enabled for all platforms
-      // This ensures Android WebView can fall back to proxies if direct fails
+      // Use robustFetch - on native platforms, it will try direct URLs first
+      // CORS proxies are only fallbacks (handled automatically by robustFetch)
       const response = await robustFetch(url, {
         timeout: 20000,
         retries: 3,
         retryDelay: 1500,
-        useCorsProxy: true, // Enable CORS proxy fallback for Android
+        useCorsProxy: false, // Let robustFetch handle native vs web logic
         headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache',

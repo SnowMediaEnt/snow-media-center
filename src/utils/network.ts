@@ -19,8 +19,8 @@ export const robustFetch = async (
   options: FetchOptions = {}
 ): Promise<Response> => {
   const {
-    timeout = 15000, // Reduced from 20s to 15s for faster failover
-    retries = 2, // Reduced retries, rely on multiple URLs instead
+    timeout = 15000,
+    retries = 2,
     retryDelay = 1000,
     useCorsProxy = false,
     ...fetchOptions
@@ -28,15 +28,19 @@ export const robustFetch = async (
 
   const isNative = isNativePlatform();
   
-  // IMPORTANT: On Android/native, network requests can fail for various reasons
-  // (SSL issues, DNS, firewall). Always include CORS proxies as fallback for ALL platforms.
+  // CRITICAL FIX: On native platforms, ALWAYS try direct URLs first
+  // CORS proxies are only needed for web browsers, not for native WebView
   let urlsToTry: string[];
   
-  if (useCorsProxy) {
-    // Explicit CORS proxy request: try proxies first, then direct
+  if (isNative) {
+    // Native: Direct URL first, proxies only as last resort fallback
+    console.log('[Network] Native platform detected - trying direct URL first');
+    urlsToTry = [url, ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))];
+  } else if (useCorsProxy) {
+    // Web with CORS proxy requested: try proxies first, then direct
     urlsToTry = [...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url)), url];
   } else {
-    // Default: try direct first, then proxies as fallback (works for both native and web)
+    // Web default: try direct first, then proxies as fallback
     urlsToTry = [url, ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))];
   }
 
@@ -48,7 +52,8 @@ export const robustFetch = async (
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        console.log(`Fetching (attempt ${attempt + 1}/${retries}): ${tryUrl.substring(0, 100)}...`);
+        const isProxy = tryUrl !== url;
+        console.log(`[Network] Fetching (attempt ${attempt + 1}/${retries}, ${isProxy ? 'proxy' : 'direct'}): ${tryUrl.substring(0, 80)}...`);
 
         const response = await fetch(tryUrl, {
           ...fetchOptions,
@@ -58,7 +63,7 @@ export const robustFetch = async (
         clearTimeout(timeoutId);
 
         if (response.ok) {
-          console.log(`Fetch successful: ${tryUrl.substring(0, 50)}...`);
+          console.log(`[Network] Success: ${tryUrl.substring(0, 50)}...`);
           return response;
         }
         
@@ -69,11 +74,10 @@ export const robustFetch = async (
         const errorName = (error as Error).name;
         const errorMsg = (error as Error).message;
         
-        // Log with more context
         if (errorName === 'AbortError') {
-          console.warn(`Timeout after ${timeout}ms: ${tryUrl.substring(0, 50)}...`);
+          console.warn(`[Network] Timeout after ${timeout}ms: ${tryUrl.substring(0, 50)}...`);
         } else {
-          console.warn(`Fetch failed: ${tryUrl.substring(0, 50)}... - ${errorMsg}`);
+          console.warn(`[Network] Failed: ${tryUrl.substring(0, 50)}... - ${errorMsg}`);
         }
         
         // Continue to next URL in the list
@@ -83,7 +87,7 @@ export const robustFetch = async (
 
     // Wait before retry
     if (attempt < retries - 1) {
-      console.log(`Retrying in ${retryDelay}ms...`);
+      console.log(`[Network] Retrying in ${retryDelay}ms...`);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }

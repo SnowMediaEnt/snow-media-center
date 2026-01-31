@@ -1,5 +1,6 @@
 // Edge function utilities with robust timeout and retry handling for Android
 import { supabase } from '@/integrations/supabase/client';
+import { isNativePlatform } from './platform';
 
 interface InvokeOptions {
   body?: Record<string, unknown>;
@@ -13,11 +14,25 @@ interface InvokeResult<T = unknown> {
 }
 
 /**
+ * Check if Supabase client is properly initialized and has a session
+ */
+const checkSupabaseStatus = async (): Promise<{ ready: boolean; hasSession: boolean; error?: string }> => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn('[EdgeFn] Supabase session check error:', error.message);
+      return { ready: true, hasSession: false, error: error.message };
+    }
+    return { ready: true, hasSession: !!session };
+  } catch (err) {
+    console.warn('[EdgeFn] Supabase not ready:', err);
+    return { ready: false, hasSession: false, error: String(err) };
+  }
+};
+
+/**
  * Robust edge function invocation with timeout and retry support.
  * Designed to handle Android WebView network issues.
- * 
- * Uses Promise.race with a simple timeout since supabase.functions.invoke
- * doesn't accept AbortController signal directly.
  */
 export const invokeEdgeFunction = async <T = unknown>(
   functionName: string,
@@ -25,15 +40,30 @@ export const invokeEdgeFunction = async <T = unknown>(
 ): Promise<InvokeResult<T>> => {
   const {
     body,
-    timeout = 15000, // 15s timeout (server usually responds in 2-5s)
-    retries = 2, // 2 retries for unreliable connections
+    timeout = 15000,
+    retries = 2,
   } = options;
+
+  const isNative = isNativePlatform();
+  console.log(`[EdgeFn] Platform: ${isNative ? 'native' : 'web'}`);
+  
+  // Check Supabase status first
+  const status = await checkSupabaseStatus();
+  console.log(`[EdgeFn] Supabase status: ready=${status.ready}, hasSession=${status.hasSession}`);
+  
+  if (!status.ready) {
+    console.error('[EdgeFn] Supabase client not ready, skipping edge function call');
+    return { 
+      data: null, 
+      error: new Error('Supabase client not initialized') 
+    };
+  }
 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      console.log(`[EdgeFn] Invoking ${functionName} (attempt ${attempt + 1}/${retries}, timeout: ${timeout}ms)...`);
+      console.log(`[EdgeFn] Invoking ${functionName} (attempt ${attempt + 1}/${retries}, timeout: ${timeout}ms, auth: ${status.hasSession ? 'yes' : 'no'})...`);
       const startTime = Date.now();
 
       // Create timeout promise
@@ -43,22 +73,23 @@ export const invokeEdgeFunction = async <T = unknown>(
         }, timeout);
       });
 
-      // Invoke the function - supabase client handles the actual fetch
+      // Invoke the function
       const invokePromise = supabase.functions.invoke(functionName, {
         body,
       });
 
-      // Race between the invoke and timeout
+      // Race between invoke and timeout
       const result = await Promise.race([invokePromise, timeoutPromise]);
 
       const elapsed = Date.now() - startTime;
-      console.log(`[EdgeFn] ${functionName} completed in ${elapsed}ms`);
+      console.log(`[EdgeFn] ${functionName} response in ${elapsed}ms`);
 
       if (result.error) {
+        console.error(`[EdgeFn] ${functionName} returned error:`, result.error);
         throw new Error(result.error.message || 'Edge function error');
       }
 
-      console.log(`[EdgeFn] ${functionName} succeeded`);
+      console.log(`[EdgeFn] ${functionName} succeeded:`, typeof result.data);
       return { data: result.data as T, error: null };
 
     } catch (err) {
@@ -83,7 +114,7 @@ export const invokeEdgeFunction = async <T = unknown>(
     }
   }
 
-  console.error(`[EdgeFn] ${functionName} failed after ${retries} attempts:`, lastError?.message);
+  console.error(`[EdgeFn] ${functionName} FAILED after ${retries} attempts:`, lastError?.message);
   return { data: null, error: lastError };
 };
 
