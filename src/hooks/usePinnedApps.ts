@@ -3,7 +3,7 @@ import { defaultInstalledApps } from '@/data/installedApps';
 
 const PINNED_APPS_KEY = 'pinned-apps';
 const PINNED_APPS_VERSION_KEY = 'pinned-apps-version';
-const CURRENT_VERSION = 2; // Increment when default apps change
+const CURRENT_VERSION = 3; // Bumped: fixed icon URLs to use /icons/ not /apps/icons/
 const MAX_PINNED_APPS = 7;
 
 // Pre-seeded pinned apps for demo/first-run experience (limit to 7)
