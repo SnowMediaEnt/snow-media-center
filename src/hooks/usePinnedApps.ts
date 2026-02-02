@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
+import { defaultInstalledApps } from '@/data/installedApps';
 
 const PINNED_APPS_KEY = 'pinned-apps';
 const MAX_PINNED_APPS = 5;
+
+// Pre-seeded pinned apps for demo/first-run experience
+const DEFAULT_PINNED_APPS = defaultInstalledApps.map(app => ({
+  id: app.id,
+  name: app.name,
+  icon: app.icon,
+  packageName: app.packageName,
+}));
 
 export interface PinnedApp {
   id: string;
@@ -13,18 +22,24 @@ export interface PinnedApp {
 export const usePinnedApps = () => {
   const [pinnedApps, setPinnedApps] = useState<PinnedApp[]>([]);
 
-  // Load pinned apps from localStorage on mount
+  // Load pinned apps from localStorage on mount, seed with defaults if empty
   useEffect(() => {
     try {
       const stored = localStorage.getItem(PINNED_APPS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setPinnedApps(parsed.slice(0, MAX_PINNED_APPS));
+          return;
         }
       }
+      // No stored apps or empty array - seed with defaults for demo
+      setPinnedApps(DEFAULT_PINNED_APPS);
+      localStorage.setItem(PINNED_APPS_KEY, JSON.stringify(DEFAULT_PINNED_APPS));
     } catch (error) {
       console.error('[PinnedApps] Error loading pinned apps:', error);
+      // Fallback to defaults on error
+      setPinnedApps(DEFAULT_PINNED_APPS);
     }
   }, []);
 
