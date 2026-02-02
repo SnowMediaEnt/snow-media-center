@@ -82,6 +82,14 @@ export const useAppData = () => {
           downloadUrl = `https://${downloadUrl}`;
         }
 
+        // Build icon URL - prepend domain if it's a relative path
+        let iconUrl = app.icon_url || '';
+        if (iconUrl && iconUrl.startsWith('/icons/')) {
+          iconUrl = `https://snowmediaapps.com${iconUrl}`;
+        } else if (!iconUrl) {
+          iconUrl = 'https://snowmediaapps.com/icons/default.png';
+        }
+
         const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
         const category = (app.category || 'streaming').toLowerCase() as AppData['category'];
 
@@ -91,7 +99,7 @@ export const useAppData = () => {
           version: '1.0',
           size: app.size || '25MB',
           description: app.description || 'No description available',
-          icon: app.icon_url || 'https://snowmediaapps.com/apps/icons/default.png',
+          icon: iconUrl,
           apk: downloadUrl,
           downloadUrl,
           packageName: `com.${cleanName}.app`,
