@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
@@ -11,6 +11,9 @@ import { Browser } from '@capacitor/browser';
 import { AppManager } from '@/capacitor/AppManager';
 import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
+import PinnedAppsBar from '@/components/PinnedAppsBar';
+import AppContextMenu from '@/components/AppContextMenu';
+import { usePinnedApps } from '@/hooks/usePinnedApps';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -57,15 +60,26 @@ type FocusType =
   | `download-${string}` 
   | `launch-${string}` 
   | `settings-${string}` 
-  | `uninstall-${string}`;
+  | `uninstall-${string}`
+  | `pinned-${string}`;
+
+interface ContextMenuState {
+  app: AppData | null;
+  position: { x: number; y: number };
+}
 
 const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppData[] }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ app: null, position: { x: 0, y: 0 } });
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Pinned apps hook
+  const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
   // Helper function to get category apps
   const getCategoryApps = useCallback((category: string) => {
@@ -405,6 +419,56 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
+  // Long press handlers for pinning
+  const handleLongPressStart = (app: AppData, event: React.TouchEvent | React.MouseEvent) => {
+    const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX;
+    const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY;
+    
+    longPressTimerRef.current = setTimeout(() => {
+      setContextMenu({
+        app,
+        position: { x: clientX, y: clientY }
+      });
+    }, 600); // 600ms for long press
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handlePinApp = (app: AppData) => {
+    const success = pinApp({
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      packageName: app.packageName
+    });
+    
+    if (success) {
+      toast({
+        title: "App Pinned! 📌",
+        description: `${app.name} added to your pinned apps.`,
+      });
+    } else {
+      toast({
+        title: "Cannot Pin App",
+        description: "Maximum of 5 apps can be pinned.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUnpinApp = (appId: string, appName: string) => {
+    unpinApp(appId);
+    toast({
+      title: "App Unpinned",
+      description: `${appName} removed from pinned apps.`,
+    });
+  };
+
   const isFocused = (id: string) => focusedElement === id;
   const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' : '';
 
@@ -414,12 +478,26 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
         const appFocused = isFocused(`app-${app.id}`);
+        const appIsPinned = isPinned(app.id);
         
         return (
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            onTouchStart={(e) => handleLongPressStart(app, e)}
+            onTouchEnd={handleLongPressEnd}
+            onTouchCancel={handleLongPressEnd}
+            onMouseDown={(e) => handleLongPressStart(app, e)}
+            onMouseUp={handleLongPressEnd}
+            onMouseLeave={handleLongPressEnd}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu({
+                app,
+                position: { x: e.clientX, y: e.clientY }
+              });
+            }}
           >
             <div className="p-6">
               <div className="flex items-start gap-4 mb-4">
@@ -438,6 +516,9 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white">{app.name}</h3>
+                    {appIsPinned && (
+                      <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30">📌 Pinned</Badge>
+                    )}
                     {app.featured && (
                       <Badge className="bg-green-600 text-white">Featured</Badge>
                     )}
@@ -529,6 +610,15 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           </div>
         </div>
 
+        {/* Pinned Apps Bar */}
+        <PinnedAppsBar
+          pinnedApps={pinnedApps}
+          onLaunchApp={handleLaunch}
+          focusedElement={focusedElement}
+          onFocus={(id) => setFocusedElement(id as FocusType)}
+          apps={apps}
+        />
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
@@ -578,6 +668,19 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             ensureStatus(downloadingApp);
             setDownloadingApp(null);
           }}
+        />
+      )}
+
+      {/* Context Menu for Pin/Unpin */}
+      {contextMenu.app && (
+        <AppContextMenu
+          app={contextMenu.app}
+          isPinned={isPinned(contextMenu.app.id)}
+          canPinMore={canPinMore}
+          position={contextMenu.position}
+          onPin={() => handlePinApp(contextMenu.app!)}
+          onUnpin={() => handleUnpinApp(contextMenu.app!.id, contextMenu.app!.name)}
+          onClose={() => setContextMenu({ app: null, position: { x: 0, y: 0 } })}
         />
       )}
     </div>
