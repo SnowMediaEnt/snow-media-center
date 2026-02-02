@@ -23,8 +23,9 @@ import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useToast } from '@/hooks/use-toast';
 import { useDynamicBackground } from '@/hooks/useDynamicBackground';
-import { usePinnedApps } from '@/hooks/usePinnedApps';
+import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
+import { InstalledApp } from '@/data/installedApps';
 
 const Index = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -41,8 +42,19 @@ const Index = () => {
   const { toast } = useToast();
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
-  const { pinnedApps } = usePinnedApps();
+  const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
+
+  // Handle pinning apps from popup
+  const handlePinFromPopup = (app: InstalledApp) => {
+    const pinnedAppData: PinnedApp = {
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      packageName: app.packageName,
+    };
+    pinApp(pinnedAppData);
+  };
 
   // Handle launching pinned apps
   const handleLaunchPinnedApp = async (app: any) => {
@@ -530,7 +542,10 @@ const Index = () => {
                         apps={apps}
                         isVisible={isFocused}
                         onLaunchApp={handleLaunchPinnedApp}
-                        onAddApps={() => navigateTo('apps')}
+                        onPinApp={handlePinFromPopup}
+                        onUnpinApp={unpinApp}
+                        isPinned={isPinned}
+                        canPinMore={canPinMore}
                       />
                       {cardContent}
                     </div>
