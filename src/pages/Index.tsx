@@ -16,6 +16,7 @@ import SupportTicketSystem from '@/components/SupportTicketSystem';
 import AIConversationSystem from '@/components/AIConversationSystem';
 import AdminSupportDashboard from '@/components/AdminSupportDashboard';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
+import Games from '@/components/Games';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useVersion } from '@/hooks/useVersion';
@@ -274,7 +275,10 @@ const Index = () => {
       {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
       {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
       {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
-      {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} />}
+      {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
+      
+      {/* Games - Coming Soon */}
+      {currentView === 'games' && <Games onBack={() => goBack()} />}
       
       {/* User Support Ticket System */}
       {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}

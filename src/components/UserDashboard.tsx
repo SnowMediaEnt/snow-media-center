@@ -3,21 +3,22 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserDashboardProps {
-  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits') => void;
+  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games') => void;
   onManageMedia: () => void;
   onViewSettings: () => void;
   onCommunityChat: () => void;
   onCreditStore: () => void;
+  onGames?: () => void;
 }
 
-const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore }: UserDashboardProps) => {
+const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames }: UserDashboardProps) => {
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
@@ -28,8 +29,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   // Focus positions:
   // 0: back, 1: signout
-  // 2: purchase credits, 3: community chat
-  // 4: overview tab, 5: credits tab, 6: store tab, 7: referrals tab
+  // 2: purchase credits, 3: community chat, 4: games
+  // 5: overview tab, 6: credits tab, 7: store tab, 8: referrals tab
 
   // Android TV/Firestick navigation
   useEffect(() => {
@@ -49,25 +50,27 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         case 'ArrowLeft':
           if (focusedElement === 1) setFocusedElement(0); // signout -> back
           else if (focusedElement === 3) setFocusedElement(2); // community -> purchase
-          else if (focusedElement > 4 && focusedElement <= 7) setFocusedElement(focusedElement - 1); // tabs
+          else if (focusedElement === 4) setFocusedElement(3); // games -> community
+          else if (focusedElement > 5 && focusedElement <= 8) setFocusedElement(focusedElement - 1); // tabs
           break;
         case 'ArrowRight':
           if (focusedElement === 0) setFocusedElement(1); // back -> signout
           else if (focusedElement === 2) setFocusedElement(3); // purchase -> community
-          else if (focusedElement >= 4 && focusedElement < 7) setFocusedElement(focusedElement + 1); // tabs
+          else if (focusedElement === 3) setFocusedElement(4); // community -> games
+          else if (focusedElement >= 5 && focusedElement < 8) setFocusedElement(focusedElement + 1); // tabs
           break;
         case 'ArrowUp':
-          if (focusedElement === 2 || focusedElement === 3) {
+          if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(0); // action buttons -> back
-          } else if (focusedElement >= 4 && focusedElement <= 7) {
+          } else if (focusedElement >= 5 && focusedElement <= 8) {
             setFocusedElement(2); // tabs -> purchase credits
           }
           break;
         case 'ArrowDown':
           if (focusedElement === 0 || focusedElement === 1) {
             setFocusedElement(2); // header -> purchase credits
-          } else if (focusedElement === 2 || focusedElement === 3) {
-            setFocusedElement(4); // action buttons -> first tab
+          } else if (focusedElement >= 2 && focusedElement <= 4) {
+            setFocusedElement(5); // action buttons -> first tab
           }
           break;
         case 'Enter':
@@ -76,17 +79,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 1) handleSignOut();
           else if (focusedElement === 2) onCreditStore();
           else if (focusedElement === 3) onCommunityChat();
-          else if (focusedElement === 4) setActiveTab('overview');
-          else if (focusedElement === 5) setActiveTab('credits');
-          else if (focusedElement === 6) setActiveTab('store');
-          else if (focusedElement === 7) setActiveTab('referrals');
+          else if (focusedElement === 4) onGames?.();
+          else if (focusedElement === 5) setActiveTab('overview');
+          else if (focusedElement === 6) setActiveTab('credits');
+          else if (focusedElement === 7) setActiveTab('store');
+          else if (focusedElement === 8) setActiveTab('referrals');
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
 
   // Fetch Wix data when user changes
   useEffect(() => {
@@ -191,7 +195,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-wrap gap-4 mb-8">
           <Button 
             onClick={onCreditStore}
             size="lg"
@@ -213,6 +217,17 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <MessageCircle className="w-5 h-5 mr-2" />
             Community Chat
           </Button>
+          <Button 
+            onClick={onGames}
+            size="lg"
+            className={`bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all duration-200 ${
+              focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
+            }`}
+          >
+            <Gamepad2 className="w-5 h-5 mr-2" />
+            Games
+            <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-0.5 rounded-full">Soon</span>
+          </Button>
         </div>
 
         {/* Dashboard Tabs */}
@@ -221,7 +236,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="overview" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Overview
@@ -229,7 +244,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               App Credits
@@ -237,7 +252,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="store" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 7 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Store Account
@@ -245,7 +260,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="referrals" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
-                focusedElement === 7 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 8 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Referrals
