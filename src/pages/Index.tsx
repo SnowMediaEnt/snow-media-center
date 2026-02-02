@@ -15,6 +15,7 @@ import WixConnectionTest from '@/components/WixConnectionTest';
 import SupportTicketSystem from '@/components/SupportTicketSystem';
 import AIConversationSystem from '@/components/AIConversationSystem';
 import AdminSupportDashboard from '@/components/AdminSupportDashboard';
+import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useVersion } from '@/hooks/useVersion';
@@ -22,6 +23,8 @@ import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useToast } from '@/hooks/use-toast';
 import { useDynamicBackground } from '@/hooks/useDynamicBackground';
+import { usePinnedApps } from '@/hooks/usePinnedApps';
+import { useAppData } from '@/hooks/useAppData';
 
 const Index = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -38,6 +41,15 @@ const Index = () => {
   const { toast } = useToast();
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
+  const { pinnedApps } = usePinnedApps();
+  const { apps } = useAppData();
+
+  // Handle launching pinned apps
+  const handleLaunchPinnedApp = async (app: any) => {
+    // Navigate to apps and launch the app
+    navigateTo('apps');
+    // The actual launch logic is in InstallApps component
+  };
 
   // Update date/time every second and detect screen resolution
   useEffect(() => {
@@ -449,9 +461,8 @@ const Index = () => {
                   ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
                   : { width: 'clamp(180px, 20vw, 360px)', aspectRatio: '1 / 0.85' as const };
                 
-                return (
+                const cardContent = (
                   <Card
-                    key={index}
                     tabIndex={0}
                     style={cardStyle}
                     className={`
@@ -509,6 +520,24 @@ const Index = () => {
                     )}
                   </Card>
                 );
+
+                // Wrap Main Apps card (index 0) with pinned apps popup
+                if (index === 0) {
+                  return (
+                    <div key={index} className="relative">
+                      <PinnedAppsPopup
+                        pinnedApps={pinnedApps}
+                        apps={apps}
+                        isVisible={isFocused}
+                        onLaunchApp={handleLaunchPinnedApp}
+                        onAddApps={() => navigateTo('apps')}
+                      />
+                      {cardContent}
+                    </div>
+                  );
+                }
+                
+                return <div key={index}>{cardContent}</div>;
               })}
             </div>
           </div>
