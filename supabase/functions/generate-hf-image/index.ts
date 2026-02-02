@@ -6,18 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Simple JWT payload decoder (doesn't verify signature, just extracts claims)
-function decodeJwtPayload(token: string): { sub?: string; exp?: number; email?: string } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -34,29 +22,37 @@ serve(async (req) => {
       );
     }
 
+    // Create Supabase client with auth context
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Verify JWT using Supabase's built-in verification (validates signature)
     const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
     
-    // Decode JWT to get user info
-    const payload = decodeJwtPayload(token);
-    if (!payload?.sub) {
-      console.error('Invalid JWT: no sub claim');
+    if (claimsError || !claimsData?.claims) {
+      console.error('JWT verification failed:', claimsError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token. Please sign in again.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+    const userEmail = claimsData.claims.email;
+    
+    if (!userId) {
+      console.error('No user ID in verified claims');
       return new Response(
         JSON.stringify({ error: 'Unauthorized', details: 'Invalid token format.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
-    // Check if token is expired
-    if (payload.exp && payload.exp * 1000 < Date.now()) {
-      console.error('Token expired at:', new Date(payload.exp * 1000));
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: 'Session expired. Please sign in again.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    const userId = payload.sub;
-    console.log('Authenticated user:', userId, 'email:', payload.email);
+    console.log('Authenticated user:', userId, 'email:', userEmail);
 
     const { prompt } = await req.json()
 
