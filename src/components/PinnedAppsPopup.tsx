@@ -42,8 +42,8 @@ const PinnedAppsPopup = ({
 
   return (
     <>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <Card className="bg-slate-900/95 backdrop-blur-md border-slate-600 shadow-2xl p-4 min-w-[320px] max-w-[500px]">
+      <div className="absolute bottom-full left-0 mb-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <Card className="bg-slate-900/95 backdrop-blur-md border-slate-600 shadow-2xl p-4 min-w-[320px]">
           {/* Header */}
           <div className="flex items-center justify-center gap-2 mb-3">
             <Pin className="w-4 h-4 text-brand-gold" />
@@ -130,7 +130,7 @@ const PinnedAppsPopup = ({
           )}
           
           {/* Arrow pointer */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900/95 border-r border-b border-slate-600 rotate-45" />
+          <div className="absolute -bottom-2 left-8 w-4 h-4 bg-slate-900/95 border-r border-b border-slate-600 rotate-45" />
         </Card>
       </div>
 
