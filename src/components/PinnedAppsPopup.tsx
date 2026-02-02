@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,6 +16,9 @@ interface PinnedAppsPopupProps {
   isVisible: boolean;
   isPinned: (appId: string) => boolean;
   canPinMore: boolean;
+  focusedIndex: number; // -1 = none focused, 0-6 = app slots, 7 = add button
+  onFocusChange: (index: number) => void;
+  onExitFocus: () => void; // Called when user navigates out of popup
 }
 
 const PinnedAppsPopup = ({ 
@@ -26,9 +29,53 @@ const PinnedAppsPopup = ({
   apps,
   isVisible,
   isPinned,
-  canPinMore
+  canPinMore,
+  focusedIndex,
+  onFocusChange,
+  onExitFocus
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
+  const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Handle keyboard navigation within the popup
+  useEffect(() => {
+    if (!isVisible || focusedIndex < 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (focusedIndex > 0) {
+          onFocusChange(focusedIndex - 1);
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        e.stopPropagation();
+        const maxIndex = Math.min(pinnedApps.length, 6); // up to 7 slots (0-6) + add button
+        if (focusedIndex < maxIndex) {
+          onFocusChange(focusedIndex + 1);
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        onExitFocus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        buttonsRef.current[focusedIndex]?.click();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isVisible, focusedIndex, pinnedApps.length, onFocusChange, onExitFocus]);
+
+  // Focus the button when focusedIndex changes
+  useEffect(() => {
+    if (focusedIndex >= 0 && buttonsRef.current[focusedIndex]) {
+      buttonsRef.current[focusedIndex]?.focus();
+    }
+  }, [focusedIndex]);
 
   if (!isVisible) return null;
 
@@ -40,94 +87,93 @@ const PinnedAppsPopup = ({
     }
   };
 
+  // Create 7 equal slots
+  const slots = Array.from({ length: 7 }, (_, i) => pinnedApps[i] || null);
+
   return (
     <>
       <div className="absolute bottom-full left-0 mb-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <Card className="bg-slate-900/95 backdrop-blur-md border-slate-600 shadow-2xl p-4 min-w-[320px]">
+        <Card className="bg-slate-900/95 backdrop-blur-md border-slate-600 shadow-2xl p-4">
           {/* Header */}
-          <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3">
             <Pin className="w-4 h-4 text-brand-gold" />
             <span className="text-sm font-semibold text-white">Pinned Apps</span>
             <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 text-xs">
-              {pinnedApps.length}/5
+              {pinnedApps.length}/7
             </Badge>
           </div>
           
-          {/* Apps Grid */}
-          {pinnedApps.length === 0 ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowAppSelector(true);
-              }}
-              className="w-full text-center py-4 px-2 cursor-pointer group"
-            >
-              <div className="w-14 h-14 mx-auto mb-2 rounded-xl bg-slate-700/50 flex items-center justify-center group-hover:bg-brand-gold/20 transition-colors">
-                <Plus className="w-7 h-7 text-slate-400 group-hover:text-brand-gold transition-colors" />
-              </div>
-              <p className="text-slate-400 text-sm mb-1 group-hover:text-white transition-colors">
-                No pinned apps yet
-              </p>
-              <p className="text-slate-500 text-xs group-hover:text-slate-400 transition-colors">
-                Click to add apps
-              </p>
-            </button>
-          ) : (
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
-              {pinnedApps.map((pinnedApp) => {
+          {/* 7 Equal Slots Grid */}
+          <div className="grid grid-cols-7 gap-2" style={{ width: 'max(490px, 35vw)' }}>
+            {slots.map((pinnedApp, index) => {
+              const isFocused = focusedIndex === index;
+              
+              if (pinnedApp) {
                 const fullApp = apps.find(a => a.id === pinnedApp.id);
                 
                 return (
                   <button
                     key={pinnedApp.id}
+                    ref={el => buttonsRef.current[index] = el}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (fullApp) onLaunchApp(fullApp);
                     }}
-                    className="flex-shrink-0 w-20 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600 hover:border-brand-ice/50 transition-all duration-150 group cursor-pointer"
+                    className={`
+                      flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
+                      border border-slate-600 hover:border-brand-ice/50 
+                      transition-all duration-150 group cursor-pointer
+                      ${isFocused ? 'ring-2 ring-brand-ice border-brand-ice scale-105' : ''}
+                    `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
+                      <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
                         <img 
-                          src={pinnedApp.icon || '/icons/default.png'} 
+                          src={pinnedApp.icon} 
                           alt={`${pinnedApp.name} icon`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
+                            target.src = 'https://via.placeholder.com/48?text=' + pinnedApp.name.charAt(0);
                           }}
                         />
                       </div>
                       <span className="text-xs text-white text-center font-medium line-clamp-1 w-full">
                         {pinnedApp.name}
                       </span>
-                      <Play className="w-3 h-3 text-brand-ice opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </button>
                 );
-              })}
-              
-              {/* Add more button if less than 5 */}
-              {pinnedApps.length < 5 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAppSelector(true);
-                  }}
-                  className="flex-shrink-0 w-20 p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 border border-dashed border-slate-600 hover:border-brand-gold/50 transition-all duration-150 group cursor-pointer"
-                >
-                  <div className="flex flex-col items-center justify-center h-full gap-1.5">
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-700/50 group-hover:bg-brand-gold/20 transition-colors">
-                      <Plus className="w-5 h-5 text-slate-500 group-hover:text-brand-gold transition-colors" />
+              } else {
+                // Empty slot - show add button
+                return (
+                  <button
+                    key={`empty-${index}`}
+                    ref={el => buttonsRef.current[index] = el}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAppSelector(true);
+                    }}
+                    className={`
+                      flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
+                      border border-dashed border-slate-600 hover:border-brand-gold/50 
+                      transition-all duration-150 group cursor-pointer
+                      ${isFocused ? 'ring-2 ring-brand-ice border-brand-ice scale-105' : ''}
+                    `}
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
+                        <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-gold transition-colors" />
+                      </div>
+                      <span className="text-xs text-slate-500 group-hover:text-brand-gold transition-colors">
+                        Add
+                      </span>
                     </div>
-                    <span className="text-xs text-slate-500 group-hover:text-brand-gold transition-colors">
-                      Add
-                    </span>
-                  </div>
-                </button>
-              )}
-            </div>
-          )}
+                  </button>
+                );
+              }
+            })}
+          </div>
           
           {/* Arrow pointer */}
           <div className="absolute -bottom-2 left-8 w-4 h-4 bg-slate-900/95 border-r border-b border-slate-600 rotate-45" />
@@ -171,7 +217,7 @@ const PinnedAppsPopup = ({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
+                          target.src = 'https://via.placeholder.com/48?text=' + app.name.charAt(0);
                         }}
                       />
                     </div>
@@ -192,8 +238,8 @@ const PinnedAppsPopup = ({
           </div>
           <p className="text-xs text-slate-500 text-center mt-4">
             {canPinMore 
-              ? `You can pin ${5 - pinnedApps.length} more app${5 - pinnedApps.length !== 1 ? 's' : ''}`
-              : 'Maximum 5 apps pinned. Unpin one to add more.'
+              ? `You can pin ${7 - pinnedApps.length} more app${7 - pinnedApps.length !== 1 ? 's' : ''}`
+              : 'Maximum 7 apps pinned. Unpin one to add more.'
             }
           </p>
         </DialogContent>

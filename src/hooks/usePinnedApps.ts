@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { defaultInstalledApps } from '@/data/installedApps';
 
 const PINNED_APPS_KEY = 'pinned-apps';
-const MAX_PINNED_APPS = 5;
+const PINNED_APPS_VERSION_KEY = 'pinned-apps-version';
+const CURRENT_VERSION = 2; // Increment when default apps change
+const MAX_PINNED_APPS = 7;
 
-// Pre-seeded pinned apps for demo/first-run experience
-const DEFAULT_PINNED_APPS = defaultInstalledApps.map(app => ({
+// Pre-seeded pinned apps for demo/first-run experience (limit to 7)
+const DEFAULT_PINNED_APPS = defaultInstalledApps.slice(0, MAX_PINNED_APPS).map(app => ({
   id: app.id,
   name: app.name,
   icon: app.icon,
@@ -22,9 +24,20 @@ export interface PinnedApp {
 export const usePinnedApps = () => {
   const [pinnedApps, setPinnedApps] = useState<PinnedApp[]>([]);
 
-  // Load pinned apps from localStorage on mount, seed with defaults if empty
+  // Load pinned apps from localStorage on mount, seed with defaults if empty or outdated
   useEffect(() => {
     try {
+      const storedVersion = localStorage.getItem(PINNED_APPS_VERSION_KEY);
+      const isOutdated = !storedVersion || parseInt(storedVersion) < CURRENT_VERSION;
+      
+      if (isOutdated) {
+        // Force refresh to new defaults
+        setPinnedApps(DEFAULT_PINNED_APPS);
+        localStorage.setItem(PINNED_APPS_KEY, JSON.stringify(DEFAULT_PINNED_APPS));
+        localStorage.setItem(PINNED_APPS_VERSION_KEY, CURRENT_VERSION.toString());
+        return;
+      }
+      
       const stored = localStorage.getItem(PINNED_APPS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -36,6 +49,7 @@ export const usePinnedApps = () => {
       // No stored apps or empty array - seed with defaults for demo
       setPinnedApps(DEFAULT_PINNED_APPS);
       localStorage.setItem(PINNED_APPS_KEY, JSON.stringify(DEFAULT_PINNED_APPS));
+      localStorage.setItem(PINNED_APPS_VERSION_KEY, CURRENT_VERSION.toString());
     } catch (error) {
       console.error('[PinnedApps] Error loading pinned apps:', error);
       // Fallback to defaults on error

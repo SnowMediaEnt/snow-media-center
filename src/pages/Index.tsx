@@ -31,6 +31,8 @@ import { InstalledApp } from '@/data/installedApps';
 const Index = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
+  const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
+  const [isInPopup, setIsInPopup] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'row'>(() => {
     const saved = localStorage.getItem('snow-media-layout');
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
@@ -175,6 +177,13 @@ const Index = () => {
           break;
           
         case 'ArrowUp':
+          // If on Main Apps (button 0), go into the popup
+          if (focusedButton === 0 && !isInPopup) {
+            setIsInPopup(true);
+            setPopupFocusIndex(0);
+            return;
+          }
+          
           if (layoutMode === 'grid') {
             if (focusedButton === 2 || focusedButton === 3) {
               setFocusedButton(focusedButton - 2);
@@ -235,7 +244,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack]);
+  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup]);
 
   const buttons = [
     {
@@ -550,6 +559,12 @@ const Index = () => {
                         onUnpinApp={unpinApp}
                         isPinned={isPinned}
                         canPinMore={canPinMore}
+                        focusedIndex={isInPopup && focusedButton === 0 ? popupFocusIndex : -1}
+                        onFocusChange={(index) => setPopupFocusIndex(index)}
+                        onExitFocus={() => {
+                          setIsInPopup(false);
+                          setPopupFocusIndex(-1);
+                        }}
                       />
                       {cardContent}
                     </div>
