@@ -528,6 +528,28 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                     <span>{app.size}</span>
                   </div>
                 </div>
+
+                {/* Pin/Unpin Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (appIsPinned) {
+                      handleUnpinApp(app.id, app.name);
+                    } else {
+                      handlePinApp(app);
+                    }
+                  }}
+                  className={`flex-shrink-0 transition-all ${
+                    appIsPinned 
+                      ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
+                      : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
+                  }`}
+                  title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
+                >
+                  <Pin className={`w-5 h-5 ${appIsPinned ? 'fill-current' : ''}`} />
+                </Button>
               </div>
               
               {/* Action Buttons - each individually focusable */}
