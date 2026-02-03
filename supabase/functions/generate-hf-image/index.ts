@@ -29,20 +29,20 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Verify JWT using Supabase's built-in verification (validates signature)
+    // Verify JWT using getUser (validates signature and returns user)
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
-    if (claimsError || !claimsData?.claims) {
-      console.error('JWT verification failed:', claimsError?.message);
+    if (userError || !user) {
+      console.error('JWT verification failed:', userError?.message);
       return new Response(
         JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token. Please sign in again.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
-    const userId = claimsData.claims.sub;
-    const userEmail = claimsData.claims.email;
+    const userId = user.id;
+    const userEmail = user.email;
     
     if (!userId) {
       console.error('No user ID in verified claims');
