@@ -25,9 +25,9 @@ async function authenticateUser(req: Request): Promise<{ userId: string | null; 
   );
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
-    console.error('Auth error:', claimsError);
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !user) {
+    console.error('Auth error:', userError);
     return { 
       userId: null, 
       error: new Response(JSON.stringify({ error: 'Invalid token' }), { 
@@ -37,7 +37,7 @@ async function authenticateUser(req: Request): Promise<{ userId: string | null; 
     };
   }
 
-  return { userId: claimsData.claims.sub as string, error: null };
+  return { userId: user.id, error: null };
 }
 
 interface WixMember {
