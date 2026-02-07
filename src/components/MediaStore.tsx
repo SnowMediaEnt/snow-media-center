@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -411,7 +412,12 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 <h1 className="text-4xl font-bold text-white mb-2">{selectedProduct.name}</h1>
                 <div 
                   className="text-xl text-blue-200" 
-                  dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                  dangerouslySetInnerHTML={{ 
+                    __html: DOMPurify.sanitize(selectedProduct.description, {
+                      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'span'],
+                      ALLOWED_ATTR: []
+                    })
+                  }}
                 />
               </div>
 
@@ -720,8 +726,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                       </h3>
                        <div 
                          className="text-white/70 text-sm mb-3 line-clamp-2 max-h-10 overflow-hidden"
-                         dangerouslySetInnerHTML={{ __html: product.description }}
-                       />
+                         dangerouslySetInnerHTML={{ 
+                           __html: DOMPurify.sanitize(product.description, {
+                             ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'span'],
+                             ALLOWED_ATTR: []
+                           })
+                         }}
+                        />
                       
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center space-x-2">
