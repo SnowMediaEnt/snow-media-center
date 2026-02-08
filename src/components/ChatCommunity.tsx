@@ -901,7 +901,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     <MessageCircle className="w-16 h-16 mx-auto text-orange-400/50 mb-4" />
                     <h4 className="text-xl font-semibold text-white mb-2">No Support Tickets</h4>
                     <p className="text-slate-400">
-                      Use the "Create New Ticket" button above to get help from our support team.
+                      {user 
+                        ? 'Use the "Create New Ticket" button above to get help from our support team.'
+                        : 'Please sign in to create and view your support tickets.'}
                     </p>
                   </div>
                 ) : (
