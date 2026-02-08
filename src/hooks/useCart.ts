@@ -1,14 +1,47 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { StoreProduct, CartItem, ShoppingCart } from '@/types/store';
 
-export const useCart = () => {
-  const [cart, setCart] = useState<ShoppingCart>({
+const CART_STORAGE_KEY = 'snow_media_cart';
+
+// Load cart from localStorage
+const loadCartFromStorage = (): ShoppingCart => {
+  try {
+    const saved = localStorage.getItem(CART_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Validate the structure
+      if (parsed.items && Array.isArray(parsed.items)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('[Cart] Failed to load cart from storage:', e);
+  }
+  return {
     items: [],
     total: 0,
     shipping: 0,
     tax: 0,
     grandTotal: 0
-  });
+  };
+};
+
+// Save cart to localStorage
+const saveCartToStorage = (cart: ShoppingCart) => {
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  } catch (e) {
+    console.warn('[Cart] Failed to save cart to storage:', e);
+  }
+};
+
+export const useCart = () => {
+  const [cart, setCart] = useState<ShoppingCart>(loadCartFromStorage);
+
+  // Persist cart changes to localStorage
+  useEffect(() => {
+    saveCartToStorage(cart);
+  }, [cart]);
 
   const calculateTotals = useCallback((items: CartItem[]) => {
     const total = items.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
@@ -82,13 +115,20 @@ export const useCart = () => {
   }, [calculateTotals]);
 
   const clearCart = useCallback(() => {
-    setCart({
+    const emptyCart = {
       items: [],
       total: 0,
       shipping: 0,
       tax: 0,
       grandTotal: 0
-    });
+    };
+    setCart(emptyCart);
+    // Also clear from storage
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } catch (e) {
+      console.warn('[Cart] Failed to clear cart from storage:', e);
+    }
   }, []);
 
   const getItemCount = useCallback(() => {
