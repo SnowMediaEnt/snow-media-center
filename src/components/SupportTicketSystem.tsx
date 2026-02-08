@@ -14,11 +14,14 @@ import {
   Send,
   AlertCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  LogIn
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -32,6 +35,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [replyMessage, setReplyMessage] = useState('');
 
   const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+
   const {
     tickets,
     messages,
@@ -352,7 +359,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <h1 className="text-3xl font-bold">User Support</h1>
           </div>
           <Button 
-            onClick={() => setView('create')}
+            onClick={() => {
+              if (!user) {
+                toast({
+                  title: "Sign in required",
+                  description: "Please sign in to create a support ticket.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              setView('create');
+            }}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -406,14 +423,26 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <div className="col-span-full text-center py-12">
               <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No Support Tickets</h3>
-              <p className="text-slate-500 mb-4">You haven't created any support tickets yet.</p>
-              <Button 
-                onClick={() => setView('create')}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Ticket
-              </Button>
+              <p className="text-slate-500 mb-4">
+                {user ? "You haven't created any support tickets yet." : "Sign in to create and view your support tickets."}
+              </p>
+              {user ? (
+                <Button 
+                  onClick={() => setView('create')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Ticket
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => navigate('/auth')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+              )}
             </div>
           )}
         </div>
