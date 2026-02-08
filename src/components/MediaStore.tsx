@@ -53,17 +53,24 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   // Focus types: 'back', 'signin', 'cart', 'category-{id}', 'product-{id}'
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Android back button
-      if (event.key === 'Escape' || event.key === 'Backspace' || 
-          event.keyCode === 4 || event.which === 4) {
+      // Handle Android back button - ONLY respond to Escape or Android keyCode 4
+      // Do NOT treat Backspace as back button (it's used for text editing)
+      const isAndroidBack = event.keyCode === 4 || event.which === 4;
+      const isEscape = event.key === 'Escape';
+      
+      if (isEscape || isAndroidBack) {
         event.preventDefault();
         event.stopPropagation();
+        
+        // If viewing a product detail, go back to product list (stay in store)
         if (selectedProduct) {
           setSelectedProduct(null);
           setDetailFocusedElement('detail-back');
-        } else {
-          onBack();
+          return;
         }
+        
+        // If at top level of store, exit to main menu
+        onBack();
         return;
       }
       

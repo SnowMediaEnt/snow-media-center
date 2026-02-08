@@ -94,7 +94,8 @@ Deno.serve(async (req) => {
       'get-orders',
       'get-loyalty',
       'get-referral-info',
-      'create-member'  // Allow signup flow to work
+      'create-member',  // Allow signup flow to work
+      'create-cart'     // Allow checkout without auth (guest checkout)
     ];
     const isPublicAction = publicActions.includes(action);
     
