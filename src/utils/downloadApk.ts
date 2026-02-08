@@ -97,7 +97,12 @@ export async function downloadApkToCache(
   const response = await fetchWithFallback(url);
   
   const contentLength = response.headers.get('content-length');
-  const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
+  let totalSize = contentLength ? parseInt(contentLength, 10) : 0;
+  
+  // If no content-length header, estimate based on typical APK sizes (25MB default)
+  const estimatedSize = totalSize > 0 ? totalSize : 25 * 1024 * 1024;
+  
+  console.log('[APK Download] Content-Length:', contentLength, 'Estimated size:', estimatedSize);
   
   const reader = response.body?.getReader();
   if (!reader) {
@@ -106,6 +111,7 @@ export async function downloadApkToCache(
   
   const chunks: Uint8Array[] = [];
   let receivedLength = 0;
+  let lastProgressUpdate = 0;
   
   while (true) {
     const { done, value } = await reader.read();
@@ -114,9 +120,29 @@ export async function downloadApkToCache(
     chunks.push(value);
     receivedLength += value.length;
     
-    if (totalSize > 0 && onProgress) {
-      onProgress(Math.round((receivedLength / totalSize) * 100));
+    // Always report progress, estimate if no content-length
+    if (onProgress) {
+      let progressPercent: number;
+      if (totalSize > 0) {
+        progressPercent = Math.round((receivedLength / totalSize) * 100);
+      } else {
+        // Estimate progress based on typical APK size, cap at 95% until done
+        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
+      }
+      
+      // Only update every 2% to avoid too many updates
+      if (progressPercent !== lastProgressUpdate) {
+        console.log('[APK Download] Progress:', progressPercent, '% (', receivedLength, 'bytes)');
+        onProgress(progressPercent);
+        lastProgressUpdate = progressPercent;
+      }
     }
+  }
+  
+  // Final progress update to 100%
+  if (onProgress) {
+    console.log('[APK Download] Complete! Total:', receivedLength, 'bytes');
+    onProgress(100);
   }
   
   // Combine chunks into single array

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -22,6 +22,7 @@ interface DownloadProgressProps {
 }
 
 type DownloadState = 'downloading' | 'complete' | 'installing' | 'installed' | 'error';
+type FocusedButton = 'install' | 'later' | 'open' | 'close';
 
 const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) => {
   const [progress, setProgress] = useState(0);
@@ -30,11 +31,74 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   const [state, setState] = useState<DownloadState>('downloading');
   const [errorMessage, setErrorMessage] = useState('');
   const [filePath, setFilePath] = useState('');
+  const [focusedButton, setFocusedButton] = useState<FocusedButton>('install');
   const { toast } = useToast();
   
   // Track download speed
   const lastBytesRef = useRef(0);
   const lastTimeRef = useRef(Date.now());
+
+  // D-pad navigation for popup buttons
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Prevent default for navigation keys
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      // Handle Android back button - close popup
+      if (event.key === 'Escape' || event.keyCode === 4) {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      switch (event.key) {
+        case 'ArrowUp':
+        case 'ArrowDown':
+          // Toggle between buttons based on state
+          if (state === 'complete') {
+            setFocusedButton(prev => prev === 'install' ? 'later' : 'install');
+          } else if (state === 'installed') {
+            setFocusedButton(prev => prev === 'open' ? 'close' : 'open');
+          }
+          break;
+          
+        case 'Enter':
+        case ' ':
+          // Execute focused button action
+          if (state === 'complete') {
+            if (focusedButton === 'install') {
+              handleInstall();
+            } else {
+              onClose();
+            }
+          } else if (state === 'installed') {
+            if (focusedButton === 'open') {
+              handleOpenApp();
+            } else {
+              onClose();
+            }
+          } else if (state === 'error') {
+            onClose();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state, focusedButton]);
+
+  // Reset focus when state changes
+  useEffect(() => {
+    if (state === 'complete') {
+      setFocusedButton('install');
+    } else if (state === 'installed') {
+      setFocusedButton('open');
+    }
+  }, [state]);
 
   useEffect(() => {
     const startDownload = async () => {
@@ -59,6 +123,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         const totalMB = parseFloat(app.size?.replace(/[^0-9.]/g, '') || '0') || 25;
         
         const savedPath = await downloadApkToCache(url, filename, (progressPercent) => {
+          console.log('[DownloadProgress] Progress update:', progressPercent);
           setProgress(progressPercent);
           
           // Calculate download speed
@@ -91,7 +156,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
     startDownload();
   }, [app]);
 
-  const handleInstall = async () => {
+  const handleInstall = useCallback(async () => {
     if (!filePath) {
       toast({
         title: "Install Error",
@@ -113,11 +178,10 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         description: `${app.name} installer opened`,
       });
       
-      // Clean up the APK file after install is triggered (no longer needed)
-      // Give time for install dialog, then cleanup and complete
+      // Clean up the APK file after install is triggered
       setTimeout(async () => {
         try {
-          await cleanupOldApks(); // Clean ALL APKs since install was triggered
+          await cleanupOldApks();
           console.log('Cleaned up APK files after install');
         } catch (e) {
           console.log('Cleanup skipped:', e);
@@ -132,11 +196,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         description: error instanceof Error ? error.message : 'Could not install APK',
         variant: "destructive",
       });
-      setState('complete'); // Go back to complete state so they can retry
+      setState('complete');
     }
-  };
+  }, [filePath, app.name, toast, onComplete]);
 
-  const handleOpenApp = async () => {
+  const handleOpenApp = useCallback(async () => {
     try {
       const packageName = app.packageName || `com.${app.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.app`;
       await AppManager.launch({ packageName });
@@ -148,7 +212,12 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         variant: "destructive",
       });
     }
-  };
+  }, [app.packageName, app.name, toast, onClose]);
+
+  const getFocusStyle = (button: FocusedButton) => 
+    focusedButton === button 
+      ? 'ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800 scale-105' 
+      : '';
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -202,9 +271,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
               </div>
             </div>
             
+            <p className="text-xs text-slate-500 text-center">Use ↑↓ to navigate, Enter to select</p>
+            
             <Button 
               onClick={handleInstall}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg"
+              className={`w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg transition-all ${getFocusStyle('install')}`}
             >
               <Package className="w-5 h-5 mr-2" />
               Install Now
@@ -213,7 +284,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             <Button 
               onClick={onClose}
               variant="outline"
-              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
+              className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('later')}`}
             >
               Install Later
             </Button>
@@ -244,9 +315,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
               </div>
             </div>
             
+            <p className="text-xs text-slate-500 text-center">Use ↑↓ to navigate, Enter to select</p>
+            
             <Button 
               onClick={handleOpenApp}
-              className="w-full bg-primary hover:bg-primary/80 text-primary-foreground py-6 text-lg"
+              className={`w-full bg-primary hover:bg-primary/80 text-primary-foreground py-6 text-lg transition-all ${getFocusStyle('open')}`}
             >
               <Play className="w-5 h-5 mr-2" />
               Open App
@@ -255,7 +328,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             <Button 
               onClick={onClose}
               variant="outline"
-              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
+              className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('close')}`}
             >
               Close
             </Button>
@@ -277,7 +350,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             <Button 
               onClick={onClose}
               variant="outline"
-              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
+              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800"
             >
               Close
             </Button>
