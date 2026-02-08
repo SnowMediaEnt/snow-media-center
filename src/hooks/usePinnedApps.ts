@@ -1,18 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { defaultInstalledApps } from '@/data/installedApps';
 
 const PINNED_APPS_KEY = 'pinned-apps';
 const PINNED_APPS_VERSION_KEY = 'pinned-apps-version';
-const CURRENT_VERSION = 3; // Bumped: fixed icon URLs to use /icons/ not /apps/icons/
+const CURRENT_VERSION = 4; // Bumped: start with empty pinned apps - user adds their own
 const MAX_PINNED_APPS = 7;
-
-// Pre-seeded pinned apps for demo/first-run experience (limit to 7)
-const DEFAULT_PINNED_APPS = defaultInstalledApps.slice(0, MAX_PINNED_APPS).map(app => ({
-  id: app.id,
-  name: app.name,
-  icon: app.icon,
-  packageName: app.packageName,
-}));
 
 export interface PinnedApp {
   id: string;
@@ -24,16 +15,17 @@ export interface PinnedApp {
 export const usePinnedApps = () => {
   const [pinnedApps, setPinnedApps] = useState<PinnedApp[]>([]);
 
-  // Load pinned apps from localStorage on mount, seed with defaults if empty or outdated
+  // Load pinned apps from localStorage on mount - start empty for fresh installs
   useEffect(() => {
     try {
       const storedVersion = localStorage.getItem(PINNED_APPS_VERSION_KEY);
       const isOutdated = !storedVersion || parseInt(storedVersion) < CURRENT_VERSION;
       
       if (isOutdated) {
-        // Force refresh to new defaults
-        setPinnedApps(DEFAULT_PINNED_APPS);
-        localStorage.setItem(PINNED_APPS_KEY, JSON.stringify(DEFAULT_PINNED_APPS));
+        // Force reset to empty for new version
+        console.log('[PinnedApps] Version updated, resetting to empty pinned apps');
+        setPinnedApps([]);
+        localStorage.setItem(PINNED_APPS_KEY, JSON.stringify([]));
         localStorage.setItem(PINNED_APPS_VERSION_KEY, CURRENT_VERSION.toString());
         return;
       }
@@ -41,19 +33,18 @@ export const usePinnedApps = () => {
       const stored = localStorage.getItem(PINNED_APPS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setPinnedApps(parsed.slice(0, MAX_PINNED_APPS));
           return;
         }
       }
-      // No stored apps or empty array - seed with defaults for demo
-      setPinnedApps(DEFAULT_PINNED_APPS);
-      localStorage.setItem(PINNED_APPS_KEY, JSON.stringify(DEFAULT_PINNED_APPS));
+      // No stored apps - start with empty array (user pins their own)
+      setPinnedApps([]);
+      localStorage.setItem(PINNED_APPS_KEY, JSON.stringify([]));
       localStorage.setItem(PINNED_APPS_VERSION_KEY, CURRENT_VERSION.toString());
     } catch (error) {
       console.error('[PinnedApps] Error loading pinned apps:', error);
-      // Fallback to defaults on error
-      setPinnedApps(DEFAULT_PINNED_APPS);
+      setPinnedApps([]);
     }
   }, []);
 
