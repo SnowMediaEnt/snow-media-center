@@ -24,7 +24,25 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   }
 }
 
-// Download APK with streaming progress - optimized for 32-bit Android/FireTV
+// Convert Uint8Array to base64 in memory-safe chunks for 32-bit devices
+// CRITICAL: Must convert the ENTIRE binary data at once, not append chunks independently
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  // For 32-bit devices, we need to build the binary string in chunks
+  // to avoid stack overflow, then convert to base64 once
+  const chunkSize = 8192; // 8KB chunks for string building
+  let binaryString = '';
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let j = 0; j < chunk.length; j++) {
+      binaryString += String.fromCharCode(chunk[j]);
+    }
+  }
+  
+  return btoa(binaryString);
+}
+
+// Download APK with progress - optimized for 32-bit Android/FireTV
 export async function downloadApkToCache(
   url: string, 
   filename: string, 
@@ -86,11 +104,66 @@ export async function downloadApkToCache(
     throw new Error('Failed to get response reader');
   }
   
-  // For 32-bit devices: Process and write in chunks to avoid memory pressure
-  // Instead of accumulating all chunks then converting, we'll write incrementally
-  const path = `apk/${filename}`;
+  // Report initial 0% progress
+  if (onProgress) {
+    onProgress(0);
+  }
+  
+  // Collect all chunks - we need to process the entire binary at once for base64
+  // For 32-bit: Use array of chunks, then combine at the end
+  const chunks: Uint8Array[] = [];
+  let receivedLength = 0;
+  let lastReportedProgress = -1;
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    chunks.push(value);
+    receivedLength += value.length;
+    
+    // Calculate and report progress during download
+    if (onProgress) {
+      let progressPercent: number;
+      if (totalSize > 0) {
+        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
+      } else {
+        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
+      }
+      
+      // Update every 2% change to reduce UI load
+      if (progressPercent >= lastReportedProgress + 2) {
+        console.log('[APK] Download progress:', progressPercent, '%');
+        onProgress(progressPercent);
+        lastReportedProgress = progressPercent;
+      }
+    }
+  }
+  
+  console.log('[APK] Download complete, received:', receivedLength, 'bytes');
+  console.log('[APK] Processing binary data for 32-bit device...');
+  
+  // Combine all chunks into a single Uint8Array
+  // For 32-bit: Do this carefully to avoid memory issues
+  const allBytes = new Uint8Array(receivedLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    allBytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  
+  // Clear chunks array to free memory before base64 conversion
+  chunks.length = 0;
+  
+  console.log('[APK] Converting to base64...');
+  
+  // Convert to base64 - this is the critical step that must be done correctly
+  const base64Data = uint8ArrayToBase64(allBytes);
+  
+  console.log('[APK] Base64 conversion complete, length:', base64Data.length);
   
   // Ensure directory exists
+  const path = `apk/${filename}`;
   try {
     await Filesystem.mkdir({
       path: 'apk',
@@ -108,69 +181,13 @@ export async function downloadApkToCache(
     // File might not exist
   }
   
-  let receivedLength = 0;
-  let lastReportedProgress = -1;
-  let isFirstChunk = true;
-  
-  // Report initial 0% progress
-  if (onProgress) {
-    onProgress(0);
-  }
-  
-  // Process in streaming fashion - write each chunk as we receive it
-  // This keeps memory usage low on 32-bit devices
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    receivedLength += value.length;
-    
-    // Convert chunk to base64 using loop (safe for 32-bit)
-    // Use smaller 4KB chunks for base64 conversion
-    let chunkBase64 = '';
-    const conversionChunkSize = 4096; // 4KB - very safe for 32-bit
-    for (let i = 0; i < value.length; i += conversionChunkSize) {
-      const slice = value.subarray(i, Math.min(i + conversionChunkSize, value.length));
-      let binary = '';
-      for (let j = 0; j < slice.length; j++) {
-        binary += String.fromCharCode(slice[j]);
-      }
-      chunkBase64 += btoa(binary);
-    }
-    
-    // Append to file (Capacitor Filesystem handles this)
-    if (isFirstChunk) {
-      await Filesystem.writeFile({
-        path,
-        data: chunkBase64,
-        directory: Directory.Cache
-      });
-      isFirstChunk = false;
-    } else {
-      await Filesystem.appendFile({
-        path,
-        data: chunkBase64,
-        directory: Directory.Cache
-      });
-    }
-    
-    // Calculate and report progress
-    if (onProgress) {
-      let progressPercent: number;
-      if (totalSize > 0) {
-        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
-      } else {
-        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
-      }
-      
-      // Update every 2% change to reduce UI load
-      if (progressPercent >= lastReportedProgress + 2 || progressPercent === 99) {
-        console.log('[APK] Progress:', progressPercent, '%');
-        onProgress(progressPercent);
-        lastReportedProgress = progressPercent;
-      }
-    }
-  }
+  // Write the complete file at once
+  console.log('[APK] Writing file to cache...');
+  await Filesystem.writeFile({
+    path,
+    data: base64Data,
+    directory: Directory.Cache
+  });
   
   // Final progress update to 100%
   if (onProgress) {

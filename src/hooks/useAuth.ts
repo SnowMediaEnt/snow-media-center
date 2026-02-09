@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { waitForStorageReady, forceRestoreFromPreferences } from '@/utils/storage';
+import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
 
 export const useAuth = () => {
@@ -58,25 +58,28 @@ export const useAuth = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
     
     const initializeAuth = async () => {
       console.log('[Auth] Starting auth initialization...');
       
       // CRITICAL: On native platforms, wait for storage to restore auth tokens
-      // Android/FireTV WebView often clears localStorage on app restart
+      // This MUST complete before we access Supabase auth
       const isNative = Capacitor.isNativePlatform();
       
       if (isNative) {
-        console.log('[Auth] Native platform detected, waiting for storage...');
+        console.log('[Auth] Native platform detected, waiting for storage restoration...');
         await waitForStorageReady();
+        console.log('[Auth] Storage ready, auth tokens should be in localStorage');
         
-        // Force restore from Preferences in case localStorage was cleared
-        await forceRestoreFromPreferences();
-        console.log('[Auth] Storage restoration complete');
+        // Log what we have in localStorage for debugging
+        const tokenKey = 'sb-falmwzhvxoefvkfsiylp-auth-token';
+        const hasToken = !!localStorage.getItem(tokenKey);
+        console.log('[Auth] Token in localStorage:', hasToken);
       }
       
       // Set up auth state listener FIRST
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (!isMounted) return;
         
         console.log('[Auth] Auth state changed:', event, session?.user?.email);
@@ -91,6 +94,8 @@ export const useAuth = () => {
           setUser(null);
         }
       });
+      
+      subscription = data.subscription;
 
       // THEN validate the session with the server (not just cache)
       try {
@@ -99,6 +104,8 @@ export const useAuth = () => {
         
         if (cachedSession) {
           console.log('[Auth] Found cached session, validating with server...');
+          console.log('[Auth] Session user:', cachedSession.user?.email);
+          console.log('[Auth] Session expires:', new Date(cachedSession.expires_at! * 1000).toISOString());
           
           // Validate with server to ensure session is still valid
           const { data: { user: validatedUser }, error } = await supabase.auth.getUser();
@@ -107,13 +114,13 @@ export const useAuth = () => {
           
           if (error || !validatedUser) {
             // Session is invalid, clear it
-            console.log('[Auth] Session invalid, signing out:', error?.message);
+            console.log('[Auth] Session invalid:', error?.message || 'User not found');
             await supabase.auth.signOut();
             setSession(null);
             setUser(null);
           } else {
             // Session is valid
-            console.log('[Auth] Session validated successfully for:', validatedUser.email);
+            console.log('[Auth] Session validated for:', validatedUser.email);
             setSession(cachedSession);
             setUser(validatedUser);
           }
@@ -133,14 +140,13 @@ export const useAuth = () => {
           setLoading(false);
         }
       }
-
-      return () => subscription.unsubscribe();
     };
 
     initializeAuth();
     
     return () => {
       isMounted = false;
+      subscription?.unsubscribe();
     };
   }, []);
 

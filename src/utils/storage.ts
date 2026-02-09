@@ -1,11 +1,22 @@
-// Cross-platform storage adapter for Supabase auth
-// Uses Capacitor Preferences on native, localStorage on web
-// CRITICAL FIX: On Android/FireTV, localStorage is often cleared on app restart
-// We must restore from Capacitor Preferences before Supabase initializes
+// Cross-platform storage persistence for Supabase auth on Android/FireTV
+// CRITICAL: On Android/FireTV, WebView often clears localStorage on app restart.
+// This module restores auth tokens from Capacitor Preferences to localStorage
+// BEFORE Supabase tries to read them.
 
 import { Capacitor } from '@capacitor/core';
 
-// Use Capacitor.isNativePlatform() directly for reliability
+// Storage keys that need to persist for auth
+const AUTH_STORAGE_KEYS = [
+  'sb-falmwzhvxoefvkfsiylp-auth-token',
+  'supabase.auth.token'
+];
+
+// Lazy-loaded Preferences module for native
+let PreferencesModule: any = null;
+let initializationPromise: Promise<void> | null = null;
+let isInitialized = false;
+
+// Check if we're on a native platform
 const checkIsNative = (): boolean => {
   try {
     return Capacitor.isNativePlatform();
@@ -14,213 +25,153 @@ const checkIsNative = (): boolean => {
   }
 };
 
-// Lazy-loaded Preferences module for native
-let PreferencesModule: any = null;
-let preferencesReady = false;
-let restoredFromPreferences = false;
-
-// Storage keys that need to persist for auth
-const AUTH_STORAGE_KEYS = [
-  'sb-falmwzhvxoefvkfsiylp-auth-token',
-  'supabase.auth.token'
-];
-
-// Pre-initialize Preferences on native platforms
-const initPreferences = async () => {
-  if (preferencesReady) return;
+// Initialize and restore auth tokens from Preferences
+const initializeStorage = async (): Promise<void> => {
+  if (isInitialized) return;
   
-  if (checkIsNative()) {
-    try {
-      console.log('[Storage] Initializing Capacitor Preferences for native platform...');
-      const module = await import('@capacitor/preferences');
-      PreferencesModule = module.Preferences;
-      
-      // CRITICAL: Restore auth tokens from Preferences BEFORE marking ready
-      // Android WebView often clears localStorage on app restart
-      await restoreFromPreferences();
-      
-      preferencesReady = true;
-      console.log('[Storage] Capacitor Preferences ready, auth tokens restored');
-    } catch (error) {
-      console.warn('[Storage] Failed to load Capacitor Preferences:', error);
-      preferencesReady = true; // Mark as ready even on failure to prevent infinite loading
-    }
-  } else {
-    preferencesReady = true;
+  const isNative = checkIsNative();
+  console.log('[Storage] Initializing for platform:', isNative ? 'native' : 'web');
+  
+  if (!isNative) {
+    isInitialized = true;
+    return;
   }
-};
-
-// Restore localStorage auth tokens from Capacitor Preferences
-// This is critical for Android/FireTV where localStorage gets cleared
-const restoreFromPreferences = async () => {
-  if (!PreferencesModule || restoredFromPreferences) return;
   
   try {
-    console.log('[Storage] Restoring auth tokens from Preferences to localStorage...');
+    // Load Capacitor Preferences
+    const module = await import('@capacitor/preferences');
+    PreferencesModule = module.Preferences;
+    console.log('[Storage] Capacitor Preferences loaded');
     
-    for (const key of AUTH_STORAGE_KEYS) {
-      try {
-        const { value } = await PreferencesModule.get({ key });
-        
-        if (value) {
-          // Check if localStorage is missing this key
-          const existingValue = localStorage.getItem(key);
-          
-          if (!existingValue) {
-            console.log(`[Storage] Restoring ${key.substring(0, 30)}... to localStorage`);
-            localStorage.setItem(key, value);
-          } else if (existingValue !== value) {
-            // Preferences might have newer token (e.g., after refresh)
-            // Compare timestamps if possible, otherwise use Preferences as source of truth
-            try {
-              const prefData = JSON.parse(value);
-              const localData = JSON.parse(existingValue);
-              
-              // Use whichever has more recent timestamp
-              if (prefData.expires_at && localData.expires_at) {
-                if (new Date(prefData.expires_at) > new Date(localData.expires_at)) {
-                  console.log(`[Storage] Preferences has newer token for ${key.substring(0, 30)}...`);
-                  localStorage.setItem(key, value);
-                }
-              }
-            } catch (parseError) {
-              // If can't parse, use Preferences as authoritative
-              localStorage.setItem(key, value);
-            }
-          }
-        }
-      } catch (keyError) {
-        console.warn(`[Storage] Failed to restore key ${key}:`, keyError);
-      }
-    }
+    // CRITICAL: Restore auth tokens from Preferences to localStorage
+    // This must happen BEFORE Supabase reads from localStorage
+    await restoreAuthTokens();
     
-    restoredFromPreferences = true;
-    console.log('[Storage] Auth token restoration complete');
+    // Set up listener to persist future localStorage writes to Preferences
+    setupStorageSync();
+    
+    isInitialized = true;
+    console.log('[Storage] Initialization complete');
   } catch (error) {
-    console.warn('[Storage] Failed to restore from Preferences:', error);
-    restoredFromPreferences = true; // Don't retry
+    console.error('[Storage] Failed to initialize:', error);
+    isInitialized = true; // Mark as done to prevent hanging
   }
 };
 
-// Migrate localStorage auth tokens to Capacitor Preferences (one-way sync)
-const migrateToPreferences = async () => {
+// Restore auth tokens from Capacitor Preferences to localStorage
+const restoreAuthTokens = async (): Promise<void> => {
   if (!PreferencesModule) return;
   
-  try {
-    for (const key of AUTH_STORAGE_KEYS) {
-      const value = localStorage.getItem(key);
+  console.log('[Storage] Restoring auth tokens from Preferences...');
+  
+  for (const key of AUTH_STORAGE_KEYS) {
+    try {
+      const { value } = await PreferencesModule.get({ key });
+      
       if (value) {
-        console.log(`[Storage] Migrating ${key.substring(0, 30)}... to Preferences`);
-        await PreferencesModule.set({ key, value });
+        const existingValue = localStorage.getItem(key);
+        
+        if (!existingValue) {
+          console.log(`[Storage] Restored ${key.substring(0, 30)}... from Preferences`);
+          localStorage.setItem(key, value);
+        } else if (existingValue !== value) {
+          // Compare timestamps to use the newer token
+          try {
+            const prefData = JSON.parse(value);
+            const localData = JSON.parse(existingValue);
+            
+            if (prefData.expires_at && localData.expires_at) {
+              if (new Date(prefData.expires_at) > new Date(localData.expires_at)) {
+                console.log(`[Storage] Using newer token from Preferences for ${key.substring(0, 30)}...`);
+                localStorage.setItem(key, value);
+              }
+            }
+          } catch {
+            // Can't parse, prefer Preferences as it's the persistent store
+            localStorage.setItem(key, value);
+          }
+        }
       }
+    } catch (error) {
+      console.warn(`[Storage] Failed to restore ${key}:`, error);
     }
-  } catch (error) {
-    console.warn('[Storage] Migration failed:', error);
   }
+  
+  console.log('[Storage] Token restoration complete');
 };
 
-// Start initialization immediately
-initPreferences();
-
-// Wait for storage to be ready (for components that need to ensure it's loaded)
-export const waitForStorageReady = (): Promise<void> => {
-  return new Promise((resolve) => {
-    if (preferencesReady) {
-      resolve();
-      return;
-    }
+// Persist localStorage auth writes to Capacitor Preferences
+const setupStorageSync = (): void => {
+  if (!PreferencesModule) return;
+  
+  // Override localStorage.setItem to also persist to Preferences
+  const originalSetItem = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = (key: string, value: string) => {
+    originalSetItem(key, value);
     
+    // Async persist to Preferences for auth keys
+    if (AUTH_STORAGE_KEYS.includes(key)) {
+      PreferencesModule.set({ key, value }).catch((err: any) => {
+        console.warn('[Storage] Failed to persist to Preferences:', err);
+      });
+    }
+  };
+  
+  // Override localStorage.removeItem to also remove from Preferences
+  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+  localStorage.removeItem = (key: string) => {
+    originalRemoveItem(key);
+    
+    if (AUTH_STORAGE_KEYS.includes(key)) {
+      PreferencesModule.remove({ key }).catch((err: any) => {
+        console.warn('[Storage] Failed to remove from Preferences:', err);
+      });
+    }
+  };
+  
+  console.log('[Storage] Storage sync enabled');
+};
+
+// Start initialization immediately on import
+initializationPromise = initializeStorage();
+
+// Wait for storage to be ready (auth hook should call this before checking session)
+export const waitForStorageReady = async (): Promise<void> => {
+  if (isInitialized) return;
+  if (initializationPromise) {
+    await initializationPromise;
+    return;
+  }
+  // Fallback timeout to prevent hanging
+  await new Promise<void>((resolve) => {
     const check = setInterval(() => {
-      if (preferencesReady) {
+      if (isInitialized) {
         clearInterval(check);
         resolve();
       }
     }, 50);
-    
-    // Safety timeout - don't wait forever (3 seconds max)
     setTimeout(() => {
       clearInterval(check);
-      preferencesReady = true;
+      isInitialized = true;
       resolve();
     }, 3000);
   });
 };
 
-// Check if storage is ready
-export const isStorageReady = (): boolean => preferencesReady;
+// Check if storage is ready (synchronous check)
+export const isStorageReady = (): boolean => isInitialized;
 
-// Force a restore from Preferences (useful on app resume)
+// Force restore from Preferences (useful for debugging)
 export const forceRestoreFromPreferences = async (): Promise<void> => {
   if (checkIsNative() && PreferencesModule) {
-    restoredFromPreferences = false;
-    await restoreFromPreferences();
+    await restoreAuthTokens();
   }
 };
 
-// Storage adapter that Supabase auth can use
-// CRITICAL: Uses synchronous localStorage for getItem (Supabase requirement)
-// Then persists to Capacitor Preferences asynchronously for native
+// Legacy export for compatibility - no longer needed as we use native localStorage
 export const createStorageAdapter = () => {
-  const isNative = checkIsNative();
-  console.log(`[Storage] Creating adapter for platform: ${isNative ? 'native' : 'web'}`);
-  
-  return {
-    // SYNCHRONOUS getItem using localStorage (required by Supabase for session restore)
-    getItem: (key: string): string | null => {
-      try {
-        const value = localStorage.getItem(key);
-        if (isNative && AUTH_STORAGE_KEYS.includes(key)) {
-          console.log(`[Storage] getItem(${key.substring(0, 25)}...): ${value ? 'found' : 'null'}`);
-        }
-        return value;
-      } catch (error) {
-        console.warn('[Storage] getItem failed:', error);
-        return null;
-      }
-    },
-    
-    // setItem: Write to localStorage AND async to Preferences on native
-    setItem: (key: string, value: string): void => {
-      try {
-        // Always write to localStorage first (synchronous, immediate)
-        localStorage.setItem(key, value);
-        
-        if (isNative && AUTH_STORAGE_KEYS.includes(key)) {
-          console.log(`[Storage] setItem(${key.substring(0, 25)}...): saved`);
-        }
-        
-        // Also persist to Capacitor Preferences on native (async, fire-and-forget)
-        if (isNative && PreferencesModule) {
-          PreferencesModule.set({ key, value }).catch((err: any) => {
-            console.warn('[Storage] Preferences set failed:', err);
-          });
-        }
-      } catch (error) {
-        console.warn('[Storage] setItem failed:', error);
-      }
-    },
-    
-    // removeItem: Remove from both localStorage and Preferences
-    removeItem: (key: string): void => {
-      try {
-        localStorage.removeItem(key);
-        
-        if (isNative && AUTH_STORAGE_KEYS.includes(key)) {
-          console.log(`[Storage] removeItem(${key.substring(0, 25)}...): removed`);
-        }
-        
-        // Also remove from Capacitor Preferences on native
-        if (isNative && PreferencesModule) {
-          PreferencesModule.remove({ key }).catch((err: any) => {
-            console.warn('[Storage] Preferences remove failed:', err);
-          });
-        }
-      } catch (error) {
-        console.warn('[Storage] removeItem failed:', error);
-      }
-    },
-  };
+  console.log('[Storage] Using native localStorage with Preferences backup');
+  return window.localStorage;
 };
 
-// Pre-initialize storage adapter
-export const storageAdapter = createStorageAdapter();
+export const storageAdapter = typeof window !== 'undefined' ? window.localStorage : null;
