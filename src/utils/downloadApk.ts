@@ -24,25 +24,7 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   }
 }
 
-// Convert Uint8Array to base64 in memory-safe chunks for 32-bit devices
-// CRITICAL: Must convert the ENTIRE binary data at once, not append chunks independently
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  // For 32-bit devices, we need to build the binary string in chunks
-  // to avoid stack overflow, then convert to base64 once
-  const chunkSize = 8192; // 8KB chunks for string building
-  let binaryString = '';
-  
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    for (let j = 0; j < chunk.length; j++) {
-      binaryString += String.fromCharCode(chunk[j]);
-    }
-  }
-  
-  return btoa(binaryString);
-}
-
-// Download APK with progress - optimized for 32-bit Android/FireTV
+// Download APK with progress - simplified for 32-bit Android/FireTV
 export async function downloadApkToCache(
   url: string, 
   filename: string, 
@@ -50,118 +32,99 @@ export async function downloadApkToCache(
 ): Promise<string> {
   const isNative = isNativePlatform();
   
-  console.log('=== APK Download Debug (32-bit optimized) ===');
-  console.log('Is Native Platform:', isNative);
-  console.log('Download URL:', url);
-  console.log('Filename:', filename);
+  console.log('[APK] Starting download...');
+  console.log('[APK] URL:', url);
+  console.log('[APK] Native:', isNative);
   
   if (!isNative) {
     throw new Error('APK downloads are only available on Android devices');
   }
 
-  // Clean up old APKs before downloading new one
+  // Clean up old APKs first
   await cleanupOldApks(filename);
 
-  console.log('[APK] Starting download...');
+  // Ensure URL has https://
+  let downloadUrl = url;
+  if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+    downloadUrl = `https://${downloadUrl}`;
+  }
   
-  // On native Android, fetch directly - no CORS issues
+  console.log('[APK] Final download URL:', downloadUrl);
+
+  // Report 0% progress
+  onProgress?.(0);
+
+  // Simple direct fetch - no CORS issues on native Android
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for slow connections
+  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout
   
   let response: Response;
-  
   try {
-    console.log('[APK] Fetching:', url);
-    response = await fetch(url, {
+    console.log('[APK] Fetching...');
+    response = await fetch(downloadUrl, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/vnd.android.package-archive,application/octet-stream,*/*',
-      },
       signal: controller.signal,
     });
-    
     clearTimeout(timeoutId);
+    
+    console.log('[APK] Response status:', response.status);
+    console.log('[APK] Response type:', response.headers.get('content-type'));
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-  } catch (fetchError) {
+    
+    // Check if we got HTML instead of APK (server error)
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      const preview = await response.clone().text();
+      console.error('[APK] Got HTML instead of APK:', preview.substring(0, 200));
+      throw new Error('Server returned HTML error page instead of APK file');
+    }
+  } catch (error) {
     clearTimeout(timeoutId);
-    console.error('[APK] Fetch failed:', fetchError);
-    throw new Error(`Download failed: ${fetchError instanceof Error ? fetchError.message : 'Network error'}`);
+    console.error('[APK] Fetch failed:', error);
+    throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Network error'}`);
   }
-  
+
+  // Get total size for progress
   const contentLength = response.headers.get('content-length');
-  let totalSize = contentLength ? parseInt(contentLength, 10) : 0;
+  const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
+  console.log('[APK] Content-Length:', totalSize);
+
+  // Read the response as array buffer directly (simpler for 32-bit)
+  console.log('[APK] Reading response body...');
+  onProgress?.(5);
   
-  // If no content-length header, estimate based on typical APK sizes (25MB default)
-  const estimatedSize = totalSize > 0 ? totalSize : 25 * 1024 * 1024;
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  console.log('[APK] Downloaded bytes:', bytes.length);
   
-  console.log('[APK] Content-Length:', contentLength, 'Using size:', estimatedSize);
+  onProgress?.(50);
+
+  // Convert to base64 in small chunks to avoid stack overflow on 32-bit
+  console.log('[APK] Converting to base64...');
+  let binaryString = '';
+  const chunkSize = 4096; // Small chunks for 32-bit memory
   
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('Failed to get response reader');
-  }
-  
-  // Report initial 0% progress
-  if (onProgress) {
-    onProgress(0);
-  }
-  
-  // Collect all chunks - we need to process the entire binary at once for base64
-  // For 32-bit: Use array of chunks, then combine at the end
-  const chunks: Uint8Array[] = [];
-  let receivedLength = 0;
-  let lastReportedProgress = -1;
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let j = 0; j < chunk.length; j++) {
+      binaryString += String.fromCharCode(chunk[j]);
+    }
     
-    chunks.push(value);
-    receivedLength += value.length;
-    
-    // Calculate and report progress during download
-    if (onProgress) {
-      let progressPercent: number;
-      if (totalSize > 0) {
-        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
-      } else {
-        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
-      }
-      
-      // Update every 2% change to reduce UI load
-      if (progressPercent >= lastReportedProgress + 2) {
-        console.log('[APK] Download progress:', progressPercent, '%');
-        onProgress(progressPercent);
-        lastReportedProgress = progressPercent;
-      }
+    // Report progress during conversion
+    if (i % (chunkSize * 50) === 0) {
+      const convProgress = 50 + Math.round((i / bytes.length) * 40);
+      onProgress?.(convProgress);
     }
   }
   
-  console.log('[APK] Download complete, received:', receivedLength, 'bytes');
-  console.log('[APK] Processing binary data for 32-bit device...');
+  const base64Data = btoa(binaryString);
+  console.log('[APK] Base64 length:', base64Data.length);
   
-  // Combine all chunks into a single Uint8Array
-  // For 32-bit: Do this carefully to avoid memory issues
-  const allBytes = new Uint8Array(receivedLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    allBytes.set(chunk, offset);
-    offset += chunk.length;
-  }
-  
-  // Clear chunks array to free memory before base64 conversion
-  chunks.length = 0;
-  
-  console.log('[APK] Converting to base64...');
-  
-  // Convert to base64 - this is the critical step that must be done correctly
-  const base64Data = uint8ArrayToBase64(allBytes);
-  
-  console.log('[APK] Base64 conversion complete, length:', base64Data.length);
-  
+  onProgress?.(95);
+
   // Ensure directory exists
   const path = `apk/${filename}`;
   try {
@@ -173,35 +136,31 @@ export async function downloadApkToCache(
   } catch (e) {
     // Directory might already exist
   }
-  
+
   // Delete existing file if present
   try {
     await Filesystem.deleteFile({ path, directory: Directory.Cache });
   } catch (e) {
     // File might not exist
   }
-  
-  // Write the complete file at once
-  console.log('[APK] Writing file to cache...');
+
+  // Write the file
+  console.log('[APK] Writing to cache...');
   await Filesystem.writeFile({
     path,
     data: base64Data,
     directory: Directory.Cache
   });
-  
-  // Final progress update to 100%
-  if (onProgress) {
-    console.log('[APK] Complete! Total:', receivedLength, 'bytes');
-    onProgress(100);
-  }
-  
+
+  // Get the file URI
   const uri = await Filesystem.getUri({
     directory: Directory.Cache,
     path
   });
-  
+
   console.log('[APK] Saved to:', uri.uri);
-  
+  onProgress?.(100);
+
   return uri.uri;
 }
 
