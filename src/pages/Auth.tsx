@@ -8,14 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { supabase } from '@/integrations/supabase/client';
+
 const Auth = () => {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
-  const { verifyWixMember } = useWixIntegration();
-  const [verifyingWix, setVerifyingWix] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -132,69 +130,45 @@ const Auth = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setVerifyingWix(true);
-
-    let wixResult: { exists: boolean; member: any } | null = null;
-    let wixFailed = false;
 
     try {
-      // Try to verify the user exists in Wix (with fallback if Wix fails)
-      wixResult = await verifyWixMember(loginForm.email);
-      setVerifyingWix(false);
-    } catch (wixError) {
-      // Wix verification failed (timeout, network error, etc.)
-      console.warn('[Auth] Wix verification failed, falling back to Supabase-only auth:', wixError);
-      wixFailed = true;
-      setVerifyingWix(false);
-    }
-
-    try {
-      // If Wix worked and user doesn't exist, just proceed - we allow Supabase-only users
-      // Only log the status, don't block login
-      if (!wixFailed && wixResult && !wixResult.exists) {
-        console.log('[Auth] User not found in Wix, proceeding with Supabase-only login');
-      }
-
-      // Proceed with Supabase login (whether Wix verified or failed)
+      console.log('[Auth Page] Attempting login for:', loginForm.email);
+      
+      // Direct Supabase login - no Wix verification to avoid timeouts
       const { error } = await signIn(loginForm.email, loginForm.password);
       
       if (error) {
+        console.error('[Auth Page] Login error:', error.message);
         toast({
           title: "Login failed",
-          description: error.message || "Invalid email or password. Please try again.",
+          description: error.message || "Invalid email or password.",
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
       
-      // Double-check there's an active session before navigating
+      console.log('[Auth Page] Login successful, checking session...');
+      
+      // Verify session was created
       const { data: { session } } = await supabase.auth.getSession();
+      
       if (session) {
-        // Update profile with Wix account ID if available
-        if (wixResult?.member?.id) {
-          await supabase.from('profiles').update({
-            wix_account_id: wixResult.member.id
-          }).eq('user_id', session.user.id);
-        }
-        
-        const welcomeMsg = wixFailed 
-          ? 'Successfully logged in (Wix verification skipped due to network issues).'
-          : `Successfully logged in. Wix member verified: ${wixResult?.member?.name || loginForm.email}`;
-        
+        console.log('[Auth Page] Session confirmed for:', session.user?.email);
         toast({
           title: "Welcome back!",
-          description: welcomeMsg,
+          description: "Successfully logged in.",
         });
         navigate('/');
       } else {
+        console.warn('[Auth Page] No session after login');
         toast({
-          title: "Check your email",
-          description: "Please confirm your email before signing in.",
+          title: "Login issue",
+          description: "Please check your email to confirm your account.",
         });
       }
     } catch (error) {
-      console.error('[Auth] Login error:', error);
+      console.error('[Auth Page] Login exception:', error);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred. Please try again.",
@@ -227,34 +201,12 @@ const Auth = () => {
     }
 
     setLoading(true);
-    setVerifyingWix(true);
-
-    let wixResult: { exists: boolean; member: any } | null = null;
-    let wixFailed = false;
 
     try {
-      // Try to verify the user exists in Wix (with fallback if Wix fails)
-      wixResult = await verifyWixMember(signupForm.email);
-      setVerifyingWix(false);
-    } catch (wixError) {
-      // Wix verification failed (timeout, network error, etc.)
-      console.warn('[Auth] Wix verification failed during signup, proceeding with Supabase-only:', wixError);
-      wixFailed = true;
-      setVerifyingWix(false);
-    }
-
-    try {
-      // If Wix verification failed or user not in Wix, still allow signup
-      // Wix member will be created automatically after Supabase signup
-      if (!wixFailed && wixResult && !wixResult.exists) {
-        console.log('[Auth] User not found in Wix, will create new Wix member after signup');
-      }
-
-      // Proceed with Supabase signup (whether Wix verified or failed)
       const { error } = await signUp(
         signupForm.email, 
         signupForm.password, 
-        signupForm.fullName || wixResult?.member?.name
+        signupForm.fullName
       );
       
       if (error) {
@@ -272,13 +224,9 @@ const Auth = () => {
           });
         }
       } else {
-        const successMsg = wixFailed
-          ? 'Account created! Wix sync will happen when connection is restored. Check your email to confirm.'
-          : `Your account has been linked to Wix member: ${wixResult?.member?.name || signupForm.email}. Check your email to confirm.`;
-        
         toast({
           title: "Account created!",
-          description: successMsg,
+          description: "Check your email to confirm your account.",
         });
       }
     } catch (error) {
@@ -398,10 +346,10 @@ const Auth = () => {
                     focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
                   }`}
                 >
-                  {loading ? (
+                {loading ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      {verifyingWix ? 'Verifying Wix Member...' : 'Signing In...'}
+                      Signing In...
                     </span>
                   ) : 'Sign In'}
                 </Button>
@@ -493,10 +441,10 @@ const Auth = () => {
                   disabled={loading}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                 >
-                  {loading ? (
+                {loading ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      {verifyingWix ? 'Verifying Wix Member...' : 'Creating Account...'}
+                      Creating Account...
                     </span>
                   ) : 'Create Account'}
                 </Button>

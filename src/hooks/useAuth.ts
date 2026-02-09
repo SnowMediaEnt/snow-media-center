@@ -9,128 +9,49 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync user to Wix after signup (create member + add to email list)
-  const syncUserToWix = useCallback(async (email: string, fullName?: string) => {
-    const nameParts = fullName?.split(' ') || [];
-    const memberData = {
-      email,
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
-      nickname: email.split('@')[0]
-    };
-
-    // Create Wix member
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'create-member',
-          memberData
-        }
-      });
-      
-      if (error) {
-        console.warn('[Auth] Wix member sync failed (user may already exist):', error);
-      } else {
-        console.log('[Auth] User synced to Wix:', data);
-      }
-    } catch (error) {
-      console.warn('[Auth] Wix member sync error:', error);
-    }
-
-    // Add to email subscription list (fire-and-forget)
-    try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'add-to-email-list',
-          memberData
-        }
-      });
-      
-      if (error) {
-        console.warn('[Auth] Wix email list sync failed:', error);
-      } else {
-        console.log('[Auth] User added to Wix email list:', data);
-      }
-    } catch (error) {
-      console.warn('[Auth] Wix email list sync error:', error);
-    }
-  }, []);
-
   useEffect(() => {
     let isMounted = true;
     let subscription: { unsubscribe: () => void } | null = null;
     
     const initializeAuth = async () => {
-      console.log('[Auth] Starting auth initialization...');
-      
-      // CRITICAL: On native platforms, wait for storage to restore auth tokens
-      // This MUST complete before we access Supabase auth
       const isNative = Capacitor.isNativePlatform();
+      console.log('[Auth] Init, native:', isNative);
       
+      // On native, wait for storage to restore tokens
       if (isNative) {
-        console.log('[Auth] Native platform detected, waiting for storage restoration...');
+        console.log('[Auth] Waiting for storage...');
         await waitForStorageReady();
-        console.log('[Auth] Storage ready, auth tokens should be in localStorage');
-        
-        // Log what we have in localStorage for debugging
-        const tokenKey = 'sb-falmwzhvxoefvkfsiylp-auth-token';
-        const hasToken = !!localStorage.getItem(tokenKey);
-        console.log('[Auth] Token in localStorage:', hasToken);
+        console.log('[Auth] Storage ready');
       }
       
-      // Set up auth state listener FIRST
+      // Set up auth listener
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (!isMounted) return;
-        
-        console.log('[Auth] Auth state changed:', event, session?.user?.email);
+        console.log('[Auth] State change:', event);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        
-        // If session was invalidated server-side, clear local state
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          console.log('[Auth] Token refresh failed, clearing session');
-          setSession(null);
-          setUser(null);
-        }
       });
       
       subscription = data.subscription;
 
-      // THEN validate the session with the server (not just cache)
+      // Get current session
       try {
-        // First get cached session
-        const { data: { session: cachedSession } } = await supabase.auth.getSession();
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         
-        if (cachedSession) {
-          console.log('[Auth] Found cached session, validating with server...');
-          console.log('[Auth] Session user:', cachedSession.user?.email);
-          console.log('[Auth] Session expires:', new Date(cachedSession.expires_at! * 1000).toISOString());
-          
-          // Validate with server to ensure session is still valid
-          const { data: { user: validatedUser }, error } = await supabase.auth.getUser();
-          
-          if (!isMounted) return;
-          
-          if (error || !validatedUser) {
-            // Session is invalid, clear it
-            console.log('[Auth] Session invalid:', error?.message || 'User not found');
-            await supabase.auth.signOut();
-            setSession(null);
-            setUser(null);
-          } else {
-            // Session is valid
-            console.log('[Auth] Session validated for:', validatedUser.email);
-            setSession(cachedSession);
-            setUser(validatedUser);
-          }
+        if (!isMounted) return;
+        
+        if (currentSession) {
+          console.log('[Auth] Found session for:', currentSession.user?.email);
+          setSession(currentSession);
+          setUser(currentSession.user);
         } else {
-          console.log('[Auth] No cached session found');
+          console.log('[Auth] No session');
           setSession(null);
           setUser(null);
         }
       } catch (err) {
-        console.error('[Auth] Session validation error:', err);
+        console.error('[Auth] Session check error:', err);
         if (isMounted) {
           setSession(null);
           setUser(null);
@@ -158,33 +79,25 @@ export const useAuth = () => {
         password,
         options: {
           emailRedirectTo: redirectUrl,
-          data: {
-            full_name: fullName || ''
-          }
+          data: { full_name: fullName || '' }
         }
       });
       
-      // If signup successful, sync to Wix (fire-and-forget, don't block auth)
+      // Sync to Wix in background (non-blocking)
       if (!error && data.user) {
-        // Use setTimeout to avoid blocking the auth flow
-        setTimeout(() => {
-          syncUserToWix(email, fullName).catch(err => {
-            console.warn('[Auth] Wix sync failed (non-blocking):', err);
-          });
-        }, 0);
+        syncUserToWix(email, fullName);
       }
       
       return { error };
     } catch (error) {
       console.error('[Auth] SignUp error:', error);
-      return { error: { message: 'Failed to create account. Please try again.' } } as any;
+      return { error: { message: 'Failed to create account.' } as AuthError };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('[Auth] Attempting sign in for:', email);
-      console.log('[Auth] Supabase URL:', 'https://falmwzhvxoefvkfsiylp.supabase.co');
+      console.log('[Auth] Signing in:', email);
       
       const { error, data } = await supabase.auth.signInWithPassword({ 
         email: email.trim().toLowerCase(), 
@@ -192,35 +105,43 @@ export const useAuth = () => {
       });
       
       if (error) {
-        console.error('[Auth] SignIn error code:', error.status);
-        console.error('[Auth] SignIn error name:', error.name);
-        console.error('[Auth] SignIn error message:', error.message);
+        console.error('[Auth] SignIn failed:', error.message);
         return { error };
       }
       
-      console.log('[Auth] SignIn successful for:', data.user?.email);
-      console.log('[Auth] Session expires at:', data.session?.expires_at);
-      
-      // Verify session was actually set
-      const { data: sessionCheck } = await supabase.auth.getSession();
-      if (!sessionCheck.session) {
-        console.error('[Auth] Session was not persisted after login!');
-        return { error: { message: 'Session failed to persist. Please try again.' } as AuthError };
-      }
-      
-      console.log('[Auth] Session verified and persisted');
+      console.log('[Auth] SignIn success:', data.user?.email);
       return { error: null };
     } catch (error) {
       console.error('[Auth] SignIn exception:', error);
-      return { error: { message: 'Failed to login. Please check your connection and try again.' } as AuthError };
+      return { error: { message: 'Login failed. Check your connection.' } as AuthError };
     }
   };
 
   const signOut = async () => {
-    console.log('[Auth] Signing out...');
+    console.log('[Auth] Signing out');
     const { error } = await supabase.auth.signOut();
     return { error };
   };
+
+  // Background Wix sync (fire-and-forget)
+  const syncUserToWix = useCallback(async (email: string, fullName?: string) => {
+    try {
+      const nameParts = fullName?.split(' ') || [];
+      await supabase.functions.invoke('wix-integration', {
+        body: {
+          action: 'create-member',
+          memberData: {
+            email,
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || '',
+            nickname: email.split('@')[0]
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[Auth] Wix sync failed:', e);
+    }
+  }, []);
 
   return { user, session, loading, signUp, signIn, signOut };
 };
