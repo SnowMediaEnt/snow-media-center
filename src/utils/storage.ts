@@ -3,7 +3,16 @@
 // CRITICAL FIX: On Android/FireTV, localStorage is often cleared on app restart
 // We must restore from Capacitor Preferences before Supabase initializes
 
-import { isNativePlatform } from './platform';
+import { Capacitor } from '@capacitor/core';
+
+// Use Capacitor.isNativePlatform() directly for reliability
+const checkIsNative = (): boolean => {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+};
 
 // Lazy-loaded Preferences module for native
 let PreferencesModule: any = null;
@@ -20,7 +29,7 @@ const AUTH_STORAGE_KEYS = [
 const initPreferences = async () => {
   if (preferencesReady) return;
   
-  if (isNativePlatform()) {
+  if (checkIsNative()) {
     try {
       console.log('[Storage] Initializing Capacitor Preferences for native platform...');
       const module = await import('@capacitor/preferences');
@@ -142,7 +151,7 @@ export const isStorageReady = (): boolean => preferencesReady;
 
 // Force a restore from Preferences (useful on app resume)
 export const forceRestoreFromPreferences = async (): Promise<void> => {
-  if (isNativePlatform() && PreferencesModule) {
+  if (checkIsNative() && PreferencesModule) {
     restoredFromPreferences = false;
     await restoreFromPreferences();
   }
@@ -152,7 +161,7 @@ export const forceRestoreFromPreferences = async (): Promise<void> => {
 // CRITICAL: Uses synchronous localStorage for getItem (Supabase requirement)
 // Then persists to Capacitor Preferences asynchronously for native
 export const createStorageAdapter = () => {
-  const isNative = isNativePlatform();
+  const isNative = checkIsNative();
   console.log(`[Storage] Creating adapter for platform: ${isNative ? 'native' : 'web'}`);
   
   return {

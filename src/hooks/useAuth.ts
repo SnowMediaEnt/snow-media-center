@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady, forceRestoreFromPreferences } from '@/utils/storage';
-import { isNativePlatform } from '@/utils/platform';
+import { Capacitor } from '@capacitor/core';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -64,7 +64,9 @@ export const useAuth = () => {
       
       // CRITICAL: On native platforms, wait for storage to restore auth tokens
       // Android/FireTV WebView often clears localStorage on app restart
-      if (isNativePlatform()) {
+      const isNative = Capacitor.isNativePlatform();
+      
+      if (isNative) {
         console.log('[Auth] Native platform detected, waiting for storage...');
         await waitForStorageReady();
         
@@ -176,18 +178,35 @@ export const useAuth = () => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('[Auth] Attempting sign in for:', email);
-      const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+      console.log('[Auth] Supabase URL:', 'https://falmwzhvxoefvkfsiylp.supabase.co');
+      
+      const { error, data } = await supabase.auth.signInWithPassword({ 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
       
       if (error) {
-        console.error('[Auth] SignIn error:', error.message);
-      } else {
-        console.log('[Auth] SignIn successful for:', data.user?.email);
+        console.error('[Auth] SignIn error code:', error.status);
+        console.error('[Auth] SignIn error name:', error.name);
+        console.error('[Auth] SignIn error message:', error.message);
+        return { error };
       }
       
-      return { error };
+      console.log('[Auth] SignIn successful for:', data.user?.email);
+      console.log('[Auth] Session expires at:', data.session?.expires_at);
+      
+      // Verify session was actually set
+      const { data: sessionCheck } = await supabase.auth.getSession();
+      if (!sessionCheck.session) {
+        console.error('[Auth] Session was not persisted after login!');
+        return { error: { message: 'Session failed to persist. Please try again.' } as AuthError };
+      }
+      
+      console.log('[Auth] Session verified and persisted');
+      return { error: null };
     } catch (error) {
       console.error('[Auth] SignIn exception:', error);
-      return { error: { message: 'Failed to login. Please try again.' } } as any;
+      return { error: { message: 'Failed to login. Please check your connection and try again.' } as AuthError };
     }
   };
 
