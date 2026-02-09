@@ -135,12 +135,18 @@ export async function downloadApkToCache(
     position += chunk.length;
   }
   
-  // Convert to base64 in chunks to avoid memory issues
-  const chunkSize = 32768;
+  // Convert to base64 in chunks to avoid call stack overflow
+  // CRITICAL: String.fromCharCode.apply can fail with large arrays (stack limit ~65K)
+  // Use a loop-based approach instead
+  const chunkSize = 8192; // Smaller chunks for safety
   let base64 = '';
   for (let i = 0; i < allChunks.length; i += chunkSize) {
     const chunk = allChunks.subarray(i, Math.min(i + chunkSize, allChunks.length));
-    base64 += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
+    let binary = '';
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
+    base64 += btoa(binary);
   }
   
   const path = `apk/${filename}`;
