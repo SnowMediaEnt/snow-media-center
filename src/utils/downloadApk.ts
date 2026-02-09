@@ -1,12 +1,6 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNativePlatform } from "@/utils/platform";
 
-// CORS proxies for APK downloads on Android
-const CORS_PROXIES = [
-  'https://corsproxy.io/?',
-  'https://api.allorigins.win/raw?url=',
-];
-
 // Clean up old APK files from cache to prevent storage bloat
 export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   try {
@@ -30,48 +24,7 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   }
 }
 
-// Try fetch with multiple URL strategies (direct + CORS proxies)
-async function fetchWithFallback(url: string): Promise<Response> {
-  const urlsToTry = [
-    url,
-    ...CORS_PROXIES.map(proxy => proxy + encodeURIComponent(url))
-  ];
-  
-  let lastError: Error | null = null;
-  
-  for (const tryUrl of urlsToTry) {
-    try {
-      console.log('[APK Download] Trying:', tryUrl.substring(0, 80) + '...');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for large files
-      
-      const response = await fetch(tryUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/vnd.android.package-archive,application/octet-stream,*/*',
-        },
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        console.log('[APK Download] Success with:', tryUrl.substring(0, 50));
-        return response;
-      }
-      
-      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-      console.warn('[APK Download] Failed:', response.status, response.statusText);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn('[APK Download] Error with URL:', err);
-    }
-  }
-  
-  throw lastError || new Error('All download attempts failed');
-}
-
+// Download APK with streaming progress - optimized for Android/FireTV
 export async function downloadApkToCache(
   url: string, 
   filename: string, 
@@ -91,18 +44,42 @@ export async function downloadApkToCache(
   // Clean up old APKs before downloading new one
   await cleanupOldApks(filename);
 
-  console.log('Starting APK download with fallback...');
+  console.log('[APK] Starting download (direct HTTPS, no CORS proxy on native)...');
   
-  // Use our fallback fetch that tries CORS proxies
-  const response = await fetchWithFallback(url);
+  // On native Android, fetch directly - no CORS issues
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout for large APKs
+  
+  let response: Response;
+  
+  try {
+    console.log('[APK] Fetching:', url);
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/vnd.android.package-archive,application/octet-stream,*/*',
+      },
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    console.error('[APK] Fetch failed:', fetchError);
+    throw new Error(`Download failed: ${fetchError instanceof Error ? fetchError.message : 'Network error'}`);
+  }
   
   const contentLength = response.headers.get('content-length');
   let totalSize = contentLength ? parseInt(contentLength, 10) : 0;
   
-  // If no content-length header, estimate based on typical APK sizes (25MB default)
-  const estimatedSize = totalSize > 0 ? totalSize : 25 * 1024 * 1024;
+  // If no content-length header, estimate based on typical APK sizes (30MB default)
+  const estimatedSize = totalSize > 0 ? totalSize : 30 * 1024 * 1024;
   
-  console.log('[APK Download] Content-Length:', contentLength, 'Estimated size:', estimatedSize);
+  console.log('[APK] Content-Length:', contentLength, 'Using size:', estimatedSize);
   
   const reader = response.body?.getReader();
   if (!reader) {
@@ -111,7 +88,12 @@ export async function downloadApkToCache(
   
   const chunks: Uint8Array[] = [];
   let receivedLength = 0;
-  let lastProgressUpdate = 0;
+  let lastReportedProgress = -1;
+  
+  // Report initial 0% progress
+  if (onProgress) {
+    onProgress(0);
+  }
   
   while (true) {
     const { done, value } = await reader.read();
@@ -120,28 +102,28 @@ export async function downloadApkToCache(
     chunks.push(value);
     receivedLength += value.length;
     
-    // Always report progress, estimate if no content-length
+    // Calculate and report progress
     if (onProgress) {
       let progressPercent: number;
       if (totalSize > 0) {
-        progressPercent = Math.round((receivedLength / totalSize) * 100);
+        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
       } else {
-        // Estimate progress based on typical APK size, cap at 95% until done
+        // Estimate progress based on expected size, cap at 95% until done
         progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
       }
       
-      // Only update every 2% to avoid too many updates
-      if (progressPercent !== lastProgressUpdate) {
-        console.log('[APK Download] Progress:', progressPercent, '% (', receivedLength, 'bytes)');
+      // Only update on change (avoid flooding with identical updates)
+      if (progressPercent !== lastReportedProgress) {
+        console.log('[APK] Progress:', progressPercent, '% (', receivedLength, 'bytes)');
         onProgress(progressPercent);
-        lastProgressUpdate = progressPercent;
+        lastReportedProgress = progressPercent;
       }
     }
   }
   
   // Final progress update to 100%
   if (onProgress) {
-    console.log('[APK Download] Complete! Total:', receivedLength, 'bytes');
+    console.log('[APK] Complete! Total:', receivedLength, 'bytes');
     onProgress(100);
   }
   
@@ -185,7 +167,7 @@ export async function downloadApkToCache(
     path
   });
   
-  console.log('APK saved to:', uri.uri);
+  console.log('[APK] Saved to:', uri.uri);
   
   return uri.uri;
 }

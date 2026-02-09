@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { waitForStorageReady, forceRestoreFromPreferences } from '@/utils/storage';
+import { isNativePlatform } from '@/utils/platform';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -55,30 +57,51 @@ export const useAuth = () => {
   }, []);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] Auth state changed:', event, session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    let isMounted = true;
+    
+    const initializeAuth = async () => {
+      console.log('[Auth] Starting auth initialization...');
       
-      // If session was invalidated server-side, clear local state
-      if (event === 'TOKEN_REFRESHED' && !session) {
-        console.log('[Auth] Token refresh failed, clearing session');
-        setSession(null);
-        setUser(null);
+      // CRITICAL: On native platforms, wait for storage to restore auth tokens
+      // Android/FireTV WebView often clears localStorage on app restart
+      if (isNativePlatform()) {
+        console.log('[Auth] Native platform detected, waiting for storage...');
+        await waitForStorageReady();
+        
+        // Force restore from Preferences in case localStorage was cleared
+        await forceRestoreFromPreferences();
+        console.log('[Auth] Storage restoration complete');
       }
-    });
+      
+      // Set up auth state listener FIRST
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!isMounted) return;
+        
+        console.log('[Auth] Auth state changed:', event, session?.user?.email);
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        // If session was invalidated server-side, clear local state
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.log('[Auth] Token refresh failed, clearing session');
+          setSession(null);
+          setUser(null);
+        }
+      });
 
-    // THEN validate the session with the server (not just cache)
-    const validateSession = async () => {
+      // THEN validate the session with the server (not just cache)
       try {
         // First get cached session
         const { data: { session: cachedSession } } = await supabase.auth.getSession();
         
         if (cachedSession) {
+          console.log('[Auth] Found cached session, validating with server...');
+          
           // Validate with server to ensure session is still valid
           const { data: { user: validatedUser }, error } = await supabase.auth.getUser();
+          
+          if (!isMounted) return;
           
           if (error || !validatedUser) {
             // Session is invalid, clear it
@@ -88,25 +111,35 @@ export const useAuth = () => {
             setUser(null);
           } else {
             // Session is valid
+            console.log('[Auth] Session validated successfully for:', validatedUser.email);
             setSession(cachedSession);
             setUser(validatedUser);
           }
         } else {
+          console.log('[Auth] No cached session found');
           setSession(null);
           setUser(null);
         }
       } catch (err) {
         console.error('[Auth] Session validation error:', err);
-        setSession(null);
-        setUser(null);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
+
+      return () => subscription.unsubscribe();
     };
 
-    validateSession();
-
-    return () => subscription.unsubscribe();
+    initializeAuth();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
@@ -142,14 +175,24 @@ export const useAuth = () => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      console.log('[Auth] Attempting sign in for:', email);
+      const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        console.error('[Auth] SignIn error:', error.message);
+      } else {
+        console.log('[Auth] SignIn successful for:', data.user?.email);
+      }
+      
       return { error };
     } catch (error) {
+      console.error('[Auth] SignIn exception:', error);
       return { error: { message: 'Failed to login. Please try again.' } } as any;
     }
   };
 
   const signOut = async () => {
+    console.log('[Auth] Signing out...');
     const { error } = await supabase.auth.signOut();
     return { error };
   };

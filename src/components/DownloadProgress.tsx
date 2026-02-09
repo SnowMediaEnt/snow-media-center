@@ -34,9 +34,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   const [focusedButton, setFocusedButton] = useState<FocusedButton>('install');
   const { toast } = useToast();
   
-  // Track download speed
+  // Track download speed and force re-renders
   const lastBytesRef = useRef(0);
   const lastTimeRef = useRef(Date.now());
+  const progressRef = useRef(0);
+  const [, forceUpdate] = useState(0);
 
   // D-pad navigation for popup buttons
   useEffect(() => {
@@ -101,10 +103,14 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   }, [state]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const startDownload = async () => {
       if (!Capacitor.isNativePlatform()) {
-        setErrorMessage('Downloads only work on Android devices');
-        setState('error');
+        if (isMounted) {
+          setErrorMessage('Downloads only work on Android devices');
+          setState('error');
+        }
         return;
       }
 
@@ -115,16 +121,26 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
           url = `https://${url}`;
         }
 
-        console.log('Starting in-app download:', url);
+        console.log('[DownloadProgress] Starting download:', url);
         
         const filename = generateFileName(app.name, app.version);
         
         // Parse total size from app.size (e.g., "25MB" -> 25)
-        const totalMB = parseFloat(app.size?.replace(/[^0-9.]/g, '') || '0') || 25;
+        const totalMB = parseFloat(app.size?.replace(/[^0-9.]/g, '') || '0') || 30;
         
         const savedPath = await downloadApkToCache(url, filename, (progressPercent) => {
-          console.log('[DownloadProgress] Progress update:', progressPercent);
-          setProgress(progressPercent);
+          if (!isMounted) return;
+          
+          console.log('[DownloadProgress] Progress:', progressPercent, '%');
+          
+          // Use functional setState to ensure React picks up the change
+          setProgress(prev => {
+            if (progressPercent !== prev) {
+              progressRef.current = progressPercent;
+              return progressPercent;
+            }
+            return prev;
+          });
           
           // Calculate download speed
           const now = Date.now();
@@ -132,9 +148,10 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
           const downloadedMB = (progressPercent / 100) * totalMB;
           const bytesDiff = downloadedMB - lastBytesRef.current;
           
-          if (timeDiff > 0.5) {
+          if (timeDiff > 0.3) {
             const speed = bytesDiff / timeDiff;
-            setDownloadSpeed(speed > 1 ? `${speed.toFixed(1)} MB/s` : `${(speed * 1024).toFixed(0)} KB/s`);
+            const speedStr = speed > 1 ? `${speed.toFixed(1)} MB/s` : `${(speed * 1024).toFixed(0)} KB/s`;
+            setDownloadSpeed(speedStr);
             lastBytesRef.current = downloadedMB;
             lastTimeRef.current = now;
           }
@@ -142,18 +159,26 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
           setDownloaded(`${downloadedMB.toFixed(1)} MB`);
         });
 
-        console.log('Download complete, saved to:', savedPath);
+        if (!isMounted) return;
+        
+        console.log('[DownloadProgress] Download complete, saved to:', savedPath);
         setFilePath(savedPath);
         setState('complete');
         
       } catch (error) {
-        console.error('Download error:', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Download failed');
-        setState('error');
+        console.error('[DownloadProgress] Download error:', error);
+        if (isMounted) {
+          setErrorMessage(error instanceof Error ? error.message : 'Download failed');
+          setState('error');
+        }
       }
     };
 
     startDownload();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [app]);
 
   const handleInstall = useCallback(async () => {
