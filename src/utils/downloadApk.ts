@@ -24,7 +24,7 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
   }
 }
 
-// Download APK with streaming progress - optimized for Android/FireTV
+// Download APK with streaming progress - optimized for 32-bit Android/FireTV
 export async function downloadApkToCache(
   url: string, 
   filename: string, 
@@ -32,7 +32,7 @@ export async function downloadApkToCache(
 ): Promise<string> {
   const isNative = isNativePlatform();
   
-  console.log('=== APK Download Debug ===');
+  console.log('=== APK Download Debug (32-bit optimized) ===');
   console.log('Is Native Platform:', isNative);
   console.log('Download URL:', url);
   console.log('Filename:', filename);
@@ -44,11 +44,11 @@ export async function downloadApkToCache(
   // Clean up old APKs before downloading new one
   await cleanupOldApks(filename);
 
-  console.log('[APK] Starting download (direct HTTPS, no CORS proxy on native)...');
+  console.log('[APK] Starting download...');
   
   // On native Android, fetch directly - no CORS issues
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout for large APKs
+  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for slow connections
   
   let response: Response;
   
@@ -76,8 +76,8 @@ export async function downloadApkToCache(
   const contentLength = response.headers.get('content-length');
   let totalSize = contentLength ? parseInt(contentLength, 10) : 0;
   
-  // If no content-length header, estimate based on typical APK sizes (30MB default)
-  const estimatedSize = totalSize > 0 ? totalSize : 30 * 1024 * 1024;
+  // If no content-length header, estimate based on typical APK sizes (25MB default)
+  const estimatedSize = totalSize > 0 ? totalSize : 25 * 1024 * 1024;
   
   console.log('[APK] Content-Length:', contentLength, 'Using size:', estimatedSize);
   
@@ -86,69 +86,8 @@ export async function downloadApkToCache(
     throw new Error('Failed to get response reader');
   }
   
-  const chunks: Uint8Array[] = [];
-  let receivedLength = 0;
-  let lastReportedProgress = -1;
-  
-  // Report initial 0% progress
-  if (onProgress) {
-    onProgress(0);
-  }
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    chunks.push(value);
-    receivedLength += value.length;
-    
-    // Calculate and report progress
-    if (onProgress) {
-      let progressPercent: number;
-      if (totalSize > 0) {
-        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
-      } else {
-        // Estimate progress based on expected size, cap at 95% until done
-        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
-      }
-      
-      // Only update on change (avoid flooding with identical updates)
-      if (progressPercent !== lastReportedProgress) {
-        console.log('[APK] Progress:', progressPercent, '% (', receivedLength, 'bytes)');
-        onProgress(progressPercent);
-        lastReportedProgress = progressPercent;
-      }
-    }
-  }
-  
-  // Final progress update to 100%
-  if (onProgress) {
-    console.log('[APK] Complete! Total:', receivedLength, 'bytes');
-    onProgress(100);
-  }
-  
-  // Combine chunks into single array
-  const allChunks = new Uint8Array(receivedLength);
-  let position = 0;
-  for (const chunk of chunks) {
-    allChunks.set(chunk, position);
-    position += chunk.length;
-  }
-  
-  // Convert to base64 in chunks to avoid call stack overflow
-  // CRITICAL: String.fromCharCode.apply can fail with large arrays (stack limit ~65K)
-  // Use a loop-based approach instead
-  const chunkSize = 8192; // Smaller chunks for safety
-  let base64 = '';
-  for (let i = 0; i < allChunks.length; i += chunkSize) {
-    const chunk = allChunks.subarray(i, Math.min(i + chunkSize, allChunks.length));
-    let binary = '';
-    for (let j = 0; j < chunk.length; j++) {
-      binary += String.fromCharCode(chunk[j]);
-    }
-    base64 += btoa(binary);
-  }
-  
+  // For 32-bit devices: Process and write in chunks to avoid memory pressure
+  // Instead of accumulating all chunks then converting, we'll write incrementally
   const path = `apk/${filename}`;
   
   // Ensure directory exists
@@ -162,11 +101,82 @@ export async function downloadApkToCache(
     // Directory might already exist
   }
   
-  await Filesystem.writeFile({
-    path,
-    data: base64,
-    directory: Directory.Cache
-  });
+  // Delete existing file if present
+  try {
+    await Filesystem.deleteFile({ path, directory: Directory.Cache });
+  } catch (e) {
+    // File might not exist
+  }
+  
+  let receivedLength = 0;
+  let lastReportedProgress = -1;
+  let isFirstChunk = true;
+  
+  // Report initial 0% progress
+  if (onProgress) {
+    onProgress(0);
+  }
+  
+  // Process in streaming fashion - write each chunk as we receive it
+  // This keeps memory usage low on 32-bit devices
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    receivedLength += value.length;
+    
+    // Convert chunk to base64 using loop (safe for 32-bit)
+    // Use smaller 4KB chunks for base64 conversion
+    let chunkBase64 = '';
+    const conversionChunkSize = 4096; // 4KB - very safe for 32-bit
+    for (let i = 0; i < value.length; i += conversionChunkSize) {
+      const slice = value.subarray(i, Math.min(i + conversionChunkSize, value.length));
+      let binary = '';
+      for (let j = 0; j < slice.length; j++) {
+        binary += String.fromCharCode(slice[j]);
+      }
+      chunkBase64 += btoa(binary);
+    }
+    
+    // Append to file (Capacitor Filesystem handles this)
+    if (isFirstChunk) {
+      await Filesystem.writeFile({
+        path,
+        data: chunkBase64,
+        directory: Directory.Cache
+      });
+      isFirstChunk = false;
+    } else {
+      await Filesystem.appendFile({
+        path,
+        data: chunkBase64,
+        directory: Directory.Cache
+      });
+    }
+    
+    // Calculate and report progress
+    if (onProgress) {
+      let progressPercent: number;
+      if (totalSize > 0) {
+        progressPercent = Math.min(99, Math.round((receivedLength / totalSize) * 100));
+      } else {
+        progressPercent = Math.min(95, Math.round((receivedLength / estimatedSize) * 100));
+      }
+      
+      // Update every 2% change to reduce UI load
+      if (progressPercent >= lastReportedProgress + 2 || progressPercent === 99) {
+        console.log('[APK] Progress:', progressPercent, '%');
+        onProgress(progressPercent);
+        lastReportedProgress = progressPercent;
+      }
+    }
+  }
+  
+  // Final progress update to 100%
+  if (onProgress) {
+    console.log('[APK] Complete! Total:', receivedLength, 'bytes');
+    onProgress(100);
+  }
   
   const uri = await Filesystem.getUri({
     directory: Directory.Cache,
