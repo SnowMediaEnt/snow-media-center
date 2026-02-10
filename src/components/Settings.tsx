@@ -19,7 +19,8 @@ type SettingsFocus =
   | 'tab-media' 
   | 'tab-updates' 
   | 'layout-toggle'
-  | 'media-content'; // When in media tab, this signals MediaManager should handle focus
+  | 'media-content'
+  | 'updates-content'; // When in updates tab, focus is inside AppUpdater
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const [activeTab, setActiveTab] = useState('layout');
