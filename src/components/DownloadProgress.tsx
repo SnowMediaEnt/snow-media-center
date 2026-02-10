@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { X, Download, Package, Play, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
 import { AppManager } from '@/capacitor/AppManager';
 
