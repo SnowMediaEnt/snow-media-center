@@ -394,7 +394,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const currentFocusId = currentElement?.id || 'back';
 
   const isFocused = (id: string) => currentFocusId === id;
-  const focusRing = (id: string) => isFocused(id) ? 'ring-4 ring-brand-ice scale-105 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
 
   // D-pad Navigation Handler
   useEffect(() => {
