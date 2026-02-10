@@ -129,8 +129,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           } else if (focusedElement === 'tab-layout' && activeTab === 'layout') {
             setFocusedElement('layout-toggle');
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
-            // Enter MediaManager mode
             setMediaManagerActive(true);
+          } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
+            setFocusedElement('updates-content');
           }
           break;
           
