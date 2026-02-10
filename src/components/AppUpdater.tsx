@@ -22,7 +22,7 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
-  const [currentVersion, setCurrentVersion] = useState('1.0.2');
+  const [currentVersion, setCurrentVersion] = useState('1.0.0');
   const [focusedElement, setFocusedElement] = useState(0);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
