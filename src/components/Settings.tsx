@@ -19,7 +19,8 @@ type SettingsFocus =
   | 'tab-media' 
   | 'tab-updates' 
   | 'layout-toggle'
-  | 'media-content'; // When in media tab, this signals MediaManager should handle focus
+  | 'media-content'
+  | 'updates-content'; // When in updates tab, focus is inside AppUpdater
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const [activeTab, setActiveTab] = useState('layout');
@@ -46,12 +47,19 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             event.keyCode === 4 || event.which === 4) {
           const target = event.target as HTMLElement;
           const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-          if (isTyping && event.key === 'Backspace') return; // Allow typing
-          
-          // MediaManager will call handleMediaManagerBack when it wants to exit
-          // Don't intercept here - let MediaManager handle first
+          if (isTyping && event.key === 'Backspace') return;
         }
-        return; // Let MediaManager handle all other navigation
+        return;
+      }
+
+      // If focus is inside updates content, handle navigation back out
+      if (focusedElement === 'updates-content') {
+        if (event.key === 'ArrowUp' || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          setFocusedElement('tab-updates');
+        }
+        return; // Let AppUpdater handle its own internal nav
       }
 
       const target = event.target as HTMLElement;
@@ -121,8 +129,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           } else if (focusedElement === 'tab-layout' && activeTab === 'layout') {
             setFocusedElement('layout-toggle');
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
-            // Enter MediaManager mode
             setMediaManagerActive(true);
+          } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
+            setFocusedElement('updates-content');
           }
           break;
           
