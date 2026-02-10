@@ -1,0 +1,221 @@
+--------- beginning of main
+02-09 21:05:39.119 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Fetching RSS feed (native: true)...
+02-09 21:05:39.119 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Native platform detected - trying direct URL first
+02-09 21:05:39.119 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, direct): https://snowmediaapps.com/smc/newsfeed.xml...
+02-09 21:05:39.148 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Polling for updates...
+02-09 21:05:39.148 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Starting fetch...
+02-09 21:05:39.149 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Fetching apps from Supabase...
+02-09 21:05:39.176 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/smc/newsfeed.xml' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:05:39.177 W/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Failed: https://snowmediaapps.com/smc/newsfeed.xml... - Failed to fetch
+02-09 21:05:39.178 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, proxy): https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps.com%2Fsmc%2Fnewsfeed.xml...
+02-09 21:05:39.210 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Success: https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps....
+02-09 21:05:39.211 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: RSS feed response: <?xml version="1.0" encoding="UTF-8" ?>
+02-09 21:05:39.211 I/Capacitor/Console( 2856): <rss version="2.0">
+02-09 21:05:39.211 I/Capacitor/Console( 2856):   <channel>
+02-09 21:05:39.211 I/Capacitor/Console( 2856):     <title>Snow Media Center News</title>
+02-09 21:05:39.211 I/Capacitor/Console( 2856):     <link>https://snowmediaapps.com</link>
+02-09 21:05:39.211 I/Capacitor/Console( 2856):     <description>Live updates from Snow Med
+02-09 21:05:39.225 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Parsed news items: 3
+02-09 21:05:39.310 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Loaded 8 apps from Supabase
+02-09 21:05:39.311 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Using 8 apps from Supabase
+02-09 21:05:48.256 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Init, native: true
+02-09 21:05:48.256 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Waiting for storage...
+02-09 21:05:48.259 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Storage ready
+02-09 21:05:48.263 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472266, pluginId: App, methodName: removeListener
+02-09 21:05:48.263 V/Capacitor( 2856): callback: 129472266, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472264"}
+02-09 21:05:48.283 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] State change: INITIAL_SESSION
+02-09 21:05:48.299 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] No session
+02-09 21:05:50.546 W/cr_AwAutofillManager( 2856): Autofill is disabled: AutofillManager isn't available in given Context.
+02-09 21:05:50.707 W/libEGL  ( 2856): EGLNativeWindowType 0xe7124368 disconnect failed
+02-09 21:06:02.566 W/cr_AwAutofillManager( 2856): Autofill is disabled: AutofillManager isn't available in given Context.
+02-09 21:06:09.746 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 508 - Msg: [Auth Page] Attempting login for: j.perezro@yahoo.com
+02-09 21:06:09.747 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Signing in: j.perezro@yahoo.com
+02-09 21:06:10.355 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] SignIn exception: ReferenceError: structuredClone is not defined
+02-09 21:06:10.355 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 508 - Msg: [Auth Page] Login error: Login failed. Check your connection.
+02-09 21:06:18.603 V/Capacitor/AppPlugin( 2856): Notifying listeners for event backButton
+02-09 21:06:18.663 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Fetching RSS feed (native: true)...
+02-09 21:06:18.663 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Native platform detected - trying direct URL first
+02-09 21:06:18.664 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, direct): https://snowmediaapps.com/smc/newsfeed.xml...
+02-09 21:06:18.666 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Init, native: true
+02-09 21:06:18.666 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Waiting for storage...
+02-09 21:06:18.666 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Init, native: true
+02-09 21:06:18.667 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Waiting for storage...
+02-09 21:06:18.670 D/Capacitor( 2856): Handling local request: https://localhost/version.json
+02-09 21:06:18.675 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] useEffect mounting, calling fetchApps...
+02-09 21:06:18.675 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Starting fetch...
+02-09 21:06:18.675 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Fetching apps from Supabase...
+02-09 21:06:18.719 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Storage ready
+02-09 21:06:18.719 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Storage ready
+02-09 21:06:18.721 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472267, pluginId: App, methodName: addListener
+02-09 21:06:18.722 V/Capacitor( 2856): callback: 129472267, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:18.763 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/smc/newsfeed.xml' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:18.764 W/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Failed: https://snowmediaapps.com/smc/newsfeed.xml... - Failed to fetch
+02-09 21:06:18.765 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, proxy): https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps.com%2Fsmc%2Fnewsfeed.xml...
+02-09 21:06:18.938 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] State change: INITIAL_SESSION
+02-09 21:06:18.939 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Success: https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps....
+02-09 21:06:18.940 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: RSS feed response: <?xml version="1.0" encoding="UTF-8" ?>
+02-09 21:06:18.940 I/Capacitor/Console( 2856): <rss version="2.0">
+02-09 21:06:18.940 I/Capacitor/Console( 2856):   <channel>
+02-09 21:06:18.940 I/Capacitor/Console( 2856):     <title>Snow Media Center News</title>
+02-09 21:06:18.940 I/Capacitor/Console( 2856):     <link>https://snowmediaapps.com</link>
+02-09 21:06:18.940 I/Capacitor/Console( 2856):     <description>Live updates from Snow Med
+02-09 21:06:18.940 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Parsed news items: 3
+02-09 21:06:18.962 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] No session
+02-09 21:06:18.982 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] State change: INITIAL_SESSION
+02-09 21:06:19.013 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] No session
+02-09 21:06:19.143 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Loaded 8 apps from Supabase
+02-09 21:06:19.143 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Using 8 apps from Supabase
+02-09 21:06:20.435 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472268, pluginId: App, methodName: addListener
+02-09 21:06:20.435 V/Capacitor( 2856): callback: 129472268, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:20.437 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472269, pluginId: App, methodName: removeListener
+02-09 21:06:20.438 V/Capacitor( 2856): callback: 129472269, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472267"}
+02-09 21:06:21.233 V/Capacitor/AppPlugin( 2856): Notifying listeners for event backButton
+02-09 21:06:21.243 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 500 - Msg: Capacitor back button pressed, current view: settings canGoBack: false
+02-09 21:06:21.267 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Fetching RSS feed (native: true)...
+02-09 21:06:21.268 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Native platform detected - trying direct URL first
+02-09 21:06:21.268 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, direct): https://snowmediaapps.com/smc/newsfeed.xml...
+02-09 21:06:21.273 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472270, pluginId: App, methodName: addListener
+02-09 21:06:21.274 V/Capacitor( 2856): callback: 129472270, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:21.276 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472271, pluginId: App, methodName: removeListener
+02-09 21:06:21.276 V/Capacitor( 2856): callback: 129472271, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472268"}
+02-09 21:06:21.322 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/smc/newsfeed.xml' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:21.326 W/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Failed: https://snowmediaapps.com/smc/newsfeed.xml... - Failed to fetch
+02-09 21:06:21.327 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, proxy): https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps.com%2Fsmc%2Fnewsfeed.xml...
+02-09 21:06:21.339 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Success: https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps....
+02-09 21:06:21.421 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: RSS feed response: <?xml version="1.0" encoding="UTF-8" ?>
+02-09 21:06:21.421 I/Capacitor/Console( 2856): <rss version="2.0">
+02-09 21:06:21.421 I/Capacitor/Console( 2856):   <channel>
+02-09 21:06:21.421 I/Capacitor/Console( 2856):     <title>Snow Media Center News</title>
+02-09 21:06:21.421 I/Capacitor/Console( 2856):     <link>https://snowmediaapps.com</link>
+02-09 21:06:21.421 I/Capacitor/Console( 2856):     <description>Live updates from Snow Med
+02-09 21:06:21.421 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Parsed news items: 3
+02-09 21:06:22.657 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] useEffect mounting, calling fetchApps...
+02-09 21:06:22.657 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Starting fetch...
+02-09 21:06:22.659 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Fetching apps from Supabase...
+02-09 21:06:22.661 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472272, pluginId: App, methodName: addListener
+02-09 21:06:22.661 V/Capacitor( 2856): callback: 129472272, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:22.664 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472273, pluginId: App, methodName: removeListener
+02-09 21:06:22.664 V/Capacitor( 2856): callback: 129472273, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472270"}
+02-09 21:06:22.747 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Loaded 8 apps from Supabase
+02-09 21:06:22.747 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [AppData] Using 8 apps from Supabase
+02-09 21:06:22.884 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Dreamstreams (com.dreamstreams.app)
+02-09 21:06:22.885 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Plex (com.plex.app)
+02-09 21:06:22.885 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Cinema HD (com.cinemahd.app)
+02-09 21:06:22.886 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for IPVanish (com.ipvanish.app)
+02-09 21:06:22.886 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for VibezTV (com.vibeztv.app)
+02-09 21:06:22.887 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Kodi (com.kodi.app)
+02-09 21:06:22.887 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Tivimate (com.tivimate.app)
+02-09 21:06:22.887 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Checking install status for Stremio (com.stremio.app)
+02-09 21:06:22.900 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Error checking install status: Error: "AppManager" plugin is not implemented on android
+02-09 21:06:22.903 I/chatty  ( 2856): uid=10117(app.lovable.f44324110df840aea0a1fb97cafa76e7) identical 6 lines
+02-09 21:06:22.903 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 411 - Msg: Error checking install status: Error: "AppManager" plugin is not implemented on android
+02-09 21:06:25.493 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Starting download: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:25.496 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Starting download...
+02-09 21:06:25.497 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:25.497 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Native: true
+02-09 21:06:25.504 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472274, pluginId: Filesystem, methodName: readdir
+02-09 21:06:25.504 V/Capacitor( 2856): callback: 129472274, pluginId: Filesystem, methodName: readdir, methodData: {"path":"apk","directory":"CACHE"}
+02-09 21:06:25.588 D/Capacitor( 2856): Sending plugin error: {"save":false,"callbackId":"129472274","pluginId":"Filesystem","methodName":"readdir","success":false,"error":{"message":"'readdir' failed because file at '\/data\/user\/0\/app.lovable.f44324110df840aea0a1fb97cafa76e7\/cache\/apk\/' does not exist.","code":"OS-PLUG-FILE-0008"}}
+02-09 21:06:25.592 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: No APK cache to clean
+02-09 21:06:25.593 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Final download URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:25.597 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Progress: 0 %
+02-09 21:06:25.598 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetching...
+02-09 21:06:25.653 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/apps/dreamstreams.apk' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:25.653 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetch failed: TypeError: Failed to fetch
+02-09 21:06:25.654 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Download error: Error: Download failed: Failed to fetch
+02-09 21:06:26.513 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Starting download: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:26.514 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Starting download...
+02-09 21:06:26.514 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:26.514 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Native: true
+02-09 21:06:26.516 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472275, pluginId: Filesystem, methodName: readdir
+02-09 21:06:26.516 V/Capacitor( 2856): callback: 129472275, pluginId: Filesystem, methodName: readdir, methodData: {"path":"apk","directory":"CACHE"}
+02-09 21:06:26.523 D/Capacitor( 2856): Sending plugin error: {"save":false,"callbackId":"129472275","pluginId":"Filesystem","methodName":"readdir","success":false,"error":{"message":"'readdir' failed because file at '\/data\/user\/0\/app.lovable.f44324110df840aea0a1fb97cafa76e7\/cache\/apk\/' does not exist.","code":"OS-PLUG-FILE-0008"}}
+02-09 21:06:26.534 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: No APK cache to clean
+02-09 21:06:26.534 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Final download URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:26.534 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Progress: 0 %
+02-09 21:06:26.534 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetching...
+02-09 21:06:26.584 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/apps/dreamstreams.apk' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:26.585 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetch failed: TypeError: Failed to fetch
+02-09 21:06:26.586 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Download error: Error: Download failed: Failed to fetch
+02-09 21:06:27.411 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Starting download: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:27.411 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Starting download...
+02-09 21:06:27.412 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:27.412 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Native: true
+02-09 21:06:27.414 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472276, pluginId: Filesystem, methodName: readdir
+02-09 21:06:27.414 V/Capacitor( 2856): callback: 129472276, pluginId: Filesystem, methodName: readdir, methodData: {"path":"apk","directory":"CACHE"}
+02-09 21:06:27.421 D/Capacitor( 2856): Sending plugin error: {"save":false,"callbackId":"129472276","pluginId":"Filesystem","methodName":"readdir","success":false,"error":{"message":"'readdir' failed because file at '\/data\/user\/0\/app.lovable.f44324110df840aea0a1fb97cafa76e7\/cache\/apk\/' does not exist.","code":"OS-PLUG-FILE-0008"}}
+02-09 21:06:27.428 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: No APK cache to clean
+02-09 21:06:27.428 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Final download URL: https://snowmediaapps.com/apps/dreamstreams.apk
+02-09 21:06:27.429 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Progress: 0 %
+02-09 21:06:27.429 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetching...
+02-09 21:06:27.483 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/apps/dreamstreams.apk' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:27.485 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetch failed: TypeError: Failed to fetch
+02-09 21:06:27.485 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Download error: Error: Download failed: Failed to fetch
+02-09 21:06:29.124 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Starting download: https://snowmediaapps.com/apps/plex.apk
+02-09 21:06:29.124 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Starting download...
+02-09 21:06:29.125 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] URL: https://snowmediaapps.com/apps/plex.apk
+02-09 21:06:29.126 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Native: true
+02-09 21:06:29.128 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472277, pluginId: Filesystem, methodName: readdir
+02-09 21:06:29.128 V/Capacitor( 2856): callback: 129472277, pluginId: Filesystem, methodName: readdir, methodData: {"path":"apk","directory":"CACHE"}
+02-09 21:06:29.134 D/Capacitor( 2856): Sending plugin error: {"save":false,"callbackId":"129472277","pluginId":"Filesystem","methodName":"readdir","success":false,"error":{"message":"'readdir' failed because file at '\/data\/user\/0\/app.lovable.f44324110df840aea0a1fb97cafa76e7\/cache\/apk\/' does not exist.","code":"OS-PLUG-FILE-0008"}}
+02-09 21:06:29.141 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: No APK cache to clean
+02-09 21:06:29.141 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Final download URL: https://snowmediaapps.com/apps/plex.apk
+02-09 21:06:29.144 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Progress: 0 %
+02-09 21:06:29.145 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetching...
+02-09 21:06:29.189 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/apps/plex.apk' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:29.191 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 400 - Msg: [APK] Fetch failed: TypeError: Failed to fetch
+02-09 21:06:29.191 E/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 405 - Msg: [DownloadProgress] Download error: Error: Download failed: Failed to fetch
+02-09 21:06:29.873 V/Capacitor/AppPlugin( 2856): Notifying listeners for event backButton
+02-09 21:06:29.883 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 500 - Msg: Capacitor back button pressed, current view: apps canGoBack: false
+02-09 21:06:29.918 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Fetching RSS feed (native: true)...
+02-09 21:06:29.919 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Native platform detected - trying direct URL first
+02-09 21:06:29.919 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, direct): https://snowmediaapps.com/smc/newsfeed.xml...
+02-09 21:06:29.923 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472278, pluginId: App, methodName: addListener
+02-09 21:06:29.923 V/Capacitor( 2856): callback: 129472278, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:29.925 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472279, pluginId: App, methodName: removeListener
+02-09 21:06:29.925 V/Capacitor( 2856): callback: 129472279, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472272"}
+02-09 21:06:29.982 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/smc/newsfeed.xml' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:29.983 W/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Failed: https://snowmediaapps.com/smc/newsfeed.xml... - Failed to fetch
+02-09 21:06:29.983 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, proxy): https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps.com%2Fsmc%2Fnewsfeed.xml...
+02-09 21:06:30.156 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Success: https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps....
+02-09 21:06:30.157 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: RSS feed response: <?xml version="1.0" encoding="UTF-8" ?>
+02-09 21:06:30.157 I/Capacitor/Console( 2856): <rss version="2.0">
+02-09 21:06:30.157 I/Capacitor/Console( 2856):   <channel>
+02-09 21:06:30.157 I/Capacitor/Console( 2856):     <title>Snow Media Center News</title>
+02-09 21:06:30.157 I/Capacitor/Console( 2856):     <link>https://snowmediaapps.com</link>
+02-09 21:06:30.157 I/Capacitor/Console( 2856):     <description>Live updates from Snow Med
+02-09 21:06:30.157 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Parsed news items: 3
+02-09 21:06:31.804 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Init, native: true
+02-09 21:06:31.805 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Waiting for storage...
+02-09 21:06:31.805 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Init, native: true
+02-09 21:06:31.805 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Waiting for storage...
+02-09 21:06:31.830 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Storage ready
+02-09 21:06:31.830 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] Storage ready
+02-09 21:06:31.833 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472280, pluginId: App, methodName: addListener
+02-09 21:06:31.833 V/Capacitor( 2856): callback: 129472280, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:31.835 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472281, pluginId: App, methodName: removeListener
+02-09 21:06:31.836 V/Capacitor( 2856): callback: 129472281, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472278"}
+02-09 21:06:31.862 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] State change: INITIAL_SESSION
+02-09 21:06:31.873 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] No session
+02-09 21:06:31.879 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] State change: INITIAL_SESSION
+02-09 21:06:31.918 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 412 - Msg: [Auth] No session
+02-09 21:06:33.875 V/Capacitor/AppPlugin( 2856): Notifying listeners for event backButton
+02-09 21:06:33.884 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 500 - Msg: Capacitor back button pressed, current view: chat canGoBack: false
+02-09 21:06:33.911 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Fetching RSS feed (native: true)...
+02-09 21:06:33.912 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Native platform detected - trying direct URL first
+02-09 21:06:33.912 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, direct): https://snowmediaapps.com/smc/newsfeed.xml...
+02-09 21:06:33.916 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472282, pluginId: App, methodName: addListener
+02-09 21:06:33.916 V/Capacitor( 2856): callback: 129472282, pluginId: App, methodName: addListener, methodData: {"eventName":"backButton"}
+02-09 21:06:33.918 V/Capacitor/Plugin( 2856): To native (Capacitor plugin): callbackId: 129472283, pluginId: App, methodName: removeListener
+02-09 21:06:33.919 V/Capacitor( 2856): callback: 129472283, pluginId: App, methodName: removeListener, methodData: {"eventName":"backButton","callbackId":"129472280"}
+02-09 21:06:33.973 E/Capacitor/Console( 2856): File: https://localhost/ - Line 0 - Msg: Access to fetch at 'https://snowmediaapps.com/smc/newsfeed.xml' from origin 'https://localhost' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+02-09 21:06:33.974 W/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Failed: https://snowmediaapps.com/smc/newsfeed.xml... - Failed to fetch
+02-09 21:06:33.975 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Fetching (attempt 1/2, proxy): https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps.com%2Fsmc%2Fnewsfeed.xml...
+02-09 21:06:33.988 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: [Network] Success: https://corsproxy.io/?https%3A%2F%2Fsnowmediaapps....
+02-09 21:06:33.998 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: RSS feed response: <?xml version="1.0" encoding="UTF-8" ?>
+02-09 21:06:33.998 I/Capacitor/Console( 2856): <rss version="2.0">
+02-09 21:06:33.998 I/Capacitor/Console( 2856):   <channel>
+02-09 21:06:33.998 I/Capacitor/Console( 2856):     <title>Snow Media Center News</title>
+02-09 21:06:33.998 I/Capacitor/Console( 2856):     <link>https://snowmediaapps.com</link>
+02-09 21:06:33.998 I/Capacitor/Console( 2856):     <description>Live updates from Snow Med
+02-09 21:06:34.102 I/Capacitor/Console( 2856): File: https://localhost/assets/index-DPQSfiqJ.js - Line 393 - Msg: Parsed news items: 3
