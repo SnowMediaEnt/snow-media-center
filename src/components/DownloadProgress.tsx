@@ -105,6 +105,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
 
   useEffect(() => {
     let isMounted = true;
+    let progressListener: any = null;
     
     const startDownload = async () => {
       if (!Capacitor.isNativePlatform()) {
@@ -129,35 +130,36 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         // Parse total size from app.size (e.g., "25MB" -> 25)
         const totalMB = parseFloat(app.size?.replace(/[^0-9.]/g, '') || '0') || 30;
         
+        // Listen for native download progress events
+        try {
+          progressListener = await Filesystem.addListener('progress', (progressEvent) => {
+            if (!isMounted) return;
+            const percent = Math.round((progressEvent.bytes / progressEvent.contentLength) * 100);
+            console.log(`[DownloadProgress] Native progress: ${percent}% (${progressEvent.bytes}/${progressEvent.contentLength})`);
+            setProgress(percent > 95 ? 95 : percent);
+            
+            const downloadedMB = (progressEvent.bytes / (1024 * 1024));
+            setDownloaded(`${downloadedMB.toFixed(1)} MB`);
+            
+            // Calculate speed
+            const now = Date.now();
+            const timeDiff = (now - lastTimeRef.current) / 1000;
+            if (timeDiff > 0.5) {
+              const bytesDiff = (downloadedMB - lastBytesRef.current);
+              const speed = bytesDiff / timeDiff;
+              const speedStr = speed > 1 ? `${speed.toFixed(1)} MB/s` : `${(speed * 1024).toFixed(0)} KB/s`;
+              setDownloadSpeed(speedStr);
+              lastBytesRef.current = downloadedMB;
+              lastTimeRef.current = now;
+            }
+          });
+        } catch (e) {
+          console.log('[DownloadProgress] Progress listener not available, using callback');
+        }
+        
         const savedPath = await downloadApkToCache(url, filename, (progressPercent) => {
           if (!isMounted) return;
-          
-          console.log('[DownloadProgress] Progress:', progressPercent, '%');
-          
-          // Use functional setState to ensure React picks up the change
-          setProgress(prev => {
-            if (progressPercent !== prev) {
-              progressRef.current = progressPercent;
-              return progressPercent;
-            }
-            return prev;
-          });
-          
-          // Calculate download speed
-          const now = Date.now();
-          const timeDiff = (now - lastTimeRef.current) / 1000; // seconds
-          const downloadedMB = (progressPercent / 100) * totalMB;
-          const bytesDiff = downloadedMB - lastBytesRef.current;
-          
-          if (timeDiff > 0.3) {
-            const speed = bytesDiff / timeDiff;
-            const speedStr = speed > 1 ? `${speed.toFixed(1)} MB/s` : `${(speed * 1024).toFixed(0)} KB/s`;
-            setDownloadSpeed(speedStr);
-            lastBytesRef.current = downloadedMB;
-            lastTimeRef.current = now;
-          }
-          
-          setDownloaded(`${downloadedMB.toFixed(1)} MB`);
+          setProgress(progressPercent);
         });
 
         if (!isMounted) return;
@@ -179,6 +181,9 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
     
     return () => {
       isMounted = false;
+      if (progressListener) {
+        try { progressListener.remove(); } catch (e) { /* ignore */ }
+      }
     };
   }, [app]);
 
