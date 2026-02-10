@@ -484,7 +484,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            onClick={() => isInstalled ? handleLaunch(app) : handleDownload(app)}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}

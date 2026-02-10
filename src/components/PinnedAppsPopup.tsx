@@ -79,13 +79,34 @@ const PinnedAppsPopup = ({
 
   if (!isVisible) return null;
 
-  const handleTogglePin = (app: InstalledApp) => {
+  const handleTogglePin = (app: InstalledApp | AppData) => {
     if (isPinned(app.id)) {
       onUnpinApp(app.id);
     } else if (canPinMore) {
-      onPinApp(app);
+      // Convert AppData to InstalledApp format
+      const installedApp: InstalledApp = {
+        id: app.id,
+        name: app.name,
+        icon: 'icon' in app ? app.icon : '',
+        packageName: app.packageName,
+      };
+      onPinApp(installedApp);
     }
   };
+
+  // Merge defaultInstalledApps with fetched apps for the selector, deduplicating by packageName
+  const allSelectableApps: InstalledApp[] = [...defaultInstalledApps];
+  for (const app of apps) {
+    const alreadyExists = allSelectableApps.some(a => a.packageName === app.packageName);
+    if (!alreadyExists) {
+      allSelectableApps.push({
+        id: app.id,
+        name: app.name,
+        icon: app.icon,
+        packageName: app.packageName,
+      });
+    }
+  }
 
   // Create 7 equal slots
   const slots = Array.from({ length: 7 }, (_, i) => pinnedApps[i] || null);
@@ -190,7 +211,7 @@ const PinnedAppsPopup = ({
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-4">
-            {defaultInstalledApps.map((app) => {
+            {allSelectableApps.map((app) => {
               const isAppPinned = isPinned(app.id);
               const canSelect = canPinMore || isAppPinned;
               

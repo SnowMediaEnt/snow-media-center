@@ -61,9 +61,28 @@ const Index = () => {
 
   // Handle launching pinned apps
   const handleLaunchPinnedApp = async (app: any) => {
-    // Navigate to apps and launch the app
-    navigateTo('apps');
-    // The actual launch logic is in InstallApps component
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { AppManager } = await import('@/capacitor/AppManager');
+        const packageName = app.packageName || app.package_name;
+        if (packageName) {
+          await AppManager.launch({ packageName });
+          toast({
+            title: "Launching App",
+            description: `Opening ${app.name}...`,
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Launch error:', error);
+      toast({
+        title: "Launch Failed", 
+        description: `Could not launch ${app.name}. Make sure it's installed.`,
+        variant: "destructive",
+      });
+    }
   };
 
   // Update date/time every second and detect screen resolution
@@ -472,7 +491,7 @@ const Index = () => {
             <div 
               className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
               style={{ 
-                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1.5rem, 2.5vw, 3rem)',
+                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(2rem, 3vw, 4rem)',
                 maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
               }}
             >

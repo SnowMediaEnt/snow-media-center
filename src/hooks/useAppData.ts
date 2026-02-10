@@ -17,6 +17,27 @@ export interface AppData {
   category: 'streaming' | 'support' | 'media' | 'iptv' | 'main';
 }
 
+// Known package name mappings for installed apps
+const KNOWN_PACKAGE_NAMES: Record<string, string> = {
+  'dreamstreams': 'com.dreamstreams.app',
+  'vibeztv': 'com.vibeztv.app',
+  'plex': 'com.plexapp.android',
+  'ipvanish': 'com.ixonn.ipvanish',
+  'cinemahd': 'com.cinemahdv2',
+  'cinema hd': 'com.cinemahdv2',
+  'stremio': 'com.stremio.one',
+  'kodi': 'org.xbmc.kodi',
+  'tivimate': 'ar.tvplayer.tv',
+  'xciptv': 'com.xciptv.player',
+  'downloader': 'com.esaba.downloader',
+};
+
+function resolvePackageName(name: string, dbPackageName?: string | null): string {
+  if (dbPackageName) return dbPackageName;
+  const key = name.toLowerCase().trim();
+  return KNOWN_PACKAGE_NAMES[key] || `com.${key.replace(/[^a-z0-9]/g, '')}.app`;
+}
+
 // Hardcoded fallback apps for when all else fails
 const fallbackApps: AppData[] = [
   {
@@ -60,7 +81,7 @@ export const useAppData = () => {
       console.log('[AppData] Fetching apps from Supabase...');
       const { data, error } = await supabase
         .from('apps')
-        .select('*')
+        .select('*, package_name')
         .order('is_featured', { ascending: false });
 
       if (error) {
@@ -90,7 +111,6 @@ export const useAppData = () => {
           iconUrl = 'https://snowmediaapps.com/icons/default.png';
         }
 
-        const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
         const category = (app.category || 'streaming').toLowerCase() as AppData['category'];
 
         return {
@@ -102,7 +122,7 @@ export const useAppData = () => {
           icon: iconUrl,
           apk: downloadUrl,
           downloadUrl,
-          packageName: `com.${cleanName}.app`,
+          packageName: resolvePackageName(app.name, (app as any).package_name),
           featured: app.is_featured || false,
           category: category === 'main' ? 'streaming' : category
         };
@@ -189,7 +209,7 @@ export const useAppData = () => {
           icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
           apk: downloadUrl,
           downloadUrl,
-          packageName: app.packageName || app.package_name || `com.${cleanName}.app`,
+          packageName: resolvePackageName(app.name || '', app.packageName || app.package_name),
           featured: Boolean(app.featured || app.is_featured),
           category: (app.support === true || app.category === 'support' ? 'support' : 'streaming') as AppData['category']
         };
