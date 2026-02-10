@@ -211,7 +211,7 @@ const PinnedAppsPopup = ({
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-4">
-            {defaultInstalledApps.map((app) => {
+            {allSelectableApps.map((app) => {
               const isAppPinned = isPinned(app.id);
               const canSelect = canPinMore || isAppPinned;
               

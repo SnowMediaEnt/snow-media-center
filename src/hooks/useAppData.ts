@@ -209,7 +209,7 @@ export const useAppData = () => {
           icon: app.icon || 'https://snowmediaapps.com/apps/icons/default.png',
           apk: downloadUrl,
           downloadUrl,
-          packageName: app.packageName || app.package_name || `com.${cleanName}.app`,
+          packageName: resolvePackageName(app.name || '', app.packageName || app.package_name),
           featured: Boolean(app.featured || app.is_featured),
           category: (app.support === true || app.category === 'support' ? 'support' : 'streaming') as AppData['category']
         };
