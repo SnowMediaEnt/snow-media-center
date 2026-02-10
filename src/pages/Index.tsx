@@ -61,9 +61,28 @@ const Index = () => {
 
   // Handle launching pinned apps
   const handleLaunchPinnedApp = async (app: any) => {
-    // Navigate to apps and launch the app
-    navigateTo('apps');
-    // The actual launch logic is in InstallApps component
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { AppManager } = await import('@/capacitor/AppManager');
+        const packageName = app.packageName || app.package_name;
+        if (packageName) {
+          await AppManager.launch({ packageName });
+          toast({
+            title: "Launching App",
+            description: `Opening ${app.name}...`,
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Launch error:', error);
+      toast({
+        title: "Launch Failed", 
+        description: `Could not launch ${app.name}. Make sure it's installed.`,
+        variant: "destructive",
+      });
+    }
   };
 
   // Update date/time every second and detect screen resolution

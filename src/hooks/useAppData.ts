@@ -111,7 +111,6 @@ export const useAppData = () => {
           iconUrl = 'https://snowmediaapps.com/icons/default.png';
         }
 
-        const cleanName = (app.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
         const category = (app.category || 'streaming').toLowerCase() as AppData['category'];
 
         return {
@@ -123,7 +122,7 @@ export const useAppData = () => {
           icon: iconUrl,
           apk: downloadUrl,
           downloadUrl,
-          packageName: `com.${cleanName}.app`,
+          packageName: resolvePackageName(app.name, (app as any).package_name),
           featured: app.is_featured || false,
           category: category === 'main' ? 'streaming' : category
         };
