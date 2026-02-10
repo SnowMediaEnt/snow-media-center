@@ -111,6 +111,7 @@ export type Database = {
           is_featured: boolean | null
           is_installed: boolean | null
           name: string
+          package_name: string | null
           size: string
           updated_at: string
         }
@@ -124,6 +125,7 @@ export type Database = {
           is_featured?: boolean | null
           is_installed?: boolean | null
           name: string
+          package_name?: string | null
           size: string
           updated_at?: string
         }
@@ -137,6 +139,7 @@ export type Database = {
           is_featured?: boolean | null
           is_installed?: boolean | null
           name?: string
+          package_name?: string | null
           size?: string
           updated_at?: string
         }
