@@ -47,12 +47,19 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             event.keyCode === 4 || event.which === 4) {
           const target = event.target as HTMLElement;
           const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-          if (isTyping && event.key === 'Backspace') return; // Allow typing
-          
-          // MediaManager will call handleMediaManagerBack when it wants to exit
-          // Don't intercept here - let MediaManager handle first
+          if (isTyping && event.key === 'Backspace') return;
         }
-        return; // Let MediaManager handle all other navigation
+        return;
+      }
+
+      // If focus is inside updates content, handle navigation back out
+      if (focusedElement === 'updates-content') {
+        if (event.key === 'ArrowUp' || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          setFocusedElement('tab-updates');
+        }
+        return; // Let AppUpdater handle its own internal nav
       }
 
       const target = event.target as HTMLElement;
