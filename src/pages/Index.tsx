@@ -460,7 +460,7 @@ const Index = () => {
 
           {/* Date/Time Display - Left side horizontal bar */}
           <div className="absolute z-20 top-4 left-4">
-            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-5 py-2 flex items-center gap-3">
+            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-6 py-2.5 flex items-center gap-5">
               <div className="font-bold font-quicksand text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 {currentDateTime.toLocaleDateString('en-US', { 
                   weekday: 'short', 
@@ -468,7 +468,7 @@ const Index = () => {
                   day: 'numeric' 
                 })}
               </div>
-              <div className="w-px h-4 bg-white/40"></div>
+              <div className="w-px h-5 bg-white/40"></div>
               <div className="opacity-90 font-nunito text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 {currentDateTime.toLocaleTimeString('en-US', { 
                   hour: '2-digit', 
@@ -476,7 +476,7 @@ const Index = () => {
                   second: '2-digit'
                 })}
               </div>
-              <div className="w-px h-4 bg-white/40"></div>
+              <div className="w-px h-5 bg-white/40"></div>
               <div className="font-nunito text-shadow-soft" style={{ color: '#FFD700', fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
                 v{version}
               </div>
