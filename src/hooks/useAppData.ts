@@ -17,6 +17,27 @@ export interface AppData {
   category: 'streaming' | 'support' | 'media' | 'iptv' | 'main';
 }
 
+// Known package name mappings for installed apps
+const KNOWN_PACKAGE_NAMES: Record<string, string> = {
+  'dreamstreams': 'com.dreamstreams.app',
+  'vibeztv': 'com.vibeztv.app',
+  'plex': 'com.plexapp.android',
+  'ipvanish': 'com.ixonn.ipvanish',
+  'cinemahd': 'com.cinemahdv2',
+  'cinema hd': 'com.cinemahdv2',
+  'stremio': 'com.stremio.one',
+  'kodi': 'org.xbmc.kodi',
+  'tivimate': 'ar.tvplayer.tv',
+  'xciptv': 'com.xciptv.player',
+  'downloader': 'com.esaba.downloader',
+};
+
+function resolvePackageName(name: string, dbPackageName?: string | null): string {
+  if (dbPackageName) return dbPackageName;
+  const key = name.toLowerCase().trim();
+  return KNOWN_PACKAGE_NAMES[key] || `com.${key.replace(/[^a-z0-9]/g, '')}.app`;
+}
+
 // Hardcoded fallback apps for when all else fails
 const fallbackApps: AppData[] = [
   {
