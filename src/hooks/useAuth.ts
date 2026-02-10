@@ -98,22 +98,33 @@ export const useAuth = () => {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('[Auth] Signing in:', email);
+      console.log('[Auth] Supabase URL target:', 'https://falmwzhvxoefvkfsiylp.supabase.co');
+      console.log('[Auth] Platform:', Capacitor.getPlatform(), 'Native:', Capacitor.isNativePlatform());
       
-      const { error, data } = await supabase.auth.signInWithPassword({ 
+      // Add a timeout wrapper for native platforms where fetch can hang
+      const loginPromise = supabase.auth.signInWithPassword({ 
         email: email.trim().toLowerCase(), 
         password 
       });
       
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Login request timed out after 20 seconds')), 20000)
+      );
+      
+      const { error, data } = await Promise.race([loginPromise, timeoutPromise]);
+      
       if (error) {
-        console.error('[Auth] SignIn failed:', error.message);
+        console.error('[Auth] SignIn failed:', error.message, JSON.stringify(error));
         return { error };
       }
       
       console.log('[Auth] SignIn success:', data.user?.email);
       return { error: null };
-    } catch (error) {
-      console.error('[Auth] SignIn exception:', error);
-      return { error: { message: 'Login failed. Check your connection.' } as AuthError };
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      console.error('[Auth] SignIn exception:', msg);
+      console.error('[Auth] Exception details:', JSON.stringify(error, Object.getOwnPropertyNames(error || {})));
+      return { error: { message: `Login failed: ${msg}` } as AuthError };
     }
   };
 
