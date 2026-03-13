@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Download, Smartphone, Shield } from 'lucide-react';
+import { Package, Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Download, Smartphone, Shield, Wifi } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 import InstallApps from '@/components/InstallApps';
 import MediaStore from '@/components/MediaStore';
@@ -318,6 +318,9 @@ const Index = () => {
       {/* Admin Support Dashboard */}
       {currentView === 'admin-support' && <AdminSupportDashboard onBack={() => goBack()} />}
 
+      {/* Connection Diagnostics */}
+      {currentView === 'connection-test' && <WixConnectionTest onBack={() => goBack()} />}
+
       {/* Home screen content */}
       {currentView === 'home' && (
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
@@ -345,6 +348,27 @@ const Index = () => {
             screenHeight >= 1440 ? 'top-6 right-6 gap-3' :
             'top-4 right-4 gap-2'
           }`}>
+            {/* Diagnostics Button - only show for admins */}
+            {isAdmin && (
+              <Button
+                onClick={() => navigateTo('connection-test')}
+                variant="outline"
+                size={screenHeight >= 1440 ? "default" : "sm"}
+                tabIndex={0}
+                className={`tv-focusable transition-all duration-200 ${
+                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
+                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  ''
+                }`}
+              >
+                <Wifi className={`mr-2 ${
+                  screenHeight >= 2160 ? 'w-6 h-6' :
+                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  'w-4 h-4'
+                }`} />
+                Diagnostics
+              </Button>
+            )}
             {/* Admin Button - only show for admins */}
             {isAdmin && (
               <Button
