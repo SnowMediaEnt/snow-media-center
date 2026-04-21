@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
+import AppAlertsManager from '@/components/AppAlertsManager';
+import { useAdminRole } from '@/hooks/useAdminRole';
 
 interface SettingsProps {
   onBack: () => void;
@@ -18,11 +20,14 @@ type SettingsFocus =
   | 'tab-layout' 
   | 'tab-media' 
   | 'tab-updates' 
+  | 'tab-alerts'
   | 'layout-toggle'
   | 'media-content'
-  | 'updates-content'; // When in updates tab, focus is inside AppUpdater
+  | 'updates-content'
+  | 'alerts-content';
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
+  const { isAdmin } = useAdminRole();
   const [activeTab, setActiveTab] = useState('layout');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
@@ -97,7 +102,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         event.stopPropagation();
       }
 
-      const tabs: SettingsFocus[] = ['tab-layout', 'tab-media', 'tab-updates'];
+      const tabs: SettingsFocus[] = isAdmin
+        ? ['tab-layout', 'tab-media', 'tab-updates', 'tab-alerts']
+        : ['tab-layout', 'tab-media', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
       
       switch (event.key) {
@@ -132,6 +139,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
+          } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
+            setFocusedElement('alerts-content');
           }
           break;
           
@@ -145,6 +154,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setActiveTab('media');
           } else if (focusedElement === 'tab-updates') {
             setActiveTab('updates');
+          } else if (focusedElement === 'tab-alerts') {
+            setActiveTab('alerts');
           } else if (focusedElement === 'layout-toggle') {
             onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid');
           }
@@ -154,7 +165,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive]);
+  }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive, isAdmin]);
 
   // Scroll focused element into view - ensure back button is always reachable
   useEffect(() => {
@@ -213,7 +224,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-slate-800/50 border-slate-600">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} bg-slate-800/50 border-slate-600`}>
             <TabsTrigger 
               data-settings-focus="tab-layout"
               value="layout" 
@@ -238,6 +249,16 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               <RefreshCw className="w-4 h-4 mr-2" />
               Updates
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger 
+                data-settings-focus="tab-alerts"
+                value="alerts" 
+                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
+              >
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                App Alerts
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="layout" className="mt-6">
@@ -299,6 +320,14 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               <AppUpdater />
             </Card>
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="alerts" className="mt-6">
+              <Card data-settings-focus="alerts-content" className="bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6">
+                <AppAlertsManager />
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

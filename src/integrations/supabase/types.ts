@@ -100,6 +100,45 @@ export type Database = {
           },
         ]
       }
+      app_alerts: {
+        Row: {
+          active: boolean
+          app_match: string
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          severity: string
+          source: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          app_match: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          severity?: string
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          app_match?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          severity?: string
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       apps: {
         Row: {
           category: string

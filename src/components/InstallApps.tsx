@@ -13,7 +13,9 @@ import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
 import PinnedAppsBar from '@/components/PinnedAppsBar';
 import AppContextMenu from '@/components/AppContextMenu';
+import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
+import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -80,6 +82,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+
+  // App alerts (warning popups)
+  const { getAlertForApp } = useAppAlerts();
+  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: AppData } | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
@@ -229,7 +235,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           } else if (focusedElement.startsWith('launch-')) {
             const appId = focusedElement.replace('launch-', '');
             const app = categoryApps.find(a => a.id === appId);
-            if (app) handleLaunch(app);
+            if (app) attemptLaunch(app);
           } else if (focusedElement.startsWith('settings-')) {
             const appId = focusedElement.replace('settings-', '');
             const app = categoryApps.find(a => a.id === appId);
@@ -363,6 +369,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
+  // Wrapper used by all UI launch entry points: shows the alert popup first if one exists.
+  const attemptLaunch = useCallback((app: AppData) => {
+    const alert = getAlertForApp(app.name);
+    if (alert) {
+      setPendingAlert({ alert, app });
+      return;
+    }
+    handleLaunch(app);
+  }, [getAlertForApp]);
+
   const handleUninstall = async (app: AppData) => {
     try {
       const packageName = generateAppPackageName(app);
@@ -485,7 +501,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            onClick={() => isInstalled ? handleLaunch(app) : handleDownload(app)}
+            onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
             className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
@@ -571,7 +587,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                   <>
                     <Button 
                       data-focus-id={`launch-${app.id}`}
-                      onClick={() => handleLaunch(app)}
+                      onClick={() => attemptLaunch(app)}
                       className={`w-full transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
                     >
                       <Play className="w-4 h-4 mr-2" />
@@ -637,7 +653,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         {/* Pinned Apps Bar */}
         <PinnedAppsBar
           pinnedApps={pinnedApps}
-          onLaunchApp={handleLaunch}
+          onLaunchApp={attemptLaunch}
           focusedElement={focusedElement}
           onFocus={(id) => setFocusedElement(id as FocusType)}
           apps={apps}
@@ -696,6 +712,19 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           onClose={() => setContextMenu({ app: null, position: { x: 0, y: 0 } })}
         />
       )}
+
+      {/* App Alert Popup (e.g. "Dreamstreams EPG is down") */}
+      <AppAlertDialog
+        alert={pendingAlert?.alert ?? null}
+        appName={pendingAlert?.app.name}
+        open={!!pendingAlert}
+        onDismiss={() => setPendingAlert(null)}
+        onContinue={() => {
+          const app = pendingAlert?.app;
+          setPendingAlert(null);
+          if (app) handleLaunch(app);
+        }}
+      />
     </div>
   );
 };
