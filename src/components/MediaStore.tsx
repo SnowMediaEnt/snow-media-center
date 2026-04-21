@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -262,13 +262,50 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, detailFocusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart, cartItems, addToCart, updateQuantity, toast]);
 
+  // Refs for scroll containers (list view + detail view)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const topAnchorRef = useRef<HTMLDivElement>(null);
+  const detailContainerRef = useRef<HTMLDivElement>(null);
+  const detailTopAnchorRef = useRef<HTMLDivElement>(null);
+
+  const restoreTopScroll = (which: 'list' | 'detail' = 'list') => {
+    const container = which === 'detail' ? detailContainerRef.current : containerRef.current;
+    const anchor = which === 'detail' ? detailTopAnchorRef.current : topAnchorRef.current;
+    const scrollTargets = [
+      container,
+      document.scrollingElement as HTMLElement | null,
+      document.documentElement,
+      document.body,
+      document.querySelector('[data-app-scroll-root]') as HTMLElement | null,
+    ];
+    scrollTargets.forEach((t) => { if (t) t.scrollTo({ top: 0, left: 0, behavior: 'auto' }); });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    requestAnimationFrame(() => {
+      anchor?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+      scrollTargets.forEach((t) => { if (t) t.scrollTop = 0; });
+    });
+  };
+
   // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
     const focusId = selectedProduct ? detailFocusedElement : focusedElement;
+
+    // When focus returns to the top row (Back / Sign in / Cart / Categories / detail-back),
+    // force the container all the way to the top so the header isn't clipped.
+    if (!selectedProduct && (
+      focusId === 'back' || focusId === 'signin' || focusId === 'cart' ||
+      focusId.startsWith('category-')
+    )) {
+      restoreTopScroll('list');
+      return;
+    }
+    if (selectedProduct && focusId === 'detail-back') {
+      restoreTopScroll('detail');
+      return;
+    }
+
     const el = document.querySelector(`[data-focus-id="${focusId}"]`) as HTMLElement;
     if (!el) return;
-    
-    // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   }, [focusedElement, detailFocusedElement, selectedProduct]);
 
@@ -388,7 +425,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
   if (selectedProduct) {
     return (
-      <div className="tv-scroll-container tv-safe text-white">
+      <div ref={detailContainerRef} className="tv-scroll-container tv-safe text-white">
+        <div ref={detailTopAnchorRef} aria-hidden="true" className="h-0 w-full" />
         <div className="max-w-6xl mx-auto pb-16">
           <Button 
             onClick={() => setSelectedProduct(null)}
@@ -519,7 +557,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
+      <div ref={topAnchorRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-7xl mx-auto pb-16">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
