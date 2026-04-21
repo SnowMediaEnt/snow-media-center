@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,6 +16,31 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | string>('back');
   const [activeTab, setActiveTab] = useState<string>('device');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const topAnchorRef = useRef<HTMLDivElement>(null);
+
+  const restoreTopScroll = () => {
+    const scrollTargets = [
+      containerRef.current,
+      document.scrollingElement as HTMLElement | null,
+      document.documentElement,
+      document.body,
+      document.querySelector('[data-app-scroll-root]') as HTMLElement | null,
+    ];
+
+    scrollTargets.forEach((target) => {
+      if (target) target.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+    requestAnimationFrame(() => {
+      topAnchorRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+      scrollTargets.forEach((target) => {
+        if (target) target.scrollTop = 0;
+      });
+    });
+  };
 
   // TV Remote Navigation with video controls
   useEffect(() => {
@@ -132,11 +157,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     // When focus returns to the Back button or tabs, scroll the container all the way to top
     // so the header and back button aren't clipped by overscan / sticky padding.
     if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
-      const scrollContainer = document.querySelector('.tv-scroll-container') as HTMLElement;
-      if (scrollContainer) {
-        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      restoreTopScroll();
       return;
     }
 
@@ -260,7 +281,8 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe">
+    <div ref={containerRef} className="tv-scroll-container tv-safe">
+      <div ref={topAnchorRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
