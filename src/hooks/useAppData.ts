@@ -113,12 +113,15 @@ export const useAppData = () => {
           iconUrl = 'https://snowmediaapps.com/icons/default.png';
         }
 
-        const category = (app.category || 'streaming').toLowerCase() as AppData['category'];
+        const rawCategory = (app.category || 'main').toLowerCase();
+        const category = (['streaming', 'support', 'media', 'iptv', 'main'].includes(rawCategory)
+          ? rawCategory
+          : 'main') as AppData['category'];
 
         return {
           id: app.id,
           name: app.name,
-          version: '1.0',
+          version: (app as any).version || '1.0',
           size: app.size || '25MB',
           description: app.description || 'No description available',
           icon: iconUrl,
@@ -126,7 +129,7 @@ export const useAppData = () => {
           downloadUrl,
           packageName: resolvePackageName(app.name, (app as any).package_name),
           featured: app.is_featured || false,
-          category: category === 'main' ? 'streaming' : category
+          category
         };
       });
     } catch (error) {
@@ -222,6 +225,27 @@ export const useAppData = () => {
     }
   };
 
+  // Background sync — triggers PHP→Supabase sync without blocking the UI.
+  const triggerBackgroundSync = async (): Promise<boolean> => {
+    try {
+      console.log('[AppData] Triggering background PHP→DB sync...');
+      const { data, error } = await supabase.functions.invoke('sync-apps-from-php', {
+        body: {},
+      });
+      if (error) {
+        console.warn('[AppData] Background sync failed:', error.message);
+        return false;
+      }
+      const result = data as { ok?: boolean; added?: number; removed?: number } | null;
+      console.log('[AppData] Background sync result:', result);
+      // Re-fetch from Supabase only if something actually changed
+      return Boolean(result?.ok && ((result.added ?? 0) + (result.removed ?? 0) > 0));
+    } catch (err) {
+      console.warn('[AppData] Background sync threw:', err);
+      return false;
+    }
+  };
+
   const fetchApps = async () => {
     setLoading(true);
     setError(null);
@@ -237,6 +261,21 @@ export const useAppData = () => {
         setApps(supabaseApps);
         setError(null);
         setLoading(false);
+
+        // Fire-and-forget: kick off PHP sync. If it added/removed apps,
+        // silently re-pull so the UI reflects the change without a spinner.
+        triggerBackgroundSync().then(async (changed) => {
+          if (!changed) return;
+          try {
+            const fresh = await fetchSupabaseApps();
+            if (fresh.length > 0) {
+              console.log(`[AppData] Refreshing UI after sync (${fresh.length} apps)`);
+              setApps(fresh);
+            }
+          } catch (err) {
+            console.warn('[AppData] Post-sync refresh failed:', err);
+          }
+        });
         return;
       }
     } catch (err) {

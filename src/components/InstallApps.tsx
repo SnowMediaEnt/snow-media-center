@@ -55,7 +55,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 // Focus types for navigation
 type FocusType = 
   | 'back' 
-  | 'tab-0' | 'tab-1' | 'tab-2' 
+  | 'tab-0' | 'tab-1'
   | `app-${string}` 
   | `download-${string}` 
   | `launch-${string}` 
@@ -81,9 +81,14 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
-  // Helper function to get category apps
-  const getCategoryApps = useCallback((category: string) => {
-    return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
+  // Helper function to get the apps for a tab.
+  // 'featured' = curated featured list (sorted A→Z)
+  // 'all'      = every available app, alphabetical
+  const getCategoryApps = useCallback((tab: string) => {
+    const sorted = [...apps].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+    return tab === 'featured' ? sorted.filter(app => app.featured) : sorted;
   }, [apps]);
 
   // Get buttons for an app based on install status
@@ -112,10 +117,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       }
       
       const categoryApps = getCategoryApps(activeTab);
-      const tabs = ['tab-0', 'tab-1', 'tab-2'];
+      const tabs = ['tab-0', 'tab-1'];
       
       // Build a flat list of focusable elements in order
-      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1', 'tab-2'];
+      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1'];
       categoryApps.forEach(app => {
         focusOrder.push(`app-${app.id}` as FocusType);
         getAppButtons(app).forEach(btn => focusOrder.push(btn as FocusType));
@@ -126,7 +131,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'tab-1') setFocusedElement('tab-0');
-          else if (focusedElement === 'tab-2') setFocusedElement('tab-1');
           else if (focusedElement.startsWith('app-') || focusedElement === 'tab-0') {
             setFocusedElement('back');
           } else if (focusedElement.includes('-') && !focusedElement.startsWith('tab-')) {
@@ -138,7 +142,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           
         case 'ArrowRight':
           if (focusedElement === 'tab-0') setFocusedElement('tab-1');
-          else if (focusedElement === 'tab-1') setFocusedElement('tab-2');
           else if (focusedElement === 'back') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('app-')) {
@@ -218,9 +221,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           } else if (focusedElement === 'tab-0') {
             setActiveTab('featured');
           } else if (focusedElement === 'tab-1') {
-            setActiveTab('streaming');
-          } else if (focusedElement === 'tab-2') {
-            setActiveTab('support');
+            setActiveTab('all');
           } else if (focusedElement.startsWith('download-')) {
             const appId = focusedElement.replace('download-', '');
             const app = categoryApps.find(a => a.id === appId);
@@ -643,7 +644,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
               data-focus-id="tab-0"
               value="featured" 
@@ -653,17 +654,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             </TabsTrigger>
             <TabsTrigger 
               data-focus-id="tab-1"
-              value="streaming" 
+              value="all" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-1')}`}
             >
-              Streaming ({getCategoryApps('streaming').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              data-focus-id="tab-2"
-              value="support" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-2')}`}
-            >
-              Support ({getCategoryApps('support').length})
+              All ({getCategoryApps('all').length})
             </TabsTrigger>
           </TabsList>
           
@@ -671,12 +665,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             {renderAppGrid(getCategoryApps('featured'))}
           </TabsContent>
           
-          <TabsContent value="streaming" className="mt-0">
-            {renderAppGrid(getCategoryApps('streaming'))}
-          </TabsContent>
-          
-          <TabsContent value="support" className="mt-0">
-            {renderAppGrid(getCategoryApps('support'))}
+          <TabsContent value="all" className="mt-0">
+            {renderAppGrid(getCategoryApps('all'))}
           </TabsContent>
         </Tabs>
       </div>
