@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AppManager, type InstalledAppInfo } from '@/capacitor/AppManager';
 
+// Normalise an app/display name so "Dreamstreams 3.0" ≈ "dreamstreams30"
+const normaliseName = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
 /**
  * Bulk-loads every user-installed app on the Android device.
  * Returns an empty list on web (or when permission is denied).
@@ -9,6 +13,7 @@ import { AppManager, type InstalledAppInfo } from '@/capacitor/AppManager';
 export const useDeviceInstalledApps = () => {
   const [installedApps, setInstalledApps] = useState<InstalledAppInfo[]>([]);
   const [installedSet, setInstalledSet] = useState<Set<string>>(new Set());
+  const [installedNameSet, setInstalledNameSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,6 +21,7 @@ export const useDeviceInstalledApps = () => {
     if (!Capacitor.isNativePlatform()) {
       setInstalledApps([]);
       setInstalledSet(new Set());
+      setInstalledNameSet(new Set());
       return;
     }
     setLoading(true);
@@ -25,6 +31,7 @@ export const useDeviceInstalledApps = () => {
       console.log(`[useDeviceInstalledApps] Found ${apps.length} user-installed apps on device`);
       setInstalledApps(apps);
       setInstalledSet(new Set(apps.map((a) => a.packageName.toLowerCase())));
+      setInstalledNameSet(new Set(apps.map((a) => normaliseName(a.appName))));
     } catch (e) {
       console.error('[useDeviceInstalledApps] Failed:', e);
       setError(e instanceof Error ? e.message : 'Failed to enumerate apps');
