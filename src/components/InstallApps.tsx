@@ -237,10 +237,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             const appId = focusedElement.replace('launch-', '');
             const app = categoryApps.find(a => a.id === appId);
             if (app) attemptLaunch(app);
-          } else if (focusedElement.startsWith('settings-')) {
-            const appId = focusedElement.replace('settings-', '');
+          } else if (focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) {
+            const appId = focusedElement.replace(/^(settings|cache)-/, '');
             const app = categoryApps.find(a => a.id === appId);
-            if (app) handleOpenAppSettings(app);
+            if (app) {
+              const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
+              toast({
+                title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
+                description: `Opening ${app.name} system info…`,
+              });
+              handleOpenAppSettings(app);
+            }
           } else if (focusedElement.startsWith('uninstall-')) {
             const appId = focusedElement.replace('uninstall-', '');
             const app = categoryApps.find(a => a.id === appId);
