@@ -47,7 +47,7 @@ const App = () => {
     };
   }, []);
 
-  // Deep link handler — open snowmedia://sso?token=... or https://snowmedia.com/sso?token=...
+  // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
   // and route into the in-app /sso consumer page so the magic link signs the user in.
   useEffect(() => {
     let urlListener: any = null;
@@ -56,11 +56,11 @@ const App = () => {
       urlListener = await CapApp.addListener("appUrlOpen", (event: { url: string }) => {
         try {
           const incoming = new URL(event.url);
-          // Match either snowmedia://sso/... OR https://(www.)snowmedia.com/sso...
+          // Match either snowmedia://sso/... OR https://(www.)snowmediaent.com/sso...
           const isSsoScheme = incoming.protocol === "snowmedia:" && incoming.host === "sso";
           const isSsoWeb =
             (incoming.protocol === "https:" || incoming.protocol === "http:") &&
-            /(^|\.)snowmedia\.com$/i.test(incoming.host) &&
+            /(^|\.)snowmediaent\.com$/i.test(incoming.host) &&
             incoming.pathname.startsWith("/sso");
 
           if (!isSsoScheme && !isSsoWeb) return;
