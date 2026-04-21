@@ -62,6 +62,7 @@ type FocusType =
   | `download-${string}` 
   | `launch-${string}` 
   | `settings-${string}` 
+  | `cache-${string}` 
   | `uninstall-${string}`
   | `pinned-${string}`;
 
@@ -101,7 +102,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const getAppButtons = useCallback((app: AppData): string[] => {
     const status = appStatuses.get(app.id);
     if (status?.installed) {
-      return [`launch-${app.id}`, `settings-${app.id}`, `uninstall-${app.id}`];
+      return [`launch-${app.id}`, `settings-${app.id}`, `cache-${app.id}`, `uninstall-${app.id}`];
     }
     return [`download-${app.id}`];
   }, [appStatuses]);
@@ -236,10 +237,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             const appId = focusedElement.replace('launch-', '');
             const app = categoryApps.find(a => a.id === appId);
             if (app) attemptLaunch(app);
-          } else if (focusedElement.startsWith('settings-')) {
-            const appId = focusedElement.replace('settings-', '');
+          } else if (focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) {
+            const appId = focusedElement.replace(/^(settings|cache)-/, '');
             const app = categoryApps.find(a => a.id === appId);
-            if (app) handleOpenAppSettings(app);
+            if (app) {
+              const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
+              toast({
+                title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
+                description: `Opening ${app.name} system info…`,
+              });
+              handleOpenAppSettings(app);
+            }
           } else if (focusedElement.startsWith('uninstall-')) {
             const appId = focusedElement.replace('uninstall-', '');
             const app = categoryApps.find(a => a.id === appId);
@@ -594,24 +602,48 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                       Launch
                     </Button>
                     
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <Button 
                         data-focus-id={`settings-${app.id}`}
-                        onClick={() => handleOpenAppSettings(app)}
+                        onClick={() => {
+                          toast({
+                            title: "Tap 'Storage' → 'Clear data'",
+                            description: `Opening ${app.name} system info…`,
+                          });
+                          handleOpenAppSettings(app);
+                        }}
                         variant="outline"
-                        className={`flex-1 transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30`}
+                        className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        title="Opens system App Info – tap Storage → Clear data"
                       >
-                        <Settings className="w-4 h-4 mr-2" />
-                        App Settings
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Data
                       </Button>
-                      
+
+                      <Button 
+                        data-focus-id={`cache-${app.id}`}
+                        onClick={() => {
+                          toast({
+                            title: "Tap 'Storage' → 'Clear cache'",
+                            description: `Opening ${app.name} system info…`,
+                          });
+                          handleOpenAppSettings(app);
+                        }}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        title="Opens system App Info – tap Storage → Clear cache"
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Cache
+                      </Button>
+
                       <Button 
                         data-focus-id={`uninstall-${app.id}`}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
-                        className={`flex-1 transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                        className={`transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
+                        <Trash2 className="w-4 h-4 mr-1" />
                         Uninstall
                       </Button>
                     </div>
