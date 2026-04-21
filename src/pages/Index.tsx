@@ -1,22 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Download, Smartphone, Shield } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
-import InstallApps from '@/components/InstallApps';
-import MediaStore from '@/components/MediaStore';
-import CommunityChat from '@/components/CommunityChat';
-import CreditStore from '@/components/CreditStore';
-import SupportVideos from '@/components/SupportVideos';
-import ChatCommunity from '@/components/ChatCommunity';
-import Settings from '@/components/Settings';
-import UserDashboard from '@/components/UserDashboard';
-import WixConnectionTest from '@/components/WixConnectionTest';
-import SupportTicketSystem from '@/components/SupportTicketSystem';
-import AIConversationSystem from '@/components/AIConversationSystem';
-import AdminSupportDashboard from '@/components/AdminSupportDashboard';
+import HomeClock from '@/components/HomeClock';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
-import Games from '@/components/Games';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useVersion } from '@/hooks/useVersion';
@@ -27,6 +15,27 @@ import { useDynamicBackground } from '@/hooks/useDynamicBackground';
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { InstalledApp } from '@/data/installedApps';
+
+// Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
+const InstallApps = lazy(() => import('@/components/InstallApps'));
+const MediaStore = lazy(() => import('@/components/MediaStore'));
+const CommunityChat = lazy(() => import('@/components/CommunityChat'));
+const CreditStore = lazy(() => import('@/components/CreditStore'));
+const SupportVideos = lazy(() => import('@/components/SupportVideos'));
+const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
+const Settings = lazy(() => import('@/components/Settings'));
+const UserDashboard = lazy(() => import('@/components/UserDashboard'));
+const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
+const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
+const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
+const Games = lazy(() => import('@/components/Games'));
+
+const RouteFallback = () => (
+  <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
+    Loading…
+  </div>
+);
+
 
 const Index = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
