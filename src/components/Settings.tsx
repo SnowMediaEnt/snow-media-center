@@ -347,9 +347,25 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="updates" className="mt-6">
+          <TabsContent value="updates" className="mt-6 space-y-4">
             <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
               <AppUpdater />
+            </Card>
+
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 p-6">
+              <h3 className="text-lg font-bold text-white mb-1">Download cache</h3>
+              <p className="text-sm text-slate-300 mb-4">
+                Removes any leftover .apk files from failed or cancelled installs so they don't take up space.
+              </p>
+              <Button
+                onClick={handleClearApkCache}
+                disabled={clearingCache}
+                variant="outline"
+                className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {clearingCache ? 'Clearing…' : 'Clear APK cache'}
+              </Button>
             </Card>
           </TabsContent>
 
