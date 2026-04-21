@@ -57,9 +57,10 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
 // Focus types for navigation
 type FocusType = 
-  | 'back' 
+  | 'back' | 'refresh'
   | 'tab-0' | 'tab-1'
   | `app-${string}` 
+  | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
   | `settings-${string}` 
@@ -86,7 +87,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
   // Bulk lookup of every user-installed app on the device
-  const { isPackageInstalled, isAppNameInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
+  const { isPackageInstalled, isAppNameInstalled, resolvePackageName, refresh: refreshDeviceApps, installedApps: deviceApps } =
     useDeviceInstalledApps();
 
   // App alerts (warning popups)
