@@ -16,7 +16,7 @@ interface PinnedAppsPopupProps {
   isVisible: boolean;
   isPinned: (appId: string) => boolean;
   canPinMore: boolean;
-  focusedIndex: number; // -1 = none focused, 0-6 = app slots, 7 = add button
+  focusedIndex: number; // -1 = none focused, 0-3 = app slots
   onFocusChange: (index: number) => void;
   onExitFocus: () => void; // Called when user navigates out of popup
 }
@@ -51,7 +51,7 @@ const PinnedAppsPopup = ({
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         e.stopPropagation();
-        const maxIndex = Math.min(pinnedApps.length, 6); // up to 7 slots (0-6) + add button
+        const maxIndex = 3; // 4 slots (0-3)
         if (focusedIndex < maxIndex) {
           onFocusChange(focusedIndex + 1);
         }
@@ -108,8 +108,8 @@ const PinnedAppsPopup = ({
     }
   }
 
-  // Create 7 equal slots
-  const slots = Array.from({ length: 7 }, (_, i) => pinnedApps[i] || null);
+  // Create 4 equal slots
+  const slots = Array.from({ length: 4 }, (_, i) => pinnedApps[i] || null);
 
   return (
     <>
@@ -120,12 +120,12 @@ const PinnedAppsPopup = ({
             <Pin className="w-4 h-4 text-brand-gold" />
             <span className="text-sm font-semibold text-white">Pinned Apps</span>
             <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 text-xs">
-              {pinnedApps.length}/7
+              {pinnedApps.length}/4
             </Badge>
           </div>
           
-          {/* 7 Equal Slots Grid */}
-          <div className="grid grid-cols-7 gap-2" style={{ width: 'max(490px, 35vw)' }}>
+          {/* 4 Equal Slots Grid */}
+          <div className="grid grid-cols-4 gap-2" style={{ width: 'max(280px, 22vw)' }}>
             {slots.map((pinnedApp, index) => {
               const isFocused = focusedIndex === index;
               
@@ -259,8 +259,8 @@ const PinnedAppsPopup = ({
           </div>
           <p className="text-xs text-slate-500 text-center mt-4">
             {canPinMore 
-              ? `You can pin ${7 - pinnedApps.length} more app${7 - pinnedApps.length !== 1 ? 's' : ''}`
-              : 'Maximum 7 apps pinned. Unpin one to add more.'
+              ? `You can pin ${4 - pinnedApps.length} more app${4 - pinnedApps.length !== 1 ? 's' : ''}`
+              : 'Maximum 4 apps pinned. Unpin one to add more.'
             }
           </p>
         </DialogContent>
