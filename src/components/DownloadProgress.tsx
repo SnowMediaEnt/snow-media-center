@@ -276,7 +276,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-white">{app.name}</h3>
           <Button 
-            onClick={onClose}
+            onClick={handleCloseAndCleanup}
             variant="ghost"
             size="sm"
             className="text-slate-400 hover:text-white"
@@ -333,11 +333,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </Button>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('later')}`}
             >
-              Install Later
+              Install Later (delete download)
             </Button>
           </div>
         )}
@@ -377,7 +377,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </Button>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('close')}`}
             >
@@ -399,7 +399,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </div>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800"
             >
