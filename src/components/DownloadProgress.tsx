@@ -238,16 +238,29 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
       
     } catch (error) {
       console.error('Install error:', error);
+      const rawMsg = error instanceof Error ? error.message : String(error ?? '');
       const friendly = isWebUnsupportedError(error)
         ? WEB_UNSUPPORTED_MSG
-        : (error instanceof Error ? error.message : 'Could not install APK');
+        : (rawMsg || 'Could not install APK');
+
+      // Detect "needs permission" rejection from the native plugin.
+      // In that case the user is being sent to Settings and will come back
+      // to tap Install again — so we MUST keep the APK on disk.
+      const isPermissionIssue = /install permission|unknown app sources|unknown sources/i.test(rawMsg);
+
       toast({
-        title: "Install Failed",
-        description: friendly,
+        title: isPermissionIssue ? "Permission Needed" : "Install Failed",
+        description: isPermissionIssue
+          ? "Enable 'Install unknown apps' for Snow Media Center, then tap Install Now again."
+          : friendly,
         variant: "destructive",
       });
-      // Install failed → wipe the APK so the user isn't stuck with a stale file.
-      await purgeCachedApk();
+
+      // Only wipe the APK on a real failure — NOT when we're just waiting
+      // on the user to grant the install-unknown-apps permission.
+      if (!isPermissionIssue) {
+        await purgeCachedApk();
+      }
       setState('complete');
     }
   }, [filePath, app.name, toast, onComplete, purgeCachedApk]);
