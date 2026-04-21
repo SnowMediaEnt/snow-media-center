@@ -13,7 +13,9 @@ import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
 import PinnedAppsBar from '@/components/PinnedAppsBar';
 import AppContextMenu from '@/components/AppContextMenu';
+import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
+import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -80,6 +82,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+
+  // App alerts (warning popups)
+  const { getAlertForApp } = useAppAlerts();
+  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: AppData } | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
