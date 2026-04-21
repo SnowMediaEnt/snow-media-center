@@ -106,42 +106,57 @@ export type Database = {
           created_at: string
           description: string
           download_url: string | null
+          external_id: string | null
           icon_url: string | null
           id: string
+          is_available: boolean
           is_featured: boolean | null
           is_installed: boolean | null
+          last_synced_at: string | null
           name: string
           package_name: string | null
           size: string
+          source: string
           updated_at: string
+          version: string | null
         }
         Insert: {
           category?: string
           created_at?: string
           description: string
           download_url?: string | null
+          external_id?: string | null
           icon_url?: string | null
           id?: string
+          is_available?: boolean
           is_featured?: boolean | null
           is_installed?: boolean | null
+          last_synced_at?: string | null
           name: string
           package_name?: string | null
           size: string
+          source?: string
           updated_at?: string
+          version?: string | null
         }
         Update: {
           category?: string
           created_at?: string
           description?: string
           download_url?: string | null
+          external_id?: string | null
           icon_url?: string | null
           id?: string
+          is_available?: boolean
           is_featured?: boolean | null
           is_installed?: boolean | null
+          last_synced_at?: string | null
           name?: string
           package_name?: string | null
           size?: string
+          source?: string
           updated_at?: string
+          version?: string | null
         }
         Relationships: []
       }
