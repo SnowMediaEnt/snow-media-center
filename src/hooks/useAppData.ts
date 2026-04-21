@@ -113,12 +113,15 @@ export const useAppData = () => {
           iconUrl = 'https://snowmediaapps.com/icons/default.png';
         }
 
-        const category = (app.category || 'streaming').toLowerCase() as AppData['category'];
+        const rawCategory = (app.category || 'main').toLowerCase();
+        const category = (['streaming', 'support', 'media', 'iptv', 'main'].includes(rawCategory)
+          ? rawCategory
+          : 'main') as AppData['category'];
 
         return {
           id: app.id,
           name: app.name,
-          version: '1.0',
+          version: (app as any).version || '1.0',
           size: app.size || '25MB',
           description: app.description || 'No description available',
           icon: iconUrl,
@@ -126,7 +129,7 @@ export const useAppData = () => {
           downloadUrl,
           packageName: resolvePackageName(app.name, (app as any).package_name),
           featured: app.is_featured || false,
-          category: category === 'main' ? 'streaming' : category
+          category
         };
       });
     } catch (error) {
