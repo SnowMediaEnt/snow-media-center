@@ -425,7 +425,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
   if (selectedProduct) {
     return (
-      <div className="tv-scroll-container tv-safe text-white">
+      <div ref={detailContainerRef} className="tv-scroll-container tv-safe text-white">
+        <div ref={detailTopAnchorRef} aria-hidden="true" className="h-0 w-full" />
         <div className="max-w-6xl mx-auto pb-16">
           <Button 
             onClick={() => setSelectedProduct(null)}
@@ -556,7 +557,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
+      <div ref={topAnchorRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-7xl mx-auto pb-16">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
