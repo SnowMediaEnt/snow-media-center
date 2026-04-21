@@ -644,7 +644,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
               data-focus-id="tab-0"
               value="featured" 
@@ -654,17 +654,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             </TabsTrigger>
             <TabsTrigger 
               data-focus-id="tab-1"
-              value="streaming" 
+              value="all" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-1')}`}
             >
-              Streaming ({getCategoryApps('streaming').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              data-focus-id="tab-2"
-              value="support" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-2')}`}
-            >
-              Support ({getCategoryApps('support').length})
+              All ({getCategoryApps('all').length})
             </TabsTrigger>
           </TabsList>
           
@@ -672,12 +665,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             {renderAppGrid(getCategoryApps('featured'))}
           </TabsContent>
           
-          <TabsContent value="streaming" className="mt-0">
-            {renderAppGrid(getCategoryApps('streaming'))}
-          </TabsContent>
-          
-          <TabsContent value="support" className="mt-0">
-            {renderAppGrid(getCategoryApps('support'))}
+          <TabsContent value="all" className="mt-0">
+            {renderAppGrid(getCategoryApps('all'))}
           </TabsContent>
         </Tabs>
       </div>
