@@ -264,15 +264,17 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
-            <Button 
+            <Button
               onClick={onBack}
-              variant="gold" 
+              variant="gold"
               size="lg"
+              data-focus-id="back"
               className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
+
             <div className="invisible">
               <Button variant="gold" size="lg">Placeholder</Button>
             </div>
