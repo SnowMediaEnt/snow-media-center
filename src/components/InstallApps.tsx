@@ -16,6 +16,7 @@ import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -83,6 +84,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+
+  // Bulk lookup of every user-installed app on the device
+  const { isPackageInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
+    useDeviceInstalledApps();
 
   // App alerts (warning popups)
   const { getAlertForApp } = useAppAlerts();
