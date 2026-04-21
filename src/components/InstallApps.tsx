@@ -619,6 +619,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
                 {/* Pin/Unpin Button */}
                 <Button
+                  data-focus-id={`pin-${app.id}`}
                   variant="ghost"
                   size="icon"
                   onClick={(e) => {
@@ -629,7 +630,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                       handlePinApp(app);
                     }
                   }}
-                  className={`flex-shrink-0 transition-all ${
+                  className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
                     appIsPinned 
                       ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
                       : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
