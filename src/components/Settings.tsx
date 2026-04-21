@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import { useAdminRole } from '@/hooks/useAdminRole';
+import { useToast } from '@/hooks/use-toast';
+import { cleanupOldApks } from '@/utils/downloadApk';
+import { isNativePlatform } from '@/utils/platform';
 
 interface SettingsProps {
   onBack: () => void;
@@ -28,10 +31,39 @@ type SettingsFocus =
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('layout');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleClearApkCache = async () => {
+    if (clearingCache) return;
+    setClearingCache(true);
+    try {
+      if (!isNativePlatform()) {
+        toast({
+          title: 'Not available on web',
+          description: 'APK cache only exists on the installed Android app.',
+        });
+        return;
+      }
+      await cleanupOldApks();
+      toast({
+        title: 'Download cache cleared',
+        description: 'Any leftover APK files have been deleted.',
+      });
+    } catch (e) {
+      toast({
+        title: 'Could not clear cache',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setClearingCache(false);
+    }
+  };
 
   // When tab changes, reset focus appropriately
   useEffect(() => {
@@ -315,9 +347,25 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="updates" className="mt-6">
+          <TabsContent value="updates" className="mt-6 space-y-4">
             <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
               <AppUpdater />
+            </Card>
+
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 p-6">
+              <h3 className="text-lg font-bold text-white mb-1">Download cache</h3>
+              <p className="text-sm text-slate-300 mb-4">
+                Removes any leftover .apk files from failed or cancelled installs so they don't take up space.
+              </p>
+              <Button
+                onClick={handleClearApkCache}
+                disabled={clearingCache}
+                variant="outline"
+                className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {clearingCache ? 'Clearing…' : 'Clear APK cache'}
+              </Button>
             </Card>
           </TabsContent>
 

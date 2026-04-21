@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
-import { AppManager } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 
 interface DownloadProgressProps {
   app: {
@@ -50,10 +50,10 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         event.stopPropagation();
       }
 
-      // Handle Android back button - close popup
+      // Handle Android back button - close popup (and clean up cached APK)
       if (event.key === 'Escape' || event.keyCode === 4) {
         event.preventDefault();
-        onClose();
+        handleCloseAndCleanup();
         return;
       }
 
@@ -75,16 +75,16 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             if (focusedButton === 'install') {
               handleInstall();
             } else {
-              onClose();
+              handleCloseAndCleanup();
             }
           } else if (state === 'installed') {
             if (focusedButton === 'open') {
               handleOpenApp();
             } else {
-              onClose();
+              handleCloseAndCleanup();
             }
           } else if (state === 'error') {
-            onClose();
+            handleCloseAndCleanup();
           }
           break;
       }
@@ -92,6 +92,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, focusedButton]);
 
   // Reset focus when state changes
@@ -187,6 +188,26 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
     };
   }, [app]);
 
+  // Wipe the cached APK so failed/cancelled downloads don't pile up.
+  const purgeCachedApk = useCallback(async () => {
+    try {
+      await cleanupOldApks();
+      console.log('[DownloadProgress] Purged cached APKs');
+    } catch (e) {
+      console.log('[DownloadProgress] Purge skipped:', e);
+    }
+  }, []);
+
+  // Wrap onClose so closing the dialog (X button, Esc, "Install Later")
+  // ALWAYS cleans up the APK from cache. Prevents the "5 leftover APKs" bug.
+  const handleCloseAndCleanup = useCallback(() => {
+    // Only cleanup if we're not mid-install (let install path handle it)
+    if (state !== 'installing' && state !== 'installed') {
+      purgeCachedApk();
+    }
+    onClose();
+  }, [state, purgeCachedApk, onClose]);
+
   const handleInstall = useCallback(async () => {
     if (!filePath) {
       toast({
@@ -211,25 +232,25 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
       
       // Clean up the APK file after install is triggered
       setTimeout(async () => {
-        try {
-          await cleanupOldApks();
-          console.log('Cleaned up APK files after install');
-        } catch (e) {
-          console.log('Cleanup skipped:', e);
-        }
+        await purgeCachedApk();
         onComplete();
       }, 2000);
       
     } catch (error) {
       console.error('Install error:', error);
+      const friendly = isWebUnsupportedError(error)
+        ? WEB_UNSUPPORTED_MSG
+        : (error instanceof Error ? error.message : 'Could not install APK');
       toast({
         title: "Install Failed",
-        description: error instanceof Error ? error.message : 'Could not install APK',
+        description: friendly,
         variant: "destructive",
       });
+      // Install failed → wipe the APK so the user isn't stuck with a stale file.
+      await purgeCachedApk();
       setState('complete');
     }
-  }, [filePath, app.name, toast, onComplete]);
+  }, [filePath, app.name, toast, onComplete, purgeCachedApk]);
 
   const handleOpenApp = useCallback(async () => {
     try {
@@ -256,7 +277,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-white">{app.name}</h3>
           <Button 
-            onClick={onClose}
+            onClick={handleCloseAndCleanup}
             variant="ghost"
             size="sm"
             className="text-slate-400 hover:text-white"
@@ -313,11 +334,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </Button>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('later')}`}
             >
-              Install Later
+              Install Later (delete download)
             </Button>
           </div>
         )}
@@ -357,7 +378,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </Button>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className={`w-full border-slate-600 text-slate-300 hover:bg-slate-700 transition-all ${getFocusStyle('close')}`}
             >
@@ -379,7 +400,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             </div>
             
             <Button 
-              onClick={onClose}
+              onClick={handleCloseAndCleanup}
               variant="outline"
               className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 ring-4 ring-brand-ice ring-offset-2 ring-offset-slate-800"
             >
