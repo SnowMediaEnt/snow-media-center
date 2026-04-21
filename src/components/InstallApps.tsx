@@ -57,9 +57,10 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
 // Focus types for navigation
 type FocusType = 
-  | 'back' 
+  | 'back' | 'refresh'
   | 'tab-0' | 'tab-1'
   | `app-${string}` 
+  | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
   | `settings-${string}` 
@@ -86,7 +87,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
   // Bulk lookup of every user-installed app on the device
-  const { isPackageInstalled, isAppNameInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
+  const { isPackageInstalled, isAppNameInstalled, resolvePackageName, refresh: refreshDeviceApps, installedApps: deviceApps } =
     useDeviceInstalledApps();
 
   // App alerts (warning popups)
@@ -103,7 +104,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     return tab === 'featured' ? sorted.filter(app => app.featured) : sorted;
   }, [apps]);
 
-  // Get buttons for an app based on install status
+  // Get action buttons for an app based on install status
   const getAppButtons = useCallback((app: AppData): string[] => {
     const status = appStatuses.get(app.id);
     if (status?.installed) {
@@ -111,6 +112,15 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
     return [`download-${app.id}`];
   }, [appStatuses]);
+
+  // Helpers to extract the app id out of a focus token like "launch-<id>".
+  const getAppIdFromFocus = (focus: string): string | null => {
+    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'settings-', 'cache-', 'uninstall-'];
+    for (const p of prefixes) {
+      if (focus.startsWith(p)) return focus.slice(p.length);
+    }
+    return null;
+  };
 
   // TV Remote Navigation with button-level focus
   useEffect(() => {
@@ -129,96 +139,123 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       }
       
       const categoryApps = getCategoryApps(activeTab);
-      const tabs = ['tab-0', 'tab-1'];
-      
-      // Build a flat list of focusable elements in order
-      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1'];
-      categoryApps.forEach(app => {
-        focusOrder.push(`app-${app.id}` as FocusType);
-        getAppButtons(app).forEach(btn => focusOrder.push(btn as FocusType));
-      });
-      
-      const currentIdx = focusOrder.indexOf(focusedElement);
-      
+      const currentAppId = getAppIdFromFocus(focusedElement);
+      const currentAppIdx = currentAppId
+        ? categoryApps.findIndex((a) => a.id === currentAppId)
+        : -1;
+      const currentApp = currentAppIdx >= 0 ? categoryApps[currentAppIdx] : null;
+      const buttons = currentApp ? getAppButtons(currentApp) : [];
+      const isInstalled = !!currentApp && appStatuses.get(currentApp.id)?.installed;
+
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement === 'tab-1') setFocusedElement('tab-0');
-          else if (focusedElement.startsWith('app-') || focusedElement === 'tab-0') {
-            setFocusedElement('back');
-          } else if (focusedElement.includes('-') && !focusedElement.startsWith('tab-')) {
-            // From a button, go to the app card
-            const appId = focusedElement.split('-').slice(1).join('-');
-            setFocusedElement(`app-${appId}` as FocusType);
+          if (focusedElement === 'refresh') setFocusedElement('back');
+          else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
+          else if (focusedElement === 'tab-0') setFocusedElement('back');
+          else if (currentApp && isInstalled) {
+            // Within action row: settings ← cache ← uninstall
+            if (focusedElement === `cache-${currentApp.id}`) {
+              setFocusedElement(`settings-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `uninstall-${currentApp.id}`) {
+              setFocusedElement(`cache-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `settings-${currentApp.id}` || focusedElement === `launch-${currentApp.id}`) {
+              setFocusedElement(`app-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `pin-${currentApp.id}`) {
+              setFocusedElement(`app-${currentApp.id}` as FocusType);
+            }
+          } else if (currentApp) {
+            setFocusedElement(`app-${currentApp.id}` as FocusType);
           }
           break;
           
         case 'ArrowRight':
-          if (focusedElement === 'tab-0') setFocusedElement('tab-1');
-          else if (focusedElement === 'back') {
-            setFocusedElement('tab-0');
-          } else if (focusedElement.startsWith('app-')) {
-            // From app card, go to first button
-            const appId = focusedElement.replace('app-', '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) {
-              const buttons = getAppButtons(app);
-              if (buttons.length > 0) {
-                setFocusedElement(buttons[0] as FocusType);
+          if (focusedElement === 'back') setFocusedElement('refresh');
+          else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
+          else if (currentApp) {
+            if (focusedElement === `app-${currentApp.id}`) {
+              // App card → Pin button (top-right of card)
+              setFocusedElement(`pin-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `pin-${currentApp.id}`) {
+              // No-op (already at right edge of header row)
+            } else if (isInstalled) {
+              // Within action row: settings → cache → uninstall
+              if (focusedElement === `settings-${currentApp.id}`) {
+                setFocusedElement(`cache-${currentApp.id}` as FocusType);
+              } else if (focusedElement === `cache-${currentApp.id}`) {
+                setFocusedElement(`uninstall-${currentApp.id}` as FocusType);
               }
             }
           }
           break;
           
         case 'ArrowUp':
-          if (focusedElement.startsWith('tab-')) {
+          if (focusedElement === 'back' || focusedElement === 'refresh') {
+            // Stay
+          } else if (focusedElement.startsWith('tab-')) {
             setFocusedElement('back');
-          } else if (focusedElement === 'back') {
-            // Stay on back
-          } else {
-            // Find current app and go to previous app or tabs
-            const appId = focusedElement.includes('-') 
-              ? focusedElement.split('-').slice(1).join('-').replace('app-', '')
-              : '';
-            const currentAppIdx = categoryApps.findIndex(app => 
-              focusedElement === `app-${app.id}` || 
-              focusedElement.endsWith(`-${app.id}`)
-            );
-            
+          } else if (focusedElement.startsWith('pin-') && currentApp) {
+            // From pin go up to previous card or tabs
             if (currentAppIdx > 0) {
               setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
-            } else if (currentAppIdx === 0) {
+            } else {
               setFocusedElement('tab-0');
+            }
+          } else if (currentApp && isInstalled) {
+            // From action row, go to launch; from launch go to app card; from app card go to pin (above)
+            if (focusedElement === `settings-${currentApp.id}` ||
+                focusedElement === `cache-${currentApp.id}` ||
+                focusedElement === `uninstall-${currentApp.id}`) {
+              setFocusedElement(`launch-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `launch-${currentApp.id}`) {
+              setFocusedElement(`app-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `app-${currentApp.id}`) {
+              if (currentAppIdx > 0) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
+              } else {
+                setFocusedElement('tab-0');
+              }
+            }
+          } else if (currentApp) {
+            // Not installed: just card ↔ download
+            if (focusedElement === `download-${currentApp.id}`) {
+              setFocusedElement(`app-${currentApp.id}` as FocusType);
+            } else if (focusedElement === `app-${currentApp.id}`) {
+              if (currentAppIdx > 0) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
+              } else {
+                setFocusedElement('tab-0');
+              }
             }
           }
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back') {
+          if (focusedElement === 'back' || focusedElement === 'refresh') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('tab-')) {
             if (categoryApps.length > 0) {
               setFocusedElement(`app-${categoryApps[0].id}` as FocusType);
             }
-          } else {
-            // Find current app and go to next app or next button row
-            const currentAppIdx = categoryApps.findIndex(app => 
-              focusedElement === `app-${app.id}` || 
-              focusedElement.endsWith(`-${app.id}`)
-            );
-            
-            if (focusedElement.startsWith('app-')) {
-              // From app card, go to first button
-              const app = categoryApps[currentAppIdx];
-              if (app) {
-                const buttons = getAppButtons(app);
-                if (buttons.length > 0) {
-                  setFocusedElement(buttons[0] as FocusType);
-                } else if (currentAppIdx + 1 < categoryApps.length) {
+          } else if (currentApp) {
+            // From card: go to first action button
+            if (focusedElement === `app-${currentApp.id}` || focusedElement === `pin-${currentApp.id}`) {
+              if (buttons.length > 0) {
+                setFocusedElement(buttons[0] as FocusType);
+              } else if (currentAppIdx + 1 < categoryApps.length) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
+              }
+            } else if (isInstalled) {
+              // launch → settings (first of bottom row)
+              if (focusedElement === `launch-${currentApp.id}`) {
+                setFocusedElement(`settings-${currentApp.id}` as FocusType);
+              } else {
+                // From bottom row, go to next app
+                if (currentAppIdx + 1 < categoryApps.length) {
                   setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
                 }
               }
             } else {
-              // From a button, go to next app
+              // Download → next app
               if (currentAppIdx + 1 < categoryApps.length) {
                 setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
               }
@@ -230,43 +267,39 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         case ' ':
           if (focusedElement === 'back') {
             onBack();
+          } else if (focusedElement === 'refresh') {
+            (async () => {
+              await refreshDeviceApps();
+              refreshAllStatuses();
+              toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
+            })();
           } else if (focusedElement === 'tab-0') {
             setActiveTab('featured');
           } else if (focusedElement === 'tab-1') {
             setActiveTab('all');
-          } else if (focusedElement.startsWith('download-')) {
-            const appId = focusedElement.replace('download-', '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) handleDownload(app);
-          } else if (focusedElement.startsWith('launch-')) {
-            const appId = focusedElement.replace('launch-', '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) attemptLaunch(app);
-          } else if (focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) {
-            const appId = focusedElement.replace(/^(settings|cache)-/, '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) {
-              const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
-              toast({
-                title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
-                description: `Opening ${app.name} system info…`,
-              });
-              handleOpenAppSettings(app);
+          } else if (focusedElement.startsWith('pin-') && currentApp) {
+            if (isPinned(currentApp.id)) {
+              handleUnpinApp(currentApp.id, currentApp.name);
+            } else {
+              handlePinApp(currentApp);
             }
-          } else if (focusedElement.startsWith('uninstall-')) {
-            const appId = focusedElement.replace('uninstall-', '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) handleUninstall(app);
-          } else if (focusedElement.startsWith('app-')) {
-            // Pressing enter on app card goes to first button
-            const appId = focusedElement.replace('app-', '');
-            const app = categoryApps.find(a => a.id === appId);
-            if (app) {
-              const buttons = getAppButtons(app);
-              if (buttons.length > 0) {
-                setFocusedElement(buttons[0] as FocusType);
-              }
-            }
+          } else if (focusedElement.startsWith('download-') && currentApp) {
+            handleDownload(currentApp);
+          } else if (focusedElement.startsWith('launch-') && currentApp) {
+            attemptLaunch(currentApp);
+          } else if ((focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) && currentApp) {
+            const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
+            toast({
+              title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
+              description: `Opening ${currentApp.name} system info…`,
+            });
+            handleOpenAppSettings(currentApp);
+          } else if (focusedElement.startsWith('uninstall-') && currentApp) {
+            handleUninstall(currentApp);
+          } else if (focusedElement.startsWith('app-') && currentApp) {
+            // Pressing enter on app card: launch if installed, otherwise download
+            if (isInstalled) attemptLaunch(currentApp);
+            else handleDownload(currentApp);
           }
           break;
       }
@@ -274,7 +307,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -376,7 +409,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
   const handleLaunch = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Launch] ${app.name} → ${packageName}`);
       await AppManager.launch({ packageName });
       
       toast({
@@ -404,11 +438,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
     handleLaunch(app);
-  }, [getAlertForApp]);
+  }, [getAlertForApp, resolvePackageName]);
 
   const handleUninstall = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Uninstall] ${app.name} → ${packageName}`);
       await AppManager.uninstall({ packageName });
       
       // Update status immediately and re-check after delay
@@ -418,8 +453,9 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       })));
       
       setTimeout(async () => {
+        await refreshDeviceApps();
         await ensureStatus(app);
-      }, 1000);
+      }, 1500);
       
       toast({
         title: "Uninstalling App",
@@ -441,7 +477,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
   const handleOpenAppSettings = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Settings] ${app.name} → ${packageName}`);
       await AppManager.openAppSettings({ packageName });
       
       toast({
@@ -582,6 +619,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
                 {/* Pin/Unpin Button */}
                 <Button
+                  data-focus-id={`pin-${app.id}`}
                   variant="ghost"
                   size="icon"
                   onClick={(e) => {
@@ -592,7 +630,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                       handlePinApp(app);
                     }
                   }}
-                  className={`flex-shrink-0 transition-all ${
+                  className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
                     appIsPinned 
                       ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
                       : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
@@ -698,6 +736,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             Back to Home
           </Button>
             <Button
+              data-focus-id="refresh"
               onClick={async () => {
                 await refreshDeviceApps();
                 refreshAllStatuses();
@@ -708,7 +747,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               }}
               variant="outline"
               size="lg"
-              className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30"
+              className={`bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 transition-all duration-200 ${focusRing('refresh')}`}
               title="Re-check installed apps"
             >
               <RefreshCw className="w-5 h-5 mr-2" />
