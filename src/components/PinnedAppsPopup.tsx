@@ -51,7 +51,7 @@ const PinnedAppsPopup = ({
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         e.stopPropagation();
-        const maxIndex = Math.min(pinnedApps.length, 6); // up to 7 slots (0-6) + add button
+        const maxIndex = 3; // 4 slots (0-3)
         if (focusedIndex < maxIndex) {
           onFocusChange(focusedIndex + 1);
         }
