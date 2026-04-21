@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
+import AppAlertsManager from '@/components/AppAlertsManager';
+import { useAdminRole } from '@/hooks/useAdminRole';
 
 interface SettingsProps {
   onBack: () => void;
@@ -18,11 +20,14 @@ type SettingsFocus =
   | 'tab-layout' 
   | 'tab-media' 
   | 'tab-updates' 
+  | 'tab-alerts'
   | 'layout-toggle'
   | 'media-content'
-  | 'updates-content'; // When in updates tab, focus is inside AppUpdater
+  | 'updates-content'
+  | 'alerts-content';
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
+  const { isAdmin } = useAdminRole();
   const [activeTab, setActiveTab] = useState('layout');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
