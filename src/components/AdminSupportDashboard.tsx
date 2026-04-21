@@ -326,63 +326,84 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
-        <div className="grid gap-4">
-          {filteredTickets.map((ticket) => (
-            <Card 
-              key={ticket.id}
-              className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
-                ticket.admin_has_unread ? 'ring-2 ring-purple-500' : ''
-              }`}
-              onClick={() => handleViewTicket(ticket.id)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      {ticket.admin_has_unread && (
-                        <Badge className="bg-purple-600 text-white">New</Badge>
-                      )}
-                      <Badge className={getStatusColor(ticket.status)}>
-                        {getStatusIcon(ticket.status)}
-                        <span className="ml-1 capitalize">{ticket.status.replace('_', ' ')}</span>
-                      </Badge>
-                      <Badge variant="outline" className="text-slate-300">
-                        {ticket.priority}
-                      </Badge>
-                    </div>
-                    <h3 className="text-lg font-semibold text-white mb-1">
-                      {ticket.subject}
-                    </h3>
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {ticket.user_name || ticket.user_email}
-                      </span>
-                      <span>
-                        Created {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
-                      </span>
-                      <span>
-                        Updated {formatDistanceToNow(new Date(ticket.last_message_at), { addSuffix: true })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'alerts')} className="w-full">
+          <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
+            <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Tickets {unreadCount > 0 && <Badge className="ml-2 bg-purple-500">{unreadCount}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="alerts" className="data-[state=active]:bg-yellow-600 data-[state=active]:text-white">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              App Alerts
+            </TabsTrigger>
+          </TabsList>
 
-          {filteredTickets.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-              <h3 className="text-xl font-semibold text-slate-300 mb-2">No Tickets Found</h3>
-              <p className="text-slate-500">
-                {statusFilter === 'all' 
-                  ? 'No support tickets have been created yet.' 
-                  : `No tickets with status "${statusFilter}".`}
-              </p>
+          <TabsContent value="tickets">
+            <div className="grid gap-4">
+              {filteredTickets.map((ticket) => (
+                <Card 
+                  key={ticket.id}
+                  className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
+                    ticket.admin_has_unread ? 'ring-2 ring-purple-500' : ''
+                  }`}
+                  onClick={() => handleViewTicket(ticket.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          {ticket.admin_has_unread && (
+                            <Badge className="bg-purple-600 text-white">New</Badge>
+                          )}
+                          <Badge className={getStatusColor(ticket.status)}>
+                            {getStatusIcon(ticket.status)}
+                            <span className="ml-1 capitalize">{ticket.status.replace('_', ' ')}</span>
+                          </Badge>
+                          <Badge variant="outline" className="text-slate-300">
+                            {ticket.priority}
+                          </Badge>
+                        </div>
+                        <h3 className="text-lg font-semibold text-white mb-1">
+                          {ticket.subject}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {ticket.user_name || ticket.user_email}
+                          </span>
+                          <span>
+                            Created {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
+                          </span>
+                          <span>
+                            Updated {formatDistanceToNow(new Date(ticket.last_message_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {filteredTickets.length === 0 && !loading && (
+                <div className="text-center py-12">
+                  <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
+                  <h3 className="text-xl font-semibold text-slate-300 mb-2">No Tickets Found</h3>
+                  <p className="text-slate-500">
+                    {statusFilter === 'all' 
+                      ? 'No support tickets have been created yet.' 
+                      : `No tickets with status "${statusFilter}".`}
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="alerts">
+            <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
+              <AppAlertsManager />
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
