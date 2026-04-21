@@ -279,13 +279,29 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, assets, onBack, isActive]);
 
-  // Scroll focused element into view - always keep selector visible
+  // Scroll focused element into view - always keep selector visible.
+  // Topmost focus targets snap the entire page back to 0 (matches Vimeo/Store fix).
   useEffect(() => {
+    const isTop = focusedElement === 'back' || focusedElement === 'prompt-input' || focusedElement === 'generate-btn';
+
+    if (isTop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document
+        .querySelectorAll<HTMLElement>('.tv-scroll-container')
+        .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
+    }
+
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
-    
-    // Use scrollIntoView for reliable cross-browser scrolling
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+    // For top-row focus, prefer block:'start' so we don't push the page back down.
+    el.scrollIntoView({
+      behavior: 'smooth',
+      block: isTop ? 'start' : 'center',
+      inline: 'nearest',
+    });
   }, [focusedElement]);
 
   // Detect screen resolution and optimal image size
