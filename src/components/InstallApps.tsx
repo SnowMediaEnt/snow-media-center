@@ -290,9 +290,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const checkInstallStatus = useCallback(async (app: AppData): Promise<boolean> => {
     try {
       const packageName = generateAppPackageName(app);
-      // 1) Bulk-scan result is the source of truth.
+      // 1) Bulk-scan by package name (works when DB has real package_name).
       if (isPackageInstalled(packageName)) return true;
-      // 2) Per-package fallback (covers devices where QUERY_ALL_PACKAGES is blocked).
+      // 2) Bulk-scan by display name — covers every app in the catalog,
+      //    even ones without a known package_name in the database.
+      if (isAppNameInstalled(app.name)) return true;
+      // 3) Per-package fallback (covers devices where QUERY_ALL_PACKAGES is blocked).
       if (Capacitor.isNativePlatform()) {
         const { installed } = await AppManager.isInstalled({ packageName });
         return installed;
@@ -302,7 +305,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       console.error('Error checking install status:', error);
       return false;
     }
-  }, [isPackageInstalled]);
+  }, [isPackageInstalled, isAppNameInstalled]);
 
   const ensureStatus = useCallback(async (app: AppData): Promise<{ installed: boolean }> => {
     try {
