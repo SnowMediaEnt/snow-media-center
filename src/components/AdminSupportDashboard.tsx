@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
 import { formatDistanceToNow } from 'date-fns';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import AppAlertsManager from '@/components/AppAlertsManager';
+import { AlertTriangle } from 'lucide-react';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -36,6 +39,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'alerts'>('tickets');
 
   const {
     tickets,
