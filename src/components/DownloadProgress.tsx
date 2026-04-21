@@ -92,7 +92,8 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state, focusedButton, handleCloseAndCleanup, handleInstall, handleOpenApp]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, focusedButton]);
 
   // Reset focus when state changes
   useEffect(() => {
