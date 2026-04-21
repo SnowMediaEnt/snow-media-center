@@ -354,8 +354,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // Refresh statuses when component becomes visible/focused
   useEffect(() => {
     const handleFocus = () => refreshAllStatuses();
+    // visibilitychange fires when the user returns from the system installer/uninstaller
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshAllStatuses();
+    };
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [refreshAllStatuses]);
 
   const handleLaunch = async (app: AppData) => {
