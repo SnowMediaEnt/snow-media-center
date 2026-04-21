@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
-import { AppManager } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 
 interface DownloadProgressProps {
   app: {
@@ -187,6 +187,26 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
     };
   }, [app]);
 
+  // Wipe the cached APK so failed/cancelled downloads don't pile up.
+  const purgeCachedApk = useCallback(async () => {
+    try {
+      await cleanupOldApks();
+      console.log('[DownloadProgress] Purged cached APKs');
+    } catch (e) {
+      console.log('[DownloadProgress] Purge skipped:', e);
+    }
+  }, []);
+
+  // Wrap onClose so closing the dialog (X button, Esc, "Install Later")
+  // ALWAYS cleans up the APK from cache. Prevents the "5 leftover APKs" bug.
+  const handleCloseAndCleanup = useCallback(() => {
+    // Only cleanup if we're not mid-install (let install path handle it)
+    if (state !== 'installing' && state !== 'installed') {
+      purgeCachedApk();
+    }
+    onClose();
+  }, [state, purgeCachedApk, onClose]);
+
   const handleInstall = useCallback(async () => {
     if (!filePath) {
       toast({
@@ -211,25 +231,25 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
       
       // Clean up the APK file after install is triggered
       setTimeout(async () => {
-        try {
-          await cleanupOldApks();
-          console.log('Cleaned up APK files after install');
-        } catch (e) {
-          console.log('Cleanup skipped:', e);
-        }
+        await purgeCachedApk();
         onComplete();
       }, 2000);
       
     } catch (error) {
       console.error('Install error:', error);
+      const friendly = isWebUnsupportedError(error)
+        ? WEB_UNSUPPORTED_MSG
+        : (error instanceof Error ? error.message : 'Could not install APK');
       toast({
         title: "Install Failed",
-        description: error instanceof Error ? error.message : 'Could not install APK',
+        description: friendly,
         variant: "destructive",
       });
+      // Install failed → wipe the APK so the user isn't stuck with a stale file.
+      await purgeCachedApk();
       setState('complete');
     }
-  }, [filePath, app.name, toast, onComplete]);
+  }, [filePath, app.name, toast, onComplete, purgeCachedApk]);
 
   const handleOpenApp = useCallback(async () => {
     try {
