@@ -4,4 +4,6 @@
     <string name="title_activity_main">Snow Media Center</string>
     <string name="package_name">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
     <string name="custom_url_scheme">app.lovable.f44324110df840aea0a1fb97cafa76e7</string>
+    <string name="cache_clear_service_summary">Snow Media Cache Cleaner</string>
+    <string name="cache_clear_service_desc">Lets Snow Media Center automatically tap "Storage → Clear cache" inside the system Settings app for one or more installed apps. This service NEVER taps "Clear data" — your logins and app settings are safe. Used only when you press "Clear Cache" or "Clear All Caches" inside Snow Media Center.</string>
 </resources>

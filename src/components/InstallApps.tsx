@@ -125,6 +125,18 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // TV Remote Navigation with button-level focus
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // If a modal/dialog is open (alert popup, context menu, download progress),
+      // let the dialog handle keys natively. Don't move background focus.
+      if (pendingAlert || contextMenu.app || downloadingApp) {
+        if (event.key === 'Escape' || event.key === 'Backspace') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (pendingAlert) setPendingAlert(null);
+          else if (contextMenu.app) setContextMenu({ app: null, position: { x: 0, y: 0 } });
+        }
+        return;
+      }
+
       // Handle Android back button and other back buttons
       if (event.key === 'Escape' || event.key === 'Backspace' || 
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
@@ -287,13 +299,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             handleDownload(currentApp);
           } else if (focusedElement.startsWith('launch-') && currentApp) {
             attemptLaunch(currentApp);
-          } else if ((focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) && currentApp) {
-            const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
+          } else if (focusedElement.startsWith('settings-') && currentApp) {
+            // "Clear Data" button → open App Info (data clearing requires manual tap, by design)
             toast({
-              title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
+              title: "Tap 'Storage' → 'Clear data'",
               description: `Opening ${currentApp.name} system info…`,
             });
             handleOpenAppSettings(currentApp);
+          } else if (focusedElement.startsWith('cache-') && currentApp) {
+            // "Clear Cache" button → fully automated via Accessibility Service
+            handleAutoClearCache(currentApp);
           } else if (focusedElement.startsWith('uninstall-') && currentApp) {
             handleUninstall(currentApp);
           } else if (focusedElement.startsWith('app-') && currentApp) {
@@ -307,7 +322,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -480,10 +495,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Settings] ${app.name} → ${packageName}`);
       await AppManager.openAppSettings({ packageName });
-      
+
       toast({
         title: "Opening App Settings",
-        description: `${app.name} settings opened for cache/data management`,
+        description: `${app.name} settings opened`,
       });
     } catch (error) {
       console.error('App settings error:', error);
@@ -497,6 +512,101 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     }
   };
+
+  /**
+   * Auto-clears the given app's CACHE (never data) using the Accessibility
+   * Service. If the service isn't enabled yet, prompt the user once and open
+   * Android's Accessibility Settings so they can turn it on.
+   */
+  const handleAutoClearCache = useCallback(async (app: AppData) => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+    try {
+      const { enabled } = await AppManager.isAccessibilityEnabled();
+      if (!enabled) {
+        toast({
+          title: 'Enable Cache Cleaner',
+          description:
+            'Turn on "Snow Media Cache Cleaner" in Accessibility, then press Clear Cache again. We only tap "Clear cache" — never "Clear data".',
+        });
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+      toast({
+        title: `Clearing cache: ${app.name}`,
+        description: 'Auto-tapping Storage → Clear cache…',
+      });
+      await AppManager.clearAppCache({ packageName });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/ACCESSIBILITY_DISABLED/.test(msg)) {
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+      toast({
+        title: 'Clear cache failed',
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : msg,
+        variant: 'destructive',
+      });
+    }
+  }, [resolvePackageName, toast]);
+
+  /** Walks every installed app from our catalog and auto-clears each one's cache. */
+  const handleClearAllCaches = useCallback(async () => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const installed = apps.filter(a => appStatuses.get(a.id)?.installed);
+    if (installed.length === 0) {
+      toast({ title: 'No installed apps to clean.' });
+      return;
+    }
+    try {
+      const { enabled } = await AppManager.isAccessibilityEnabled();
+      if (!enabled) {
+        toast({
+          title: 'Enable Cache Cleaner first',
+          description: 'Turn on "Snow Media Cache Cleaner" in Accessibility, then try again.',
+        });
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+    } catch {/* ignore — clearAppCache will reject if disabled */}
+
+    // Also wipe our own cache while we're at it
+    try {
+      const { freedBytes } = await AppManager.clearOwnCache();
+      if (freedBytes > 0) {
+        toast({
+          title: 'Snow Media cache cleared',
+          description: `Freed ${(freedBytes / (1024 * 1024)).toFixed(1)} MB from this app.`,
+        });
+      }
+    } catch {/* non-fatal */}
+
+    toast({
+      title: `Cleaning ${installed.length} app${installed.length === 1 ? '' : 's'}…`,
+      description: 'Each app will flash by in Settings. Don\'t touch the remote.',
+    });
+    // Run sequentially with a delay so the Accessibility service has time
+    // per app (open settings → tap Storage → tap Clear cache → back back).
+    for (let i = 0; i < installed.length; i++) {
+      const app = installed[i];
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      try {
+        await AppManager.clearAppCache({ packageName });
+      } catch (e) {
+        console.warn(`[ClearAll] ${app.name} failed`, e);
+      }
+      // Wait ~6s between apps to let the service complete its taps + back-out
+      await new Promise(r => setTimeout(r, 6000));
+    }
+    toast({ title: 'All caches cleared ✅', description: `Processed ${installed.length} app(s).` });
+  }, [apps, appStatuses, resolvePackageName, toast]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -685,16 +795,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
                       <Button 
                         data-focus-id={`cache-${app.id}`}
-                        onClick={() => {
-                          toast({
-                            title: "Tap 'Storage' → 'Clear cache'",
-                            description: `Opening ${app.name} system info…`,
-                          });
-                          handleOpenAppSettings(app);
-                        }}
+                        onClick={() => handleAutoClearCache(app)}
                         variant="outline"
                         className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        title="Opens system App Info – tap Storage → Clear cache"
+                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
                       >
                         <Settings className="w-4 h-4 mr-1" />
                         Clear Cache
@@ -752,6 +856,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             >
               <RefreshCw className="w-5 h-5 mr-2" />
               Refresh
+            </Button>
+            <Button
+              onClick={handleClearAllCaches}
+              variant="outline"
+              size="lg"
+              className="bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30 transition-all duration-200"
+              title="Auto-clear cache for every installed app (uses Accessibility Service)"
+            >
+              <Trash2 className="w-5 h-5 mr-2" />
+              Clear All Caches
             </Button>
           </div>
           <div className="text-center mt-4">

@@ -5,6 +5,8 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import android.text.TextUtils
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.getcapacitor.*
@@ -21,21 +23,13 @@ class AppManagerPlugin : Plugin() {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
     val pm = context.packageManager
-    val installed = try { 
+    val installed = try {
       pm.getPackageInfo(pkg, 0)
-      Log.d(TAG, "Package $pkg is installed")
-      true 
-    } catch (_: Exception) { 
-      Log.d(TAG, "Package $pkg is NOT installed")
-      false 
-    }
+      true
+    } catch (_: Exception) { false }
     call.resolve(JSObject().put("installed", installed))
   }
 
-  /**
-   * Returns every user-installed app on the device (skips pre-installed system apps).
-   * Requires QUERY_ALL_PACKAGES permission for full visibility on Android 11+.
-   */
   @PluginMethod
   fun getInstalledApps(call: PluginCall) {
     try {
@@ -48,9 +42,7 @@ class AppManagerPlugin : Plugin() {
           val appInfo = info.applicationInfo ?: continue
           val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
           val isUpdatedSystem = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-          // Skip pre-installed system apps the user didn't add/update themselves.
           if (isSystem && !isUpdatedSystem) continue
-          // Skip our own app
           if (appInfo.packageName == context.packageName) continue
 
           val obj = JSObject()
@@ -76,10 +68,6 @@ class AppManagerPlugin : Plugin() {
     }
   }
 
-  /**
-   * Lists all .apk files cached in the app's private cache/apk/ folder
-   * with their sizes in bytes.
-   */
   @PluginMethod
   fun listCachedApks(call: PluginCall) {
     try {
@@ -112,9 +100,6 @@ class AppManagerPlugin : Plugin() {
     }
   }
 
-  /**
-   * Deletes a single cached APK by filename (relative to cache/apk/).
-   */
   @PluginMethod
   fun deleteCachedApk(call: PluginCall) {
     val name = call.getString("name")
@@ -136,20 +121,47 @@ class AppManagerPlugin : Plugin() {
     }
   }
 
+  /** Clear our own app's cache directory (no permissions needed). */
+  @PluginMethod
+  fun clearOwnCache(call: PluginCall) {
+    try {
+      val freed = clearDir(context.cacheDir)
+      // Also clear webview cache
+      val webCache = File(context.cacheDir, "WebView")
+      val webFreed = if (webCache.exists()) clearDir(webCache) else 0L
+      val result = JSObject()
+      result.put("freedBytes", freed + webFreed)
+      call.resolve(result)
+    } catch (e: Exception) {
+      Log.e(TAG, "clearOwnCache failed", e)
+      call.reject("Failed to clear cache: ${e.message}")
+    }
+  }
+
+  private fun clearDir(dir: File): Long {
+    var freed = 0L
+    if (!dir.exists() || !dir.isDirectory) return 0
+    dir.listFiles()?.forEach { f ->
+      freed += if (f.isDirectory) {
+        val sub = clearDir(f); f.delete(); sub
+      } else {
+        val s = f.length(); if (f.delete()) s else 0
+      }
+    }
+    return freed
+  }
+
   @PluginMethod
   fun installApk(call: PluginCall) {
     val path = call.getString("filePath")
     if (path.isNullOrBlank()) { call.reject("filePath required"); return }
 
-    Log.d(TAG, "installApk called with path: $path")
-
     try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val canInstall = context.packageManager.canRequestPackageInstalls()
-        Log.d(TAG, "canRequestPackageInstalls = $canInstall")
         if (!canInstall) {
           try {
-            val settingsIntent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
               .setData(Uri.parse("package:" + context.packageName))
               .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(settingsIntent)
@@ -161,43 +173,22 @@ class AppManagerPlugin : Plugin() {
         }
       }
 
-      val cleanPath = path
-        .removePrefix("file://")
-        .removePrefix("content://")
-
-      Log.d(TAG, "Cleaned path: $cleanPath")
-
+      val cleanPath = path.removePrefix("file://").removePrefix("content://")
       var file = File(cleanPath)
 
       if (!file.exists()) {
         val cacheSubPath = cleanPath.substringAfter("cache/", "")
-        if (cacheSubPath.isNotEmpty()) {
-          file = File(context.cacheDir, cacheSubPath)
-          Log.d(TAG, "Trying cache path: ${file.absolutePath}")
-        }
+        if (cacheSubPath.isNotEmpty()) file = File(context.cacheDir, cacheSubPath)
       }
-
       if (!file.exists()) {
         val filename = cleanPath.substringAfterLast("/")
         file = File(context.cacheDir, "apk/$filename")
-        Log.d(TAG, "Trying apk folder: ${file.absolutePath}")
       }
-
-      if (!file.exists()) {
-        Log.e(TAG, "APK file not found. Tried paths: $cleanPath, ${context.cacheDir}/apk/")
-        call.reject("APK file not found")
-        return
-      }
-
-      Log.d(TAG, "Found APK at: ${file.absolutePath}, size: ${file.length()}")
+      if (!file.exists()) { call.reject("APK file not found"); return }
 
       val uri = FileProvider.getUriForFile(
-        context,
-        context.packageName + ".fileprovider",
-        file
+        context, context.packageName + ".fileprovider", file
       )
-
-      Log.d(TAG, "FileProvider URI: $uri")
 
       val intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "application/vnd.android.package-archive")
@@ -207,9 +198,7 @@ class AppManagerPlugin : Plugin() {
       }
 
       context.startActivity(intent)
-      Log.d(TAG, "Install intent started successfully")
       call.resolve()
-
     } catch (e: Exception) {
       Log.e(TAG, "Install failed", e)
       call.reject("Failed to start installer: ${e.message}")
@@ -228,24 +217,105 @@ class AppManagerPlugin : Plugin() {
     call.resolve()
   }
 
+  /**
+   * Uninstall using ACTION_UNINSTALL_PACKAGE, which shows the standard system
+   * confirmation dialog with a working "OK" button. ACTION_DELETE is deprecated
+   * and on some Android TV builds simply does nothing after the dialog closes.
+   */
   @PluginMethod
   fun uninstall(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
-    val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg"))
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
-    call.resolve()
+    try {
+      // Verify the package actually exists first
+      try { context.packageManager.getPackageInfo(pkg, 0) }
+      catch (_: Exception) { call.reject("Package not installed: $pkg"); return }
+
+      @Suppress("DEPRECATION")
+      val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+        data = Uri.parse("package:$pkg")
+        putExtra(Intent.EXTRA_RETURN_RESULT, false)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      context.startActivity(intent)
+      call.resolve()
+    } catch (e: Exception) {
+      Log.e(TAG, "uninstall failed", e)
+      call.reject("Failed to start uninstaller: ${e.message}")
+    }
   }
 
   @PluginMethod
   fun openAppSettings(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
-    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
       .setData(Uri.parse("package:$pkg"))
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
     call.resolve()
+  }
+
+  // ---------- Cache-clear Accessibility Service bridge ----------
+
+  /** Returns true if the user has enabled our CacheClearService in Accessibility settings. */
+  @PluginMethod
+  fun isAccessibilityEnabled(call: PluginCall) {
+    val enabled = isAccessibilityServiceEnabled()
+    call.resolve(JSObject().put("enabled", enabled))
+  }
+
+  /** Opens the system Accessibility Settings so the user can enable our service. */
+  @PluginMethod
+  fun openAccessibilitySettings(call: PluginCall) {
+    try {
+      val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      call.resolve()
+    } catch (e: Exception) {
+      call.reject("Could not open Accessibility Settings: ${e.message}")
+    }
+  }
+
+  /**
+   * Triggers the auto-cache-clear flow for one app:
+   * 1. Tells the Accessibility Service which package to clear.
+   * 2. Opens that app's App Info screen.
+   * The service watches for the screen, taps Storage → Clear cache, then back.
+   */
+  @PluginMethod
+  fun clearAppCache(call: PluginCall) {
+    val pkg = call.getString("packageName")
+    if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
+    if (!isAccessibilityServiceEnabled()) {
+      call.reject("ACCESSIBILITY_DISABLED")
+      return
+    }
+    try {
+      // Hand the target to the service via static state
+      CacheClearService.setTarget(pkg, clearData = false)
+      val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:$pkg"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      call.resolve()
+    } catch (e: Exception) {
+      call.reject("Failed to start cache clear: ${e.message}")
+    }
+  }
+
+  private fun isAccessibilityServiceEnabled(): Boolean {
+    val expectedId = context.packageName + "/" + CacheClearService::class.java.name
+    val enabledServices = Settings.Secure.getString(
+      context.contentResolver,
+      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    val splitter = TextUtils.SimpleStringSplitter(':')
+    splitter.setString(enabledServices)
+    while (splitter.hasNext()) {
+      if (splitter.next().equals(expectedId, ignoreCase = true)) return true
+    }
+    return false
   }
 }

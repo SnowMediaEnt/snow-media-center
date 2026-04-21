@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +29,46 @@ const severityStyles: Record<
 };
 
 const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAlertDialogProps) => {
+  const dismissRef = useRef<HTMLButtonElement>(null);
+  const continueRef = useRef<HTMLButtonElement>(null);
+  const [focused, setFocused] = useState<'dismiss' | 'continue'>('continue');
+
+  // When the dialog opens, focus 'Continue Anyway' so d-pad Enter works immediately
+  useEffect(() => {
+    if (open) {
+      setFocused('continue');
+      // Defer to next tick so the dialog content is mounted
+      setTimeout(() => continueRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  // Capture d-pad keys on the dialog itself, in capture phase so background handlers don't see them
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        setFocused('dismiss');
+        dismissRef.current?.focus();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        setFocused('continue');
+        continueRef.current?.focus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        if (focused === 'dismiss') onDismiss();
+        else onContinue();
+      } else if (e.key === 'Escape' || e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopPropagation();
+        onDismiss();
+      }
+    };
+    window.addEventListener('keydown', onKey, true); // capture phase
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, focused, onDismiss, onContinue]);
+
   if (!alert) return null;
   const style = severityStyles[alert.severity] || severityStyles.warning;
   const { Icon } = style;
@@ -46,10 +87,22 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onDismiss} className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700">
+          <Button
+            ref={dismissRef}
+            variant="outline"
+            onClick={onDismiss}
+            className={`bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${
+              focused === 'dismiss' ? 'ring-4 ring-brand-ice scale-105' : ''
+            }`}
+          >
             Dismiss
           </Button>
-          <Button variant="gold" onClick={onContinue}>
+          <Button
+            ref={continueRef}
+            variant="gold"
+            onClick={onContinue}
+            className={focused === 'continue' ? 'ring-4 ring-brand-ice scale-105' : ''}
+          >
             Continue Anyway
           </Button>
         </DialogFooter>
