@@ -102,7 +102,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         event.stopPropagation();
       }
 
-      const tabs: SettingsFocus[] = ['tab-layout', 'tab-media', 'tab-updates'];
+      const tabs: SettingsFocus[] = isAdmin
+        ? ['tab-layout', 'tab-media', 'tab-updates', 'tab-alerts']
+        : ['tab-layout', 'tab-media', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
       
       switch (event.key) {
