@@ -24,8 +24,8 @@ const PinnedAppsBar = ({
     ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' 
     : '';
 
-  // Create 7 equal slots
-  const slots = Array.from({ length: 7 }, (_, i) => pinnedApps[i] || null);
+  // Create 4 equal slots
+  const slots = Array.from({ length: 4 }, (_, i) => pinnedApps[i] || null);
 
   return (
     <div className="mb-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
@@ -33,12 +33,12 @@ const PinnedAppsBar = ({
         <Pin className="w-5 h-5 text-brand-gold" />
         <h2 className="text-lg font-semibold text-white">Pinned Apps</h2>
         <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30">
-          {pinnedApps.length}/7
+          {pinnedApps.length}/4
         </Badge>
       </div>
       
-      {/* 7 Equal Slots Grid */}
-      <div className="grid grid-cols-7 gap-2">
+      {/* 4 Equal Slots Grid */}
+      <div className="grid grid-cols-4 gap-2">
         {slots.map((pinnedApp, index) => {
           const fullApp = pinnedApp ? apps.find(a => a.id === pinnedApp.id) : null;
           const focusId = pinnedApp ? `pinned-${pinnedApp.id}` : `pinned-empty-${index}`;
