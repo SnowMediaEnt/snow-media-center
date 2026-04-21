@@ -235,7 +235,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           } else if (focusedElement.startsWith('launch-')) {
             const appId = focusedElement.replace('launch-', '');
             const app = categoryApps.find(a => a.id === appId);
-            if (app) handleLaunch(app);
+            if (app) attemptLaunch(app);
           } else if (focusedElement.startsWith('settings-')) {
             const appId = focusedElement.replace('settings-', '');
             const app = categoryApps.find(a => a.id === appId);
@@ -501,7 +501,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            onClick={() => isInstalled ? handleLaunch(app) : handleDownload(app)}
+            onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
             className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
@@ -587,7 +587,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
                   <>
                     <Button 
                       data-focus-id={`launch-${app.id}`}
-                      onClick={() => handleLaunch(app)}
+                      onClick={() => attemptLaunch(app)}
                       className={`w-full transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
                     >
                       <Play className="w-4 h-4 mr-2" />
@@ -653,7 +653,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         {/* Pinned Apps Bar */}
         <PinnedAppsBar
           pinnedApps={pinnedApps}
-          onLaunchApp={handleLaunch}
+          onLaunchApp={attemptLaunch}
           focusedElement={focusedElement}
           onFocus={(id) => setFocusedElement(id as FocusType)}
           apps={apps}
