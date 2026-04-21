@@ -502,7 +502,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     } else {
       toast({
         title: "Cannot Pin App",
-        description: "Maximum of 5 apps can be pinned.",
+        description: "Maximum of 4 apps can be pinned.",
         variant: "destructive",
       });
     }
