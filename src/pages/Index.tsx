@@ -271,7 +271,7 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup]);
 
-  const buttons = [
+  const buttons = useMemo(() => [
     {
       icon: Smartphone,
       title: 'Main Apps',
@@ -296,33 +296,27 @@ const Index = () => {
       description: 'Connect with Admin & Users',
       variant: 'navy' as const
     }
-  ];
+  ], []);
 
   
   return (
     <div className="min-h-screen">
-      {/* Navigation-based components */}
-      {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
-      {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
-      {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
-      {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
-      {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
-      {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
-      {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
-      {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
-      
-      {/* Games - Coming Soon */}
-      {currentView === 'games' && <Games onBack={() => goBack()} />}
-      
-      {/* User Support Ticket System */}
-      {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
-      
-      {/* New AI Conversation System */}
-      {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
-      {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
-      
-      {/* Admin Support Dashboard */}
-      {currentView === 'admin-support' && <AdminSupportDashboard onBack={() => goBack()} />}
+      {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
+      <Suspense fallback={<RouteFallback />}>
+        {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
+        {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
+        {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
+        {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
+        {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
+        {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
+        {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
+        {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
+        {currentView === 'games' && <Games onBack={() => goBack()} />}
+        {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
+        {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
+        {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
+        {currentView === 'admin-support' && <AdminSupportDashboard onBack={() => goBack()} />}
+      </Suspense>
 
       {/* Home screen content */}
       {currentView === 'home' && (
@@ -464,30 +458,8 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Date/Time Display - Left side horizontal bar */}
-          <div className="absolute z-20 top-4 left-4">
-            <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-6 py-2.5 flex items-center gap-5">
-              <div className="font-bold font-quicksand text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
-                {currentDateTime.toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </div>
-              <div className="w-px h-5 bg-white/40"></div>
-              <div className="opacity-90 font-nunito text-shadow-soft text-white" style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
-                {currentDateTime.toLocaleTimeString('en-US', { 
-                  hour: '2-digit', 
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
-              </div>
-              <div className="w-px h-5 bg-white/40"></div>
-              <div className="font-nunito text-shadow-soft" style={{ color: '#FFD700', fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}>
-                v{version}
-              </div>
-            </div>
-          </div>
+          {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
+          <HomeClock version={version} />
 
           {/* News Ticker */}
           <NewsTicker />
