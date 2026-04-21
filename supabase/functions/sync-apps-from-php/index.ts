@@ -173,24 +173,35 @@ Deno.serve(async (req) => {
     const { error: upsertErr } = await supabase
       .from("apps")
       .upsert(upsertRows, { onConflict: "external_id" });
-    if (upsertErr) throw upsertErr;
+    if (upsertErr) {
+      console.error("[sync-apps] Upsert error:", JSON.stringify(upsertErr));
+      throw new Error(`Upsert failed: ${upsertErr.message ?? JSON.stringify(upsertErr)}`);
+    }
 
     // 5. Soft-disable rows whose filename is no longer in the feed
     //    (only touch rows that were sourced from PHP — leave manual rows alone)
-    const phpExternalIds = Array.from(seenExternalIds);
     let removed = 0;
-    if (phpExternalIds.length > 0) {
-      const { data: stale, error: staleErr } = await supabase
-        .from("apps")
-        .update({ is_available: false, last_synced_at: now })
-        .eq("source", "php")
-        .eq("is_available", true)
-        .not("external_id", "in", `(${phpExternalIds.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(",")})`)
-        .select("id");
-      if (staleErr) {
-        console.warn("[sync-apps] Soft-disable failed:", staleErr.message);
-      } else {
-        removed = stale?.length ?? 0;
+    const { data: phpRows, error: listErr } = await supabase
+      .from("apps")
+      .select("id, external_id")
+      .eq("source", "php")
+      .eq("is_available", true);
+    if (listErr) {
+      console.warn("[sync-apps] List for soft-disable failed:", JSON.stringify(listErr));
+    } else if (phpRows) {
+      const staleIds = phpRows
+        .filter((r) => r.external_id && !seenExternalIds.has(r.external_id))
+        .map((r) => r.id);
+      if (staleIds.length > 0) {
+        const { error: disableErr } = await supabase
+          .from("apps")
+          .update({ is_available: false, last_synced_at: now })
+          .in("id", staleIds);
+        if (disableErr) {
+          console.warn("[sync-apps] Soft-disable failed:", JSON.stringify(disableErr));
+        } else {
+          removed = staleIds.length;
+        }
       }
     }
 
@@ -209,7 +220,7 @@ Deno.serve(async (req) => {
       status: 200,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : (typeof err === "string" ? err : JSON.stringify(err));
     console.error("[sync-apps] Error:", message);
     const result: SyncResult = {
       ok: false,
