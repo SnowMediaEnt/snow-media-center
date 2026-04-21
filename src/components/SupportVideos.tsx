@@ -129,9 +129,20 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
 
   // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
+    // When focus returns to the Back button or tabs, scroll the container all the way to top
+    // so the header and back button aren't clipped by overscan / sticky padding.
+    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+      const scrollContainer = document.querySelector('.tv-scroll-container') as HTMLElement;
+      if (scrollContainer) {
+        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
-    
+
     // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   }, [focusedElement]);
@@ -253,15 +264,17 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
-            <Button 
+            <Button
               onClick={onBack}
-              variant="gold" 
+              variant="gold"
               size="lg"
+              data-focus-id="back"
               className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
+
             <div className="invisible">
               <Button variant="gold" size="lg">Placeholder</Button>
             </div>
