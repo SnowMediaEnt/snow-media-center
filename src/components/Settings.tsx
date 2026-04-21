@@ -29,39 +29,10 @@ type SettingsFocus =
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('layout');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
-  const [clearingCache, setClearingCache] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleClearApkCache = async () => {
-    if (clearingCache) return;
-    setClearingCache(true);
-    try {
-      if (!isNativePlatform()) {
-        toast({
-          title: 'Not available on web',
-          description: 'APK cache only exists on the installed Android app.',
-        });
-        return;
-      }
-      await cleanupOldApks();
-      toast({
-        title: 'Download cache cleared',
-        description: 'Any leftover APK files have been deleted.',
-      });
-    } catch (e) {
-      toast({
-        title: 'Could not clear cache',
-        description: e instanceof Error ? e.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setClearingCache(false);
-    }
-  };
 
   // When tab changes, reset focus appropriately
   useEffect(() => {
