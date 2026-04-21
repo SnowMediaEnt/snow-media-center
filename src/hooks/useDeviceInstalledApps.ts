@@ -37,6 +37,7 @@ export const useDeviceInstalledApps = () => {
       setError(e instanceof Error ? e.message : 'Failed to enumerate apps');
       setInstalledApps([]);
       setInstalledSet(new Set());
+      setInstalledNameSet(new Set());
     } finally {
       setLoading(false);
     }
@@ -44,7 +45,6 @@ export const useDeviceInstalledApps = () => {
 
   useEffect(() => {
     refresh();
-    // Re-scan when user returns from system installer/uninstaller
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refresh();
     };
@@ -58,5 +58,26 @@ export const useDeviceInstalledApps = () => {
     [installedSet]
   );
 
-  return { installedApps, isPackageInstalled, loading, error, refresh };
+  /**
+   * Match by display name — works for every app in the catalog,
+   * not just the few we have hard-coded package names for.
+   * Uses normalised compare + substring match so "Plex" finds "Plex for Android TV".
+   */
+  const isAppNameInstalled = useCallback(
+    (appName?: string | null) => {
+      if (!appName) return false;
+      const target = normaliseName(appName);
+      if (!target) return false;
+      if (installedNameSet.has(target)) return true;
+      for (const installedName of installedNameSet) {
+        if (installedName.includes(target) || target.includes(installedName)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [installedNameSet]
+  );
+
+  return { installedApps, isPackageInstalled, isAppNameInstalled, loading, error, refresh };
 };
