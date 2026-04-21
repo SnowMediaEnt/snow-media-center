@@ -221,9 +221,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           } else if (focusedElement === 'tab-0') {
             setActiveTab('featured');
           } else if (focusedElement === 'tab-1') {
-            setActiveTab('streaming');
-          } else if (focusedElement === 'tab-2') {
-            setActiveTab('support');
+            setActiveTab('all');
           } else if (focusedElement.startsWith('download-')) {
             const appId = focusedElement.replace('download-', '');
             const app = categoryApps.find(a => a.id === appId);
