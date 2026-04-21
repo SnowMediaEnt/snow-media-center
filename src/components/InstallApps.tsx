@@ -736,6 +736,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             Back to Home
           </Button>
             <Button
+              data-focus-id="refresh"
               onClick={async () => {
                 await refreshDeviceApps();
                 refreshAllStatuses();
@@ -746,7 +747,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               }}
               variant="outline"
               size="lg"
-              className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30"
+              className={`bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 transition-all duration-200 ${focusRing('refresh')}`}
               title="Re-check installed apps"
             >
               <RefreshCw className="w-5 h-5 mr-2" />
