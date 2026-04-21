@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import { useAdminRole } from '@/hooks/useAdminRole';
+import { useToast } from '@/hooks/use-toast';
+import { cleanupOldApks } from '@/utils/downloadApk';
+import { isNativePlatform } from '@/utils/platform';
 
 interface SettingsProps {
   onBack: () => void;
@@ -28,10 +31,39 @@ type SettingsFocus =
 
 const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('layout');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleClearApkCache = async () => {
+    if (clearingCache) return;
+    setClearingCache(true);
+    try {
+      if (!isNativePlatform()) {
+        toast({
+          title: 'Not available on web',
+          description: 'APK cache only exists on the installed Android app.',
+        });
+        return;
+      }
+      await cleanupOldApks();
+      toast({
+        title: 'Download cache cleared',
+        description: 'Any leftover APK files have been deleted.',
+      });
+    } catch (e) {
+      toast({
+        title: 'Could not clear cache',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setClearingCache(false);
+    }
+  };
 
   // When tab changes, reset focus appropriately
   useEffect(() => {
