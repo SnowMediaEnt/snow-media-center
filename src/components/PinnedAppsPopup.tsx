@@ -108,8 +108,8 @@ const PinnedAppsPopup = ({
     }
   }
 
-  // Create 7 equal slots
-  const slots = Array.from({ length: 7 }, (_, i) => pinnedApps[i] || null);
+  // Create 4 equal slots
+  const slots = Array.from({ length: 4 }, (_, i) => pinnedApps[i] || null);
 
   return (
     <>
@@ -120,12 +120,12 @@ const PinnedAppsPopup = ({
             <Pin className="w-4 h-4 text-brand-gold" />
             <span className="text-sm font-semibold text-white">Pinned Apps</span>
             <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 text-xs">
-              {pinnedApps.length}/7
+              {pinnedApps.length}/4
             </Badge>
           </div>
           
-          {/* 7 Equal Slots Grid */}
-          <div className="grid grid-cols-7 gap-2" style={{ width: 'max(490px, 35vw)' }}>
+          {/* 4 Equal Slots Grid */}
+          <div className="grid grid-cols-4 gap-2" style={{ width: 'max(280px, 22vw)' }}>
             {slots.map((pinnedApp, index) => {
               const isFocused = focusedIndex === index;
               
