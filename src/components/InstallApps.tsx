@@ -62,6 +62,7 @@ type FocusType =
   | `download-${string}` 
   | `launch-${string}` 
   | `settings-${string}` 
+  | `cache-${string}` 
   | `uninstall-${string}`
   | `pinned-${string}`;
 
@@ -101,7 +102,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const getAppButtons = useCallback((app: AppData): string[] => {
     const status = appStatuses.get(app.id);
     if (status?.installed) {
-      return [`launch-${app.id}`, `settings-${app.id}`, `uninstall-${app.id}`];
+      return [`launch-${app.id}`, `settings-${app.id}`, `cache-${app.id}`, `uninstall-${app.id}`];
     }
     return [`download-${app.id}`];
   }, [appStatuses]);
