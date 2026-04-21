@@ -38,7 +38,6 @@ const RouteFallback = () => (
 
 
 const Index = () => {
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
   const [isInPopup, setIsInPopup] = useState(false);
@@ -58,7 +57,7 @@ const Index = () => {
   const { apps } = useAppData();
 
   // Handle pinning apps from popup
-  const handlePinFromPopup = (app: InstalledApp) => {
+  const handlePinFromPopup = useCallback((app: InstalledApp) => {
     const pinnedAppData: PinnedApp = {
       id: app.id,
       name: app.name,
@@ -66,10 +65,10 @@ const Index = () => {
       packageName: app.packageName,
     };
     pinApp(pinnedAppData);
-  };
+  }, [pinApp]);
 
   // Handle launching pinned apps
-  const handleLaunchPinnedApp = async (app: any) => {
+  const handleLaunchPinnedApp = useCallback(async (app: any) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
@@ -87,32 +86,29 @@ const Index = () => {
     } catch (error) {
       console.error('Launch error:', error);
       toast({
-        title: "Launch Failed", 
+        title: "Launch Failed",
         description: `Could not launch ${app.name}. Make sure it's installed.`,
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  // Update date/time every second and detect screen resolution
+  // Detect screen resolution for TV optimization (throttled via rAF)
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-
-    // Detect screen resolution for TV optimization
+    let frame = 0;
     const handleResize = () => {
-      setScreenHeight(window.innerHeight);
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        setScreenHeight(window.innerHeight);
+        frame = 0;
+      });
     };
-
-    handleResize(); // Check on mount
     window.addEventListener('resize', handleResize);
-    
     return () => {
-      clearInterval(timer);
       window.removeEventListener('resize', handleResize);
+      if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [layoutMode]);
+  }, []);
 
   // Show exit toast on home screen
   useEffect(() => {
@@ -124,6 +120,7 @@ const Index = () => {
       });
     }
   }, [backPressCount, currentView, toast]);
+
 
   const handleLayoutChange = (newMode: 'grid' | 'row') => {
     setLayoutMode(newMode);
