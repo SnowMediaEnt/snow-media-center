@@ -377,7 +377,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
   const handleLaunch = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Launch] ${app.name} → ${packageName}`);
       await AppManager.launch({ packageName });
       
       toast({
@@ -405,11 +406,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
     handleLaunch(app);
-  }, [getAlertForApp]);
+  }, [getAlertForApp, resolvePackageName]);
 
   const handleUninstall = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Uninstall] ${app.name} → ${packageName}`);
       await AppManager.uninstall({ packageName });
       
       // Update status immediately and re-check after delay
@@ -419,8 +421,9 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       })));
       
       setTimeout(async () => {
+        await refreshDeviceApps();
         await ensureStatus(app);
-      }, 1000);
+      }, 1500);
       
       toast({
         title: "Uninstalling App",
@@ -442,7 +445,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
   const handleOpenAppSettings = async (app: AppData) => {
     try {
-      const packageName = generateAppPackageName(app);
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      console.log(`[Settings] ${app.name} → ${packageName}`);
       await AppManager.openAppSettings({ packageName });
       
       toast({
