@@ -50,10 +50,10 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
         event.stopPropagation();
       }
 
-      // Handle Android back button - close popup
+      // Handle Android back button - close popup (and clean up cached APK)
       if (event.key === 'Escape' || event.keyCode === 4) {
         event.preventDefault();
-        onClose();
+        handleCloseAndCleanup();
         return;
       }
 
@@ -75,16 +75,16 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
             if (focusedButton === 'install') {
               handleInstall();
             } else {
-              onClose();
+              handleCloseAndCleanup();
             }
           } else if (state === 'installed') {
             if (focusedButton === 'open') {
               handleOpenApp();
             } else {
-              onClose();
+              handleCloseAndCleanup();
             }
           } else if (state === 'error') {
-            onClose();
+            handleCloseAndCleanup();
           }
           break;
       }
