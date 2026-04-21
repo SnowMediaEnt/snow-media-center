@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * SsoConsume — landing page for magic links coming from snowmedia.com
+ * SsoConsume — landing page for magic links coming from snowmediaent.com
  *
  * Two URL shapes are supported:
  *

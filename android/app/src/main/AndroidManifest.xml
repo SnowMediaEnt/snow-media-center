@@ -47,14 +47,14 @@
                 <data android:scheme="snowmedia" android:host="sso" />
             </intent-filter>
 
-            <!-- Universal/App Link: https://snowmedia.com/sso?token=... -->
-            <!-- autoVerify requires assetlinks.json hosted at https://snowmedia.com/.well-known/assetlinks.json -->
+            <!-- Universal/App Link: https://snowmediaent.com/sso?token=... -->
+            <!-- autoVerify requires assetlinks.json hosted at https://snowmediaent.com/.well-known/assetlinks.json -->
             <intent-filter android:label="Snow Media SSO Web" android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
-                <data android:host="snowmedia.com" />
+                <data android:host="snowmediaent.com" />
                 <data android:pathPrefix="/sso" />
             </intent-filter>
 
@@ -63,7 +63,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
-                <data android:host="www.snowmedia.com" />
+                <data android:host="www.snowmediaent.com" />
                 <data android:pathPrefix="/sso" />
             </intent-filter>
         </activity>
