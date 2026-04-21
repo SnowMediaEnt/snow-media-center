@@ -117,10 +117,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       }
       
       const categoryApps = getCategoryApps(activeTab);
-      const tabs = ['tab-0', 'tab-1', 'tab-2'];
+      const tabs = ['tab-0', 'tab-1'];
       
       // Build a flat list of focusable elements in order
-      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1', 'tab-2'];
+      const focusOrder: FocusType[] = ['back', 'tab-0', 'tab-1'];
       categoryApps.forEach(app => {
         focusOrder.push(`app-${app.id}` as FocusType);
         getAppButtons(app).forEach(btn => focusOrder.push(btn as FocusType));
@@ -131,7 +131,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'tab-1') setFocusedElement('tab-0');
-          else if (focusedElement === 'tab-2') setFocusedElement('tab-1');
           else if (focusedElement.startsWith('app-') || focusedElement === 'tab-0') {
             setFocusedElement('back');
           } else if (focusedElement.includes('-') && !focusedElement.startsWith('tab-')) {
@@ -143,7 +142,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           
         case 'ArrowRight':
           if (focusedElement === 'tab-0') setFocusedElement('tab-1');
-          else if (focusedElement === 'tab-1') setFocusedElement('tab-2');
           else if (focusedElement === 'back') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('app-')) {
