@@ -92,7 +92,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state, focusedButton]);
+  }, [state, focusedButton, handleCloseAndCleanup, handleInstall, handleOpenApp]);
 
   // Reset focus when state changes
   useEffect(() => {
