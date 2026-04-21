@@ -2,3 +2,6 @@ project_id = "falmwzhvxoefvkfsiylp"
 
 [functions.external-knowledge-sync]
 verify_jwt = false
+
+[functions.wix-sso-bridge]
+verify_jwt = false
