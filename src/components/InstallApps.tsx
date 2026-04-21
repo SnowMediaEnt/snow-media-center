@@ -712,6 +712,19 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           onClose={() => setContextMenu({ app: null, position: { x: 0, y: 0 } })}
         />
       )}
+
+      {/* App Alert Popup (e.g. "Dreamstreams EPG is down") */}
+      <AppAlertDialog
+        alert={pendingAlert?.alert ?? null}
+        appName={pendingAlert?.app.name}
+        open={!!pendingAlert}
+        onDismiss={() => setPendingAlert(null)}
+        onContinue={() => {
+          const app = pendingAlert?.app;
+          setPendingAlert(null);
+          if (app) handleLaunch(app);
+        }}
+      />
     </div>
   );
 };
