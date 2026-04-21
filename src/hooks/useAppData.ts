@@ -81,8 +81,10 @@ export const useAppData = () => {
       console.log('[AppData] Fetching apps from Supabase...');
       const { data, error } = await supabase
         .from('apps')
-        .select('*, package_name')
-        .order('is_featured', { ascending: false });
+        .select('*, package_name, version, external_id, is_available')
+        .eq('is_available', true)
+        .order('is_featured', { ascending: false })
+        .order('name', { ascending: true });
 
       if (error) {
         console.error('[AppData] Supabase query error:', error);
