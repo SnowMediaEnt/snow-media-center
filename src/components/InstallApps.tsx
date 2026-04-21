@@ -492,10 +492,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Settings] ${app.name} → ${packageName}`);
       await AppManager.openAppSettings({ packageName });
-      
+
       toast({
         title: "Opening App Settings",
-        description: `${app.name} settings opened for cache/data management`,
+        description: `${app.name} settings opened`,
       });
     } catch (error) {
       console.error('App settings error:', error);
@@ -509,6 +509,101 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     }
   };
+
+  /**
+   * Auto-clears the given app's CACHE (never data) using the Accessibility
+   * Service. If the service isn't enabled yet, prompt the user once and open
+   * Android's Accessibility Settings so they can turn it on.
+   */
+  const handleAutoClearCache = useCallback(async (app: AppData) => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+    try {
+      const { enabled } = await AppManager.isAccessibilityEnabled();
+      if (!enabled) {
+        toast({
+          title: 'Enable Cache Cleaner',
+          description:
+            'Turn on "Snow Media Cache Cleaner" in Accessibility, then press Clear Cache again. We only tap "Clear cache" — never "Clear data".',
+        });
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+      toast({
+        title: `Clearing cache: ${app.name}`,
+        description: 'Auto-tapping Storage → Clear cache…',
+      });
+      await AppManager.clearAppCache({ packageName });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/ACCESSIBILITY_DISABLED/.test(msg)) {
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+      toast({
+        title: 'Clear cache failed',
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : msg,
+        variant: 'destructive',
+      });
+    }
+  }, [resolvePackageName, toast]);
+
+  /** Walks every installed app from our catalog and auto-clears each one's cache. */
+  const handleClearAllCaches = useCallback(async () => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const installed = apps.filter(a => appStatuses.get(a.id)?.installed);
+    if (installed.length === 0) {
+      toast({ title: 'No installed apps to clean.' });
+      return;
+    }
+    try {
+      const { enabled } = await AppManager.isAccessibilityEnabled();
+      if (!enabled) {
+        toast({
+          title: 'Enable Cache Cleaner first',
+          description: 'Turn on "Snow Media Cache Cleaner" in Accessibility, then try again.',
+        });
+        await AppManager.openAccessibilitySettings();
+        return;
+      }
+    } catch {/* ignore — clearAppCache will reject if disabled */}
+
+    // Also wipe our own cache while we're at it
+    try {
+      const { freedBytes } = await AppManager.clearOwnCache();
+      if (freedBytes > 0) {
+        toast({
+          title: 'Snow Media cache cleared',
+          description: `Freed ${(freedBytes / (1024 * 1024)).toFixed(1)} MB from this app.`,
+        });
+      }
+    } catch {/* non-fatal */}
+
+    toast({
+      title: `Cleaning ${installed.length} app${installed.length === 1 ? '' : 's'}…`,
+      description: 'Each app will flash by in Settings. Don\'t touch the remote.',
+    });
+    // Run sequentially with a delay so the Accessibility service has time
+    // per app (open settings → tap Storage → tap Clear cache → back back).
+    for (let i = 0; i < installed.length; i++) {
+      const app = installed[i];
+      const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+      try {
+        await AppManager.clearAppCache({ packageName });
+      } catch (e) {
+        console.warn(`[ClearAll] ${app.name} failed`, e);
+      }
+      // Wait ~6s between apps to let the service complete its taps + back-out
+      await new Promise(r => setTimeout(r, 6000));
+    }
+    toast({ title: 'All caches cleared ✅', description: `Processed ${installed.length} app(s).` });
+  }, [apps, appStatuses, resolvePackageName, toast]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
