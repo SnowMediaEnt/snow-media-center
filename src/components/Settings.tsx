@@ -139,6 +139,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
+          } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
+            setFocusedElement('alerts-content');
           }
           break;
           
@@ -152,6 +154,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setActiveTab('media');
           } else if (focusedElement === 'tab-updates') {
             setActiveTab('updates');
+          } else if (focusedElement === 'tab-alerts') {
+            setActiveTab('alerts');
           } else if (focusedElement === 'layout-toggle') {
             onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid');
           }
