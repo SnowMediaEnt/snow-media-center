@@ -259,8 +259,8 @@ const PinnedAppsPopup = ({
           </div>
           <p className="text-xs text-slate-500 text-center mt-4">
             {canPinMore 
-              ? `You can pin ${7 - pinnedApps.length} more app${7 - pinnedApps.length !== 1 ? 's' : ''}`
-              : 'Maximum 7 apps pinned. Unpin one to add more.'
+              ? `You can pin ${4 - pinnedApps.length} more app${4 - pinnedApps.length !== 1 ? 's' : ''}`
+              : 'Maximum 4 apps pinned. Unpin one to add more.'
             }
           </p>
         </DialogContent>
