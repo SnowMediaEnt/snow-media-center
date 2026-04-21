@@ -169,25 +169,33 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive, isAdmin]);
 
   // Scroll focused element into view - ensure back button is always reachable
+  // and that scrolling all the way "up" returns the page to absolute 0,
+  // matching the behavior fixed for Vimeo / Snow Media Store.
   useEffect(() => {
-    if (focusedElement === 'back') {
-      // Scroll to the absolute top anchor
-      const topAnchor = document.getElementById('settings-top');
-      if (topAnchor) {
-        topAnchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+    const scrollAllToTop = () => {
+      // Reset every plausible scroller: container, window, body, html,
+      // plus any tv-scroll-container ancestors we may be nested inside.
       containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (focusedElement.startsWith('tab-')) {
-      const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-      if (el) {
-        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      }
-    } else {
-      const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-      if (el) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document
+        .querySelectorAll<HTMLElement>('.tv-scroll-container')
+        .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
+    };
+
+    // The back button and the top tabs are visually at the top of the page,
+    // so any focus on them should snap the entire scroll to 0.
+    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+      const topAnchor = document.getElementById('settings-top');
+      topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollAllToTop();
+      return;
+    }
+
+    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [focusedElement]);
 
