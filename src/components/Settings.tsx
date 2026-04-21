@@ -2,14 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
+import ApkCacheViewer from '@/components/ApkCacheViewer';
 import { useAdminRole } from '@/hooks/useAdminRole';
-import { useToast } from '@/hooks/use-toast';
-import { cleanupOldApks } from '@/utils/downloadApk';
-import { isNativePlatform } from '@/utils/platform';
 
 interface SettingsProps {
   onBack: () => void;
