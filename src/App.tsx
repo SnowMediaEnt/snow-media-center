@@ -8,6 +8,7 @@ import { App as CapApp } from "@capacitor/app";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import QRLogin from "./pages/QRLogin";
+import SsoConsume from "./pages/SsoConsume";
 import NotFound from "./pages/NotFound";
 import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
@@ -45,6 +46,42 @@ const App = () => {
       }
     };
   }, []);
+
+  // Deep link handler — open snowmedia://sso?token=... or https://snowmedia.com/sso?token=...
+  // and route into the in-app /sso consumer page so the magic link signs the user in.
+  useEffect(() => {
+    let urlListener: any = null;
+
+    const setupUrlListener = async () => {
+      urlListener = await CapApp.addListener("appUrlOpen", (event: { url: string }) => {
+        try {
+          const incoming = new URL(event.url);
+          // Match either snowmedia://sso/... OR https://(www.)snowmedia.com/sso...
+          const isSsoScheme = incoming.protocol === "snowmedia:" && incoming.host === "sso";
+          const isSsoWeb =
+            (incoming.protocol === "https:" || incoming.protocol === "http:") &&
+            /(^|\.)snowmedia\.com$/i.test(incoming.host) &&
+            incoming.pathname.startsWith("/sso");
+
+          if (!isSsoScheme && !isSsoWeb) return;
+
+          // Preserve search + hash (Supabase puts tokens in either)
+          const target = `/sso${incoming.search}${incoming.hash}`;
+          window.history.replaceState(null, "", target);
+          // Force a soft reload of the route
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        } catch (err) {
+          console.error("[App] Failed to handle deep link:", event.url, err);
+        }
+      });
+    };
+
+    setupUrlListener();
+
+    return () => {
+      if (urlListener) urlListener.remove();
+    };
+  }, []);
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -70,6 +107,7 @@ const App = () => {
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/qr-login" element={<QRLogin />} />
+                <Route path="/sso" element={<SsoConsume />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

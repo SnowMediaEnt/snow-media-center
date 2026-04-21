@@ -31,13 +31,41 @@
 
         </activity>
 
-        <!-- Main Activity - No longer the launcher -->
+        <!-- Main Activity - Now also handles SSO deep links -->
         <activity
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTask"
             android:label="@string/app_name"
             android:name="com.snowmedia.MainActivity"
             android:theme="@style/AppTheme.NoActionBar">
+
+            <!-- Custom scheme deep link: snowmedia://sso?token=... -->
+            <intent-filter android:label="Snow Media SSO">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="snowmedia" android:host="sso" />
+            </intent-filter>
+
+            <!-- Universal/App Link: https://snowmedia.com/sso?token=... -->
+            <!-- autoVerify requires assetlinks.json hosted at https://snowmedia.com/.well-known/assetlinks.json -->
+            <intent-filter android:label="Snow Media SSO Web" android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="snowmedia.com" />
+                <data android:pathPrefix="/sso" />
+            </intent-filter>
+
+            <intent-filter android:label="Snow Media SSO Web (www)" android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.snowmedia.com" />
+                <data android:pathPrefix="/sso" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -1,19 +1,26 @@
 // Wix → Snow Media Center SSO bridge
-// 
-// FLOW:
-// 1. User is logged into snowmedia.com (Wix). They click an "Open in Snow Media app" button.
-// 2. Wix Velo backend code calls this endpoint with: { email, secret }
-// 3. We verify the shared secret + check that the email exists as a Wix member.
-// 4. We use the Supabase Admin API to generate a magic link for that email.
-//    If the user doesn't exist in Supabase yet, we create them (auto-provision).
-// 5. We return { magicLink: "https://..." } which Wix redirects the user to.
-// 6. The link signs them into Snow Media Center automatically — no password needed.
+//
+// SUPPORTED ACTIONS:
+//
+// 1) action: "mint-link" (default if omitted)
+//    Body: { email, secret, redirectTo? }
+//    Returns: { success, magicLink, email }
+//    Wix calls this when a logged-in member clicks "Sign in to App".
+//    We verify the shared secret + that the email is a real Wix member,
+//    auto-provision the Supabase user if needed, then return a single-use
+//    Supabase magic link.
+//
+// 2) action: "email-link"
+//    Body: { email, secret, magicLink }
+//    Returns: { success }
+//    Wix calls this if the user picks "Email it to me instead" in the modal.
+//    We send the magic link via Resend to the user's email.
 //
 // SECURITY:
-// - Shared secret (WIX_SSO_SHARED_SECRET) prevents arbitrary magic-link requests.
-// - We double-check the email is a real Wix member before issuing — so even with the
-//   shared secret, an attacker can only auth as someone who's already a Wix member.
-// - Magic links from Supabase are single-use and short-lived (default 1 hour).
+// - Shared secret (WIX_SSO_SHARED_SECRET) gates ALL actions
+// - We re-verify Wix membership on every mint-link call
+// - Magic links are Supabase-native: single-use, ~1h expiry, auto-revoked on use
+// - email-link only sends to the verified Wix member email — not arbitrary addresses
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -30,6 +37,107 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+async function verifyWixMember(
+  email: string,
+  wixApiKey: string,
+  wixSiteId: string
+): Promise<{ id: string; profile?: any } | null> {
+  const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
+    method: 'POST',
+    headers: {
+      'Authorization': wixApiKey,
+      'wix-site-id': wixSiteId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      filter: { loginEmail: { $eq: email } },
+      fieldsets: ['FULL'],
+    }),
+  });
+
+  if (!memberResponse.ok) {
+    const errText = await memberResponse.text();
+    console.error('[wix-sso-bridge] Wix member lookup failed:', memberResponse.status, errText);
+    return null;
+  }
+
+  const memberData = await memberResponse.json();
+  return memberData.members?.find(
+    (m: any) => m.loginEmail?.toLowerCase().trim() === email
+  ) ?? null;
+}
+
+async function sendMagicLinkEmail(
+  recipientEmail: string,
+  magicLink: string,
+  resendApiKey: string
+): Promise<boolean> {
+  const html = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;padding:40px;">
+          <tr>
+            <td>
+              <h1 style="color:#0f172a;font-size:24px;margin:0 0 16px;">Sign in to Snow Media</h1>
+              <p style="color:#475569;font-size:16px;line-height:1.6;margin:0 0 24px;">
+                Tap the button below on the device where you want to sign in (your TV, streaming box, phone, or computer).
+                If the Snow Media app is installed, it'll open automatically.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  <td align="center" style="background-color:#2563eb;border-radius:8px;">
+                    <a href="${magicLink}" style="display:inline-block;padding:14px 28px;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;">
+                      Sign In to Snow Media
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="color:#64748b;font-size:13px;line-height:1.6;margin:32px 0 8px;">
+                Or copy and paste this link into your device's browser:
+              </p>
+              <p style="color:#2563eb;font-size:12px;word-break:break-all;margin:0 0 24px;">
+                ${magicLink}
+              </p>
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+              <p style="color:#94a3b8;font-size:12px;line-height:1.5;margin:0;">
+                This link is single-use and expires in 1 hour. If you didn't request this, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`.trim();
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'Snow Media <onboarding@resend.dev>',
+      to: [recipientEmail],
+      subject: 'Your Snow Media sign-in link',
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('[wix-sso-bridge] Resend send failed:', response.status, errText);
+    return false;
+  }
+
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -39,6 +147,7 @@ Deno.serve(async (req) => {
     const wixSiteId = Deno.env.get('WIX_SITE_ID');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
     if (!sharedSecret || !wixApiKey || !wixSiteId || !supabaseUrl || !serviceKey) {
       console.error('[wix-sso-bridge] Missing required environment variables');
@@ -46,13 +155,15 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { email, secret, redirectTo } = body as {
+    const { action = 'mint-link', email, secret, redirectTo, magicLink } = body as {
+      action?: string;
       email?: string;
       secret?: string;
       redirectTo?: string;
+      magicLink?: string;
     };
 
-    // 1) Validate shared secret (constant-time-ish; Deno doesn't have timingSafeEqual built in)
+    // Shared-secret gate for ALL actions
     if (!secret || secret !== sharedSecret) {
       console.warn('[wix-sso-bridge] Invalid or missing shared secret');
       return jsonResponse({ error: 'Unauthorized' }, 401);
@@ -63,35 +174,36 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    console.log('[wix-sso-bridge] SSO request for:', normalizedEmail);
 
-    // 2) Verify email is a real Wix member (so we can't be tricked into issuing
-    //    magic links for arbitrary external emails)
-    const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
-      method: 'POST',
-      headers: {
-        'Authorization': wixApiKey,
-        'wix-site-id': wixSiteId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        filter: { loginEmail: { $eq: normalizedEmail } },
-        fieldsets: ['FULL'],
-      }),
-    });
+    // ========== ACTION: email-link ==========
+    if (action === 'email-link') {
+      if (!magicLink || typeof magicLink !== 'string' || !magicLink.startsWith('http')) {
+        return jsonResponse({ error: 'Valid magicLink is required' }, 400);
+      }
+      if (!resendApiKey) {
+        console.error('[wix-sso-bridge] RESEND_API_KEY not configured');
+        return jsonResponse({ error: 'Email service not configured' }, 500);
+      }
 
-    if (!memberResponse.ok) {
-      const errText = await memberResponse.text();
-      console.error('[wix-sso-bridge] Wix member lookup failed:', memberResponse.status, errText);
-      return jsonResponse({ error: 'Could not verify Wix member' }, 502);
+      // Re-verify Wix membership before emailing
+      const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
+      if (!matched) {
+        return jsonResponse({ error: 'No matching Wix member found' }, 404);
+      }
+
+      console.log('[wix-sso-bridge] Emailing magic link to:', normalizedEmail);
+      const sent = await sendMagicLinkEmail(normalizedEmail, magicLink, resendApiKey);
+      if (!sent) {
+        return jsonResponse({ error: 'Failed to send email' }, 502);
+      }
+
+      return jsonResponse({ success: true, message: 'Sign-in link sent to your email' });
     }
 
-    const memberData = await memberResponse.json();
-    // Wix often ignores the filter and returns everything — match manually
-    const matched = memberData.members?.find(
-      (m: any) => m.loginEmail?.toLowerCase().trim() === normalizedEmail
-    );
+    // ========== ACTION: mint-link (default) ==========
+    console.log('[wix-sso-bridge] SSO mint-link request for:', normalizedEmail);
 
+    const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
     if (!matched) {
       console.warn('[wix-sso-bridge] Email is not a Wix member:', normalizedEmail);
       return jsonResponse({ error: 'No matching Wix member found' }, 404);
@@ -99,15 +211,11 @@ Deno.serve(async (req) => {
 
     console.log('[wix-sso-bridge] Verified Wix member:', matched.id);
 
-    // 3) Use Supabase admin client to generate a magic link.
-    //    If the user doesn't exist in Supabase yet, generateLink with type 'magiclink'
-    //    will create them automatically (when shouldCreateUser is implied).
     const adminClient = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // First, ensure the Supabase user exists (create if not). This avoids the
-    // "user not found" branch of generateLink and lets us preserve the Wix profile name.
+    // Auto-provision Supabase user if needed
     const { data: existingUsers } = await adminClient.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(
       (u) => u.email?.toLowerCase().trim() === normalizedEmail
@@ -121,7 +229,7 @@ Deno.serve(async (req) => {
         '';
       const { error: createErr } = await adminClient.auth.admin.createUser({
         email: normalizedEmail,
-        email_confirm: true, // they're already verified via Wix
+        email_confirm: true,
         user_metadata: { full_name: fullName, wix_member_id: matched.id },
       });
       if (createErr) {
@@ -130,7 +238,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4) Generate the magic link
     const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
       type: 'magiclink',
       email: normalizedEmail,
