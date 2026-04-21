@@ -50,6 +50,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <div 
+          data-app-scroll-root
           className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
           style={backgroundUrl ? {
             backgroundImage: `url(${backgroundUrl})`,
