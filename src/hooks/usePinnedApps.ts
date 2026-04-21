@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 
 const PINNED_APPS_KEY = 'pinned-apps';
 const PINNED_APPS_VERSION_KEY = 'pinned-apps-version';
-const CURRENT_VERSION = 4; // Bumped: start with empty pinned apps - user adds their own
-const MAX_PINNED_APPS = 7;
+const CURRENT_VERSION = 5; // Bumped: max pinned apps reduced from 7 to 4
+const MAX_PINNED_APPS = 4;
 
 export interface PinnedApp {
   id: string;

@@ -16,6 +16,7 @@ import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -83,6 +84,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+
+  // Bulk lookup of every user-installed app on the device
+  const { isPackageInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
+    useDeviceInstalledApps();
 
   // App alerts (warning popups)
   const { getAlertForApp } = useAppAlerts();
@@ -285,11 +290,11 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const checkInstallStatus = useCallback(async (app: AppData): Promise<boolean> => {
     try {
       const packageName = generateAppPackageName(app);
-      console.log(`Checking install status for ${app.name} (${packageName})`);
-      
+      // 1) Bulk-scan result is the source of truth.
+      if (isPackageInstalled(packageName)) return true;
+      // 2) Per-package fallback (covers devices where QUERY_ALL_PACKAGES is blocked).
       if (Capacitor.isNativePlatform()) {
         const { installed } = await AppManager.isInstalled({ packageName });
-        console.log(`${app.name} installed: ${installed}`);
         return installed;
       }
       return false;
@@ -297,7 +302,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       console.error('Error checking install status:', error);
       return false;
     }
-  }, []);
+  }, [isPackageInstalled]);
 
   const ensureStatus = useCallback(async (app: AppData): Promise<{ installed: boolean }> => {
     try {
@@ -497,7 +502,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     } else {
       toast({
         title: "Cannot Pin App",
-        description: "Maximum of 5 apps can be pinned.",
+        description: "Maximum of 4 apps can be pinned.",
         variant: "destructive",
       });
     }
@@ -690,11 +695,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             Back to Home
           </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
+                await refreshDeviceApps();
                 refreshAllStatuses();
                 toast({
                   title: 'Refreshing…',
-                  description: 'Re-checking which apps are installed on this device.',
+                  description: `Re-scanning device. Found ${deviceApps.length} installed apps.`,
                 });
               }}
               variant="outline"

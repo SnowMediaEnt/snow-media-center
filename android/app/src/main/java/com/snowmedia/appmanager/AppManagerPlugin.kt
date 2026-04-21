@@ -1,6 +1,7 @@
 package com.snowmedia.appmanager
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -31,6 +32,110 @@ class AppManagerPlugin : Plugin() {
     call.resolve(JSObject().put("installed", installed))
   }
 
+  /**
+   * Returns every user-installed app on the device (skips pre-installed system apps).
+   * Requires QUERY_ALL_PACKAGES permission for full visibility on Android 11+.
+   */
+  @PluginMethod
+  fun getInstalledApps(call: PluginCall) {
+    try {
+      val pm = context.packageManager
+      val packages = pm.getInstalledPackages(0)
+      val apps = JSArray()
+
+      for (info in packages) {
+        try {
+          val appInfo = info.applicationInfo ?: continue
+          val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+          val isUpdatedSystem = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+          // Skip pre-installed system apps the user didn't add/update themselves.
+          if (isSystem && !isUpdatedSystem) continue
+          // Skip our own app
+          if (appInfo.packageName == context.packageName) continue
+
+          val obj = JSObject()
+          obj.put("packageName", appInfo.packageName)
+          obj.put("appName", pm.getApplicationLabel(appInfo).toString())
+          obj.put("versionName", info.versionName ?: "")
+          obj.put("versionCode", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            info.longVersionCode else info.versionCode.toLong())
+          obj.put("isLaunchable", pm.getLaunchIntentForPackage(appInfo.packageName) != null)
+          apps.put(obj)
+        } catch (e: Exception) {
+          Log.w(TAG, "Skipping package due to error: ${e.message}")
+        }
+      }
+
+      Log.d(TAG, "getInstalledApps returning ${apps.length()} apps")
+      val result = JSObject()
+      result.put("apps", apps)
+      call.resolve(result)
+    } catch (e: Exception) {
+      Log.e(TAG, "getInstalledApps failed", e)
+      call.reject("Failed to enumerate installed apps: ${e.message}")
+    }
+  }
+
+  /**
+   * Lists all .apk files cached in the app's private cache/apk/ folder
+   * with their sizes in bytes.
+   */
+  @PluginMethod
+  fun listCachedApks(call: PluginCall) {
+    try {
+      val apkDir = File(context.cacheDir, "apk")
+      val files = JSArray()
+      var totalBytes = 0L
+
+      if (apkDir.exists() && apkDir.isDirectory) {
+        apkDir.listFiles()?.forEach { f ->
+          if (f.isFile && f.name.endsWith(".apk", ignoreCase = true)) {
+            val obj = JSObject()
+            obj.put("name", f.name)
+            obj.put("path", f.absolutePath)
+            obj.put("sizeBytes", f.length())
+            obj.put("modifiedAt", f.lastModified())
+            files.put(obj)
+            totalBytes += f.length()
+          }
+        }
+      }
+
+      val result = JSObject()
+      result.put("files", files)
+      result.put("totalBytes", totalBytes)
+      result.put("count", files.length())
+      call.resolve(result)
+    } catch (e: Exception) {
+      Log.e(TAG, "listCachedApks failed", e)
+      call.reject("Failed to list cached APKs: ${e.message}")
+    }
+  }
+
+  /**
+   * Deletes a single cached APK by filename (relative to cache/apk/).
+   */
+  @PluginMethod
+  fun deleteCachedApk(call: PluginCall) {
+    val name = call.getString("name")
+    if (name.isNullOrBlank()) { call.reject("name required"); return }
+    if (name.contains("/") || name.contains("\\") || name.contains("..")) {
+      call.reject("Invalid filename"); return
+    }
+    try {
+      val target = File(File(context.cacheDir, "apk"), name)
+      if (!target.exists()) {
+        call.resolve(JSObject().put("deleted", false))
+        return
+      }
+      val ok = target.delete()
+      call.resolve(JSObject().put("deleted", ok))
+    } catch (e: Exception) {
+      Log.e(TAG, "deleteCachedApk failed", e)
+      call.reject("Failed to delete: ${e.message}")
+    }
+  }
+
   @PluginMethod
   fun installApk(call: PluginCall) {
     val path = call.getString("filePath")
@@ -39,9 +144,6 @@ class AppManagerPlugin : Plugin() {
     Log.d(TAG, "installApk called with path: $path")
 
     try {
-      // Android 8+ requires the user to grant per-app "Install unknown apps" permission.
-      // If we don't have it, send them straight to the system settings screen for our app
-      // and reject with a clear message so the UI can prompt them to retry.
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val canInstall = context.packageManager.canRequestPackageInstalls()
         Log.d(TAG, "canRequestPackageInstalls = $canInstall")
@@ -59,14 +161,12 @@ class AppManagerPlugin : Plugin() {
         }
       }
 
-      // Handle different path formats
       val cleanPath = path
         .removePrefix("file://")
         .removePrefix("content://")
 
       Log.d(TAG, "Cleaned path: $cleanPath")
 
-      // Try to find the file in multiple locations
       var file = File(cleanPath)
 
       if (!file.exists()) {
