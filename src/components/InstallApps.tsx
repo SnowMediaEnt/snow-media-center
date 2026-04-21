@@ -299,13 +299,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             handleDownload(currentApp);
           } else if (focusedElement.startsWith('launch-') && currentApp) {
             attemptLaunch(currentApp);
-          } else if ((focusedElement.startsWith('settings-') || focusedElement.startsWith('cache-')) && currentApp) {
-            const which = focusedElement.startsWith('cache-') ? 'cache' : 'data';
+          } else if (focusedElement.startsWith('settings-') && currentApp) {
+            // "Clear Data" button → open App Info (data clearing requires manual tap, by design)
             toast({
-              title: which === 'cache' ? "Tap 'Storage' → 'Clear cache'" : "Tap 'Storage' → 'Clear data'",
+              title: "Tap 'Storage' → 'Clear data'",
               description: `Opening ${currentApp.name} system info…`,
             });
             handleOpenAppSettings(currentApp);
+          } else if (focusedElement.startsWith('cache-') && currentApp) {
+            // "Clear Cache" button → fully automated via Accessibility Service
+            handleAutoClearCache(currentApp);
           } else if (focusedElement.startsWith('uninstall-') && currentApp) {
             handleUninstall(currentApp);
           } else if (focusedElement.startsWith('app-') && currentApp) {
