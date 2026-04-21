@@ -125,6 +125,18 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // TV Remote Navigation with button-level focus
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // If a modal/dialog is open (alert popup, context menu, download progress),
+      // let the dialog handle keys natively. Don't move background focus.
+      if (pendingAlert || contextMenu.app || downloadingApp) {
+        if (event.key === 'Escape' || event.key === 'Backspace') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (pendingAlert) setPendingAlert(null);
+          else if (contextMenu.app) setContextMenu({ app: null, position: { x: 0, y: 0 } });
+        }
+        return;
+      }
+
       // Handle Android back button and other back buttons
       if (event.key === 'Escape' || event.key === 'Backspace' || 
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
