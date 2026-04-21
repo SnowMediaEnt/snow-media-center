@@ -55,7 +55,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 // Focus types for navigation
 type FocusType = 
   | 'back' 
-  | 'tab-0' | 'tab-1' | 'tab-2' 
+  | 'tab-0' | 'tab-1'
   | `app-${string}` 
   | `download-${string}` 
   | `launch-${string}` 
@@ -81,9 +81,14 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
-  // Helper function to get category apps
-  const getCategoryApps = useCallback((category: string) => {
-    return apps.filter(app => category === 'featured' ? app.featured : app.category === category);
+  // Helper function to get the apps for a tab.
+  // 'featured' = curated featured list (sorted A→Z)
+  // 'all'      = every available app, alphabetical
+  const getCategoryApps = useCallback((tab: string) => {
+    const sorted = [...apps].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+    return tab === 'featured' ? sorted.filter(app => app.featured) : sorted;
   }, [apps]);
 
   // Get buttons for an app based on install status
