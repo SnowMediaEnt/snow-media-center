@@ -695,11 +695,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             Back to Home
           </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
+                await refreshDeviceApps();
                 refreshAllStatuses();
                 toast({
                   title: 'Refreshing…',
-                  description: 'Re-checking which apps are installed on this device.',
+                  description: `Re-scanning device. Found ${deviceApps.length} installed apps.`,
                 });
               }}
               variant="outline"
