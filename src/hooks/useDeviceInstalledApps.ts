@@ -14,6 +14,7 @@ export const useDeviceInstalledApps = () => {
   const [installedApps, setInstalledApps] = useState<InstalledAppInfo[]>([]);
   const [installedSet, setInstalledSet] = useState<Set<string>>(new Set());
   const [installedNameSet, setInstalledNameSet] = useState<Set<string>>(new Set());
+  const [nameToPackage, setNameToPackage] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +23,7 @@ export const useDeviceInstalledApps = () => {
       setInstalledApps([]);
       setInstalledSet(new Set());
       setInstalledNameSet(new Set());
+      setNameToPackage(new Map());
       return;
     }
     setLoading(true);
@@ -32,12 +34,16 @@ export const useDeviceInstalledApps = () => {
       setInstalledApps(apps);
       setInstalledSet(new Set(apps.map((a) => a.packageName.toLowerCase())));
       setInstalledNameSet(new Set(apps.map((a) => normaliseName(a.appName))));
+      const map = new Map<string, string>();
+      apps.forEach((a) => map.set(normaliseName(a.appName), a.packageName));
+      setNameToPackage(map);
     } catch (e) {
       console.error('[useDeviceInstalledApps] Failed:', e);
       setError(e instanceof Error ? e.message : 'Failed to enumerate apps');
       setInstalledApps([]);
       setInstalledSet(new Set());
       setInstalledNameSet(new Set());
+      setNameToPackage(new Map());
     } finally {
       setLoading(false);
     }
@@ -79,5 +85,40 @@ export const useDeviceInstalledApps = () => {
     [installedNameSet]
   );
 
-  return { installedApps, isPackageInstalled, isAppNameInstalled, loading, error, refresh };
+  /**
+   * Resolve the REAL Android package name for one of our catalog apps,
+   * either by trying the catalog package, or matching by display name.
+   * This is what we must use for launch/uninstall/openAppSettings.
+   */
+  const resolvePackageName = useCallback(
+    (appName?: string | null, fallbackPackage?: string | null): string | null => {
+      if (fallbackPackage && installedSet.has(fallbackPackage.toLowerCase())) {
+        return fallbackPackage;
+      }
+      if (appName) {
+        const target = normaliseName(appName);
+        if (target) {
+          const exact = nameToPackage.get(target);
+          if (exact) return exact;
+          for (const [installedName, pkg] of nameToPackage.entries()) {
+            if (installedName.includes(target) || target.includes(installedName)) {
+              return pkg;
+            }
+          }
+        }
+      }
+      return fallbackPackage || null;
+    },
+    [installedSet, nameToPackage]
+  );
+
+  return {
+    installedApps,
+    isPackageInstalled,
+    isAppNameInstalled,
+    resolvePackageName,
+    loading,
+    error,
+    refresh,
+  };
 };
