@@ -339,12 +339,21 @@ const Index = () => {
           {/* Dark overlay for text readability when using custom background */}
           {hasBackground && <div className="absolute inset-0 bg-black/30" />}
 
-          {/* User/Auth Controls */}
-          <div className={`absolute z-20 flex ${
-            screenHeight >= 2160 ? 'top-8 right-8 gap-4' :
-            screenHeight >= 1440 ? 'top-6 right-6 gap-3' :
-            'top-4 right-4 gap-2'
-          }`}>
+          {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
+              doesn't crop the buttons or overlap them with the clock. */}
+          <div
+            className="absolute z-20 flex flex-wrap items-center justify-end"
+            style={{
+              top: `max(env(safe-area-inset-top, 0px), ${
+                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
+              })`,
+              right: `max(env(safe-area-inset-right, 0px), ${
+                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
+              })`,
+              gap: screenHeight >= 2160 ? '1rem' : screenHeight >= 1440 ? '0.75rem' : '0.5rem',
+              maxWidth: 'min(50vw, 32rem)',
+            }}
+          >
             {/* Admin Button - only show for admins */}
             {isAdmin && (
               <Button
