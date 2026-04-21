@@ -18,11 +18,21 @@ const HomeClock = memo(({ version }: HomeClockProps) => {
   }, []);
 
   return (
-    <div className="absolute z-20 top-4 left-4">
-      <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg px-6 py-2.5 flex items-center gap-5">
+    <div
+      className="absolute z-20"
+      style={{
+        // Use safe-area + viewport-aware spacing so Android TV boxes
+        // (X96, T95, etc.) that overscan don't push us off-screen.
+        top: 'max(env(safe-area-inset-top, 0px), clamp(0.5rem, 1.5vh, 1rem))',
+        left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+        // Hard cap so we never bleed into the right-side controls.
+        maxWidth: 'min(60vw, 28rem)',
+      }}
+    >
+      <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
         <div
           className="font-bold font-quicksand text-shadow-soft text-white"
-          style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}
+          style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
           {now.toLocaleDateString('en-US', {
             weekday: 'short',
@@ -30,10 +40,10 @@ const HomeClock = memo(({ version }: HomeClockProps) => {
             day: 'numeric',
           })}
         </div>
-        <div className="w-px h-5 bg-white/40" />
+        <div className="w-px h-4 bg-white/40 flex-shrink-0" />
         <div
           className="opacity-90 font-nunito text-shadow-soft text-white"
-          style={{ fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}
+          style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
           {now.toLocaleTimeString('en-US', {
             hour: '2-digit',
@@ -41,10 +51,10 @@ const HomeClock = memo(({ version }: HomeClockProps) => {
             second: '2-digit',
           })}
         </div>
-        <div className="w-px h-5 bg-white/40" />
+        <div className="w-px h-4 bg-white/40 flex-shrink-0" />
         <div
           className="font-nunito text-shadow-soft"
-          style={{ color: '#FFD700', fontSize: 'clamp(0.75rem, 1vw, 1rem)' }}
+          style={{ color: '#FFD700', fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
           v{version}
         </div>
