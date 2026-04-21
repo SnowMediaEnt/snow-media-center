@@ -129,9 +129,20 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
 
   // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {
+    // When focus returns to the Back button or tabs, scroll the container all the way to top
+    // so the header and back button aren't clipped by overscan / sticky padding.
+    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
+      const scrollContainer = document.querySelector('.tv-scroll-container') as HTMLElement;
+      if (scrollContainer) {
+        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
-    
+
     // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   }, [focusedElement]);
