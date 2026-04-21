@@ -86,7 +86,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
 
   // Bulk lookup of every user-installed app on the device
-  const { isPackageInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
+  const { isPackageInstalled, isAppNameInstalled, refresh: refreshDeviceApps, installedApps: deviceApps } =
     useDeviceInstalledApps();
 
   // App alerts (warning popups)
