@@ -369,6 +369,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
+  // Wrapper used by all UI launch entry points: shows the alert popup first if one exists.
+  const attemptLaunch = useCallback((app: AppData) => {
+    const alert = getAlertForApp(app.name);
+    if (alert) {
+      setPendingAlert({ alert, app });
+      return;
+    }
+    handleLaunch(app);
+  }, [getAlertForApp]);
+
   const handleUninstall = async (app: AppData) => {
     try {
       const packageName = generateAppPackageName(app);
