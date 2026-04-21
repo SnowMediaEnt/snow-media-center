@@ -6,9 +6,8 @@ import com.snowmedia.appmanager.AppManagerPlugin
 
 class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
-        // Register custom plugins
+        // Register custom plugins before BridgeActivity initializes the Capacitor bridge.
         registerPlugin(AppManagerPlugin::class.java)
+        super.onCreate(savedInstanceState)
     }
 }
