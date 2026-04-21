@@ -82,6 +82,21 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Accessibility Service that auto-taps Storage → Clear cache in system Settings.
+             User must enable it once in Android Settings → Accessibility → Snow Media Cache Cleaner. -->
+        <service
+            android:name="com.snowmedia.appmanager.CacheClearService"
+            android:exported="true"
+            android:label="Snow Media Cache Cleaner"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/cache_clear_accessibility_service" />
+        </service>
+
     </application>
 
 </manifest>
