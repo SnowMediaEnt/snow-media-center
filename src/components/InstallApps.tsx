@@ -795,16 +795,10 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
                       <Button 
                         data-focus-id={`cache-${app.id}`}
-                        onClick={() => {
-                          toast({
-                            title: "Tap 'Storage' → 'Clear cache'",
-                            description: `Opening ${app.name} system info…`,
-                          });
-                          handleOpenAppSettings(app);
-                        }}
+                        onClick={() => handleAutoClearCache(app)}
                         variant="outline"
                         className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        title="Opens system App Info – tap Storage → Clear cache"
+                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
                       >
                         <Settings className="w-4 h-4 mr-1" />
                         Clear Cache
