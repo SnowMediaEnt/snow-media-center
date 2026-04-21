@@ -16,7 +16,7 @@ interface PinnedAppsPopupProps {
   isVisible: boolean;
   isPinned: (appId: string) => boolean;
   canPinMore: boolean;
-  focusedIndex: number; // -1 = none focused, 0-6 = app slots, 7 = add button
+  focusedIndex: number; // -1 = none focused, 0-3 = app slots
   onFocusChange: (index: number) => void;
   onExitFocus: () => void; // Called when user navigates out of popup
 }
