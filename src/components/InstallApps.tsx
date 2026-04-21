@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import { AppManager } from '@/capacitor/AppManager';
+import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
 import PinnedAppsBar from '@/components/PinnedAppsBar';
@@ -369,9 +369,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     } catch (error) {
       console.error('Launch error:', error);
+      const friendly = isWebUnsupportedError(error)
+        ? WEB_UNSUPPORTED_MSG
+        : `Could not launch ${app.name}. Make sure it's installed.`;
       toast({
         title: "Launch Failed",
-        description: `Could not launch ${app.name}. Make sure it's installed.`,
+        description: friendly,
         variant: "destructive",
       });
     }
@@ -409,9 +412,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     } catch (error) {
       console.error('Uninstall error:', error);
+      const friendly = isWebUnsupportedError(error)
+        ? WEB_UNSUPPORTED_MSG
+        : `Could not uninstall ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       toast({
         title: "Uninstall Failed",
-        description: `Could not uninstall ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: friendly,
         variant: "destructive",
       });
     }
@@ -428,9 +434,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     } catch (error) {
       console.error('App settings error:', error);
+      const friendly = isWebUnsupportedError(error)
+        ? WEB_UNSUPPORTED_MSG
+        : `Could not open ${app.name} settings.`;
       toast({
         title: "Settings Failed",
-        description: `Could not open ${app.name} settings.`,
+        description: friendly,
         variant: "destructive",
       });
     }
