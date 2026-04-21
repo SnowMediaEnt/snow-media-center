@@ -265,10 +265,12 @@ export const useAppData = () => {
 
   useEffect(() => {
     console.log('[AppData] useEffect mounting, calling fetchApps...');
+    let timedOut = false;
     fetchApps();
-    
+
     // Safety fallback: if loading takes too long
     const safetyTimeout = setTimeout(() => {
+      timedOut = true;
       setLoading(prev => {
         if (prev) {
           console.warn('[AppData] Safety timeout triggered');
@@ -279,25 +281,26 @@ export const useAppData = () => {
         return prev;
       });
     }, 25000);
-    
-    // Poll every 60 seconds
+
+    // Poll every 5 minutes (was 60s) — Supabase realtime already covers most updates
     const interval = setInterval(() => {
       console.log('[AppData] Polling for updates...');
       fetchApps();
-    }, 60000);
-    
+    }, 5 * 60 * 1000);
+
     const handleOnline = () => {
       console.log('[AppData] Network restored, refreshing...');
       fetchApps();
     };
     window.addEventListener('online', handleOnline);
-    
+
     return () => {
       clearTimeout(safetyTimeout);
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
     };
   }, []);
+
 
   return { apps, loading, error, refetch: fetchApps };
 };

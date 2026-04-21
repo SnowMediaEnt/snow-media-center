@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * Fetches background assets ONCE per section + realtime change, then rotates
+ * through them client-side every 30s without hitting Supabase each tick.
+ */
 export const useDynamicBackground = (section: string = 'home') => {
-  const [currentBackground, setCurrentBackground] = useState<string | null>(null);
+  const [backgrounds, setBackgrounds] = useState<string[]>([]);
   const [rotationIndex, setRotationIndex] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -13,11 +17,11 @@ export const useDynamicBackground = (section: string = 'home') => {
     return publicUrl;
   }, []);
 
-  const fetchAndUpdateBackground = useCallback(async () => {
+  const fetchBackgrounds = useCallback(async () => {
     try {
-      const { data: backgrounds, error } = await supabase
+      const { data, error } = await supabase
         .from('media_assets')
-        .select('*')
+        .select('file_path')
         .eq('asset_type', 'background')
         .eq('section', section)
         .eq('is_active', true)
@@ -28,30 +32,21 @@ export const useDynamicBackground = (section: string = 'home') => {
         return;
       }
 
-      if (backgrounds && backgrounds.length > 0) {
-        const selectedBackground = backgrounds[rotationIndex % backgrounds.length];
-        setCurrentBackground(getAssetUrl(selectedBackground.file_path));
-      } else {
-        setCurrentBackground(null);
-      }
+      const urls = (data || []).map(row => getAssetUrl(row.file_path));
+      setBackgrounds(urls);
+      setRotationIndex(0);
     } catch (err) {
-      console.error('Error in fetchAndUpdateBackground:', err);
+      console.error('Error in fetchBackgrounds:', err);
     }
-  }, [section, rotationIndex, getAssetUrl]);
+  }, [section, getAssetUrl]);
 
-  // Main effect for fetching and subscribing
+  // Fetch once on mount + subscribe to changes
   useEffect(() => {
-    fetchAndUpdateBackground();
+    fetchBackgrounds();
 
-    // Listen for immediate refresh events
-    const handleBackgroundRefresh = () => {
-      console.log('Background refresh event received');
-      fetchAndUpdateBackground();
-    };
-    
+    const handleBackgroundRefresh = () => fetchBackgrounds();
     window.addEventListener('backgroundRefresh', handleBackgroundRefresh);
 
-    // Set up realtime subscription for instant updates
     channelRef.current = supabase
       .channel('media_assets_changes')
       .on(
@@ -60,16 +55,12 @@ export const useDynamicBackground = (section: string = 'home') => {
           event: '*',
           schema: 'public',
           table: 'media_assets',
-          filter: `asset_type=eq.background`
+          filter: `asset_type=eq.background`,
         },
-        () => {
-          console.log('Media asset changed');
-          fetchAndUpdateBackground();
-        }
+        () => fetchBackgrounds()
       )
       .subscribe();
 
-    // Cleanup function
     return () => {
       window.removeEventListener('backgroundRefresh', handleBackgroundRefresh);
       if (channelRef.current) {
@@ -77,22 +68,23 @@ export const useDynamicBackground = (section: string = 'home') => {
         channelRef.current = null;
       }
     };
-  }, [fetchAndUpdateBackground]);
+  }, [fetchBackgrounds]);
 
-  // Separate effect for rotation interval
+  // Local rotation — no network traffic
   useEffect(() => {
-    const rotationInterval = setInterval(() => {
-      setRotationIndex(prev => prev + 1);
-    }, 30000); // Change every 30 seconds
+    if (backgrounds.length <= 1) return;
+    const id = setInterval(() => {
+      setRotationIndex(prev => (prev + 1) % backgrounds.length);
+    }, 30000);
+    return () => clearInterval(id);
+  }, [backgrounds.length]);
 
-    return () => {
-      clearInterval(rotationInterval);
-    };
-  }, []);
+  const currentBackground = backgrounds[rotationIndex] ?? null;
 
   return {
     backgroundUrl: currentBackground,
     hasBackground: currentBackground !== null,
-    refresh: fetchAndUpdateBackground
+    refresh: fetchBackgrounds,
   };
 };
+
