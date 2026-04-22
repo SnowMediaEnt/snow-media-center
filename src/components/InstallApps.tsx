@@ -566,11 +566,21 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
       return;
     }
+    // Guard against accidental re-entry (e.g. clicking twice or D-pad spam).
+    // This is the bug that caused Settings to pop open over and over.
+    if (isClearingAll) {
+      toast({
+        title: 'Already clearing…',
+        description: 'A Clear-All run is already in progress.',
+      });
+      return;
+    }
     const installed = apps.filter(a => appStatuses.get(a.id)?.installed);
     if (installed.length === 0) {
       toast({ title: 'No installed apps to clean.' });
       return;
     }
+    // Hard-require Accessibility BEFORE we touch system Settings even once.
     try {
       const { enabled } = await AppManager.isAccessibilityEnabled();
       if (!enabled) {
@@ -581,7 +591,24 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         await AppManager.openAccessibilitySettings();
         return;
       }
-    } catch {/* ignore — clearAppCache will reject if disabled */}
+    } catch {
+      toast({
+        title: 'Accessibility check failed',
+        description: 'Could not verify the Cache Cleaner service. Aborting.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Final confirmation so a stray click can't kick off a 6-second-per-app loop.
+    const ok = window.confirm(
+      `Auto-clear cache for ${installed.length} installed app${installed.length === 1 ? '' : 's'}?\n\n` +
+      `Each app will briefly flash by in Settings (~6s each). Don't touch the remote until it finishes.`
+    );
+    if (!ok) return;
+
+    setIsClearingAll(true);
+    clearAllCancelRef.current = false;
 
     // Also wipe our own cache while we're at it
     try {
@@ -596,23 +623,44 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     toast({
       title: `Cleaning ${installed.length} app${installed.length === 1 ? '' : 's'}…`,
-      description: 'Each app will flash by in Settings. Don\'t touch the remote.',
+      description: 'Each app will flash by in Settings. Press Back/Esc to stop.',
     });
-    // Run sequentially with a delay so the Accessibility service has time
-    // per app (open settings → tap Storage → tap Clear cache → back back).
+
+    let processed = 0;
+    let failures = 0;
     for (let i = 0; i < installed.length; i++) {
+      if (clearAllCancelRef.current) {
+        toast({ title: 'Clear All cancelled', description: `Stopped after ${processed} app(s).` });
+        break;
+      }
       const app = installed[i];
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       try {
         await AppManager.clearAppCache({ packageName });
+        processed++;
       } catch (e) {
         console.warn(`[ClearAll] ${app.name} failed`, e);
+        failures++;
+        // Bail out if the service stopped responding — otherwise we'd keep
+        // re-opening Settings forever.
+        if (failures >= 3) {
+          toast({
+            title: 'Stopping Clear All',
+            description: 'The Cache Cleaner service is not responding. Re-enable it in Accessibility settings.',
+            variant: 'destructive',
+          });
+          break;
+        }
       }
       // Wait ~6s between apps to let the service complete its taps + back-out
       await new Promise(r => setTimeout(r, 6000));
     }
-    toast({ title: 'All caches cleared ✅', description: `Processed ${installed.length} app(s).` });
-  }, [apps, appStatuses, resolvePackageName, toast]);
+    setIsClearingAll(false);
+    clearAllCancelRef.current = false;
+    if (processed > 0) {
+      toast({ title: 'All caches cleared ✅', description: `Processed ${processed} app(s).` });
+    }
+  }, [apps, appStatuses, resolvePackageName, toast, isClearingAll]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
