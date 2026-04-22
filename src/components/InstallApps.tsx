@@ -289,6 +289,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               refreshAllStatuses();
               toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
             })();
+          } else if (focusedElement === 'clearAll') {
+            handleClearAllCaches();
           } else if (focusedElement === 'tab-0') {
             setActiveTab('featured');
           } else if (focusedElement === 'tab-1') {
