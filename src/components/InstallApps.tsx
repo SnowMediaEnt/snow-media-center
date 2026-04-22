@@ -82,6 +82,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const clearAllCancelRef = useRef<boolean>(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
