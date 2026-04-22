@@ -334,7 +334,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp, isClearingAll, toast]);
 
   // Scroll focused element into view
   useEffect(() => {
