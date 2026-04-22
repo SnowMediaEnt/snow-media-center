@@ -205,7 +205,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'back' || focusedElement === 'refresh') {
+          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             // Stay
           } else if (focusedElement.startsWith('tab-')) {
             setFocusedElement('back');
@@ -246,7 +246,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'refresh') {
+          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('tab-')) {
             if (categoryApps.length > 0) {
