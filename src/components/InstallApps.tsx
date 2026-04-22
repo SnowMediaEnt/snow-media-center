@@ -144,6 +144,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
+        // If a Clear-All run is in progress, Back cancels it instead of leaving the page.
+        if (isClearingAll) {
+          clearAllCancelRef.current = true;
+          toast({ title: 'Stopping Clear All…', description: 'Will exit after the current app.' });
+          return;
+        }
         onBack();
         return;
       }
