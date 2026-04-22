@@ -918,14 +918,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               Refresh
             </Button>
             <Button
+              data-focus-id="clearAll"
               onClick={handleClearAllCaches}
               variant="outline"
               size="lg"
-              className="bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30 transition-all duration-200"
+              disabled={isClearingAll}
+              className={`bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30 transition-all duration-200 ${focusRing('clearAll')} ${isClearingAll ? 'opacity-60 cursor-not-allowed' : ''}`}
               title="Auto-clear cache for every installed app (uses Accessibility Service)"
             >
               <Trash2 className="w-5 h-5 mr-2" />
-              Clear All Caches
+              {isClearingAll ? 'Clearing…' : 'Clear All Caches'}
             </Button>
           </div>
           <div className="text-center mt-4">
