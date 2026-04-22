@@ -164,6 +164,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'refresh') setFocusedElement('back');
+          else if (focusedElement === 'clearAll') setFocusedElement('refresh');
           else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-0') setFocusedElement('back');
           else if (currentApp && isInstalled) {
@@ -184,6 +185,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           
         case 'ArrowRight':
           if (focusedElement === 'back') setFocusedElement('refresh');
+          else if (focusedElement === 'refresh') setFocusedElement('clearAll');
           else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (currentApp) {
             if (focusedElement === `app-${currentApp.id}`) {
