@@ -57,7 +57,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
 // Focus types for navigation
 type FocusType = 
-  | 'back' | 'refresh'
+  | 'back' | 'refresh' | 'clearAll'
   | 'tab-0' | 'tab-1'
   | `app-${string}` 
   | `pin-${string}`
@@ -82,6 +82,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const clearAllCancelRef = useRef<boolean>(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
@@ -142,6 +144,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
+        // If a Clear-All run is in progress, Back cancels it instead of leaving the page.
+        if (isClearingAll) {
+          clearAllCancelRef.current = true;
+          toast({ title: 'Stopping Clear All…', description: 'Will exit after the current app.' });
+          return;
+        }
         onBack();
         return;
       }
@@ -162,6 +170,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       switch (event.key) {
         case 'ArrowLeft':
           if (focusedElement === 'refresh') setFocusedElement('back');
+          else if (focusedElement === 'clearAll') setFocusedElement('refresh');
           else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-0') setFocusedElement('back');
           else if (currentApp && isInstalled) {
@@ -182,6 +191,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           
         case 'ArrowRight':
           if (focusedElement === 'back') setFocusedElement('refresh');
+          else if (focusedElement === 'refresh') setFocusedElement('clearAll');
           else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (currentApp) {
             if (focusedElement === `app-${currentApp.id}`) {
@@ -201,7 +211,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'back' || focusedElement === 'refresh') {
+          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             // Stay
           } else if (focusedElement.startsWith('tab-')) {
             setFocusedElement('back');
@@ -242,7 +252,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'refresh') {
+          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('tab-')) {
             if (categoryApps.length > 0) {
@@ -285,6 +295,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               refreshAllStatuses();
               toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
             })();
+          } else if (focusedElement === 'clearAll') {
+            handleClearAllCaches();
           } else if (focusedElement === 'tab-0') {
             setActiveTab('featured');
           } else if (focusedElement === 'tab-1') {
@@ -322,7 +334,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp, isClearingAll, toast]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -560,11 +572,21 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
       return;
     }
+    // Guard against accidental re-entry (e.g. clicking twice or D-pad spam).
+    // This is the bug that caused Settings to pop open over and over.
+    if (isClearingAll) {
+      toast({
+        title: 'Already clearing…',
+        description: 'A Clear-All run is already in progress.',
+      });
+      return;
+    }
     const installed = apps.filter(a => appStatuses.get(a.id)?.installed);
     if (installed.length === 0) {
       toast({ title: 'No installed apps to clean.' });
       return;
     }
+    // Hard-require Accessibility BEFORE we touch system Settings even once.
     try {
       const { enabled } = await AppManager.isAccessibilityEnabled();
       if (!enabled) {
@@ -575,7 +597,24 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         await AppManager.openAccessibilitySettings();
         return;
       }
-    } catch {/* ignore — clearAppCache will reject if disabled */}
+    } catch {
+      toast({
+        title: 'Accessibility check failed',
+        description: 'Could not verify the Cache Cleaner service. Aborting.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Final confirmation so a stray click can't kick off a 6-second-per-app loop.
+    const ok = window.confirm(
+      `Auto-clear cache for ${installed.length} installed app${installed.length === 1 ? '' : 's'}?\n\n` +
+      `Each app will briefly flash by in Settings (~6s each). Don't touch the remote until it finishes.`
+    );
+    if (!ok) return;
+
+    setIsClearingAll(true);
+    clearAllCancelRef.current = false;
 
     // Also wipe our own cache while we're at it
     try {
@@ -590,23 +629,44 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
     toast({
       title: `Cleaning ${installed.length} app${installed.length === 1 ? '' : 's'}…`,
-      description: 'Each app will flash by in Settings. Don\'t touch the remote.',
+      description: 'Each app will flash by in Settings. Press Back/Esc to stop.',
     });
-    // Run sequentially with a delay so the Accessibility service has time
-    // per app (open settings → tap Storage → tap Clear cache → back back).
+
+    let processed = 0;
+    let failures = 0;
     for (let i = 0; i < installed.length; i++) {
+      if (clearAllCancelRef.current) {
+        toast({ title: 'Clear All cancelled', description: `Stopped after ${processed} app(s).` });
+        break;
+      }
       const app = installed[i];
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       try {
         await AppManager.clearAppCache({ packageName });
+        processed++;
       } catch (e) {
         console.warn(`[ClearAll] ${app.name} failed`, e);
+        failures++;
+        // Bail out if the service stopped responding — otherwise we'd keep
+        // re-opening Settings forever.
+        if (failures >= 3) {
+          toast({
+            title: 'Stopping Clear All',
+            description: 'The Cache Cleaner service is not responding. Re-enable it in Accessibility settings.',
+            variant: 'destructive',
+          });
+          break;
+        }
       }
       // Wait ~6s between apps to let the service complete its taps + back-out
       await new Promise(r => setTimeout(r, 6000));
     }
-    toast({ title: 'All caches cleared ✅', description: `Processed ${installed.length} app(s).` });
-  }, [apps, appStatuses, resolvePackageName, toast]);
+    setIsClearingAll(false);
+    clearAllCancelRef.current = false;
+    if (processed > 0) {
+      toast({ title: 'All caches cleared ✅', description: `Processed ${processed} app(s).` });
+    }
+  }, [apps, appStatuses, resolvePackageName, toast, isClearingAll]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -858,14 +918,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               Refresh
             </Button>
             <Button
+              data-focus-id="clearAll"
               onClick={handleClearAllCaches}
               variant="outline"
               size="lg"
-              className="bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30 transition-all duration-200"
+              disabled={isClearingAll}
+              className={`bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30 transition-all duration-200 ${focusRing('clearAll')} ${isClearingAll ? 'opacity-60 cursor-not-allowed' : ''}`}
               title="Auto-clear cache for every installed app (uses Accessibility Service)"
             >
               <Trash2 className="w-5 h-5 mr-2" />
-              Clear All Caches
+              {isClearingAll ? 'Clearing…' : 'Clear All Caches'}
             </Button>
           </div>
           <div className="text-center mt-4">
