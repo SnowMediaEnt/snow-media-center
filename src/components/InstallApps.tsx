@@ -483,24 +483,28 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Uninstall] ${app.name} → ${packageName}`);
-      await AppManager.uninstall({ packageName });
-      
-      // Update status immediately and re-check after delay
-      setAppStatuses(prev => new Map(prev.set(app.id, { 
-        ...prev.get(app.id), 
-        installed: false 
-      })));
-      
-      setTimeout(async () => {
-        await refreshDeviceApps();
-        await ensureStatus(app);
-      }, 1500);
-      
-      toast({
-        title: "Uninstalling App",
-        description: `${app.name} is being uninstalled...`,
-        variant: "destructive",
-      });
+      const result = await AppManager.uninstall({ packageName });
+
+      await refreshDeviceApps();
+      const nextStatus = await ensureStatus(app);
+      const uninstalled = ('uninstalled' in (result as object) && (result as { uninstalled?: boolean }).uninstalled === true) || !nextStatus.installed;
+
+      if (uninstalled) {
+        setAppStatuses(prev => new Map(prev.set(app.id, {
+          ...prev.get(app.id),
+          installed: false
+        })));
+        toast({
+          title: "App Uninstalled",
+          description: `${app.name} was removed from this device.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Uninstall Cancelled",
+          description: `${app.name} is still installed on this device.`,
+        });
+      }
     } catch (error) {
       console.error('Uninstall error:', error);
       const friendly = isWebUnsupportedError(error)
