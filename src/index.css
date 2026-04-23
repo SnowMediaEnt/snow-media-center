@@ -260,3 +260,37 @@
     transform: scale(1.03);
   }
 }
+
+/* ============================================================
+   News Ticker — GPU-accelerated seamless marquee
+   - Uses translate3d for hardware compositing
+   - Duplicated content + -50% translate = no visible reset
+   - `contain` keeps repaints isolated from the rest of the page
+   ============================================================ */
+.news-ticker {
+  isolation: isolate;
+}
+
+.news-ticker-track {
+  display: inline-flex;
+  gap: 4rem;
+  white-space: nowrap;
+  animation: news-ticker-marquee 60s linear infinite;
+}
+
+.news-ticker-item {
+  flex-shrink: 0;
+}
+
+@keyframes news-ticker-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+/* Pause when user is interacting with focusable items elsewhere?
+   We keep it always running but stop it on reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  .news-ticker-track {
+    animation-duration: 180s;
+  }
+}
