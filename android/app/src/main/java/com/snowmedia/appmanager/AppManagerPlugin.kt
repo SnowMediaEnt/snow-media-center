@@ -245,7 +245,6 @@ class AppManagerPlugin : Plugin() {
       val intent = Intent(Intent.ACTION_DELETE).apply {
         data = Uri.parse("package:$pkg")
         putExtra(Intent.EXTRA_RETURN_RESULT, true)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       try {
         startActivityForResult(call, intent, "uninstallResult")
@@ -256,7 +255,6 @@ class AppManagerPlugin : Plugin() {
       val fallback = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
         data = Uri.parse("package:$pkg")
         putExtra(Intent.EXTRA_RETURN_RESULT, true)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       startActivityForResult(call, fallback, "uninstallResult")
     } catch (e: Exception) {
