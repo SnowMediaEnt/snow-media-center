@@ -329,9 +329,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           } else if (focusedElement.startsWith('uninstall-') && currentApp) {
             handleUninstall(currentApp);
           } else if (focusedElement.startsWith('app-') && currentApp) {
-            // Pressing enter on app card: launch if installed, otherwise download
-            if (isInstalled) attemptLaunch(currentApp);
-            else handleDownload(currentApp);
+            // Pressing Enter on the app CARD now "enters" the container so the
+            // user can choose between Launch / Clear Cache / Uninstall via the
+            // D-pad. Pressing Enter again on Launch actually launches the app.
+            // (If the app isn't installed yet, there's only one action — Download —
+            // so trigger it directly.)
+            if (isInstalled) {
+              setFocusedElement(`launch-${currentApp.id}` as FocusType);
+            } else {
+              handleDownload(currentApp);
+            }
           }
           break;
       }
