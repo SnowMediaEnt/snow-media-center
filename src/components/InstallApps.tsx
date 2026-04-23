@@ -352,7 +352,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   useEffect(() => {
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
     if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }
   }, [focusedElement]);
 
@@ -487,7 +487,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
       await refreshDeviceApps();
       const nextStatus = await ensureStatus(app);
-      const uninstalled = ('uninstalled' in (result as object) && (result as { uninstalled?: boolean }).uninstalled === true) || !nextStatus.installed;
+      const uninstalled = result.uninstalled === true || !nextStatus.installed;
 
       if (uninstalled) {
         setAppStatuses(prev => new Map(prev.set(app.id, {
