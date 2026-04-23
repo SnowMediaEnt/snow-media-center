@@ -259,25 +259,30 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
               setFocusedElement(`app-${categoryApps[0].id}` as FocusType);
             }
           } else if (currentApp) {
-            // From card: go to first action button
-            if (focusedElement === `app-${currentApp.id}` || focusedElement === `pin-${currentApp.id}`) {
-              if (buttons.length > 0) {
-                setFocusedElement(buttons[0] as FocusType);
-              } else if (currentAppIdx + 1 < categoryApps.length) {
+            // Default behavior: ArrowDown moves between APP CARDS, never enters
+            // the action row. To open Launch / Clear Cache / Uninstall, the
+            // user explicitly presses Enter on the card (or uses long-press
+            // for the context menu). This matches the user's request:
+            // "if we press down to go through the apps it should go through
+            // each one until a container is selected".
+            if (focusedElement === `pin-${currentApp.id}`) {
+              // From the pin star, drop straight to next app card
+              if (currentAppIdx + 1 < categoryApps.length) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
+              }
+            } else if (focusedElement === `app-${currentApp.id}`) {
+              if (currentAppIdx + 1 < categoryApps.length) {
                 setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
               }
             } else if (isInstalled) {
-              // launch → settings (first of bottom row)
+              // User is *already inside* the action row (entered via Enter on card).
+              // launch → settings (first of bottom row), bottom row → next app
               if (focusedElement === `launch-${currentApp.id}`) {
                 setFocusedElement(`settings-${currentApp.id}` as FocusType);
-              } else {
-                // From bottom row, go to next app
-                if (currentAppIdx + 1 < categoryApps.length) {
-                  setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
-                }
+              } else if (currentAppIdx + 1 < categoryApps.length) {
+                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
               }
-            } else {
-              // Download → next app
+            } else if (focusedElement === `download-${currentApp.id}`) {
               if (currentAppIdx + 1 < categoryApps.length) {
                 setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
               }
