@@ -1,6 +1,7 @@
 package com.snowmedia.appmanager
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -9,7 +10,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Accessibility Service that auto-taps "Storage" → "Clear cache" in the system
- * App Info screen, then presses Back to return to Snow Media Center.
+ * App Info screen, then returns to Snow Media Center by re-launching it
+ * directly (NOT via GLOBAL_ACTION_BACK, which sends a back keypress that the
+ * app's WebView intercepts and treats as "exit current screen", kicking the
+ * user out of Main Apps).
  *
  * IMPORTANT: This service intentionally does NOT touch "Clear data" or
  * "Clear storage" — only cache. Clearing data signs users out of apps and
