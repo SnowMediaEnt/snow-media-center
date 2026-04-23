@@ -29,7 +29,7 @@ const HomeClock = memo(({ version }: HomeClockProps) => {
         maxWidth: 'min(60vw, 28rem)',
       }}
     >
-      <div className="bg-black/70 backdrop-blur-sm rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
+      <div className="bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
         <div
           className="font-bold font-quicksand text-shadow-soft text-white"
           style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}

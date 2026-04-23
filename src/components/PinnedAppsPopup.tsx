@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -113,8 +113,8 @@ const PinnedAppsPopup = ({
 
   return (
     <>
-      <div className="absolute bottom-full left-0 mb-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <Card className="bg-slate-900/95 backdrop-blur-md border-slate-600 shadow-2xl p-4">
+      <div className="absolute bottom-full left-0 mb-4 z-50">
+        <Card className="bg-slate-900/95 border-slate-600 shadow-2xl p-4">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <Pin className="w-4 h-4 text-brand-gold" />
@@ -269,4 +269,4 @@ const PinnedAppsPopup = ({
   );
 };
 
-export default PinnedAppsPopup;
+export default memo(PinnedAppsPopup);
