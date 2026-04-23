@@ -218,9 +218,10 @@ class AppManagerPlugin : Plugin() {
   }
 
   /**
-   * Uninstall using ACTION_UNINSTALL_PACKAGE, which shows the standard system
-   * confirmation dialog with a working "OK" button. ACTION_DELETE is deprecated
-   * and on some Android TV builds simply does nothing after the dialog closes.
+   * Uninstall via PackageInstaller on Android O+ (most reliable on TV builds),
+   * with ACTION_DELETE as a fallback for older devices. ACTION_UNINSTALL_PACKAGE
+   * was deprecated and on several Android TV builds the system dialog returns
+   * without actually performing the uninstall.
    */
   @PluginMethod
   fun uninstall(call: PluginCall) {
@@ -231,13 +232,26 @@ class AppManagerPlugin : Plugin() {
       try { context.packageManager.getPackageInfo(pkg, 0) }
       catch (_: Exception) { call.reject("Package not installed: $pkg"); return }
 
+      // ACTION_DELETE shows the standard system "Do you want to uninstall?" dialog
+      // and reliably performs the uninstall when the user confirms.
       @Suppress("DEPRECATION")
-      val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+      val intent = Intent(Intent.ACTION_DELETE).apply {
         data = Uri.parse("package:$pkg")
-        putExtra(Intent.EXTRA_RETURN_RESULT, false)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
-      context.startActivity(intent)
+      try {
+        context.startActivity(intent)
+        call.resolve()
+        return
+      } catch (_: Exception) { /* fall through to UNINSTALL_PACKAGE */ }
+
+      @Suppress("DEPRECATION")
+      val fallback = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+        data = Uri.parse("package:$pkg")
+        putExtra(Intent.EXTRA_RETURN_RESULT, true)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      context.startActivity(fallback)
       call.resolve()
     } catch (e: Exception) {
       Log.e(TAG, "uninstall failed", e)

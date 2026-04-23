@@ -1,6 +1,7 @@
 package com.snowmedia.appmanager
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -9,7 +10,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Accessibility Service that auto-taps "Storage" → "Clear cache" in the system
- * App Info screen, then presses Back to return to Snow Media Center.
+ * App Info screen, then returns to Snow Media Center by re-launching it
+ * directly (NOT via GLOBAL_ACTION_BACK, which sends a back keypress that the
+ * app's WebView intercepts and treats as "exit current screen", kicking the
+ * user out of Main Apps).
  *
  * IMPORTANT: This service intentionally does NOT touch "Clear data" or
  * "Clear storage" — only cache. Clearing data signs users out of apps and
@@ -103,12 +107,33 @@ class CacheClearService : AccessibilityService() {
   }
 
   private fun finishAndReturn() {
-    Log.d(TAG, "Cache cleared for $workingForPackage — returning")
+    Log.d(TAG, "Cache cleared for $workingForPackage — returning to SMC")
     consumeTarget()
     workingForPackage = null
-    // Press back twice (Storage → App Info → previous app)
-    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 500)
-    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 1000)
+    // Bring Snow Media Center back to the foreground by launching its own
+    // launch intent. This does NOT send a back keypress, so the in-app
+    // WebView won't pop us out of Main Apps.
+    handler.postDelayed({
+      try {
+        val pm = packageManager
+        val launch = pm.getLaunchIntentForPackage(packageName)
+        if (launch != null) {
+          launch.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
+          )
+          startActivity(launch)
+        } else {
+          // Fallback: use back if our launch intent isn't available
+          performGlobalAction(GLOBAL_ACTION_BACK)
+          handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 500)
+        }
+      } catch (e: Exception) {
+        Log.w(TAG, "Could not relaunch SMC: ${e.message}")
+        performGlobalAction(GLOBAL_ACTION_BACK)
+      }
+    }, 700)
     handler.postDelayed({ step = Step.IDLE }, 1500)
   }
 
