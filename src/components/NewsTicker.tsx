@@ -1,31 +1,34 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 
-const NewsTicker = () => {
-  const [newsItems, setNewsItems] = useState<string[]>([
-    "Loading news feed..."
-  ]);
-  const [isLoading, setIsLoading] = useState(true);
-  const trackRef = useRef<HTMLDivElement>(null);
+const FALLBACK_NEWS = [
+  '🚀 New streaming app update available',
+  '📺 Live support available now - Chat with Snow Media',
+  '🎬 Fresh video tutorials added to Support section',
+  '💫 Snow Media Store updated with new content',
+];
 
-  const fallbackNews = [
-    "🚀 New streaming app update available",
-    "📺 Live support available now - Chat with Snow Media",
-    "🎬 Fresh video tutorials added to Support section",
-    "💫 Snow Media Store updated with new content"
-  ];
+const INITIAL_NEWS = ['Loading news feed...'];
+
+const sameItems = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((item, index) => item === b[index]);
+
+const NewsTicker = memo(() => {
+  const [newsItems, setNewsItems] = useState<string[]>(INITIAL_NEWS);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const isNative = useMemo(() => isNativePlatform(), []);
 
   useEffect(() => {
     let cancelled = false;
+
     const fetchRSSFeed = async () => {
       try {
-        const isNative = isNativePlatform();
         const rssUrl = 'https://snowmediaapps.com/smc/newsfeed.xml';
 
         const response = await robustFetch(rssUrl, {
-          timeout: 10000,
-          retries: 2,
+          timeout: isNative ? 4000 : 10000,
+          retries: isNative ? 0 : 2,
           useCorsProxy: !isNative,
         });
 
@@ -59,23 +62,22 @@ const NewsTicker = () => {
         });
 
         if (cancelled) return;
-        setNewsItems(newsArray.length > 0 ? newsArray : fallbackNews);
-        setIsLoading(false);
+        const nextItems = newsArray.length > 0 ? newsArray : FALLBACK_NEWS;
+        setNewsItems((prev) => (sameItems(prev, nextItems) ? prev : nextItems));
       } catch (error) {
         if (cancelled) return;
         console.warn('Error fetching RSS feed:', error);
-        setNewsItems(fallbackNews);
-        setIsLoading(false);
+        setNewsItems((prev) => (sameItems(prev, FALLBACK_NEWS) ? prev : FALLBACK_NEWS));
       }
     };
 
     fetchRSSFeed();
-    const refreshInterval = setInterval(fetchRSSFeed, 60000);
+    const refreshInterval = window.setInterval(fetchRSSFeed, isNative ? 300000 : 60000);
     return () => {
       cancelled = true;
       clearInterval(refreshInterval);
     };
-  }, []);
+  }, [isNative]);
 
   // Build one continuous string so the marquee never restarts mid-cycle.
   // Duplicate it so the loop appears seamless without React re-mounts.
@@ -139,6 +141,8 @@ const NewsTicker = () => {
       </div>
     </div>
   );
-};
+});
+
+NewsTicker.displayName = 'NewsTicker';
 
 export default NewsTicker;

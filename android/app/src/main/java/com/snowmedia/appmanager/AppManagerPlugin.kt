@@ -1,5 +1,6 @@
 package com.snowmedia.appmanager
 
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -17,6 +18,8 @@ import java.io.File
 class AppManagerPlugin : Plugin() {
 
   private val TAG = "AppManagerPlugin"
+  private var pendingUninstallCall: PluginCall? = null
+  private var pendingUninstallPackage: String? = null
 
   @PluginMethod
   fun isInstalled(call: PluginCall) {
@@ -234,14 +237,17 @@ class AppManagerPlugin : Plugin() {
 
       // ACTION_DELETE shows the standard system "Do you want to uninstall?" dialog
       // and reliably performs the uninstall when the user confirms.
+      pendingUninstallCall = call
+      pendingUninstallPackage = pkg
+      saveCall(call)
+
       @Suppress("DEPRECATION")
       val intent = Intent(Intent.ACTION_DELETE).apply {
         data = Uri.parse("package:$pkg")
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        putExtra(Intent.EXTRA_RETURN_RESULT, true)
       }
       try {
-        context.startActivity(intent)
-        call.resolve()
+        startActivityForResult(call, intent, "uninstallResult")
         return
       } catch (_: Exception) { /* fall through to UNINSTALL_PACKAGE */ }
 
@@ -249,13 +255,49 @@ class AppManagerPlugin : Plugin() {
       val fallback = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
         data = Uri.parse("package:$pkg")
         putExtra(Intent.EXTRA_RETURN_RESULT, true)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
-      context.startActivity(fallback)
-      call.resolve()
+      startActivityForResult(call, fallback, "uninstallResult")
     } catch (e: Exception) {
+      pendingUninstallCall = null
+      pendingUninstallPackage = null
       Log.e(TAG, "uninstall failed", e)
       call.reject("Failed to start uninstaller: ${e.message}")
+    }
+  }
+
+  @ActivityCallback
+  private fun uninstallResult(call: PluginCall, result: ActivityResult?) {
+    val pendingCall = pendingUninstallCall ?: call
+    val packageName = pendingUninstallPackage
+    pendingUninstallCall = null
+    pendingUninstallPackage = null
+
+    try {
+      if (packageName.isNullOrBlank()) {
+        pendingCall.resolve(JSObject().put("started", true).put("uninstalled", false))
+        return
+      }
+
+      val stillInstalled = try {
+        context.packageManager.getPackageInfo(packageName, 0)
+        true
+      } catch (_: Exception) {
+        false
+      }
+
+      val response = JSObject()
+      response.put("started", true)
+      response.put("uninstalled", !stillInstalled)
+      response.put("packageName", packageName)
+
+      if (result?.resultCode == Activity.RESULT_CANCELED && stillInstalled) {
+        response.put("cancelled", true)
+      }
+
+      pendingCall.resolve(response)
+    } catch (e: Exception) {
+      Log.e(TAG, "uninstall result handling failed", e)
+      pendingCall.reject("Uninstall finished, but result could not be verified: ${e.message}")
     }
   }
 

@@ -23,7 +23,7 @@ export interface AppManagerPlugin {
   clearOwnCache(): Promise<{ freedBytes: number }>;
   installApk(options: { filePath: string }): Promise<void>;
   launch(options: { packageName: string }): Promise<void>;
-  uninstall(options: { packageName: string }): Promise<void>;
+  uninstall(options: { packageName: string }): Promise<{ started: boolean; uninstalled?: boolean; cancelled?: boolean; packageName?: string }>;
   openAppSettings(options: { packageName: string }): Promise<void>;
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>;
   openAccessibilitySettings(): Promise<void>;

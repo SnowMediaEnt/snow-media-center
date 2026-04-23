@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
@@ -35,6 +35,74 @@ const RouteFallback = () => (
     Loading…
   </div>
 );
+
+const HomeActionCard = memo(({
+  button,
+  index,
+  isFocused,
+  layoutMode,
+  onActivate,
+}: {
+  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
+  index: number;
+  isFocused: boolean;
+  layoutMode: 'grid' | 'row';
+  onActivate: () => void;
+}) => {
+  const ButtonIcon = button.icon;
+  const cardStyle = layoutMode === 'grid'
+    ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
+    : { width: 'clamp(180px, 20vw, 360px)', aspectRatio: '1 / 0.85' as const };
+
+  return (
+    <Card
+      tabIndex={0}
+      style={cardStyle}
+      className={`
+        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable flex-shrink-0
+        ${isFocused ? 'ring-4 ring-white/60 shadow-2xl scale-105 brightness-110' : 'shadow-xl'}
+        ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
+        ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
+        ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
+        ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
+      `}
+      onClick={onActivate}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+      data-home-card={index}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
+
+      <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
+        <div className="flex-shrink-0 mb-2" style={{
+          width: layoutMode === 'grid' ? 'clamp(48px, 6vw, 100px)' : 'clamp(40px, 5vw, 80px)',
+          aspectRatio: '1 / 1'
+        }}>
+          <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
+        </div>
+        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
+          {button.title}
+        </h3>
+        {layoutMode === 'grid' && (
+          <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
+            {button.description}
+          </p>
+        )}
+      </div>
+
+      {isFocused && (
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl" />
+      )}
+    </Card>
+  );
+});
+
+HomeActionCard.displayName = 'HomeActionCard';
 
 
 const Index = () => {
@@ -483,73 +551,22 @@ const Index = () => {
               }}
             >
               {buttons.map((button, index) => {
-                const ButtonIcon = button.icon;
                 const isFocused = focusedButton === index;
-                
-                // Card dimensions based on layout mode using viewport units for proportional scaling
-                // Row mode: Use fixed aspect ratio to prevent squishing on Android TV
-                const cardStyle = layoutMode === 'grid' 
-                  ? { width: 'clamp(200px, 22vw, 500px)', height: 'clamp(150px, 25vh, 350px)' }
-                  : { width: 'clamp(180px, 20vw, 360px)', aspectRatio: '1 / 0.85' as const };
-                
+                const activateCard = () => {
+                  if (index === 0) navigateTo('apps');
+                  else if (index === 1) navigateTo('store');
+                  else if (index === 2) navigateTo('support');
+                  else if (index === 3) navigateTo('chat');
+                };
+
                 const cardContent = (
-                  <Card
-                    tabIndex={0}
-                    style={cardStyle}
-                    className={`
-                      relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable flex-shrink-0
-                      ${isFocused 
-                        ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                        : 'shadow-xl'
-                      }
-                      transition-all duration-200
-                      ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
-                      ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
-                      ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
-                      ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
-                    `}
-                    onClick={() => {
-                      if (index === 0) navigateTo('apps');
-                      else if (index === 1) navigateTo('store');
-                      else if (index === 2) navigateTo('support');
-                      else if (index === 3) navigateTo('chat');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        if (index === 0) navigateTo('apps');
-                        else if (index === 1) navigateTo('store');
-                        else if (index === 2) navigateTo('support');
-                        else if (index === 3) navigateTo('chat');
-                      }
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
-                    
-                    <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
-                      <div className="flex-shrink-0 mb-2" style={{ 
-                        width: layoutMode === 'grid' ? 'clamp(48px, 6vw, 100px)' : 'clamp(40px, 5vw, 80px)',
-                        aspectRatio: '1 / 1'
-                      }}>
-                        <ButtonIcon 
-                          className="text-white drop-shadow-xl w-full h-full"
-                        />
-                      </div>
-                      <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
-                        {button.title}
-                      </h3>
-                      {layoutMode === 'grid' && (
-                        <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
-                          {button.description}
-                        </p>
-                      )}
-                    </div>
-                    
-                    {isFocused && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl" />
-                    )}
-                  </Card>
+                  <HomeActionCard
+                    button={button}
+                    index={index}
+                    isFocused={isFocused}
+                    layoutMode={layoutMode}
+                    onActivate={activateCard}
+                  />
                 );
 
                 // Wrap Main Apps card (index 0) with pinned apps popup

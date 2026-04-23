@@ -278,6 +278,16 @@
   animation: news-ticker-marquee 60s linear infinite;
 }
 
+.home-focus-surface {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint style;
+  transition-property: transform, box-shadow, filter, background-color, border-color;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
 .news-ticker-item {
   flex-shrink: 0;
 }
