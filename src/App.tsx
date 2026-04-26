@@ -16,36 +16,11 @@ const queryClient = new QueryClient();
 
 const App = () => {
   const { backgroundUrl } = useDynamicBackground();
-  const backOnce = useRef(false);
 
-  // Android Back button behavior (Capacitor)
-  useEffect(() => {
-    let listener: any = null;
-    
-    const setupListener = async () => {
-      listener = await CapApp.addListener("backButton", () => {
-        if (window.history.length > 1) {
-          window.history.back();
-          return;
-        }
-        if (backOnce.current) {
-          CapApp.exitApp();
-        } else {
-          backOnce.current = true;
-          // Show toast "Press back again to exit" - handled by individual components
-          setTimeout(() => (backOnce.current = false), 1500);
-        }
-      });
-    };
-    
-    setupListener();
-    
-    return () => { 
-      if (listener) {
-        listener.remove(); 
-      }
-    };
-  }, []);
+  // NOTE: Android back-button is handled exclusively in `src/hooks/useNavigation.ts`
+  // (which scopes back behavior to the current view). Adding a second listener
+  // here used to fight that handler and produced extra D-pad/back work that
+  // contributed to perceived stutter — leaving it out on purpose.
 
   // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
   // and route into the in-app /sso consumer page so the magic link signs the user in.
