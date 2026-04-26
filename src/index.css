@@ -279,13 +279,28 @@
 }
 
 .home-focus-surface {
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
+  /* Keep a stable compositor layer per card — but don't promote unless focused,
+     otherwise Android WebView allocates a layer per card and they all repaint
+     together when one focuses. */
   contain: paint style;
-  transition-property: transform, box-shadow, filter, background-color, border-color;
-  transition-duration: 140ms;
+  transition-property: transform, box-shadow;
+  transition-duration: 130ms;
   transition-timing-function: ease-out;
+}
+
+.home-focus-surface[data-focused="true"] {
+  will-change: transform;
+  transform: translateZ(0) scale(1.05);
+  box-shadow: 0 0 0 4px hsl(var(--brand-ice) / 0.7), 0 12px 24px -8px hsl(var(--brand-navy) / 0.55);
+}
+
+/* On low-power devices that prefer reduced motion, skip the transform/shadow
+   transition entirely so D-pad movement never has to wait on a paint. */
+@media (prefers-reduced-motion: reduce) {
+  .home-focus-surface,
+  .home-focus-surface[data-focused="true"] {
+    transition: none;
+  }
 }
 
 .news-ticker-item {

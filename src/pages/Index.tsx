@@ -58,9 +58,10 @@ const HomeActionCard = memo(({
     <Card
       tabIndex={0}
       style={cardStyle}
+      data-focused={isFocused ? 'true' : 'false'}
+      data-home-card={index}
       className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable flex-shrink-0
-        ${isFocused ? 'ring-4 ring-white/60 shadow-2xl scale-105 brightness-110' : 'shadow-xl'}
+        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
         ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
         ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
         ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
@@ -73,10 +74,8 @@ const HomeActionCard = memo(({
           onActivate();
         }
       }}
-      data-home-card={index}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 rounded-3xl pointer-events-none" />
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
@@ -94,10 +93,6 @@ const HomeActionCard = memo(({
           </p>
         )}
       </div>
-
-      {isFocused && (
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl" />
-      )}
     </Card>
   );
 });
@@ -429,14 +424,11 @@ const Index = () => {
                 variant="purple"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -3 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -3 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <Shield className={`mr-2 ${
@@ -453,14 +445,11 @@ const Index = () => {
                 variant="white"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -2 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -2 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <User className={`mr-2 text-gray-800 ${
@@ -476,14 +465,11 @@ const Index = () => {
                 variant="gold"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -2 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -2 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <LogIn className={`mr-2 ${
@@ -499,14 +485,11 @@ const Index = () => {
               variant="gold"
               size={screenHeight >= 1440 ? "default" : "sm"}
               tabIndex={0}
-              className={`tv-focusable transition-all duration-200 ${
+              data-focused={focusedButton === -1 ? 'true' : 'false'}
+              className={`tv-focusable home-focus-surface ${
                 screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                 screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                 ''
-              } ${
-                focusedButton === -1 
-                  ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                  : ''
               }`}
             >
               <SettingsIcon className={`mr-2 ${
