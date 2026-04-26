@@ -494,6 +494,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       console.log(`[Uninstall] ${app.name} → ${packageName}`);
       const result = await AppManager.uninstall({ packageName });
 
+      // Refresh just this app's status, not all of them — keeps the UI snappy.
       await refreshDeviceApps();
       const nextStatus = await ensureStatus(app);
       const uninstalled = result.uninstalled === true || !nextStatus.installed;
@@ -508,10 +509,32 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           description: `${app.name} was removed from this device.`,
           variant: "destructive",
         });
-      } else {
+        return;
+      }
+
+      if (result.cancelled) {
         toast({
           title: "Uninstall Cancelled",
           description: `${app.name} is still installed on this device.`,
+        });
+        return;
+      }
+
+      // Some Android TV builds report success but never actually uninstall.
+      // In that case fall back to the App Info screen so the user can press
+      // Uninstall manually — no more silent failures.
+      toast({
+        title: "Finishing uninstall…",
+        description: `Opening ${app.name} App Info — tap Uninstall there.`,
+      });
+      try {
+        await AppManager.openAppSettings({ packageName });
+      } catch (fallbackErr) {
+        console.warn('[Uninstall] App Info fallback failed', fallbackErr);
+        toast({
+          title: "Uninstall failed",
+          description: `Could not finish uninstalling ${app.name}. Please uninstall it from Android Settings.`,
+          variant: "destructive",
         });
       }
     } catch (error) {
