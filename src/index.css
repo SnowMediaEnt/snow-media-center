@@ -275,7 +275,7 @@
   display: inline-flex;
   gap: 4rem;
   white-space: nowrap;
-  animation: news-ticker-marquee 60s linear infinite;
+  animation: news-ticker-marquee 25s linear infinite;
 }
 
 .home-focus-surface {
@@ -315,6 +315,6 @@
 /* Keep it always running; reduced-motion only slows it down without stopping. */
 @media (prefers-reduced-motion: reduce) {
   .news-ticker-track {
-    animation-duration: 180s;
+    animation-duration: 75s;
   }
 }
