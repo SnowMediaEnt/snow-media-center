@@ -154,11 +154,11 @@ const NewsTicker = memo(() => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-xl text-foreground font-medium news-ticker-item">
+            <span className="text-xl text-white font-medium news-ticker-item">
               {tickerText}
             </span>
             <span
-              className="text-xl text-foreground font-medium news-ticker-item"
+              className="text-xl text-white font-medium news-ticker-item"
               aria-hidden="true"
             >
               {tickerText}
