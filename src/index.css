@@ -275,7 +275,7 @@
   display: inline-flex;
   gap: 4rem;
   white-space: nowrap;
-  animation: news-ticker-marquee 60s linear infinite;
+  animation: news-ticker-marquee 25s linear infinite;
 }
 
 .home-focus-surface {
