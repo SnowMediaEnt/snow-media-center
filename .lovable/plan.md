@@ -1,58 +1,61 @@
+I can see a few likely conflicts that would show up on the Android box more than in preview:
 
+1. The RSS feed is still fetching every 60 seconds on web and 5 minutes on native, but on web it tries failing CORS proxies first. On a device the bigger issue is that the ticker is always animating while every D-pad movement triggers React state changes, focus scaling, shadows, and sometimes scroll/focus work. Android WebView compositing is weaker than desktop Chrome, so the ticker layer can hitch when nearby UI repaints.
+2. Home focus changes currently re-render the whole Home screen, not just the old/new focused cards.
+3. Focus effects still use expensive styles on TV hardware: `brightness`, large `box-shadow`, `filter`, gradients, `transition-all`, and `will-change` on multiple cards. Those can steal compositor time from the marquee.
+4. There are duplicate/global back and navigation listeners (`App.tsx`, `useNavigation`, page-level handlers, component-level handlers). That can add extra work and unpredictable behavior on remote input.
+5. Main Apps status scanning refreshes all app statuses on focus/visibility return and loops through apps with async checks. That can cause hitches after returning from Settings/cache/uninstall.
+6. Uninstall may still fail because Android TV builds can ignore or restrict the standard delete intent. We need a stronger fallback that opens the app’s App Info uninstall path when the package installer result says it is still installed.
 
-## App Alerts are already built — make them easier to find
+## Plan
 
-### What's actually going on
+### 1. Make the RSS ticker device-safe
+- Add a native/TV “low-jank” mode for the ticker.
+- Pause the ticker briefly while the user is pressing D-pad keys, then resume after a short idle delay. This removes the competing animation during cursor movement, which is exactly when you notice the stutter.
+- On native, avoid repeated RSS refresh work during normal use: fetch once at startup, cache the parsed ticker text in localStorage/Capacitor storage, then refresh much less often in the background.
+- Keep the CSS marquee for web/desktop, but reduce layer pressure on Android WebView.
 
-Good news: there is **nothing missing in the database or the code**. The feature you're asking for already exists and is fully wired up:
+### 2. Stop Home from repainting more than necessary
+- Split Home into smaller memoized pieces: header controls, title, ticker, and card row.
+- Replace focus-driven full-page updates where possible with DOM `data-focused` attributes or card-local state so only the previous and next focused surfaces visually change.
+- Keep the current D-pad behavior, but make each key press do less React/render work.
 
-- A component called **`AppAlertsManager`** lets admins pick one or more apps from the live app list, type a title + message, choose a severity (info / warning / critical), and post the alert.
-- That alert is then shown to every user as a popup the next time they open the matching app (handled by `useAppAlerts` + `AppAlertDialog`).
-- It's already gated to admins only (`useAdminRole`).
+### 3. Simplify TV focus effects for smoother remote movement
+- Replace expensive focused-card styles (`brightness`, heavy shadows, filters, large gradient overlays) with cheaper transform + ring/border/glow that matches the existing “glow and grow” design.
+- Remove broad `transition-all` and use only `transform`/`opacity`/`box-shadow` where needed.
+- Disable or reduce hover/focus image/icon scale transitions on TV/native.
+- Avoid `will-change` on every card all the time; only promote the currently focused/animated element.
 
-The reason you don't see it in the **Admin Support Dashboard** is that it was never placed there. Today it lives at:
+### 4. Clean up navigation event handling
+- Consolidate duplicate Android back-button handling so back events are not processed by multiple systems.
+- Ensure home D-pad handling uses capture/preventDefault consistently and does not fall through to browser/WebView scroll behavior.
+- Keep modal/dialog key handling isolated so background focus does not move.
 
-```text
-Home → Settings (gear icon)
-   └── Tabs: Layout | Media | Updates | App Alerts   ← admin-only tab
-```
+### 5. Make Main Apps status refresh less janky
+- Debounce visibility/focus refreshes after returning from Android Settings.
+- Refresh only the affected app after uninstall/cache/settings actions instead of rechecking every app immediately.
+- Move full installed-app scanning to explicit Refresh or app-open only, not every focus return.
 
-So as the admin (`joshua.perez@snowmediaent.com`) you should be able to open it right now by going to **Settings → App Alerts** tab.
+### 6. Improve uninstall reliability
+- Keep the current standard uninstall intent first.
+- If Android returns but the app is still installed, show a clear fallback toast and open the exact App Info screen for that package so the user can press Uninstall manually.
+- Add better result handling and package verification so the UI doesn’t claim success unless the package is actually gone.
+- If possible on that Android build, add a second native fallback intent (`ACTION_APPLICATION_DETAILS_SETTINGS`) with uninstall guidance instead of repeatedly saying “uninstalling.”
 
-### The real problem: discoverability
+## Technical files to update
+- `src/components/NewsTicker.tsx`
+- `src/index.css`
+- `src/pages/Index.tsx`
+- `src/components/HomeClock.tsx` if needed for low-jank native styling
+- `src/hooks/useNavigation.ts`
+- `src/App.tsx`
+- `src/components/InstallApps.tsx`
+- `src/hooks/useDeviceInstalledApps.ts`
+- `android/app/src/main/java/com/snowmedia/appmanager/AppManagerPlugin.kt`
+- `src/capacitor/AppManager.ts`
 
-You expected to find it in the Admin section (next to Tickets), and that's the right instinct — managing user-facing alerts is an admin task, not a "settings" task. Burying it in Settings makes it easy to miss.
-
-### Plan
-
-I'll do two small things to fix this without duplicating the component:
-
-1. **Add an "App Alerts" entry point alongside Tickets in the Admin area.**
-   - In the Admin Support Dashboard, add a top-level toggle (or second tab) so admins see two sections:
-     - **Support Tickets** (current view)
-     - **App Alerts** (renders the existing `AppAlertsManager`)
-   - This is where you instinctively looked, so this is where it should live.
-
-2. **Add a clear admin entry point on the Dashboard / Account screen.**
-   - Add an "App Alerts" tile/button next to the existing "Admin Support" tile (admin-only, same `isAdmin` gate).
-   - Clicking it jumps straight into the alerts manager.
-
-3. **Keep the Settings → App Alerts tab as a secondary shortcut** (don't remove it — some admins may be used to it, and removing it is a needless regression).
-
-### Files that will change
-
-- `src/components/AdminSupportDashboard.tsx` — add a tab/segmented control: "Tickets" vs "App Alerts", render `<AppAlertsManager />` in the second tab.
-- `src/components/UserDashboard.tsx` (or wherever the "Admin Support" tile is) — add a sibling "App Alerts" tile, admin-only.
-- `src/pages/Index.tsx` — add a new route/view key like `'admin-alerts'` so the tile can navigate directly to the alerts screen (alternative: just route to `'admin-support'` and default-select the Alerts tab via a query param/prop).
-- No database changes. No edge function changes. No new dependencies.
-
-### What you'll see after the change
-
-- Open the **Admin Support** screen → you'll now see two tabs at the top: **Tickets** | **App Alerts**.
-- The App Alerts tab shows: a list of apps with checkboxes, title field, severity buttons (info/warning/critical), message box, "Post alert" button, and a list of existing alerts with on/off switches and delete buttons.
-- The same screen is still reachable from Settings → App Alerts and from a new "App Alerts" tile on the Dashboard.
-
-### Quick clarification (optional)
-
-You can tell me right now: do you want the existing **Settings → App Alerts** tab **kept** as a shortcut, or **removed** to keep alert management strictly inside the Admin area? Default if you don't say: keep both.
-
+## Expected result
+- D-pad left/right movement on the Home screen should feel steadier because the ticker won’t fight the focus animation during remote input.
+- The RSS feed should stop visibly hitching when moving the cursor.
+- Main Apps should avoid unnecessary rescans and hitches after returning from Android system screens.
+- Uninstall will no longer falsely report success; if the TV box blocks programmatic uninstall, it will take the user directly to the correct Android App Info screen as a reliable fallback.
