@@ -58,9 +58,10 @@ const HomeActionCard = memo(({
     <Card
       tabIndex={0}
       style={cardStyle}
+      data-focused={isFocused ? 'true' : 'false'}
+      data-home-card={index}
       className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl tv-focusable flex-shrink-0
-        ${isFocused ? 'ring-4 ring-white/60 shadow-2xl scale-105 brightness-110' : 'shadow-xl'}
+        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
         ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
         ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
         ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
@@ -73,10 +74,8 @@ const HomeActionCard = memo(({
           onActivate();
         }
       }}
-      data-home-card={index}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 rounded-3xl" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent rounded-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 rounded-3xl pointer-events-none" />
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
@@ -94,10 +93,6 @@ const HomeActionCard = memo(({
           </p>
         )}
       </div>
-
-      {isFocused && (
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-ice/20 to-brand-gold/20 rounded-3xl" />
-      )}
     </Card>
   );
 });
