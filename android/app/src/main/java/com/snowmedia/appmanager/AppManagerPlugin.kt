@@ -365,6 +365,15 @@ class AppManagerPlugin : Plugin() {
   fun clearAppCache(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
+
+    // ---- 1) Try root path first (silent, no Accessibility Service needed) ----
+    if (tryRootClearCache(pkg)) {
+      Log.d(TAG, "Root cache clear succeeded for $pkg")
+      call.resolve(JSObject().put("method", "root"))
+      return
+    }
+
+    // ---- 2) Fall back to Accessibility Service flow ----
     if (!isAccessibilityServiceEnabled()) {
       call.reject("ACCESSIBILITY_DISABLED")
       return
@@ -376,7 +385,7 @@ class AppManagerPlugin : Plugin() {
         .setData(Uri.parse("package:$pkg"))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
-      call.resolve()
+      call.resolve(JSObject().put("method", "accessibility"))
     } catch (e: Exception) {
       call.reject("Failed to start cache clear: ${e.message}")
     }
