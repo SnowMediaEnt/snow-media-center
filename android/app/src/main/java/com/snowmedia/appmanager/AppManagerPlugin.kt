@@ -404,4 +404,54 @@ class AppManagerPlugin : Plugin() {
     }
     return false
   }
+
+  // ---------- Root (su) helpers ----------
+
+  /**
+   * Runs a single shell command via `su -c`. Returns true only if `su` was
+   * available AND the command exited with status 0. Anything else (no su,
+   * permission denied, non-zero exit) returns false so callers can fall back
+   * to the non-root flow. Capped at 4s so we never hang the UI.
+   */
+  private fun runAsRoot(cmd: String): Boolean {
+    return try {
+      val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+      // Hard timeout — su prompts on some ROMs and we don't want to block
+      val finished = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          proc.waitFor(4, java.util.concurrent.TimeUnit.SECONDS)
+        } else {
+          val t = Thread { try { proc.waitFor() } catch (_: Exception) {} }
+          t.start(); t.join(4000); !t.isAlive
+        }
+      } catch (_: Exception) { false }
+      if (!finished) {
+        try { proc.destroy() } catch (_: Exception) {}
+        Log.d(TAG, "su timed out for: $cmd")
+        return false
+      }
+      val ok = proc.exitValue() == 0
+      Log.d(TAG, "su exit=${proc.exitValue()} for: $cmd")
+      ok
+    } catch (e: Exception) {
+      // No su binary, denied, or any other failure — treat as not rooted
+      Log.d(TAG, "su unavailable: ${e.message}")
+      false
+    }
+  }
+
+  private fun tryRootUninstall(pkg: String): Boolean {
+    if (pkg.isBlank()) return false
+    // pm uninstall works on all rooted Android versions
+    return runAsRoot("pm uninstall $pkg") || runAsRoot("cmd package uninstall $pkg")
+  }
+
+  private fun tryRootClearCache(pkg: String): Boolean {
+    if (pkg.isBlank()) return false
+    // `pm trim-caches` only trims when storage is low, so use the per-package
+    // cache directories directly. We deliberately do NOT touch /data/data/<pkg>
+    // beyond cache/ and code_cache/ — that would wipe user data.
+    val cmd = "rm -rf /data/data/$pkg/cache/* /data/data/$pkg/code_cache/* 2>/dev/null; true"
+    return runAsRoot(cmd)
+  }
 }
