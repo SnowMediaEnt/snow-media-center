@@ -221,10 +221,13 @@ class AppManagerPlugin : Plugin() {
   }
 
   /**
-   * Uninstall via PackageInstaller on Android O+ (most reliable on TV builds),
-   * with ACTION_DELETE as a fallback for older devices. ACTION_UNINSTALL_PACKAGE
-   * was deprecated and on several Android TV builds the system dialog returns
-   * without actually performing the uninstall.
+   * Uninstall flow:
+   *   1. If the device is rooted AND `su` accepts our command, run
+   *      `pm uninstall <pkg>` directly — completely silent, no dialog,
+   *      no Accessibility Service. This is what rooted Android TV boxes
+   *      and dev builds expect.
+   *   2. Otherwise fall back to the existing ACTION_DELETE / ACTION_UNINSTALL_PACKAGE
+   *      Intent flow that Firesticks and stock devices use today.
    */
   @PluginMethod
   fun uninstall(call: PluginCall) {
@@ -235,8 +238,26 @@ class AppManagerPlugin : Plugin() {
       try { context.packageManager.getPackageInfo(pkg, 0) }
       catch (_: Exception) { call.reject("Package not installed: $pkg"); return }
 
-      // ACTION_DELETE shows the standard system "Do you want to uninstall?" dialog
-      // and reliably performs the uninstall when the user confirms.
+      // ---- 1) Try root path first (silent, no UI) ----
+      if (tryRootUninstall(pkg)) {
+        val stillInstalled = try {
+          context.packageManager.getPackageInfo(pkg, 0); true
+        } catch (_: Exception) { false }
+        if (!stillInstalled) {
+          Log.d(TAG, "Root uninstall succeeded for $pkg")
+          call.resolve(
+            JSObject()
+              .put("started", true)
+              .put("uninstalled", true)
+              .put("packageName", pkg)
+              .put("method", "root")
+          )
+          return
+        }
+        Log.d(TAG, "Root uninstall command ran but package still present — falling back to Intent")
+      }
+
+      // ---- 2) Fall back to standard Intent flow ----
       pendingUninstallCall = call
       pendingUninstallPackage = pkg
       saveCall(call)
