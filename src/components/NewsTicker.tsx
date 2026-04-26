@@ -18,7 +18,6 @@ const STORAGE_KEY = 'snow-media-news-ticker-v1';
 const STORAGE_TIMESTAMP_KEY = 'snow-media-news-ticker-ts-v1';
 const NATIVE_REFRESH_MS = 30 * 60 * 1000; // 30 minutes
 const WEB_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
-const PAUSE_AFTER_KEY_MS = 600;
 
 type CachedNews = { items: string[]; updatedAt: number } | null;
 
@@ -50,7 +49,6 @@ const writeCachedNews = (items: string[]) => {
 const NewsTicker = memo(() => {
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
-  const trackRef = useRef<HTMLDivElement>(null);
   const isNative = useMemo(() => isNativePlatform(), []);
   const refreshMs = isNative ? NATIVE_REFRESH_MS : WEB_REFRESH_MS;
 
@@ -129,72 +127,26 @@ const NewsTicker = memo(() => {
     };
   }, [cached?.updatedAt, isNative, refreshMs]);
 
-  // Pause ticker briefly while user is using the D-pad, then resume.
-  // This is the single biggest win on Android WebViews — the marquee no longer
-  // competes with the focus animation for compositor time during cursor moves.
-  useEffect(() => {
-    let resumeTimer: number | null = null;
-
-    const pauseTrack = () => {
-      const node = trackRef.current;
-      if (!node) return;
-      node.style.animationPlayState = 'paused';
-      if (resumeTimer) window.clearTimeout(resumeTimer);
-      resumeTimer = window.setTimeout(() => {
-        if (trackRef.current) {
-          trackRef.current.style.animationPlayState = 'running';
-        }
-      }, PAUSE_AFTER_KEY_MS);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key === 'ArrowLeft' ||
-        event.key === 'ArrowRight' ||
-        event.key === 'ArrowUp' ||
-        event.key === 'ArrowDown'
-      ) {
-        pauseTrack();
-      }
-    };
-
-    const handleVisibility = () => {
-      const node = trackRef.current;
-      if (!node) return;
-      node.style.animationPlayState = document.hidden ? 'paused' : 'running';
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { passive: true });
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      if (resumeTimer) window.clearTimeout(resumeTimer);
-    };
-  }, []);
-
   // Build one continuous string so the marquee never restarts mid-cycle.
   // Duplicate it so the loop appears seamless without React re-mounts.
   const tickerText = useMemo(() => newsItems.join('   •   '), [newsItems]);
 
   return (
     <div
-      className="news-ticker relative z-10 border-y border-blue-400/30 py-3 overflow-hidden"
+      className="news-ticker relative z-10 border-y border-primary/30 py-3 overflow-hidden"
       style={{
         // Solid color (not gradient) → cheap to paint, no resampling on scroll
-        backgroundColor: 'hsl(225 60% 25%)',
+        backgroundColor: 'hsl(var(--brand-navy))',
         // Promote to its own GPU layer so animations elsewhere don't repaint it
         contain: 'layout paint style',
       }}
     >
       <div className="flex items-center h-12">
-        <div className="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-bold ml-4 z-10 flex-shrink-0">
+        <div className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-bold ml-4 z-10 flex-shrink-0">
           LIVE
         </div>
         <div className="flex-1 overflow-hidden ml-4 news-ticker-mask" style={{ contain: 'layout paint' }}>
           <div
-            ref={trackRef}
             className="news-ticker-track"
             style={{
               willChange: 'transform',
@@ -202,11 +154,11 @@ const NewsTicker = memo(() => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-xl text-white font-medium news-ticker-item">
+            <span className="text-xl text-foreground font-medium news-ticker-item">
               {tickerText}
             </span>
             <span
-              className="text-xl text-white font-medium news-ticker-item"
+              className="text-xl text-foreground font-medium news-ticker-item"
               aria-hidden="true"
             >
               {tickerText}
