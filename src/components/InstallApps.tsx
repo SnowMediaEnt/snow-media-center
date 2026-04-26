@@ -431,18 +431,27 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     apps.forEach(app => ensureStatus(app));
   }, [apps, ensureStatus]);
 
-  // Refresh statuses when component becomes visible/focused
+  // Debounced refresh: when the user comes back from Android Settings or
+  // toggles visibility quickly, we don't want to re-scan every catalog app on
+  // every event — that produced visible hitches right after navigation.
   useEffect(() => {
-    const handleFocus = () => refreshAllStatuses();
-    // visibilitychange fires when the user returns from the system installer/uninstaller
+    let timer: number | undefined;
+    const scheduleRefresh = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        refreshAllStatuses();
+      }, 600);
+    };
+    const handleFocus = () => scheduleRefresh();
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') refreshAllStatuses();
+      if (document.visibilityState === 'visible') scheduleRefresh();
     };
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
+      if (timer) window.clearTimeout(timer);
     };
   }, [refreshAllStatuses]);
 
