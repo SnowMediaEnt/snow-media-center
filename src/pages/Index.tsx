@@ -424,14 +424,11 @@ const Index = () => {
                 variant="purple"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -3 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -3 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <Shield className={`mr-2 ${
@@ -448,14 +445,11 @@ const Index = () => {
                 variant="white"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -2 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -2 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <User className={`mr-2 text-gray-800 ${
@@ -471,14 +465,11 @@ const Index = () => {
                 variant="gold"
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
-                className={`tv-focusable transition-all duration-200 ${
+                data-focused={focusedButton === -2 ? 'true' : 'false'}
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
-                } ${
-                  focusedButton === -2 
-                    ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                    : ''
                 }`}
               >
                 <LogIn className={`mr-2 ${
@@ -494,14 +485,11 @@ const Index = () => {
               variant="gold"
               size={screenHeight >= 1440 ? "default" : "sm"}
               tabIndex={0}
-              className={`tv-focusable transition-all duration-200 ${
+              data-focused={focusedButton === -1 ? 'true' : 'false'}
+              className={`tv-focusable home-focus-surface ${
                 screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                 screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                 ''
-              } ${
-                focusedButton === -1 
-                  ? 'ring-4 ring-white/60 shadow-2xl scale-105' 
-                  : ''
               }`}
             >
               <SettingsIcon className={`mr-2 ${
