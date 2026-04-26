@@ -312,8 +312,7 @@
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
-/* Pause when user is interacting with focusable items elsewhere?
-   We keep it always running but stop it on reduced-motion preference. */
+/* Keep it always running; reduced-motion only slows it down without stopping. */
 @media (prefers-reduced-motion: reduce) {
   .news-ticker-track {
     animation-duration: 180s;
