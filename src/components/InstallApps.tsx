@@ -324,7 +324,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             });
             handleOpenAppSettings(currentApp);
           } else if (focusedElement.startsWith('cache-') && currentApp) {
-            // "Clear Cache" button → fully automated via Accessibility Service
+            // "Clear Cache" button → open App Info so the user can clear it manually.
             handleAutoClearCache(currentApp);
           } else if (focusedElement.startsWith('uninstall-') && currentApp) {
             handleUninstall(currentApp);
@@ -491,59 +491,20 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const handleUninstall = async (app: AppData) => {
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
-      console.log(`[Uninstall] ${app.name} → ${packageName}`);
-      const result = await AppManager.uninstall({ packageName });
+      console.log(`[Uninstall Settings] ${app.name} → ${packageName}`);
+      await AppManager.openAppSettings({ packageName });
 
-      // Refresh just this app's status, not all of them — keeps the UI snappy.
-      await refreshDeviceApps();
-      const nextStatus = await ensureStatus(app);
-      const uninstalled = result.uninstalled === true || !nextStatus.installed;
-
-      if (uninstalled) {
-        setAppStatuses(prev => new Map(prev.set(app.id, {
-          ...prev.get(app.id),
-          installed: false
-        })));
-        toast({
-          title: "App Uninstalled",
-          description: `${app.name} was removed from this device.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (result.cancelled) {
-        toast({
-          title: "Uninstall Cancelled",
-          description: `${app.name} is still installed on this device.`,
-        });
-        return;
-      }
-
-      // Some Android TV builds report success but never actually uninstall.
-      // In that case fall back to the App Info screen so the user can press
-      // Uninstall manually — no more silent failures.
       toast({
-        title: "Finishing uninstall…",
+        title: "Tap 'Uninstall'",
         description: `Opening ${app.name} App Info — tap Uninstall there.`,
       });
-      try {
-        await AppManager.openAppSettings({ packageName });
-      } catch (fallbackErr) {
-        console.warn('[Uninstall] App Info fallback failed', fallbackErr);
-        toast({
-          title: "Uninstall failed",
-          description: `Could not finish uninstalling ${app.name}. Please uninstall it from Android Settings.`,
-          variant: "destructive",
-        });
-      }
     } catch (error) {
       console.error('Uninstall error:', error);
       const friendly = isWebUnsupportedError(error)
         ? WEB_UNSUPPORTED_MSG
-        : `Could not uninstall ${app.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        : `Could not open ${app.name} App Info.`;
       toast({
-        title: "Uninstall Failed",
+        title: "Uninstall Menu Failed",
         description: friendly,
         variant: "destructive",
       });
@@ -573,11 +534,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   };
 
-  /**
-   * Auto-clears the given app's CACHE (never data) using the Accessibility
-   * Service. If the service isn't enabled yet, prompt the user once and open
-   * Android's Accessibility Settings so they can turn it on.
-   */
+  /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
     if (!Capacitor.isNativePlatform()) {
       toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
@@ -585,30 +542,15 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
     try {
-      const { enabled } = await AppManager.isAccessibilityEnabled();
-      if (!enabled) {
-        toast({
-          title: 'Enable Cache Cleaner',
-          description:
-            'Turn on "Snow Media Cache Cleaner" in Accessibility, then press Clear Cache again. We only tap "Clear cache" — never "Clear data".',
-        });
-        await AppManager.openAccessibilitySettings();
-        return;
-      }
+      await AppManager.openAppSettings({ packageName });
       toast({
-        title: `Clearing cache: ${app.name}`,
-        description: 'Auto-tapping Storage → Clear cache…',
+        title: "Tap 'Storage' → 'Clear cache'",
+        description: `Opening ${app.name} system info…`,
       });
-      await AppManager.clearAppCache({ packageName });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/ACCESSIBILITY_DISABLED/.test(msg)) {
-        await AppManager.openAccessibilitySettings();
-        return;
-      }
       toast({
-        title: 'Clear cache failed',
-        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : msg,
+        title: 'Clear Cache Menu Failed',
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : `Could not open ${app.name} App Info.`,
         variant: 'destructive',
       });
     }
