@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, package_id, order_id, return_url, cancel_url } = body;
+    const { action, package_id, order_id } = body;
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -80,6 +80,9 @@ Deno.serve(async (req) => {
         });
       }
 
+      const returnUrl = `https://www.snowmediaent.com/thank-you?package=${encodeURIComponent(pkg.id)}&credits=${pkg.credits}&amount=${Number(pkg.price).toFixed(2)}`;
+      const cancelUrl = `https://www.snowmediaent.com/checkout-cancelled?package=${encodeURIComponent(pkg.id)}`;
+
       const accessToken = await getAccessToken();
       const orderRes = await fetch(`${PAYPAL_BASE}/v2/checkout/orders`, {
         method: 'POST',
@@ -104,8 +107,8 @@ Deno.serve(async (req) => {
                 brand_name: 'Snow Media Center',
                 user_action: 'PAY_NOW',
                 shipping_preference: 'NO_SHIPPING',
-                return_url: return_url || 'https://www.snowmediaent.com/',
-                cancel_url: cancel_url || 'https://www.snowmediaent.com/',
+                return_url: returnUrl,
+                cancel_url: cancelUrl,
               },
             },
           },
