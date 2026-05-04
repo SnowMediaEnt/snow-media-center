@@ -366,8 +366,8 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         open={qrOpen}
         onOpenChange={(o) => { setQrOpen(o); if (!o) { setPendingOrderId(null); setQrUrl(null); } }}
         url={qrUrl}
-        title="Scan to Pay with PayPal"
-        description="Scan the QR code with your phone, complete payment in PayPal, then tap the button below."
+        title="Scan to Checkout on Snow Media"
+        description="Scan with your phone, complete checkout on snowmediaent.com (PayPal available there), then tap the button below to add your credits."
         onConfirmPaid={handleVerifyPayment}
         confirming={verifying}
       />
