@@ -1,61 +1,91 @@
-I can see a few likely conflicts that would show up on the Android box more than in preview:
 
-1. The RSS feed is still fetching every 60 seconds on web and 5 minutes on native, but on web it tries failing CORS proxies first. On a device the bigger issue is that the ticker is always animating while every D-pad movement triggers React state changes, focus scaling, shadows, and sometimes scroll/focus work. Android WebView compositing is weaker than desktop Chrome, so the ticker layer can hitch when nearby UI repaints.
-2. Home focus changes currently re-render the whole Home screen, not just the old/new focused cards.
-3. Focus effects still use expensive styles on TV hardware: `brightness`, large `box-shadow`, `filter`, gradients, `transition-all`, and `will-change` on multiple cards. Those can steal compositor time from the marquee.
-4. There are duplicate/global back and navigation listeners (`App.tsx`, `useNavigation`, page-level handlers, component-level handlers). That can add extra work and unpredictable behavior on remote input.
-5. Main Apps status scanning refreshes all app statuses on focus/visibility return and loops through apps with async checks. That can cause hitches after returning from Settings/cache/uninstall.
-6. Uninstall may still fail because Android TV builds can ignore or restrict the standard delete intent. We need a stronger fallback that opens the app’s App Info uninstall path when the package installer result says it is still installed.
+## Goal
+Let users buy credits **in-app via PayPal** AND automatically receive credits for any past or future Wix store purchase ("SMC AI Credits") tied to their email.
 
-## Plan
+---
 
-### 1. Make the RSS ticker device-safe
-- Add a native/TV “low-jank” mode for the ticker.
-- Pause the ticker briefly while the user is pressing D-pad keys, then resume after a short idle delay. This removes the competing animation during cursor movement, which is exactly when you notice the stutter.
-- On native, avoid repeated RSS refresh work during normal use: fetch once at startup, cache the parsed ticker text in localStorage/Capacitor storage, then refresh much less often in the background.
-- Keep the CSS marquee for web/desktop, but reduce layer pressure on Android WebView.
+## Part 1 — PayPal in-app checkout
 
-### 2. Stop Home from repainting more than necessary
-- Split Home into smaller memoized pieces: header controls, title, ticker, and card row.
-- Replace focus-driven full-page updates where possible with DOM `data-focused` attributes or card-local state so only the previous and next focused surfaces visually change.
-- Keep the current D-pad behavior, but make each key press do less React/render work.
+**Secrets needed (you provide):**
+- `PAYPAL_CLIENT_ID` — from developer.paypal.com → My Apps → REST API app
+- `PAYPAL_CLIENT_SECRET` — same place
+- `PAYPAL_MODE` — `live` or `sandbox`
 
-### 3. Simplify TV focus effects for smoother remote movement
-- Replace expensive focused-card styles (`brightness`, heavy shadows, filters, large gradient overlays) with cheaper transform + ring/border/glow that matches the existing “glow and grow” design.
-- Remove broad `transition-all` and use only `transform`/`opacity`/`box-shadow` where needed.
-- Disable or reduce hover/focus image/icon scale transitions on TV/native.
-- Avoid `will-change` on every card all the time; only promote the currently focused/animated element.
+**New edge function: `paypal-checkout`**
+- Action `create-order`: takes `package_id`, looks up price from `credit_packages`, creates a PayPal order via PayPal REST API, returns `approval_url` + PayPal `order_id`.
+- Action `capture-order`: takes PayPal `order_id`, captures payment, verifies status = COMPLETED, then calls `update_user_credits` to add credits + record transaction with the PayPal txn ID (uses existing `paypal_transaction_id` column in `credit_transactions` for dedup).
 
-### 4. Clean up navigation event handling
-- Consolidate duplicate Android back-button handling so back events are not processed by multiple systems.
-- Ensure home D-pad handling uses capture/preventDefault consistently and does not fall through to browser/WebView scroll behavior.
-- Keep modal/dialog key handling isolated so background focus does not move.
+**Frontend (`CreditStore.tsx`):**
+- "Buy with PayPal" button on each package → calls `create-order` → opens approval URL in **Capacitor Browser** (in-app browser, works on Android TV/Firestick/mobile; `window.open` fallback on web).
+- On browser close, calls `capture-order` with the order ID.
+- Refreshes profile to show new credit balance + success toast.
 
-### 5. Make Main Apps status refresh less janky
-- Debounce visibility/focus refreshes after returning from Android Settings.
-- Refresh only the affected app after uninstall/cache/settings actions instead of rechecking every app immediately.
-- Move full installed-app scanning to explicit Refresh or app-open only, not every focus return.
+---
 
-### 6. Improve uninstall reliability
-- Keep the current standard uninstall intent first.
-- If Android returns but the app is still installed, show a clear fallback toast and open the exact App Info screen for that package so the user can press Uninstall manually.
-- Add better result handling and package verification so the UI doesn’t claim success unless the package is actually gone.
-- If possible on that Android build, add a second native fallback intent (`ACTION_APPLICATION_DETAILS_SETTINGS`) with uninstall guidance instead of repeatedly saying “uninstalling.”
+## Part 2 — Wix auto-link by SKU
 
-## Technical files to update
-- `src/components/NewsTicker.tsx`
-- `src/index.css`
-- `src/pages/Index.tsx`
-- `src/components/HomeClock.tsx` if needed for low-jank native styling
-- `src/hooks/useNavigation.ts`
-- `src/App.tsx`
-- `src/components/InstallApps.tsx`
-- `src/hooks/useDeviceInstalledApps.ts`
-- `android/app/src/main/java/com/snowmedia/appmanager/AppManagerPlugin.kt`
-- `src/capacitor/AppManager.ts`
+**SKU → Credits mapping (hardcoded constant, easy to edit later):**
+```
+ai5    → 50 credits
+ai120  → 120 credits
+ai250  → 250 credits
+ai600  → 600 credits
+```
+Product name on Wix: **"SMC AI Credits"** (any variant). Matching is done by **SKU on each line item**, not product name — quantity multiplier applied (e.g. 2× ai120 = 240 credits).
 
-## Expected result
-- D-pad left/right movement on the Home screen should feel steadier because the ticker won’t fight the focus animation during remote input.
-- The RSS feed should stop visibly hitching when moving the cursor.
-- Main Apps should avoid unnecessary rescans and hitches after returning from Android system screens.
-- Uninstall will no longer falsely report success; if the TV box blocks programmatic uninstall, it will take the user directly to the correct Android App Info screen as a reliable fallback.
+**How it works:**
+1. User signs in (already linked by email — `profiles.email`).
+2. App calls `wix-integration` edge function with new action `sync-credit-orders`.
+3. Function fetches PAID Wix orders for that email (reuses existing `get-orders` logic + adds `sku` to line-item mapping).
+4. For each line item with a SKU in the map, looks up credit value × quantity.
+5. Checks `wix_redeemed_orders` table to skip already-credited orders.
+6. Calls `update_user_credits` per new order, inserts row into `wix_redeemed_orders` (dedup by `wix_order_id`).
+7. Returns `{ newOrders, totalCreditsAdded }`.
+
+**When sync runs:**
+- Silently once after sign-in (only toasts if credits were added).
+- Manual "Sync Wix Purchases" button at the top of Credit Store.
+
+---
+
+## Database changes (one migration)
+
+New table `wix_redeemed_orders`:
+- `id` uuid PK default gen_random_uuid()
+- `user_id` uuid not null
+- `wix_order_id` text not null UNIQUE
+- `wix_order_number` text
+- `credits_granted` numeric not null
+- `created_at` timestamptz default now()
+
+RLS:
+- SELECT: `auth.uid() = user_id`
+- INSERT/UPDATE/DELETE: blocked for users (only service role from edge function writes).
+
+---
+
+## Files
+
+**New:**
+- `supabase/functions/paypal-checkout/index.ts`
+- Migration: `wix_redeemed_orders` table + RLS
+
+**Modified:**
+- `supabase/functions/wix-integration/index.ts` — add `sync-credit-orders` action; include `sku` in line-item parsing
+- `src/components/CreditStore.tsx` — PayPal button per package + "Sync Wix Purchases" button
+- `src/hooks/useAuth.ts` — fire-and-forget Wix sync after successful sign-in
+
+---
+
+## What you'll need to do after approval
+1. Provide PayPal Client ID + Secret + mode (sandbox/live) — I'll prompt via the secrets tool.
+2. Confirm the four Wix SKUs are exactly: `ai5`, `ai120`, `ai250`, `ai600` (case-insensitive match in code).
+3. Rebuild the Android APK (`npx cap sync android`) so PayPal opens in the in-app browser on TV/mobile.
+
+---
+
+## Out of scope (can add later if wanted)
+- Real-time Wix webhook (instant credit even before app opens).
+- Stripe / other providers.
+- Refund handling.
+- Admin UI to edit the SKU→credits map (currently a code constant).
