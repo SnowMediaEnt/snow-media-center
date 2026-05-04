@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import QRLogin from "./pages/QRLogin";
 import SsoConsume from "./pages/SsoConsume";
+import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
