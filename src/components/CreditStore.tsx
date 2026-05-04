@@ -88,6 +88,9 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     return Math.round(savings);
   };
 
+  // Wix SMC AI Credits product (single product, "Amount" option chooses pack)
+  const WIX_CREDITS_PRODUCT_ID = 'fb3a3ae1-5231-4a4e-6757-c11269ae3dd2';
+
   const handlePurchase = async (packageData: CreditPackage) => {
     if (!user) {
       toast({
@@ -101,25 +104,27 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     setPurchasing(packageData.id);
 
     try {
-      // 1. Create PayPal order — backend forces the phone return to Snow Media,
-      // while the device stays on the QR dialog and verifies after payment.
-      const { data: createData, error: createErr } = await supabase.functions.invoke('paypal-checkout', {
+      // Create a Wix checkout for the SMC AI Credits product with the matching Amount variant
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
         body: {
-          action: 'create-order',
-          package_id: packageData.id,
+          action: 'create-cart',
+          items: [{
+            productId: WIX_CREDITS_PRODUCT_ID,
+            quantity: 1,
+            options: { Amount: String(packageData.credits) },
+          }],
         },
       });
 
-      if (createErr || !createData?.approval_url || !createData?.order_id) {
-        throw new Error(createErr?.message || 'Could not start PayPal checkout');
+      if (error || !data?.checkoutUrl) {
+        throw new Error(error?.message || 'Could not start Wix checkout');
       }
 
-      // 2. Show QR code on TV — user scans with phone to pay
-      setQrUrl(createData.approval_url);
-      setPendingOrderId(createData.order_id);
+      setQrUrl(data.checkoutUrl);
+      setPendingOrderId(packageData.id);
       setQrOpen(true);
     } catch (error: any) {
-      console.error('PayPal purchase error:', error);
+      console.error('Wix checkout error:', error);
       toast({
         title: 'Checkout Failed',
         description: error?.message || 'Unable to start checkout. Please try again.',
@@ -131,32 +136,30 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   };
 
   const handleVerifyPayment = async () => {
-    if (!pendingOrderId) return;
+    if (!user?.email) return;
     setVerifying(true);
     try {
-      const { data: capData, error: capErr } = await supabase.functions.invoke('paypal-checkout', {
-        body: { action: 'capture-order', order_id: pendingOrderId },
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: { action: 'sync-credit-orders', email: user.email },
       });
+      if (error) throw error;
 
-      if (capErr || !capData?.ok) {
+      if (data?.newOrders > 0) {
+        setQrOpen(false);
+        setPendingOrderId(null);
+        setQrUrl(null);
         toast({
-          title: 'Payment not completed',
-          description: capErr?.message || 'No payment was captured yet. Finish on your phone, then tap again.',
+          title: 'Purchase Successful!',
+          description: `Added ${data.totalCreditsAdded} credits from your Wix purchase.`,
+        });
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast({
+          title: 'Payment not found yet',
+          description: 'Finish checkout on your phone, then tap again.',
           variant: 'destructive',
         });
-        return;
       }
-
-      setQrOpen(false);
-      setPendingOrderId(null);
-      setQrUrl(null);
-      toast({
-        title: 'Purchase Successful!',
-        description: capData.already_credited
-          ? 'Credits already added to your account.'
-          : `You've received ${capData.credits} credits.`,
-      });
-      window.location.reload();
     } catch (e: any) {
       toast({ title: 'Verification Failed', description: e?.message || 'Try again.', variant: 'destructive' });
     } finally {
