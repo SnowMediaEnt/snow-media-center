@@ -102,8 +102,14 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
 
     try {
       // 1. Create PayPal order
+      const appUrl = window.location.origin;
       const { data: createData, error: createErr } = await supabase.functions.invoke('paypal-checkout', {
-        body: { action: 'create-order', package_id: packageData.id },
+        body: {
+          action: 'create-order',
+          package_id: packageData.id,
+          return_url: `${appUrl}/?paypal=success`,
+          cancel_url: `${appUrl}/?paypal=cancelled`,
+        },
       });
 
       if (createErr || !createData?.approval_url || !createData?.order_id) {
@@ -313,7 +319,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                     
                     <div className="space-y-2 mb-4">
                       <div className="text-xs text-white/60">
-                        ~{Math.floor(pkg.credits / 0.12).toLocaleString()} AI images
+                        ~{Math.floor(pkg.credits).toLocaleString()} AI images
                       </div>
                       <div className="text-xs text-white/60">
                         ~{Math.floor(pkg.credits / 0.01).toLocaleString()} AI chat messages
