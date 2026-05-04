@@ -100,8 +100,8 @@ Deno.serve(async (req) => {
           application_context: {
             brand_name: 'Snow Media Center',
             user_action: 'PAY_NOW',
-            return_url: return_url || 'https://snowmediaapps.com/paypal-return',
-            cancel_url: cancel_url || 'https://snowmediaapps.com/paypal-cancel',
+            return_url: return_url || 'https://snowmediaent.com/paypal-return',
+            cancel_url: cancel_url || 'https://snowmediaent.com/paypal-cancel',
           },
         }),
       });
