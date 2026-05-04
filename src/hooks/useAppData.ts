@@ -250,32 +250,19 @@ export const useAppData = () => {
     setLoading(true);
     setError(null);
 
-    console.log('[AppData] Starting fetch...');
+    console.log('[AppData] Starting fetch — running PHP sync first...');
+
+    // Always run PHP→DB sync FIRST so deletions/additions on snowmediaapps.com
+    // are reflected immediately whenever Main Apps is opened.
+    await triggerBackgroundSync();
 
     try {
-      // Try Supabase first (most reliable)
       const supabaseApps = await fetchSupabaseApps();
-      
       if (supabaseApps.length > 0) {
-        console.log(`[AppData] Using ${supabaseApps.length} apps from Supabase`);
+        console.log(`[AppData] Using ${supabaseApps.length} apps from Supabase (post-sync)`);
         setApps(supabaseApps);
         setError(null);
         setLoading(false);
-
-        // Fire-and-forget: kick off PHP sync. If it added/removed apps,
-        // silently re-pull so the UI reflects the change without a spinner.
-        triggerBackgroundSync().then(async (changed) => {
-          if (!changed) return;
-          try {
-            const fresh = await fetchSupabaseApps();
-            if (fresh.length > 0) {
-              console.log(`[AppData] Refreshing UI after sync (${fresh.length} apps)`);
-              setApps(fresh);
-            }
-          } catch (err) {
-            console.warn('[AppData] Post-sync refresh failed:', err);
-          }
-        });
         return;
       }
     } catch (err) {
@@ -285,7 +272,6 @@ export const useAppData = () => {
     // Fallback to remote URL
     try {
       const remoteApps = await fetchRemoteApps();
-      
       if (remoteApps.length > 0) {
         console.log(`[AppData] Using ${remoteApps.length} apps from remote`);
         setApps(remoteApps);
@@ -297,7 +283,6 @@ export const useAppData = () => {
       console.warn('[AppData] Remote failed:', err);
     }
 
-    // Use fallback data
     console.warn('[AppData] All sources failed, using fallback apps');
     setApps(fallbackApps);
     setError('Unable to fetch apps. Using offline data.');
