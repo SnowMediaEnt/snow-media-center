@@ -11,8 +11,8 @@ const PAYPAL_BASE = ['sandbox', 'test'].includes(PAYPAL_MODE)
   : 'https://api-m.paypal.com';
 
 async function getAccessToken(): Promise<string> {
-  const id = Deno.env.get('PAYPAL_CLIENT_ID');
-  const secret = Deno.env.get('PAYPAL_CLIENT_SECRET');
+  const id = Deno.env.get('PAYPAL_CLIENT_ID')?.trim();
+  const secret = Deno.env.get('PAYPAL_CLIENT_SECRET')?.trim();
   if (!id || !secret) throw new Error('PayPal credentials not configured');
   console.log(`PayPal mode: ${PAYPAL_MODE}; host: ${new URL(PAYPAL_BASE).host}`);
   const auth = btoa(`${id}:${secret}`);
