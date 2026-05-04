@@ -110,43 +110,42 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         throw new Error(createErr?.message || 'Could not start PayPal checkout');
       }
 
-      const { approval_url, order_id } = createData;
-      toast({ title: 'Opening PayPal', description: 'Complete payment in the popup window.' });
+      // 2. Show QR code on TV — user scans with phone to pay
+      setQrUrl(createData.approval_url);
+      setPendingOrderId(createData.order_id);
+      setQrOpen(true);
+    } catch (error: any) {
+      console.error('PayPal purchase error:', error);
+      toast({
+        title: 'Checkout Failed',
+        description: error?.message || 'Unable to start checkout. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPurchasing(null);
+    }
+  };
 
-      // 2. Open approval URL (in-app browser on native, popup on web)
-      const isNative = Capacitor.isNativePlatform();
-      if (isNative) {
-        await new Promise<void>(async (resolve) => {
-          const sub = await Browser.addListener('browserFinished', () => {
-            sub.remove();
-            resolve();
-          });
-          await Browser.open({ url: approval_url, presentationStyle: 'popover' });
-        });
-      } else {
-        const popup = window.open(approval_url, '_blank', 'width=500,height=700');
-        await new Promise<void>((resolve) => {
-          if (!popup) return resolve();
-          const timer = setInterval(() => {
-            if (popup.closed) { clearInterval(timer); resolve(); }
-          }, 800);
-        });
-      }
-
-      // 3. Capture
+  const handleVerifyPayment = async () => {
+    if (!pendingOrderId) return;
+    setVerifying(true);
+    try {
       const { data: capData, error: capErr } = await supabase.functions.invoke('paypal-checkout', {
-        body: { action: 'capture-order', order_id },
+        body: { action: 'capture-order', order_id: pendingOrderId },
       });
 
       if (capErr || !capData?.ok) {
         toast({
           title: 'Payment not completed',
-          description: capErr?.message || 'No payment was captured. If you completed PayPal, try again or contact support.',
+          description: capErr?.message || 'No payment was captured yet. Finish on your phone, then tap again.',
           variant: 'destructive',
         });
         return;
       }
 
+      setQrOpen(false);
+      setPendingOrderId(null);
+      setQrUrl(null);
       toast({
         title: 'Purchase Successful!',
         description: capData.already_credited
@@ -154,15 +153,10 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           : `You've received ${capData.credits} credits.`,
       });
       window.location.reload();
-    } catch (error: any) {
-      console.error('PayPal purchase error:', error);
-      toast({
-        title: 'Purchase Failed',
-        description: error?.message || 'Unable to complete checkout. Please try again.',
-        variant: 'destructive',
-      });
+    } catch (e: any) {
+      toast({ title: 'Verification Failed', description: e?.message || 'Try again.', variant: 'destructive' });
     } finally {
-      setPurchasing(null);
+      setVerifying(false);
     }
   };
 
