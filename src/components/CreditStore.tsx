@@ -30,6 +30,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Keyboard back button handling
   useEffect(() => {
