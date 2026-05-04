@@ -328,7 +328,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                       disabled={purchasing === pkg.id || !user}
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
                     >
-                      {purchasing === pkg.id ? 'Processing...' : 'Purchase Credits'}
+                      {purchasing === pkg.id ? 'Processing...' : 'Buy with PayPal'}
                     </Button>
                     
                     {!user && (
