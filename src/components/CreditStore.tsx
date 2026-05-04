@@ -107,7 +107,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         body: {
           action: 'create-order',
           package_id: packageData.id,
-          return_url: `https://www.snowmediaent.com/thank-you?package=${encodeURIComponent(packageData.id)}&credits=${packageData.credits}&amount=${packageData.price_usd}`,
+          return_url: `https://www.snowmediaent.com/thank-you?package=${encodeURIComponent(packageData.id)}&credits=${packageData.credits}&amount=${packageData.price}`,
           cancel_url: `https://www.snowmediaent.com/checkout-cancelled`,
         },
       });
