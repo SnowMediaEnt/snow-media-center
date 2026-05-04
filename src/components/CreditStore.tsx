@@ -96,45 +96,98 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     }
 
     setPurchasing(packageData.id);
-    
+
     try {
-      // For now, simulate purchase - in production you'd integrate with PayPal or Stripe
-      // Since Wix cart creation is failing due to catalog mismatch, we'll simulate for demo
+      // 1. Create PayPal order
+      const { data: createData, error: createErr } = await supabase.functions.invoke('paypal-checkout', {
+        body: { action: 'create-order', package_id: packageData.id },
+      });
+
+      if (createErr || !createData?.approval_url || !createData?.order_id) {
+        throw new Error(createErr?.message || 'Could not start PayPal checkout');
+      }
+
+      const { approval_url, order_id } = createData;
+      toast({ title: 'Opening PayPal', description: 'Complete payment in the popup window.' });
+
+      // 2. Open approval URL (in-app browser on native, popup on web)
+      const isNative = Capacitor.isNativePlatform();
+      if (isNative) {
+        await new Promise<void>(async (resolve) => {
+          const sub = await Browser.addListener('browserFinished', () => {
+            sub.remove();
+            resolve();
+          });
+          await Browser.open({ url: approval_url, presentationStyle: 'popover' });
+        });
+      } else {
+        const popup = window.open(approval_url, '_blank', 'width=500,height=700');
+        await new Promise<void>((resolve) => {
+          if (!popup) return resolve();
+          const timer = setInterval(() => {
+            if (popup.closed) { clearInterval(timer); resolve(); }
+          }, 800);
+        });
+      }
+
+      // 3. Capture
+      const { data: capData, error: capErr } = await supabase.functions.invoke('paypal-checkout', {
+        body: { action: 'capture-order', order_id },
+      });
+
+      if (capErr || !capData?.ok) {
+        toast({
+          title: 'Payment not completed',
+          description: capErr?.message || 'No payment was captured. If you completed PayPal, try again or contact support.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       toast({
-        title: "Processing Payment",
-        description: "Processing your credit purchase...",
+        title: 'Purchase Successful!',
+        description: capData.already_credited
+          ? 'Credits already added to your account.'
+          : `You've received ${capData.credits} credits.`,
       });
-
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Add credits to user account
-      const { error } = await supabase.rpc('update_user_credits', {
-        p_user_id: user.id,
-        p_amount: packageData.credits,
-        p_transaction_type: 'purchase',
-        p_description: `Purchased ${packageData.name}`,
-        p_paypal_transaction_id: `sim_${Date.now()}`
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Purchase Successful!",
-        description: `You've received ${packageData.credits} credits`,
-      });
-
-      // Refresh user profile to show updated credits
       window.location.reload();
-    } catch (error) {
-      console.error('Error purchasing credits:', error);
+    } catch (error: any) {
+      console.error('PayPal purchase error:', error);
       toast({
-        title: "Purchase Failed",
-        description: "Unable to create checkout. Please try again.",
-        variant: "destructive",
+        title: 'Purchase Failed',
+        description: error?.message || 'Unable to complete checkout. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setPurchasing(null);
+    }
+  };
+
+  const handleSyncWix = async () => {
+    if (!user?.email) {
+      toast({ title: 'Sign in required', description: 'Sign in to sync Wix purchases.', variant: 'destructive' });
+      return;
+    }
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: { action: 'sync-credit-orders', email: user.email },
+      });
+      if (error) throw error;
+      if (data?.newOrders > 0) {
+        toast({
+          title: 'Wix Purchases Synced',
+          description: `Added ${data.totalCreditsAdded} credits from ${data.newOrders} order${data.newOrders === 1 ? '' : 's'}.`,
+        });
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast({ title: 'All Synced', description: 'No new Wix credit purchases found.' });
+      }
+    } catch (e: any) {
+      console.error('Wix sync error:', e);
+      toast({ title: 'Sync Failed', description: e?.message || 'Unable to sync.', variant: 'destructive' });
+    } finally {
+      setSyncing(false);
     }
   };
 
