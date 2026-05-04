@@ -7,8 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
+import QRCheckoutDialog from '@/components/QRCheckoutDialog';
 
 interface CreditPackage {
   id: string;
