@@ -826,6 +826,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           )}
         </div>
       </div>
+      <QRCheckoutDialog
+        open={qrOpen}
+        onOpenChange={(o) => { setQrOpen(o); if (!o) setQrUrl(null); }}
+        url={qrUrl}
+        title="Scan to Checkout"
+        description="Scan the QR code with your phone to complete your purchase on Wix."
+      />
     </div>
   );
 };
