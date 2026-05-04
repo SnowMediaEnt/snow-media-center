@@ -119,6 +119,18 @@ export const useAuth = () => {
       }
       
       console.log('[Auth] SignIn success:', data.user?.email);
+
+      // Fire-and-forget Wix credit sync
+      if (data.user?.email) {
+        supabase.functions.invoke('wix-integration', {
+          body: { action: 'sync-credit-orders', email: data.user.email },
+        }).then(({ data: sd }: any) => {
+          if (sd?.newOrders > 0) {
+            console.log('[Auth] Wix credit sync added', sd.totalCreditsAdded, 'credits');
+          }
+        }).catch((e) => console.warn('[Auth] Wix credit sync failed:', e));
+      }
+
       return { error: null };
     } catch (error: any) {
       const msg = error?.message || String(error);

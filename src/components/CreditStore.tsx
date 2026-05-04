@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CreditCard, Zap, Star, Gift } from 'lucide-react';
+import { ArrowLeft, CreditCard, Zap, Star, Gift, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 interface CreditPackage {
   id: string;
@@ -28,6 +30,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Keyboard back button handling
   useEffect(() => {
@@ -93,45 +96,98 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     }
 
     setPurchasing(packageData.id);
-    
+
     try {
-      // For now, simulate purchase - in production you'd integrate with PayPal or Stripe
-      // Since Wix cart creation is failing due to catalog mismatch, we'll simulate for demo
+      // 1. Create PayPal order
+      const { data: createData, error: createErr } = await supabase.functions.invoke('paypal-checkout', {
+        body: { action: 'create-order', package_id: packageData.id },
+      });
+
+      if (createErr || !createData?.approval_url || !createData?.order_id) {
+        throw new Error(createErr?.message || 'Could not start PayPal checkout');
+      }
+
+      const { approval_url, order_id } = createData;
+      toast({ title: 'Opening PayPal', description: 'Complete payment in the popup window.' });
+
+      // 2. Open approval URL (in-app browser on native, popup on web)
+      const isNative = Capacitor.isNativePlatform();
+      if (isNative) {
+        await new Promise<void>(async (resolve) => {
+          const sub = await Browser.addListener('browserFinished', () => {
+            sub.remove();
+            resolve();
+          });
+          await Browser.open({ url: approval_url, presentationStyle: 'popover' });
+        });
+      } else {
+        const popup = window.open(approval_url, '_blank', 'width=500,height=700');
+        await new Promise<void>((resolve) => {
+          if (!popup) return resolve();
+          const timer = setInterval(() => {
+            if (popup.closed) { clearInterval(timer); resolve(); }
+          }, 800);
+        });
+      }
+
+      // 3. Capture
+      const { data: capData, error: capErr } = await supabase.functions.invoke('paypal-checkout', {
+        body: { action: 'capture-order', order_id },
+      });
+
+      if (capErr || !capData?.ok) {
+        toast({
+          title: 'Payment not completed',
+          description: capErr?.message || 'No payment was captured. If you completed PayPal, try again or contact support.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       toast({
-        title: "Processing Payment",
-        description: "Processing your credit purchase...",
+        title: 'Purchase Successful!',
+        description: capData.already_credited
+          ? 'Credits already added to your account.'
+          : `You've received ${capData.credits} credits.`,
       });
-
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Add credits to user account
-      const { error } = await supabase.rpc('update_user_credits', {
-        p_user_id: user.id,
-        p_amount: packageData.credits,
-        p_transaction_type: 'purchase',
-        p_description: `Purchased ${packageData.name}`,
-        p_paypal_transaction_id: `sim_${Date.now()}`
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Purchase Successful!",
-        description: `You've received ${packageData.credits} credits`,
-      });
-
-      // Refresh user profile to show updated credits
       window.location.reload();
-    } catch (error) {
-      console.error('Error purchasing credits:', error);
+    } catch (error: any) {
+      console.error('PayPal purchase error:', error);
       toast({
-        title: "Purchase Failed",
-        description: "Unable to create checkout. Please try again.",
-        variant: "destructive",
+        title: 'Purchase Failed',
+        description: error?.message || 'Unable to complete checkout. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setPurchasing(null);
+    }
+  };
+
+  const handleSyncWix = async () => {
+    if (!user?.email) {
+      toast({ title: 'Sign in required', description: 'Sign in to sync Wix purchases.', variant: 'destructive' });
+      return;
+    }
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wix-integration', {
+        body: { action: 'sync-credit-orders', email: user.email },
+      });
+      if (error) throw error;
+      if (data?.newOrders > 0) {
+        toast({
+          title: 'Wix Purchases Synced',
+          description: `Added ${data.totalCreditsAdded} credits from ${data.newOrders} order${data.newOrders === 1 ? '' : 's'}.`,
+        });
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast({ title: 'All Synced', description: 'No new Wix credit purchases found.' });
+      }
+    } catch (e: any) {
+      console.error('Wix sync error:', e);
+      toast({ title: 'Sync Failed', description: e?.message || 'Unable to sync.', variant: 'destructive' });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -165,12 +221,23 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               <p className="text-xl text-blue-200">Purchase credits for AI image generation</p>
             </div>
           </div>
-          {profile && (
-            <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
-              <div className="text-green-400 font-medium">Your Balance</div>
-              <div className="text-2xl font-bold text-white">{profile.credits} credits</div>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSyncWix}
+              disabled={syncing || !user}
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync Wix Purchases'}
+            </Button>
+            {profile && (
+              <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
+                <div className="text-green-400 font-medium">Your Balance</div>
+                <div className="text-2xl font-bold text-white">{profile.credits} credits</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Credit Usage Info */}
@@ -261,7 +328,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                       disabled={purchasing === pkg.id || !user}
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
                     >
-                      {purchasing === pkg.id ? 'Processing...' : 'Purchase Credits'}
+                      {purchasing === pkg.id ? 'Processing...' : 'Buy with PayPal'}
                     </Button>
                     
                     {!user && (

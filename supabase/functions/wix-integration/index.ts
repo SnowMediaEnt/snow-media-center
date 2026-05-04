@@ -596,6 +596,157 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
+      case 'sync-credit-orders': {
+        // Auto-credit user for SMC AI Credits purchases on Wix, by SKU
+        console.log('Syncing credit orders for user:', userId, 'email:', email);
+
+        if (!userId) {
+          return new Response(JSON.stringify({ error: 'Authentication required' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        if (!email) {
+          return new Response(JSON.stringify({ error: 'email required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        if (!wixSiteId) {
+          return new Response(JSON.stringify({ error: 'WIX_SITE_ID not configured' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // SKU -> credits map (case-insensitive)
+        const SKU_CREDITS: Record<string, number> = {
+          'ai5': 50,
+          'ai120': 120,
+          'ai250': 250,
+          'ai600': 600,
+        };
+
+        // Fetch orders for this email
+        const ordersRes = await fetch('https://www.wixapis.com/ecom/v1/orders/search', {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-site-id': wixSiteId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            search: {
+              filter: { 'buyerInfo.email': { $eq: email } },
+              paging: { limit: 100 },
+              sort: [{ fieldName: 'createdDate', order: 'DESC' }],
+            }
+          })
+        });
+
+        if (!ordersRes.ok) {
+          const t = await ordersRes.text();
+          console.error('Wix orders error:', ordersRes.status, t);
+          return new Response(JSON.stringify({ error: 'Failed to fetch Wix orders', details: t }), {
+            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const ordersJson = await ordersRes.json();
+        const allOrders: any[] = ordersJson.orders || [];
+
+        // Manual email filter (Wix sometimes ignores filter)
+        const normEmail = email.toLowerCase().trim();
+        const orders = allOrders.filter((o: any) =>
+          (o.buyerInfo?.email || '').toLowerCase().trim() === normEmail
+        );
+
+        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email`);
+
+        // Service-role client for writes
+        const adminClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        );
+
+        let totalCreditsAdded = 0;
+        let newOrders = 0;
+        const skipped: string[] = [];
+
+        for (const order of orders) {
+          const orderId = order.id;
+          const orderNumber = order.number;
+          const paymentStatus = (order.paymentStatus || '').toUpperCase();
+
+          // Only credit PAID orders
+          if (!['PAID', 'PARTIALLY_REFUNDED', 'FULLY_REFUNDED'].includes(paymentStatus)) {
+            // Treat anything not PAID as skip
+            if (paymentStatus !== 'PAID') {
+              skipped.push(`${orderNumber}: ${paymentStatus}`);
+              continue;
+            }
+          }
+          if (paymentStatus !== 'PAID') continue;
+
+          // Sum credits from line items by SKU
+          let orderCredits = 0;
+          for (const item of (order.lineItems || [])) {
+            const sku = (item.physicalProperties?.sku || item.sku || '').toLowerCase().trim();
+            const perUnit = SKU_CREDITS[sku];
+            if (perUnit) {
+              orderCredits += perUnit * (item.quantity || 1);
+            }
+          }
+
+          if (orderCredits === 0) continue;
+
+          // Dedup: skip if already redeemed
+          const { data: existing } = await adminClient
+            .from('wix_redeemed_orders')
+            .select('id')
+            .eq('wix_order_id', orderId)
+            .maybeSingle();
+
+          if (existing) continue;
+
+          // Credit the user
+          const { error: rpcErr } = await adminClient.rpc('update_user_credits', {
+            p_user_id: userId,
+            p_amount: orderCredits,
+            p_transaction_type: 'purchase',
+            p_description: `Wix order #${orderNumber} (SMC AI Credits)`,
+            p_paypal_transaction_id: `wix_${orderId}`,
+          });
+
+          if (rpcErr) {
+            console.error(`Failed crediting order ${orderId}:`, rpcErr);
+            continue;
+          }
+
+          // Record redemption
+          const { error: insErr } = await adminClient
+            .from('wix_redeemed_orders')
+            .insert({
+              user_id: userId,
+              wix_order_id: orderId,
+              wix_order_number: String(orderNumber || ''),
+              credits_granted: orderCredits,
+            });
+
+          if (insErr) {
+            console.error(`Failed recording redemption for ${orderId}:`, insErr);
+          }
+
+          totalCreditsAdded += orderCredits;
+          newOrders += 1;
+        }
+
+        return new Response(JSON.stringify({
+          ok: true,
+          newOrders,
+          totalCreditsAdded,
+          totalOrdersScanned: orders.length,
+          skipped,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       case 'get-profile':
         console.log('Getting profile for member:', wixMemberId);
         
