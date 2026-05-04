@@ -84,6 +84,7 @@ const App = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/qr-login" element={<QRLogin />} />
                 <Route path="/sso" element={<SsoConsume />} />
+                <Route path="/admin/knowledge" element={<AdminKnowledge />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
