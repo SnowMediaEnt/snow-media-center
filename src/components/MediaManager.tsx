@@ -332,7 +332,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   const getOptimalImageConfig = () => {
     return {
       size: '1792x1024',
-      credits: 12,
+      // 60 * 0.01 = 0.60 credits per image (~$0.06 at $0.10/credit; ~2x our $0.03 cost)
+      credits: 60,
       description: 'High resolution (1792x1024) - highest quality available'
     };
   };

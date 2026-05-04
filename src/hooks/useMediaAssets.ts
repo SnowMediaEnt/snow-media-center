@@ -158,6 +158,9 @@ export const useMediaAssets = () => {
 
       if (deleteError) throw deleteError;
       await fetchAssets();
+      // Notify background hook so the active background clears immediately
+      // (realtime DELETE events can be missed under RLS or stale subscriptions)
+      window.dispatchEvent(new Event('backgroundRefresh'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete asset';
       setError(errorMessage);
