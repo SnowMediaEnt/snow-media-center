@@ -5,15 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const PAYPAL_MODE = (Deno.env.get('PAYPAL_MODE') || 'sandbox').toLowerCase();
-const PAYPAL_BASE = PAYPAL_MODE === 'live'
-  ? 'https://api-m.paypal.com'
-  : 'https://api-m.sandbox.paypal.com';
+const PAYPAL_MODE = (Deno.env.get('PAYPAL_MODE') || 'live').trim().toLowerCase();
+const PAYPAL_BASE = ['sandbox', 'test'].includes(PAYPAL_MODE)
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com';
 
 async function getAccessToken(): Promise<string> {
   const id = Deno.env.get('PAYPAL_CLIENT_ID');
   const secret = Deno.env.get('PAYPAL_CLIENT_SECRET');
   if (!id || !secret) throw new Error('PayPal credentials not configured');
+  console.log(`PayPal mode: ${PAYPAL_MODE}; host: ${new URL(PAYPAL_BASE).host}`);
   const auth = btoa(`${id}:${secret}`);
   const res = await fetch(`${PAYPAL_BASE}/v1/oauth2/token`, {
     method: 'POST',
