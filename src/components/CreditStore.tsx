@@ -83,7 +83,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   };
 
   const calculateSavings = (credits: number, price: number) => {
-    const basePrice = credits * 0.12; // Base price per credit
+    const basePrice = credits * 0.10; // Starter baseline: $5 = 50 credits
     const savings = ((basePrice - price) / basePrice) * 100;
     return Math.round(savings);
   };
