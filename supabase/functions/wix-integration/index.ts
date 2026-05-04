@@ -245,7 +245,8 @@ Deno.serve(async (req) => {
             lineItems: items.map((item: any) => ({
               catalogReference: {
                 appId: "215238eb-22a5-4c36-9e7b-e7c08025e04e",
-                catalogItemId: item.productId
+                catalogItemId: item.productId,
+                ...(item.options ? { options: { options: item.options } } : {})
               },
               quantity: item.quantity
             }))
