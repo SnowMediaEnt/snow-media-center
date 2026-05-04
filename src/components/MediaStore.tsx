@@ -21,6 +21,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<WixProduct | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [focusedElement, setFocusedElement] = useState<'back' | 'signin' | 'cart' | string>('back');
