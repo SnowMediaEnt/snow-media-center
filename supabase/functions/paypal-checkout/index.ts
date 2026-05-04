@@ -194,6 +194,31 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Best-effort: tag the buyer in Wix CRM so the email matches a Wix account/contact.
+      // Failure here must not block the credit grant.
+      try {
+        const buyerEmail = user.email || '';
+        const meta: any = user.user_metadata || {};
+        const fullName: string = meta.full_name || meta.name || '';
+        const [firstName, ...rest] = fullName.split(' ');
+        const lastName = rest.join(' ');
+        if (buyerEmail) {
+          const tagRes = await admin.functions.invoke('wix-integration', {
+            body: {
+              action: 'tag-credit-purchase',
+              email: buyerEmail,
+              firstName: firstName || '',
+              lastName: lastName || '',
+              labelKey: 'custom.smc-credits-buyer',
+            },
+            headers: { Authorization: authHeader },
+          });
+          console.log('Wix tag result:', JSON.stringify(tagRes));
+        }
+      } catch (wixErr) {
+        console.error('Wix tag (non-fatal):', wixErr);
+      }
+
       return new Response(JSON.stringify({ ok: true, credits, capture_id: captureId }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
