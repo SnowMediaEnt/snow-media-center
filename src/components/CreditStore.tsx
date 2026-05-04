@@ -221,12 +221,23 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               <p className="text-xl text-blue-200">Purchase credits for AI image generation</p>
             </div>
           </div>
-          {profile && (
-            <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
-              <div className="text-green-400 font-medium">Your Balance</div>
-              <div className="text-2xl font-bold text-white">{profile.credits} credits</div>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleSyncWix}
+              disabled={syncing || !user}
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync Wix Purchases'}
+            </Button>
+            {profile && (
+              <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
+                <div className="text-green-400 font-medium">Your Balance</div>
+                <div className="text-2xl font-bold text-white">{profile.credits} credits</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Credit Usage Info */}
