@@ -582,6 +582,33 @@ export type Database = {
         }
         Relationships: []
       }
+      wix_redeemed_orders: {
+        Row: {
+          created_at: string
+          credits_granted: number
+          id: string
+          user_id: string
+          wix_order_id: string
+          wix_order_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          credits_granted?: number
+          id?: string
+          user_id: string
+          wix_order_id: string
+          wix_order_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          credits_granted?: number
+          id?: string
+          user_id?: string
+          wix_order_id?: string
+          wix_order_number?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
