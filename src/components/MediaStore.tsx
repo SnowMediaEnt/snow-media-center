@@ -9,8 +9,7 @@ import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Browser } from '@capacitor/browser';
-import { Capacitor } from '@capacitor/core';
+import QRCheckoutDialog from '@/components/QRCheckoutDialog';
 interface MediaStoreProps {
   onBack: () => void;
 }
