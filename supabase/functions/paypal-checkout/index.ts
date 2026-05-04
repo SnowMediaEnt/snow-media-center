@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const approvalUrl = orderData.links?.find((l: any) => l.rel === 'approve')?.href;
+      const approvalUrl = orderData.links?.find((l: any) => l.rel === 'approve' || l.rel === 'payer-action')?.href;
       return new Response(JSON.stringify({
         order_id: orderData.id,
         approval_url: approvalUrl,
