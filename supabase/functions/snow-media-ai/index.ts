@@ -78,6 +78,48 @@ serve(async (req) => {
       console.log('Could not fetch knowledge documents:', error);
     }
 
+    // ---- LIVE WEB SEARCH (Perplexity) for time-sensitive queries ----
+    // Triggers on PPV / sports / live / upcoming / schedule / "tonight" / "this week" etc.
+    let liveContext = '';
+    let liveCitations: string[] = [];
+    const liveTriggers = /\b(ppv|pay[- ]?per[- ]?view|tonight|today|tomorrow|this week|this weekend|upcoming|schedule|live|stream(ing)?\s+(now|tonight|today)|score|fight card|main event|kickoff|tip[- ]?off|game time|when (is|does)|what time|airs?\s+(on|tonight|today)|epg|channel\s+\d+|nfl|nba|mlb|nhl|ufc|wwe|aew|boxing|formula\s*1|f1|premier league|champions league|world cup)\b/i;
+    if (liveTriggers.test(message)) {
+      const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+      if (PERPLEXITY_API_KEY) {
+        try {
+          const pplxRes = await fetch('https://api.perplexity.ai/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'sonar',
+              messages: [
+                { role: 'system', content: 'Answer with current, accurate facts. Include dates, times (with time zone), channels/streaming services, and prices when relevant. Be concise.' },
+                { role: 'user', content: message }
+              ],
+              temperature: 0.2,
+              max_tokens: 500,
+              search_recency_filter: 'week',
+            }),
+          });
+          if (pplxRes.ok) {
+            const pplx = await pplxRes.json();
+            liveContext = pplx?.choices?.[0]?.message?.content ?? '';
+            liveCitations = pplx?.citations ?? [];
+            console.log('[perplexity] context length:', liveContext.length, 'citations:', liveCitations.length);
+          } else {
+            console.log('[perplexity] non-ok:', pplxRes.status, await pplxRes.text());
+          }
+        } catch (e) {
+          console.log('[perplexity] error:', e);
+        }
+      } else {
+        console.log('[perplexity] PERPLEXITY_API_KEY not configured');
+      }
+    }
+
     // System prompt with Snow Media context and app control functions
     const systemPrompt = `You are Snow Media AI, an intelligent assistant for the Snow Media Center (SMC) Android app. You are knowledgeable about:
 
@@ -89,6 +131,7 @@ SNOW MEDIA KNOWLEDGE:
 - Android TV devices, Fire TV, smart TV setup
 
 ${knowledgeContext ? `\nKNOWLEDGE BASE DOCUMENTS:\n${knowledgeContext}\n` : ''}
+${liveContext ? `\nLIVE WEB RESULTS (real-time, use these as the source of truth for upcoming events / PPV / sports / schedules):\n${liveContext}\n${liveCitations.length ? `Sources: ${liveCitations.slice(0,5).join(', ')}` : ''}\n` : ''}
 
 APP CONTROL FUNCTIONS:
 You can control the SMC app through function calls:
@@ -98,7 +141,7 @@ You can control the SMC app through function calls:
 - manage_settings: Adjust app settings
 - show_tutorials: Display relevant tutorials
 
-IMPORTANT: All users are accessing you through the SMC Android app. Provide helpful, concise responses about snow media topics and offer to perform app actions when relevant.
+IMPORTANT: All users are accessing you through the SMC Android app. Provide helpful, concise responses about snow media topics and offer to perform app actions when relevant. When LIVE WEB RESULTS are present, ground your answer in them and cite the date/time clearly.
 
 Be friendly, knowledgeable, and always ready to help with both snow media questions and app navigation. Use the knowledge base documents above to provide accurate, up-to-date information.`;
 
