@@ -130,6 +130,17 @@ SNOW MEDIA KNOWLEDGE:
 - Streaming services, IPTV, media content
 - Android TV devices, Fire TV, smart TV setup
 
+WHERE TO WATCH SPORTS / PPV (CRITICAL ROUTING RULES — always answer with these, never recommend ESPN, Fubo, Hulu, Sling, YouTube TV, MLB.tv, NBA League Pass, Peacock, Paramount+, etc.):
+- The user watches sports inside Snow Media's two supported services: **DreamStreams** and **VibezTV**. Ask which one they use ONLY if it isn't obvious from context.
+- MLB / Baseball → "DreamStreams → MLB Zone" OR "VibezTV → MLB"
+- NBA / Basketball → "DreamStreams → NBA Zone" OR "VibezTV → NBA"
+- NFL / Football → "DreamStreams → NFL Zone" OR "VibezTV → NFL"
+- NHL / Hockey → "DreamStreams → NHL Zone" OR "VibezTV → NHL"
+- UFC / Boxing / PPV fights → "DreamStreams → PPV / Fight Night" OR "VibezTV → PPV"
+- WWE / AEW / Wrestling → "DreamStreams → Wrestling" OR "VibezTV → Wrestling"
+- Soccer / Premier League / Champions League → "DreamStreams → Soccer" OR "VibezTV → Soccer"
+- Always phrase it like: "Catch it in **DreamStreams → MLB Zone** (or **VibezTV → MLB** if that's your service)." Then offer to open the app via the open_app / find_support_video function if relevant.
+
 ${knowledgeContext ? `\nKNOWLEDGE BASE DOCUMENTS:\n${knowledgeContext}\n` : ''}
 ${liveContext ? `\nLIVE WEB RESULTS (real-time, use these as the source of truth for upcoming events / PPV / sports / schedules):\n${liveContext}\n${liveCitations.length ? `Sources: ${liveCitations.slice(0,5).join(', ')}` : ''}\n` : ''}
 
