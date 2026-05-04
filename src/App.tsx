@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import QRLogin from "./pages/QRLogin";
 import SsoConsume from "./pages/SsoConsume";
+import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
@@ -83,6 +84,7 @@ const App = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/qr-login" element={<QRLogin />} />
                 <Route path="/sso" element={<SsoConsume />} />
+                <Route path="/admin/knowledge" element={<AdminKnowledge />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
