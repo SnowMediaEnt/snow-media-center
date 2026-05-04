@@ -354,6 +354,16 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           </CardContent>
         </Card>
       </div>
+
+      <QRCheckoutDialog
+        open={qrOpen}
+        onOpenChange={(o) => { setQrOpen(o); if (!o) { setPendingOrderId(null); setQrUrl(null); } }}
+        url={qrUrl}
+        title="Scan to Pay with PayPal"
+        description="Scan the QR code with your phone, complete payment in PayPal, then tap the button below."
+        onConfirmPaid={handleVerifyPayment}
+        confirming={verifying}
+      />
     </div>
   );
 };
