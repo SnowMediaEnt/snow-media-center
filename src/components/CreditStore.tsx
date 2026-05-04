@@ -101,14 +101,12 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     setPurchasing(packageData.id);
 
     try {
-      // 1. Create PayPal order — phone returns to Snow Media thank-you page,
-      // device stays on the QR dialog and uses "I've completed payment" to verify.
+      // 1. Create PayPal order — backend forces the phone return to Snow Media,
+      // while the device stays on the QR dialog and verifies after payment.
       const { data: createData, error: createErr } = await supabase.functions.invoke('paypal-checkout', {
         body: {
           action: 'create-order',
           package_id: packageData.id,
-          return_url: `https://www.snowmediaent.com/thank-you?package=${encodeURIComponent(packageData.id)}&credits=${packageData.credits}&amount=${packageData.price}`,
-          cancel_url: `https://www.snowmediaent.com/checkout-cancelled`,
         },
       });
 
