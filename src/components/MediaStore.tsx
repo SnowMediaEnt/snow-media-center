@@ -348,14 +348,6 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     if (cartItems.length === 0) return;
 
     setCheckoutLoading(true);
-    
-    // For web: Open window BEFORE async call to avoid popup blocker
-    // Must open synchronously in response to user action
-    let checkoutWindow: Window | null = null;
-    if (!Capacitor.isNativePlatform()) {
-      checkoutWindow = window.open('about:blank', '_blank');
-    }
-    
     try {
       const wixCartItems: CartItem[] = cartItems.map(item => ({
         productId: item.id,
@@ -366,58 +358,28 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       }));
 
       const { checkoutUrl } = await createCart(wixCartItems);
-      
+
       if (checkoutUrl) {
+        setQrUrl(checkoutUrl);
+        setQrOpen(true);
         clearCart();
-        
-        // Check if running on native platform (Android/iOS)
-        if (Capacitor.isNativePlatform()) {
-          toast({
-            title: "Opening Checkout",
-            description: "Use the close button (X) to return to the store",
-          });
-          // Open in-app browser with close button for better TV experience
-          await Browser.open({ 
-            url: checkoutUrl,
-            presentationStyle: 'fullscreen',
-            toolbarColor: '#000000'
-          });
-        } else {
-          // Web: Navigate the pre-opened window to checkout URL
-          if (checkoutWindow) {
-            checkoutWindow.location.href = checkoutUrl;
-            toast({
-              title: "Opening Checkout",
-              description: "Checkout opened in a new tab. Close it to return here.",
-            });
-          } else {
-            // Fallback if popup was blocked
-            toast({
-              title: "Popup Blocked",
-              description: "Please allow popups or click the link below.",
-              variant: "destructive",
-            });
-            // Use location.href as last resort
-            window.location.href = checkoutUrl;
-          }
-        }
-      } else {
-        // No checkout URL - close the blank window
-        checkoutWindow?.close();
         toast({
-          title: "Checkout Error",
-          description: "Could not get checkout URL. Please try again.",
-          variant: "destructive",
+          title: 'Scan to Checkout',
+          description: 'Scan the QR code with your phone to complete payment.',
+        });
+      } else {
+        toast({
+          title: 'Checkout Error',
+          description: 'Could not get checkout URL. Please try again.',
+          variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      // Close blank window on error
-      checkoutWindow?.close();
       toast({
-        title: "Checkout Error",
-        description: "Unable to process checkout. Please try again.",
-        variant: "destructive",
+        title: 'Checkout Error',
+        description: 'Unable to process checkout. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setCheckoutLoading(false);
