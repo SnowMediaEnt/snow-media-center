@@ -98,11 +98,16 @@ Deno.serve(async (req) => {
               value: Number(pkg.price).toFixed(2),
             },
           }],
-          application_context: {
-            brand_name: 'Snow Media Center',
-            user_action: 'PAY_NOW',
-            return_url: return_url || 'https://www.snowmediaent.com/thank-you-page/',
-            cancel_url: cancel_url || 'https://www.snowmediaent.com/',
+          payment_source: {
+            paypal: {
+              experience_context: {
+                brand_name: 'Snow Media Center',
+                user_action: 'PAY_NOW',
+                shipping_preference: 'NO_SHIPPING',
+                return_url: return_url || 'https://www.snowmediaent.com/',
+                cancel_url: cancel_url || 'https://www.snowmediaent.com/',
+              },
+            },
           },
         }),
       });
