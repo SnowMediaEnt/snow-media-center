@@ -244,15 +244,15 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-white/80">Standard Image (1024x1024): 6 credits</span>
+                <span className="text-white/80">AI Image Generation: <strong>0.12 credits</strong> per image</span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                <span className="text-white/80">Large Image (1536x1024): 12 credits</span>
+                <span className="text-white/80">AI Chat Message: <strong>0.01 credits</strong> per message</span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-white/80">High-quality AI generated images</span>
+                <span className="text-white/80">A $5 pack ≈ <strong>~416 images</strong> or <strong>~5,000 chats</strong></span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
