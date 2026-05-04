@@ -658,7 +658,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                     disabled={checkoutLoading || cartItems.length === 0}
                     className="bg-green-600 hover:bg-green-700 text-white"
                   >
-                    {checkoutLoading ? 'Processing...' : `Checkout with Wix ($${cartTotal.toFixed(2)})`}
+                    {checkoutLoading ? 'Processing...' : `Checkout ($${cartTotal.toFixed(2)})`}
                   </Button>
                   <Button 
                     onClick={clearCart}
