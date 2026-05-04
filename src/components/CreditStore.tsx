@@ -313,10 +313,10 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                     
                     <div className="space-y-2 mb-4">
                       <div className="text-xs text-white/60">
-                        ~{Math.floor(pkg.credits / 6)} standard images
+                        ~{Math.floor(pkg.credits / 0.12).toLocaleString()} AI images
                       </div>
                       <div className="text-xs text-white/60">
-                        ~{Math.floor(pkg.credits / 12)} large images
+                        ~{Math.floor(pkg.credits / 0.01).toLocaleString()} AI chat messages
                       </div>
                     </div>
                     
