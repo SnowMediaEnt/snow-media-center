@@ -936,6 +936,110 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
+      case 'tag-credit-purchase': {
+        // Find/create a Wix contact for this email and apply a label so purchasers
+        // are visible in Wix CRM. Used by paypal-checkout after a successful capture.
+        const tagEmail = (payload.email || email || '').toString().trim();
+        const tagFirst = payload.firstName || '';
+        const tagLast = payload.lastName || '';
+        const labelKey = payload.labelKey || 'custom.smc-credits-buyer';
+
+        if (!tagEmail) {
+          return new Response(JSON.stringify({ error: 'email required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        if (!wixAccountId) {
+          return new Response(JSON.stringify({ error: 'WIX_ACCOUNT_ID not configured' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 1) Find existing contact by email
+        let contactId: string | null = null;
+        try {
+          const queryRes = await fetch('https://www.wixapis.com/contacts/v4/contacts/query', {
+            method: 'POST',
+            headers: {
+              'Authorization': wixApiKey,
+              'wix-account-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: {
+                filter: { 'info.emails.email': { $eq: tagEmail } },
+                paging: { limit: 1 },
+              },
+            }),
+          });
+          if (queryRes.ok) {
+            const qj = await queryRes.json();
+            contactId = qj.contacts?.[0]?.id || null;
+          } else {
+            console.warn('Contact query non-OK:', queryRes.status, await queryRes.text());
+          }
+        } catch (e) {
+          console.warn('Contact query failed:', e);
+        }
+
+        // 2) Create contact if not found
+        if (!contactId) {
+          const createRes = await fetch('https://www.wixapis.com/contacts/v4/contacts', {
+            method: 'POST',
+            headers: {
+              'Authorization': wixApiKey,
+              'wix-account-id': wixAccountId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              info: {
+                name: { first: tagFirst, last: tagLast },
+                emails: { items: [{ email: tagEmail }] },
+              },
+            }),
+          });
+          if (createRes.ok) {
+            const cj = await createRes.json();
+            contactId = cj.contact?.id || null;
+          } else {
+            const t = await createRes.text();
+            console.error('Contact create failed:', createRes.status, t);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to create contact', details: t }), {
+              status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        }
+
+        if (!contactId) {
+          return new Response(JSON.stringify({ success: false, error: 'No contactId resolved' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 3) Apply label (Wix auto-creates custom.* labels on first use)
+        const labelRes = await fetch(`https://www.wixapis.com/contacts/v4/contacts/${contactId}/labels`, {
+          method: 'POST',
+          headers: {
+            'Authorization': wixApiKey,
+            'wix-account-id': wixAccountId,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ labelKeys: [labelKey] }),
+        });
+
+        if (!labelRes.ok) {
+          const t = await labelRes.text();
+          console.error('Label apply failed:', labelRes.status, t);
+          return new Response(JSON.stringify({ success: false, contactId, error: 'Failed to apply label', details: t }), {
+            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, contactId, labelKey }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       case 'send-message':
         console.log('Sending message from:', senderEmail);
         
