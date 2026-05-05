@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       payload = {};
     }
     
-    const { action, email, wixEmail, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
+    const { action, email, wixEmail, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName, appUserId: appUserIdFromBody } = payload;
     
     // Define public actions that don't require authentication
     // These include read-only actions needed for dashboard/store functionality
