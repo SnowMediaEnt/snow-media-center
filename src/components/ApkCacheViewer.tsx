@@ -127,7 +127,18 @@ const ApkCacheViewer = () => {
             disabled={loading}
             variant="outline"
             size="sm"
-            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30"
+            data-apk-cache-first
+            onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' && files.length > 0) {
+                e.preventDefault();
+                (document.querySelector('[data-apk-clear-all]') as HTMLElement | null)?.focus();
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                (document.querySelector('[data-apk-row="0"]') as HTMLElement | null)?.focus();
+              }
+            }}
+            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-ice focus:outline-none"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -138,7 +149,9 @@ const ApkCacheViewer = () => {
               disabled={loading}
               variant="outline"
               size="sm"
-              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30"
+              data-apk-clear-all
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:ring-4 focus:ring-red-300 focus:outline-none"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Clear all
