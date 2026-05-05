@@ -390,6 +390,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   }, [checkInstallStatus]);
 
+  const startDownload = useCallback((app: AppData) => {
+    if (Capacitor.isNativePlatform()) {
+      setDownloadingApp(app);
+    } else {
+      let url = app.downloadUrl!;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = `https://${url}`;
+      window.open(url, '_blank');
+      toast({ title: "Download Started", description: `${app.name} download opened in browser.` });
+    }
+  }, [toast]);
+
   const handleDownload = useCallback(async (app: AppData) => {
     if (!app.downloadUrl) {
       toast({
@@ -400,7 +411,39 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
 
-    // On native platform, use in-app download with progress
+    // Skip duplicate downloads — if the app is already installed on the device,
+    // offer to launch it instead of wasting bandwidth/storage.
+    if (Capacitor.isNativePlatform()) {
+      const alreadyInstalled = await checkInstallStatus(app);
+      if (alreadyInstalled) {
+        toast({
+          title: "Already Installed",
+          description: `${app.name} is already on this device. Launching instead.`,
+        });
+        attemptLaunch(app);
+        return;
+      }
+    }
+
+    // Show any active alert/warning BEFORE downloading too (not just on launch),
+    // so users get critical notices even on a fresh install.
+    const alert = getAlertForApp(app.name);
+    if (alert) {
+      setPendingAlert({ alert, app });
+      // The dialog's "Continue Anyway" launches; for downloads we instead
+      // route through a flag so Continue starts the download.
+      setPendingDownloadApp(app);
+      return;
+    }
+
+    startDownload(app);
+  }, [toast, checkInstallStatus, attemptLaunch, getAlertForApp, startDownload]);
+
+  // Track whether the pending alert was triggered by a download (vs launch).
+  const [pendingDownloadApp, setPendingDownloadApp] = useState<AppData | null>(null);
+
+  // ---- legacy fallback path kept below for safety; unreachable due to early return above ----
+  const _legacyDownloadFallback = (app: AppData) => {
     if (Capacitor.isNativePlatform()) {
       setDownloadingApp(app);
     } else {
