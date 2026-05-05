@@ -95,6 +95,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // App alerts (warning popups)
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: AppData } | null>(null);
+  const [pendingDownloadApp, setPendingDownloadApp] = useState<AppData | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
