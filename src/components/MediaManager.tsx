@@ -448,7 +448,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     }
 
     const imageCost = imageConfig.credits * 0.01; // Convert credits to dollars
-    if (!checkCredits(imageCost)) {
+    const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
+    if (!isOwnerAdmin && !checkCredits(imageCost)) {
       toast({
         title: "Insufficient credits",
         description: `You need ${imageCost.toFixed(2)} credits to generate an image. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
