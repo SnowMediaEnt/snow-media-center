@@ -672,11 +672,15 @@ Deno.serve(async (req) => {
 
         // SKU -> credits map (case-insensitive)
         const SKU_CREDITS: Record<string, number> = {
-          'ai5': 50,
+          'ai50': 50,
           'ai120': 120,
           'ai250': 250,
           'ai600': 600,
         };
+
+        // Allow caller to pass an alternate Wix email (e.g. user paid on Wix
+        // with a different account than the one signed in to the app).
+        const wixEmail: string = (body?.wixEmail || email || '').toLowerCase().trim();
 
         // Fetch orders for this email
         const ordersRes = await fetch('https://www.wixapis.com/ecom/v1/orders/search', {
