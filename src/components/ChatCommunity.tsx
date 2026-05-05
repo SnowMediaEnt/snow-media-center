@@ -304,24 +304,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     }]);
 
     try {
-      const conversationId = activeAIConversationId
-        ? activeAIConversationId
-        : await createAIConversation(
-            userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : ''),
-            userMessage
-          );
-
-      setActiveAIConversationId(conversationId);
-
-      if (activeAIConversationId) {
-        await sendSavedAIMessage(conversationId, userMessage);
-      }
-
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
-        body: { message: userMessage, userId: user.id }
+        body: {
+          message: userMessage,
+          userId: user.id,
+          conversationId: activeAIConversationId,
+          saveConversation: true,
+        }
       });
 
       if (error) throw error;
+      if (data.conversationId) setActiveAIConversationId(data.conversationId);
 
       await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
 
