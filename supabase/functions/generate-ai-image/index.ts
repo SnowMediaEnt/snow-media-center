@@ -140,10 +140,28 @@ serve(async (req) => {
       throw new Error('No image data found in OpenAI response');
     }
 
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'image',
+        model: 'dall-e-3',
+        prompt,
+        response_preview: '[image]',
+        total_tokens: 2000,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[generate-ai-image] log/threshold failed:', e);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       image: imageData,
-      prompt: prompt
+      prompt: prompt,
+      isAdmin: isOwnerEmail(userEmail),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
