@@ -1110,6 +1110,29 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 )}
               </Button>
             </div>
+            {aiConversations.length > 0 && (
+              <div className="mt-5 border-t border-purple-700/50 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-purple-200">Saved AI Chats</h4>
+                  <Badge className="bg-purple-700 text-white">Last 5</Badge>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {aiConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => handleOpenSavedAIConversation(conversation.id)}
+                      className="text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40"
+                    >
+                      <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
+                      <p className="mt-1 text-xs text-purple-200/70">
+                        {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {!user && (
               <p className="text-purple-300 text-sm mt-4 text-center">
