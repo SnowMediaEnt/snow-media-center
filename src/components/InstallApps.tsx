@@ -95,6 +95,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // App alerts (warning popups)
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: AppData } | null>(null);
+  const [pendingDownloadApp, setPendingDownloadApp] = useState<AppData | null>(null);
 
   // Helper function to get the apps for a tab.
   // 'featured' = curated featured list (sorted A→Z)
@@ -390,6 +391,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
   }, [checkInstallStatus]);
 
+  const startDownload = useCallback((app: AppData) => {
+    if (Capacitor.isNativePlatform()) {
+      setDownloadingApp(app);
+    } else {
+      let url = app.downloadUrl!;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = `https://${url}`;
+      window.open(url, '_blank');
+      toast({ title: "Download Started", description: `${app.name} download opened in browser.` });
+    }
+  }, [toast]);
+
   const handleDownload = useCallback(async (app: AppData) => {
     if (!app.downloadUrl) {
       toast({
@@ -400,24 +412,29 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
 
-    // On native platform, use in-app download with progress
+    // Skip duplicate downloads — if already on the device, don't re-download.
     if (Capacitor.isNativePlatform()) {
-      setDownloadingApp(app);
-    } else {
-      // On web, open in browser (fallback)
-      let url = app.downloadUrl;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `https://${url}`;
+      const alreadyInstalled = await checkInstallStatus(app);
+      if (alreadyInstalled) {
+        toast({
+          title: "Already Installed",
+          description: `${app.name} is already on this device.`,
+        });
+        return;
       }
-      window.open(url, '_blank');
-      toast({
-        title: "Download Started",
-        description: `${app.name} download opened in browser.`,
-      });
     }
-  }, [toast]);
 
-  // Initialize app statuses when apps load
+    // Show any active warning BEFORE downloading too — so users get critical
+    // notices even on a brand-new install, not only when launching.
+    const alert = getAlertForApp(app.name);
+    if (alert) {
+      setPendingAlert({ alert, app });
+      setPendingDownloadApp(app);
+      return;
+    }
+
+    startDownload(app);
+  }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
   useEffect(() => {
     if (apps.length > 0) {
       apps.forEach(app => {
@@ -1022,11 +1039,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         alert={pendingAlert?.alert ?? null}
         appName={pendingAlert?.app.name}
         open={!!pendingAlert}
-        onDismiss={() => setPendingAlert(null)}
+        onDismiss={() => { setPendingAlert(null); setPendingDownloadApp(null); }}
         onContinue={() => {
           const app = pendingAlert?.app;
+          const isDownload = !!pendingDownloadApp;
           setPendingAlert(null);
-          if (app) handleLaunch(app);
+          setPendingDownloadApp(null);
+          if (app) {
+            if (isDownload) startDownload(app);
+            else handleLaunch(app);
+          }
         }}
       />
     </div>
