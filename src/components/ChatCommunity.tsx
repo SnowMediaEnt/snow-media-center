@@ -11,6 +11,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
+import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -34,14 +35,27 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
+  const { createConversation: createAIConversation, sendMessage: sendSavedAIMessage } = useAIConversations();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const aiChatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeTab === 'ai') {
+      requestAnimationFrame(() => {
+        if (aiChatContainerRef.current) {
+          aiChatContainerRef.current.scrollTop = aiChatContainerRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [activeTab, aiChat.length, aiLoading]);
 
   // Helper to check if ticket is active (has activity in last 24 hours)
   const isTicketActive = (ticket: SupportTicket) => {
@@ -292,6 +306,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     }]);
 
     try {
+      const conversationId = activeAIConversationId
+        ? activeAIConversationId
+        : await createAIConversation(
+            userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : ''),
+            userMessage
+          );
+
+      setActiveAIConversationId(conversationId);
+
+      if (activeAIConversationId) {
+        await sendSavedAIMessage(conversationId, userMessage);
+      }
+
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
         body: { message: userMessage, userId: user.id }
       });
@@ -300,9 +327,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
       await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
 
+      const responseText = data.response || data.message;
       setAiChat(prev => [...prev, {
         role: 'ai',
-        content: data.message,
+        content: responseText,
         timestamp: new Date()
       }]);
 
