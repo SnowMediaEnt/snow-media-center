@@ -15,9 +15,12 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  LogIn
+  LogIn,
+  Bot,
+  Trash2
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useAIConversations } from '@/hooks/useAIConversations';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -28,11 +31,14 @@ interface SupportTicketSystemProps {
 }
 
 const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
-  const [view, setView] = useState<'list' | 'ticket' | 'create'>('list');
+  const [view, setView] = useState<'list' | 'ticket' | 'create' | 'ai-chat'>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
+  const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
+  const [aiNewMessage, setAiNewMessage] = useState('');
+  const [aiReplyMessage, setAiReplyMessage] = useState('');
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -51,6 +57,53 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
+
+  // AI conversations
+  const {
+    conversations: aiConversations,
+    messages: aiMessages,
+    loading: aiLoading,
+    fetchConversationMessages: fetchAIMessages,
+    createConversation: createAIConversation,
+    sendMessage: sendAIMessage,
+    deleteConversation: deleteAIConversation,
+  } = useAIConversations();
+
+  const selectedAIConversation = aiConversations.find(c => c.id === selectedAIConversationId);
+  const aiConversationMessages = selectedAIConversationId ? aiMessages[selectedAIConversationId] || [] : [];
+
+  const handleStartAIChat = async () => {
+    if (!aiNewMessage.trim()) return;
+    try {
+      const title = aiNewMessage.slice(0, 50) + (aiNewMessage.length > 50 ? '...' : '');
+      const id = await createAIConversation(title, aiNewMessage);
+      setAiNewMessage('');
+      setSelectedAIConversationId(id);
+      setView('ai-chat');
+      await fetchAIMessages(id);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleOpenAIChat = async (id: string) => {
+    setSelectedAIConversationId(id);
+    setView('ai-chat');
+    await fetchAIMessages(id);
+  };
+
+  const handleSendAIReply = async () => {
+    if (!selectedAIConversationId || !aiReplyMessage.trim()) return;
+    try {
+      await sendAIMessage(selectedAIConversationId, aiReplyMessage);
+      setAiReplyMessage('');
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteAIChat = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this AI conversation?')) {
+      await deleteAIConversation(id);
+    }
+  };
 
   // Hierarchical back button handling
   useEffect(() => {
@@ -72,6 +125,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         if (view === 'ticket') {
           setView('list');
           setSelectedTicketId(null);
+          return;
+        }
+        
+        // If viewing an AI chat, go back to list
+        if (view === 'ai-chat') {
+          setView('list');
+          setSelectedAIConversationId(null);
           return;
         }
         
@@ -342,6 +402,81 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     );
   }
 
+  if (view === 'ai-chat' && selectedAIConversation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
+              variant="outline"
+              size="sm"
+              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <h1 className="text-3xl font-bold line-clamp-1">{selectedAIConversation.title}</h1>
+          </div>
+
+          <Card className="bg-purple-950/40 border-purple-700/50">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                AI Assistant
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-96 pr-4">
+                <div className="space-y-4">
+                  {aiConversationMessages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`p-4 rounded-lg ${
+                        m.sender_type === 'user'
+                          ? 'bg-purple-600/20 ml-8'
+                          : 'bg-slate-700/50 mr-8'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className={m.sender_type === 'user' ? 'bg-purple-600 text-white' : 'bg-slate-600 text-white'}>
+                          {m.sender_type === 'user' ? 'You' : 'AI Assistant'}
+                        </Badge>
+                        <span className="text-xs text-slate-400">
+                          {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-slate-200 whitespace-pre-wrap">{m.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              <Separator className="my-4 bg-purple-700/50" />
+
+              <div className="flex gap-2">
+                <Input
+                  value={aiReplyMessage}
+                  onChange={(e) => setAiReplyMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  className="bg-slate-700 border-purple-600/50 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
+                />
+                <Button
+                  onClick={handleSendAIReply}
+                  disabled={!aiReplyMessage.trim() || aiLoading}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
@@ -445,6 +580,76 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               )}
             </div>
           )}
+        </div>
+
+        {/* AI Chat History - purple section */}
+        <div className="mt-10">
+          <Card className="bg-purple-950/40 border-purple-700/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-purple-300" />
+                  AI Chat History
+                </CardTitle>
+                <Badge variant="outline" className="text-purple-200 border-purple-400/50">
+                  Last 5 saved
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Start new AI chat */}
+              <div className="flex gap-2">
+                <Input
+                  value={aiNewMessage}
+                  onChange={(e) => setAiNewMessage(e.target.value)}
+                  placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
+                  disabled={!user}
+                  className="bg-slate-700 border-purple-600/50 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
+                />
+                <Button
+                  onClick={handleStartAIChat}
+                  disabled={!user || !aiNewMessage.trim() || aiLoading}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Chat
+                </Button>
+              </div>
+
+              {/* Saved conversations */}
+              {aiConversations.length === 0 ? (
+                <p className="text-sm text-purple-200/70 text-center py-4">
+                  No saved AI conversations yet. Start one above.
+                </p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {aiConversations.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => handleOpenAIChat(c.id)}
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
+                        <p className="text-xs text-purple-200/70">
+                          Last message: {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleDeleteAIChat(c.id, e)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -243,59 +243,6 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Recent Conversations panel - quick switch between saved chats */}
-          <Card className="bg-slate-800/50 border-slate-700 mt-6">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2 text-lg">
-                <MessageCircle className="h-5 w-5" />
-                Your Recent Conversations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {conversations.length === 0 ? (
-                <p className="text-sm text-slate-500">No saved conversations yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {conversations.map(c => {
-                    const isActive = c.id === selectedConversationId;
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => !isActive && handleViewConversation(c.id)}
-                        className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-blue-600/30 border border-blue-400/50 cursor-default'
-                            : 'bg-slate-700/30 hover:bg-slate-700/60 cursor-pointer'
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
-                            {isActive && (
-                              <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">Active</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-400">
-                            Last message: {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => handleDeleteConversation(c.id, e)}
-                          className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <p className="text-xs text-slate-500 mt-3">Showing up to 5 most recent</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     );
