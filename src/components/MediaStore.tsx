@@ -260,8 +260,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [focusedElement, detailFocusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart, cartItems, addToCart, updateQuantity, toast]);
 
   // Refs for scroll containers (list view + detail view)
