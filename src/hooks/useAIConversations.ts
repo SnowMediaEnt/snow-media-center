@@ -67,16 +67,19 @@ export const useAIConversations = () => {
 
       if (error) throw error;
       
+      const mappedMessages = (data || []).map(msg => ({
+        id: msg.id,
+        conversation_id: msg.conversation_id,
+        sender_type: msg.sender_type as 'user' | 'assistant',
+        message: msg.message,
+        created_at: msg.created_at
+      }));
+
       setMessages(prev => ({
         ...prev,
-        [conversationId]: (data || []).map(msg => ({
-          id: msg.id,
-          conversation_id: msg.conversation_id,
-          sender_type: msg.sender_type as 'user' | 'assistant',
-          message: msg.message,
-          created_at: msg.created_at
-        }))
+        [conversationId]: mappedMessages
       }));
+      return mappedMessages;
     } catch (error) {
       console.error('Error fetching AI messages:', error);
       toast({
@@ -84,6 +87,7 @@ export const useAIConversations = () => {
         description: "Failed to load conversation messages",
         variant: "destructive"
       });
+      return [];
     }
   };
 
