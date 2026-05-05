@@ -297,13 +297,21 @@ Deno.serve(async (req) => {
         }));
 
         // Create checkout directly with line items (skip cart creation)
+        // Embed the app user ID as a custom field so we can credit the right
+        // user later — even if they pay on Wix with a different email or as a guest.
+        const checkoutBody: any = {
+          channelType: 'WEB',
+          lineItems: resolvedLineItems,
+        };
+        if (appUserIdFromBody) {
+          checkoutBody.customFields = [
+            { title: 'app_user_id', value: String(appUserIdFromBody) },
+          ];
+        }
         const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
           method: 'POST',
           headers: checkoutHeaders,
-          body: JSON.stringify({
-            channelType: 'WEB',
-            lineItems: resolvedLineItems,
-          })
+          body: JSON.stringify(checkoutBody)
         });
 
         console.log('Checkout API response status:', checkoutResponse.status);
