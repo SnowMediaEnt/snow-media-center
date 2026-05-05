@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { downloadApk } from '@/utils/downloadApk';
 
 interface UpdateInfo {
   version: string;
