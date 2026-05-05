@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Trash2, RefreshCw, Package, FileWarning } from 'lucide-react';
+import { Trash2, RefreshCw, Package, FileWarning, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { AppManager, type CachedApkInfo } from '@/capacitor/AppManager';
