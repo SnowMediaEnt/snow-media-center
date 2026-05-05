@@ -76,6 +76,30 @@ const ApkCacheViewer = () => {
     }
   };
 
+  const installOne = async (file: CachedApkInfo) => {
+    setBusyName(file.name);
+    try {
+      await AppManager.installApk({ filePath: file.path });
+      toast({
+        title: 'Opening installer',
+        description: `Tap Install on the system prompt for ${file.name}.`,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      const isPerm = /install permission|unknown app sources|unknown sources/i.test(msg);
+      toast({
+        title: isPerm ? 'Allow install from this source' : 'Install failed',
+        description: isPerm
+          ? "Enable 'Install unknown apps' for Snow Media Center, then tap Install again."
+          : msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setBusyName(null);
+    }
+  };
+
+
   const deleteAll = async () => {
     if (files.length === 0) return;
     setLoading(true);
