@@ -269,6 +269,15 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
                 App Alerts
               </TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger 
+                value="ai" 
+                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200`}
+              >
+                <Bot className="w-4 h-4 mr-2" />
+                AI
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="layout" className="mt-6">
