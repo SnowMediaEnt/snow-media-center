@@ -692,7 +692,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             search: {
-              filter: { 'buyerInfo.email': { $eq: email } },
+              filter: { 'buyerInfo.email': { $eq: wixEmail } },
               paging: { limit: 100 },
               sort: [{ fieldName: 'createdDate', order: 'DESC' }],
             }
@@ -710,13 +710,13 @@ Deno.serve(async (req) => {
         const ordersJson = await ordersRes.json();
         const allOrders: any[] = ordersJson.orders || [];
 
-        // Manual email filter (Wix sometimes ignores filter)
-        const normEmail = email.toLowerCase().trim();
+        // Manual email filter (Wix sometimes ignores filter). Match against
+        // the Wix-side email, which may differ from the app's signed-in email.
         const orders = allOrders.filter((o: any) =>
-          (o.buyerInfo?.email || '').toLowerCase().trim() === normEmail
+          (o.buyerInfo?.email || '').toLowerCase().trim() === wixEmail
         );
 
-        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email`);
+        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email ${wixEmail}`);
 
         // Service-role client for writes
         const adminClient = createClient(
