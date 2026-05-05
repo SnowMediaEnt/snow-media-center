@@ -690,7 +690,8 @@ Deno.serve(async (req) => {
         // with a different account than the one signed in to the app).
         const wixEmail: string = (payload?.wixEmail || email || '').toLowerCase().trim();
 
-        // Fetch orders for this email
+        // Fetch orders for this email (we'll also accept orders tagged with
+        // this user's app_user_id custom field, even if email doesn't match).
         const ordersRes = await fetch('https://www.wixapis.com/ecom/v1/orders/search', {
           method: 'POST',
           headers: {
@@ -700,7 +701,6 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             search: {
-              filter: { 'buyerInfo.email': { $eq: wixEmail } },
               paging: { limit: 100 },
               sort: [{ fieldName: 'createdDate', order: 'DESC' }],
             }
@@ -718,13 +718,19 @@ Deno.serve(async (req) => {
         const ordersJson = await ordersRes.json();
         const allOrders: any[] = ordersJson.orders || [];
 
-        // Manual email filter (Wix sometimes ignores filter). Match against
-        // the Wix-side email, which may differ from the app's signed-in email.
-        const orders = allOrders.filter((o: any) =>
-          (o.buyerInfo?.email || '').toLowerCase().trim() === wixEmail
-        );
+        // Match by either (a) Wix buyer email OR (b) app_user_id custom field.
+        // This handles users paying with a different Wix email AND guest checkouts.
+        const orders = allOrders.filter((o: any) => {
+          const buyerEmail = (o.buyerInfo?.email || '').toLowerCase().trim();
+          if (buyerEmail && buyerEmail === wixEmail) return true;
+          const fields: any[] = o.customFields || o.checkoutCustomFields || [];
+          return fields.some((f: any) =>
+            (f.title === 'app_user_id' || f.name === 'app_user_id') &&
+            String(f.value || '').trim() === String(userId)
+          );
+        });
 
-        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email ${wixEmail}`);
+        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match user ${userId} / ${wixEmail}`);
 
         // Service-role client for writes
         const adminClient = createClient(
