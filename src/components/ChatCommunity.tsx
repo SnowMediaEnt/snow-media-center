@@ -64,8 +64,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   const handleOpenSavedAIConversation = async (conversationId: string) => {
     setActiveAIConversationId(conversationId);
-    await fetchConversationMessages(conversationId);
-    const conversationMessages = savedAIMessages[conversationId] || [];
+    const conversationMessages = await fetchConversationMessages(conversationId);
     setAiChat(conversationMessages.map((message) => ({
       role: message.sender_type === 'user' ? 'user' : 'ai',
       content: message.message,
