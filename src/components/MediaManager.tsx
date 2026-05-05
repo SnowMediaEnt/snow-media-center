@@ -525,20 +525,26 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       // Upload the generated image
       await uploadAsset(file, 'background', uploadForm.section, `AI Generated: ${generatePrompt}`);
 
-      // Deduct credits after successful generation
-      const creditDeducted = await deductCredits(imageCost, `AI Image Generation - ${generatePrompt}`);
-      
-      if (!creditDeducted) {
-        toast({
-          title: "Credit deduction failed",
-          description: "Image generated but couldn't deduct credits. Contact support.",
-          variant: "destructive",
-        });
-      } else {
+      // Deduct credits after successful generation (admin gets free usage)
+      if (result.isAdmin) {
         toast({
           title: "Image complete!",
-          description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} credits used.`,
+          description: `Your AI-generated background is ready. (Admin: free)`,
         });
+      } else {
+        const creditDeducted = await deductCredits(imageCost, `AI Image Generation - ${generatePrompt}`);
+        if (!creditDeducted) {
+          toast({
+            title: "Credit deduction failed",
+            description: "Image generated but couldn't deduct credits. Contact support.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Image complete!",
+            description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} credits used.`,
+          });
+        }
       }
       
       setGeneratePrompt('');
