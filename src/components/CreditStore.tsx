@@ -108,6 +108,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       const { data, error } = await supabase.functions.invoke('wix-integration', {
         body: {
           action: 'create-cart',
+          appUserId: user.id,
           items: [{
             productId: WIX_CREDITS_PRODUCT_ID,
             quantity: 1,
