@@ -412,27 +412,24 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
 
-    // Skip duplicate downloads — if already on the device, don't re-download.
+    // If the app is already installed, switch the UI to Launch instead of
+    // re-downloading. No popup — just update status and silently launch
+    // (launch path itself will surface any active warning).
     if (Capacitor.isNativePlatform()) {
       const alreadyInstalled = await checkInstallStatus(app);
       if (alreadyInstalled) {
-        toast({
-          title: "Already Installed",
-          description: `${app.name} is already on this device.`,
-        });
+        setAppStatuses(prev => new Map(prev.set(app.id, { installed: true })));
+        const alert = getAlertForApp(app.name);
+        if (alert) {
+          setPendingAlert({ alert, app });
+        } else {
+          handleLaunch(app);
+        }
         return;
       }
     }
 
-    // Show any active warning BEFORE downloading too — so users get critical
-    // notices even on a brand-new install, not only when launching.
-    const alert = getAlertForApp(app.name);
-    if (alert) {
-      setPendingAlert({ alert, app });
-      setPendingDownloadApp(app);
-      return;
-    }
-
+    // Warnings only fire on launch — go straight to download here.
     startDownload(app);
   }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
   useEffect(() => {
