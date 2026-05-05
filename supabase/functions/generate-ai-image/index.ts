@@ -41,7 +41,18 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+    const userEmail = user.email ?? null;
     console.log('Authenticated user:', userId);
+
+    if (!isOwnerEmail(userEmail)) {
+      const pause = await checkPause();
+      if (pause.blocked) {
+        return new Response(JSON.stringify({ success: false, error: pause.reason }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     const { prompt, size = '1024x1024' } = await req.json();
 
