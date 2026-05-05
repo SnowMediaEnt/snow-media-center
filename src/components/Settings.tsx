@@ -61,10 +61,28 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
 
       // If focus is inside updates content, handle navigation back out
       if (focusedElement === 'updates-content') {
-        if (event.key === 'ArrowUp' || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+        if (event.key === 'ArrowUp') {
           event.preventDefault();
           event.stopPropagation();
           setFocusedElement('tab-updates');
+          return;
+        }
+        if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          // Move into the cached APKs panel below
+          event.preventDefault();
+          event.stopPropagation();
+          const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
+          if (apkBtn) {
+            apkBtn.focus();
+            apkBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+          return;
         }
         return; // Let AppUpdater handle its own internal nav
       }
