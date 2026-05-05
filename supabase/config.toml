@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.wix-sso-bridge]
 verify_jwt = false
+
+[functions.wix-order-webhook]
+verify_jwt = false
