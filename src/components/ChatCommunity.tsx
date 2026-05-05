@@ -11,6 +11,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
+import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -18,6 +19,11 @@ interface ChatCommunityProps {
   onBack: () => void;
   onNavigate?: (section: string) => void;
 }
+
+type AIFunctionCall = {
+  name: string;
+  arguments: Record<string, string | undefined>;
+};
 
 const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>('admin');
@@ -34,14 +40,42 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
+  const {
+    conversations: aiConversations,
+    fetchConversations: fetchAIConversations,
+    fetchConversationMessages,
+  } = useAIConversations();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const aiChatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeTab === 'ai') {
+      requestAnimationFrame(() => {
+        if (aiChatContainerRef.current) {
+          aiChatContainerRef.current.scrollTop = aiChatContainerRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [activeTab, aiChat.length, aiLoading]);
+
+  const handleOpenSavedAIConversation = async (conversationId: string) => {
+    setActiveAIConversationId(conversationId);
+    const conversationMessages = await fetchConversationMessages(conversationId);
+    setAiChat(conversationMessages.map((message) => ({
+      role: message.sender_type === 'user' ? 'user' : 'ai',
+      content: message.message,
+      timestamp: new Date(message.created_at),
+    })));
+    setActiveTab('ai');
+  };
 
   // Helper to check if ticket is active (has activity in last 24 hours)
   const isTicketActive = (ticket: SupportTicket) => {
@@ -115,7 +149,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   };
 
   // AI function handler
-  const handleAiFunction = useCallback((functionCall: any) => {
+  const handleAiFunction = useCallback((functionCall: AIFunctionCall) => {
     const { name, arguments: args } = functionCall;
     
     switch (name) {
@@ -127,7 +161,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             'media': 'store',
             'user': 'user'
           };
-          const targetSection = sectionMap[args.section] || args.section;
+          const requestedSection = args.section || '';
+          const targetSection = sectionMap[requestedSection] || requestedSection;
           onNavigate(targetSection);
           toast({
             title: "Navigation",
@@ -293,16 +328,26 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
     try {
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
-        body: { message: userMessage, userId: user.id }
+        body: {
+          message: userMessage,
+          userId: user.id,
+          conversationId: activeAIConversationId,
+          saveConversation: true,
+        }
       });
 
       if (error) throw error;
+      if (data.conversationId) {
+        setActiveAIConversationId(data.conversationId);
+        await fetchAIConversations();
+      }
 
       await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
 
+      const responseText = data.response || data.message;
       setAiChat(prev => [...prev, {
         role: 'ai',
-        content: data.message,
+        content: responseText,
         timestamp: new Date()
       }]);
 
@@ -942,6 +987,35 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     </div>
                   ))
                 )}
+
+                <div className="mt-6 rounded-lg border border-purple-700/50 bg-purple-950/40 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-white">
+                      <Brain className="h-5 w-5 text-purple-300" />
+                      <h4 className="font-semibold">AI Chat History</h4>
+                    </div>
+                    <Badge className="bg-purple-700 text-white">Last 5 saved</Badge>
+                  </div>
+                  {aiConversations.length === 0 ? (
+                    <p className="py-3 text-center text-sm text-purple-200/70">No saved AI chats yet.</p>
+                  ) : (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {aiConversations.map((conversation) => (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          onClick={() => handleOpenSavedAIConversation(conversation.id)}
+                          className="rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-left text-white transition-colors hover:bg-purple-800/40"
+                        >
+                          <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
+                          <p className="mt-1 text-xs text-purple-200/70">
+                            Last message: {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </Card>
@@ -1006,7 +1080,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             </p>
             
             {/* AI Chat Messages */}
-            <div className="bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+            <div ref={aiChatContainerRef} className="bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
               {aiChat.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
                   <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
@@ -1071,6 +1145,29 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 )}
               </Button>
             </div>
+            {aiConversations.length > 0 && (
+              <div className="mt-5 border-t border-purple-700/50 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-purple-200">Saved AI Chats</h4>
+                  <Badge className="bg-purple-700 text-white">Last 5</Badge>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {aiConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => handleOpenSavedAIConversation(conversation.id)}
+                      className="text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40"
+                    >
+                      <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
+                      <p className="mt-1 text-xs text-purple-200/70">
+                        {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {!user && (
               <p className="text-purple-300 text-sm mt-4 text-center">

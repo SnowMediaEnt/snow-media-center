@@ -25,6 +25,13 @@ export const useAIConversations = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const touchConversation = async (conversationId: string) => {
+    await supabase
+      .from('ai_conversations')
+      .update({ updated_at: new Date().toISOString(), last_message_at: new Date().toISOString() })
+      .eq('id', conversationId);
+  };
+
   // Fetch all user's AI conversations
   const fetchConversations = async () => {
     try {
@@ -60,16 +67,19 @@ export const useAIConversations = () => {
 
       if (error) throw error;
       
+      const mappedMessages = (data || []).map(msg => ({
+        id: msg.id,
+        conversation_id: msg.conversation_id,
+        sender_type: msg.sender_type as 'user' | 'assistant',
+        message: msg.message,
+        created_at: msg.created_at
+      }));
+
       setMessages(prev => ({
         ...prev,
-        [conversationId]: (data || []).map(msg => ({
-          id: msg.id,
-          conversation_id: msg.conversation_id,
-          sender_type: msg.sender_type as 'user' | 'assistant',
-          message: msg.message,
-          created_at: msg.created_at
-        }))
+        [conversationId]: mappedMessages
       }));
+      return mappedMessages;
     } catch (error) {
       console.error('Error fetching AI messages:', error);
       toast({
@@ -77,6 +87,7 @@ export const useAIConversations = () => {
         description: "Failed to load conversation messages",
         variant: "destructive"
       });
+      return [];
     }
   };
 
@@ -114,6 +125,7 @@ export const useAIConversations = () => {
       // Generate AI response
       await generateAIResponse(conversation.id, initialMessage);
 
+      await fetchConversationMessages(conversation.id);
       await fetchConversations();
       return conversation.id;
     } catch (error) {
@@ -132,6 +144,7 @@ export const useAIConversations = () => {
   // Send a message to an existing conversation
   const sendMessage = async (conversationId: string, message: string) => {
     try {
+      setLoading(true);
       // Add user message
       const { error: userMessageError } = await supabase
         .from('ai_messages')
@@ -142,6 +155,7 @@ export const useAIConversations = () => {
         });
 
       if (userMessageError) throw userMessageError;
+      await touchConversation(conversationId);
 
       // Generate AI response
       await generateAIResponse(conversationId, message);
@@ -157,6 +171,8 @@ export const useAIConversations = () => {
         variant: "destructive"
       });
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,15 +196,18 @@ export const useAIConversations = () => {
 
       if (error) throw error;
 
+      const responseMessage = data?.response || data?.message;
+
       // Add AI response to database
-      if (data?.response) {
+      if (responseMessage) {
         await supabase
           .from('ai_messages')
           .insert({
             conversation_id: conversationId,
             sender_type: 'assistant',
-            message: data.response
+            message: responseMessage
           });
+        await touchConversation(conversationId);
       }
     } catch (error) {
       console.error('Error generating AI response:', error);
@@ -200,6 +219,7 @@ export const useAIConversations = () => {
           sender_type: 'assistant',
           message: "I'm sorry, I'm having trouble processing your request right now. Please try again later."
         });
+      await touchConversation(conversationId);
     }
   };
 
