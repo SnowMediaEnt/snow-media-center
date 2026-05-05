@@ -196,8 +196,8 @@ const PinnedAppsPopup = ({
             })}
           </div>
           
-          {/* Arrow pointer */}
-          <div className="absolute -bottom-2 left-8 w-4 h-4 bg-slate-900/95 border-r border-b border-slate-600 rotate-45" />
+          {/* Arrow pointer (above, points up to the Main Apps card) */}
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900/95 border-l-2 border-t-2 border-brand-gold/60 rotate-45" />
         </Card>
       </div>
 
