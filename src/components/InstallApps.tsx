@@ -413,19 +413,25 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
 
     // If the app is already installed, switch the UI to Launch instead of
-    // re-downloading. No popup — just update status and silently launch.
+    // re-downloading. No popup — just update status and silently launch
+    // (launch path itself will surface any active warning).
     if (Capacitor.isNativePlatform()) {
       const alreadyInstalled = await checkInstallStatus(app);
       if (alreadyInstalled) {
         setAppStatuses(prev => new Map(prev.set(app.id, { installed: true })));
-        attemptLaunch(app);
+        const alert = getAlertForApp(app.name);
+        if (alert) {
+          setPendingAlert({ alert, app });
+        } else {
+          handleLaunch(app);
+        }
         return;
       }
     }
 
     // Warnings only fire on launch — go straight to download here.
     startDownload(app);
-  }, [toast, checkInstallStatus, startDownload, attemptLaunch]);
+  }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
   useEffect(() => {
     if (apps.length > 0) {
       apps.forEach(app => {
