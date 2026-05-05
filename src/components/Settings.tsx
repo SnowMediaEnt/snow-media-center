@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Bot } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import ApkCacheViewer from '@/components/ApkCacheViewer';
+import AdminAIPanel from '@/components/AdminAIPanel';
 import { useAdminRole } from '@/hooks/useAdminRole';
 
 interface SettingsProps {
