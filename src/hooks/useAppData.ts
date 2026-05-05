@@ -75,7 +75,13 @@ export const useAppData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // PRIMARY: Fetch apps from Supabase database
+  const sortApps = (items: AppData[]) =>
+    [...items].sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+  // PRIMARY: Fetch apps from the live PHP JSON feed
   const fetchSupabaseApps = async (): Promise<AppData[]> => {
     try {
       console.log('[AppData] Fetching apps from Supabase...');
@@ -250,37 +256,35 @@ export const useAppData = () => {
     setLoading(true);
     setError(null);
 
-    console.log('[AppData] Starting fetch — running PHP sync first...');
+    console.log('[AppData] Starting fetch — live PHP feed first...');
 
-    // Always run PHP→DB sync FIRST so deletions/additions on snowmediaapps.com
-    // are reflected immediately whenever Main Apps is opened.
-    await triggerBackgroundSync();
+    // Always use apps.json.php as the source of truth when Main Apps opens so
+    // deletions/additions on snowmediaapps.com are reflected immediately.
+    try {
+      const remoteApps = await fetchRemoteApps();
+      if (remoteApps.length > 0) {
+        console.log(`[AppData] Using ${remoteApps.length} apps from live PHP feed`);
+        setApps(sortApps(remoteApps));
+        setError(null);
+        setLoading(false);
+        void triggerBackgroundSync();
+        return;
+      }
+    } catch (err) {
+      console.warn('[AppData] Live PHP feed failed, trying Supabase:', err);
+    }
 
     try {
       const supabaseApps = await fetchSupabaseApps();
       if (supabaseApps.length > 0) {
         console.log(`[AppData] Using ${supabaseApps.length} apps from Supabase (post-sync)`);
-        setApps(supabaseApps);
+        setApps(sortApps(supabaseApps));
         setError(null);
         setLoading(false);
         return;
       }
     } catch (err) {
       console.warn('[AppData] Supabase failed, trying remote:', err);
-    }
-
-    // Fallback to remote URL
-    try {
-      const remoteApps = await fetchRemoteApps();
-      if (remoteApps.length > 0) {
-        console.log(`[AppData] Using ${remoteApps.length} apps from remote`);
-        setApps(remoteApps);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('[AppData] Remote failed:', err);
     }
 
     console.warn('[AppData] All sources failed, using fallback apps');
