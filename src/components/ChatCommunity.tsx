@@ -44,7 +44,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
   const {
     conversations: aiConversations,
-    messages: savedAIMessages,
     fetchConversations: fetchAIConversations,
     fetchConversationMessages,
   } = useAIConversations();
