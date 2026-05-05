@@ -1,5 +1,39 @@
 // Network utilities for robust cross-platform fetching
 import { isNativePlatform } from './platform';
+import { CapacitorHttp } from '@capacitor/core';
+
+// Hosts whose responses we should bypass the WebView for on native, to dodge
+// CORS restrictions. CapacitorHttp does the request from the native layer.
+const NATIVE_BYPASS_HOSTS = ['snowmediaapps.com'];
+
+const shouldUseCapacitorHttp = (url: string): boolean => {
+  if (!isNativePlatform()) return false;
+  try {
+    const u = new URL(url);
+    return NATIVE_BYPASS_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h));
+  } catch {
+    return false;
+  }
+};
+
+const capacitorHttpToResponse = async (url: string, opts: RequestInit, timeout: number): Promise<Response> => {
+  const method = (opts.method || 'GET').toUpperCase();
+  const headers = (opts.headers as Record<string, string> | undefined) || {};
+  const res = await CapacitorHttp.request({
+    url,
+    method,
+    headers,
+    data: opts.body as any,
+    connectTimeout: timeout,
+    readTimeout: timeout,
+    responseType: 'text',
+  });
+  const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data ?? '');
+  return new Response(body, {
+    status: res.status,
+    headers: res.headers as any,
+  });
+};
 
 const CORS_PROXIES = [
   'https://corsproxy.io/?',
@@ -55,10 +89,16 @@ export const robustFetch = async (
         const isProxy = tryUrl !== url;
         console.log(`[Network] Fetching (attempt ${attempt + 1}/${retries}, ${isProxy ? 'proxy' : 'direct'}): ${tryUrl.substring(0, 80)}...`);
 
-        const response = await fetch(tryUrl, {
-          ...fetchOptions,
-          signal: controller.signal,
-        });
+        let response: Response;
+        if (!isProxy && shouldUseCapacitorHttp(tryUrl)) {
+          // Bypass WebView (and CORS) via the native HTTP layer
+          response = await capacitorHttpToResponse(tryUrl, fetchOptions as RequestInit, timeout);
+        } else {
+          response = await fetch(tryUrl, {
+            ...fetchOptions,
+            signal: controller.signal,
+          });
+        }
 
         clearTimeout(timeoutId);
 
