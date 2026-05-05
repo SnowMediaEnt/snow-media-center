@@ -532,7 +532,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             return (
               <Card 
                 key={ticket.id}
-                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
+                tabIndex={0}
+                role="button"
+                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
+                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none focus:ring-4 focus:ring-brand-ice focus:scale-105 ${
                   ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
                 }`}
                 onClick={() => handleViewTicket(ticket.id)}
@@ -641,8 +645,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   {aiConversations.map((c) => (
                     <div
                       key={c.id}
+                      tabIndex={0}
+                      role="button"
+                      onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}
                       onClick={() => handleOpenAIChat(c.id)}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-colors"
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none focus:ring-4 focus:ring-purple-400 focus:scale-105"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>

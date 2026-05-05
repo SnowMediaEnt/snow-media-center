@@ -60,18 +60,19 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       const isEscape = event.key === 'Escape';
       
       if (isEscape || isAndroidBack) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        // If viewing a product detail, go back to product list (stay in store)
+        // If viewing a product detail, intercept back to return to grid (stay in store).
+        // Use stopImmediatePropagation so the window-level listener in Index.tsx
+        // (which would otherwise call goBack() and exit the store) doesn't also fire.
         if (selectedProduct) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
           setSelectedProduct(null);
           setDetailFocusedElement('detail-back');
           return;
         }
-        
-        // If at top level of store, exit to main menu
-        onBack();
+        // At top level of store: let Index.tsx handle exit to home (don't call onBack here,
+        // otherwise we'd trigger goBack twice).
         return;
       }
       
@@ -259,8 +260,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [focusedElement, detailFocusedElement, selectedProduct, onBack, navigate, user, products, selectedCategory, cart, cartItems, addToCart, updateQuantity, toast]);
 
   // Refs for scroll containers (list view + detail view)

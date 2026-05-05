@@ -1,5 +1,6 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNativePlatform } from "@/utils/platform";
+import type { PluginListenerHandle } from "@capacitor/core";
 
 // Clean up old APK files from cache to prevent storage bloat
 export async function cleanupOldApks(keepFilename?: string): Promise<void> {
@@ -79,7 +80,21 @@ export async function downloadApkToCache(
   // completely bypassing the WebView's CORS restrictions
   console.log('[APK] Using native Filesystem.downloadFile...');
   
+  // Subscribe to native progress events for accurate %
+  let progressListener: PluginListenerHandle | undefined;
   try {
+    if (onProgress) {
+      progressListener = await (Filesystem as any).addListener?.(
+        'progress',
+        (e: { contentLength?: number; bytes?: number }) => {
+          if (e?.contentLength && e.contentLength > 0 && typeof e.bytes === 'number') {
+            const pct = Math.min(94, Math.max(5, Math.round((e.bytes / e.contentLength) * 90) + 5));
+            onProgress(pct);
+          }
+        }
+      );
+    }
+
     const result = await Filesystem.downloadFile({
       url: downloadUrl,
       path,
@@ -105,6 +120,8 @@ export async function downloadApkToCache(
   } catch (error) {
     console.error('[APK] Native download failed:', error);
     throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Native download error'}`);
+  } finally {
+    try { await progressListener?.remove(); } catch {}
   }
 }
 

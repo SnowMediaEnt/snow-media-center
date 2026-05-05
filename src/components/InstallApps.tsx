@@ -492,6 +492,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Uninstall Settings] ${app.name} → ${packageName}`);
+      // Verify the package is actually installed first — otherwise some Android
+      // versions open SMC's own App Info page instead of the target.
+      const { installed } = await AppManager.isInstalled({ packageName });
+      if (!installed) {
+        toast({
+          title: "App not installed",
+          description: `${app.name} is not installed on this device, so there's nothing to uninstall.`,
+          variant: "destructive",
+        });
+        return;
+      }
       await AppManager.openAppSettings({ packageName });
 
       toast({
@@ -500,9 +511,12 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       });
     } catch (error) {
       console.error('Uninstall error:', error);
+      const msg = error instanceof Error ? error.message : '';
       const friendly = isWebUnsupportedError(error)
         ? WEB_UNSUPPORTED_MSG
-        : `Could not open ${app.name} App Info.`;
+        : msg.includes('Package not installed')
+          ? `${app.name} is not installed on this device.`
+          : `Could not open ${app.name} App Info.`;
       toast({
         title: "Uninstall Menu Failed",
         description: friendly,
@@ -542,15 +556,29 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
     try {
+      const { installed } = await AppManager.isInstalled({ packageName });
+      if (!installed) {
+        toast({
+          title: "App not installed",
+          description: `${app.name} isn't installed, so there's no cache to clear.`,
+          variant: "destructive",
+        });
+        return;
+      }
       await AppManager.openAppSettings({ packageName });
       toast({
         title: "Tap 'Storage' → 'Clear cache'",
         description: `Opening ${app.name} system info…`,
       });
     } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
       toast({
         title: 'Clear Cache Menu Failed',
-        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : `Could not open ${app.name} App Info.`,
+        description: isWebUnsupportedError(err)
+          ? WEB_UNSUPPORTED_MSG
+          : msg.includes('Package not installed')
+            ? `${app.name} is not installed on this device.`
+            : `Could not open ${app.name} App Info.`,
         variant: 'destructive',
       });
     }

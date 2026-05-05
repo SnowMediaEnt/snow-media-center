@@ -127,7 +127,18 @@ const ApkCacheViewer = () => {
             disabled={loading}
             variant="outline"
             size="sm"
-            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30"
+            data-apk-cache-first
+            onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' && files.length > 0) {
+                e.preventDefault();
+                (document.querySelector('[data-apk-clear-all]') as HTMLElement | null)?.focus();
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                (document.querySelector('[data-apk-row="0"]') as HTMLElement | null)?.focus();
+              }
+            }}
+            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-ice focus:outline-none"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -138,7 +149,9 @@ const ApkCacheViewer = () => {
               disabled={loading}
               variant="outline"
               size="sm"
-              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30"
+              data-apk-clear-all
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:ring-4 focus:ring-red-300 focus:outline-none"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Clear all
@@ -149,10 +162,27 @@ const ApkCacheViewer = () => {
 
       {files.length > 0 && (
         <ul className="divide-y divide-slate-600/60 mt-3 rounded-lg overflow-hidden border border-slate-600/40">
-          {files.map((f) => (
+          {files.map((f, idx) => (
             <li
               key={f.name}
-              className="flex items-center gap-3 p-3 bg-slate-800/40"
+              data-apk-row={idx}
+              tabIndex={0}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  (document.querySelector(`[data-apk-row="${idx + 1}"]`) as HTMLElement | null)?.focus();
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  const prev = document.querySelector(`[data-apk-row="${idx - 1}"]`) as HTMLElement | null;
+                  if (prev) prev.focus();
+                  else (document.querySelector('[data-apk-cache-first]') as HTMLElement | null)?.focus();
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  deleteOne(f.name);
+                }
+              }}
+              className="flex items-center gap-3 p-3 bg-slate-800/40 focus:outline-none focus:ring-4 focus:ring-brand-ice"
             >
               <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
                 <Package className="w-5 h-5 text-orange-300" />

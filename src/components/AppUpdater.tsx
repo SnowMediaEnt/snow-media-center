@@ -126,67 +126,31 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     
     try {
       if (isNativePlatform()) {
-        // Native download with progress
-        const response = await fetch(updateInfo.downloadUrl);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`);
-        }
-        
-        const contentLength = response.headers.get('content-length');
-        const totalSize = contentLength ? parseInt(contentLength, 10) : 0;
-        
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('Failed to get reader');
-        
-        const chunks: Uint8Array[] = [];
-        let receivedLength = 0;
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          chunks.push(value);
-          receivedLength += value.length;
-          
-          if (totalSize > 0) {
-            setDownloadProgress(Math.round((receivedLength / totalSize) * 100));
-          }
-        }
-        
-        // Combine chunks
-        const allChunks = new Uint8Array(receivedLength);
-        let position = 0;
-        for (const chunk of chunks) {
-          allChunks.set(chunk, position);
-          position += chunk.length;
-        }
-        
-        // Convert to base64 in chunks
-        const chunkSize = 32768;
-        let base64 = '';
-        for (let i = 0; i < allChunks.length; i += chunkSize) {
-          const chunk = allChunks.subarray(i, Math.min(i + chunkSize, allChunks.length));
-          base64 += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
-        }
-        
+        // Native: download via Capacitor Filesystem (bypasses CORS) with real progress.
         const fileName = `snow_media_center_${updateInfo.version}.apk`;
-        
-        await Filesystem.writeFile({
-          path: `Downloads/${fileName}`,
-          data: base64,
-          directory: Directory.External
-        });
-        
+        const { downloadApkToCache } = await import('@/utils/downloadApk');
+        const { AppManager } = await import('@/capacitor/AppManager');
+
+        const filePath = await downloadApkToCache(
+          updateInfo.downloadUrl,
+          fileName,
+          (pct) => setDownloadProgress(pct)
+        );
+
         toast({
           title: "Update Downloaded",
-          description: `Version ${updateInfo.version} saved to Downloads`,
+          description: `Opening installer for v${updateInfo.version}…`,
         });
-        
+
+        try {
+          await AppManager.installApk({ filePath });
+        } catch (e) {
+          console.warn('Installer launch failed:', e);
+        }
+
         setCurrentVersion(updateInfo.version);
         setUpdateAvailable(false);
         setUpdateInfo(null);
-        
       } else {
         // Web fallback - direct download
         const link = document.createElement('a');
@@ -210,7 +174,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       console.error('Download failed:', error);
       toast({
         title: "Download Failed",
-        description: "Please try again",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     } finally {
