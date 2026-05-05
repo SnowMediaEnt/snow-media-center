@@ -981,6 +981,35 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                     </div>
                   ))
                 )}
+
+                <div className="mt-6 rounded-lg border border-purple-700/50 bg-purple-950/40 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-white">
+                      <Brain className="h-5 w-5 text-purple-300" />
+                      <h4 className="font-semibold">AI Chat History</h4>
+                    </div>
+                    <Badge className="bg-purple-700 text-white">Last 5 saved</Badge>
+                  </div>
+                  {aiConversations.length === 0 ? (
+                    <p className="py-3 text-center text-sm text-purple-200/70">No saved AI chats yet.</p>
+                  ) : (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {aiConversations.map((conversation) => (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          onClick={() => handleOpenSavedAIConversation(conversation.id)}
+                          className="rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-left text-white transition-colors hover:bg-purple-800/40"
+                        >
+                          <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
+                          <p className="mt-1 text-xs text-purple-200/70">
+                            Last message: {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </Card>
