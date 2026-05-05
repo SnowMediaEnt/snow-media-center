@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
         };
         if (appUserIdFromBody) {
           checkoutBody.customFields = [
-            { title: 'app_user_id', value: String(appUserIdFromBody) },
+            { title: 'smc_user_id', value: String(appUserIdFromBody) },
           ];
         }
         const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
