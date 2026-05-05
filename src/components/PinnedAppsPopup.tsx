@@ -113,8 +113,8 @@ const PinnedAppsPopup = ({
 
   return (
     <>
-      <div className="absolute bottom-full left-0 mb-4 z-50">
-        <Card className="bg-slate-900/95 border-slate-600 shadow-2xl p-4">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50">
+        <Card className="bg-slate-900/95 border-2 border-brand-gold/60 shadow-[0_0_30px_rgba(255,200,80,0.35)] p-3">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <Pin className="w-4 h-4 text-brand-gold" />
@@ -125,7 +125,7 @@ const PinnedAppsPopup = ({
           </div>
           
           {/* 4 Equal Slots Grid */}
-          <div className="grid grid-cols-4 gap-2" style={{ width: 'max(280px, 22vw)' }}>
+          <div className="grid grid-cols-4 gap-2" style={{ width: 'min(90vw, 320px)' }}>
             {slots.map((pinnedApp, index) => {
               const isFocused = focusedIndex === index;
               
@@ -142,9 +142,9 @@ const PinnedAppsPopup = ({
                     }}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
-                      border border-slate-600 hover:border-brand-ice/50 
+                      border-2 border-slate-600 hover:border-brand-ice/50 
                       transition-all duration-150 group cursor-pointer
-                      ${isFocused ? 'ring-2 ring-brand-ice border-brand-ice scale-105' : ''}
+                      ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
@@ -177,9 +177,9 @@ const PinnedAppsPopup = ({
                     }}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
-                      border border-dashed border-slate-600 hover:border-brand-gold/50 
+                      border-2 border-dashed border-slate-600 hover:border-brand-gold/50 
                       transition-all duration-150 group cursor-pointer
-                      ${isFocused ? 'ring-2 ring-brand-ice border-brand-ice scale-105' : ''}
+                      ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5">
@@ -196,8 +196,8 @@ const PinnedAppsPopup = ({
             })}
           </div>
           
-          {/* Arrow pointer */}
-          <div className="absolute -bottom-2 left-8 w-4 h-4 bg-slate-900/95 border-r border-b border-slate-600 rotate-45" />
+          {/* Arrow pointer (above, points up to the Main Apps card) */}
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900/95 border-l-2 border-t-2 border-brand-gold/60 rotate-45" />
         </Card>
       </div>
 
