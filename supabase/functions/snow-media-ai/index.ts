@@ -360,6 +360,27 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       };
     }
 
+    // Log usage + enforce platform-wide token threshold
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'chat',
+        model: 'gpt-4o-mini',
+        prompt: message,
+        response_preview: assistantContent,
+        prompt_tokens: data.usage?.prompt_tokens ?? 0,
+        completion_tokens: data.usage?.completion_tokens ?? 0,
+        total_tokens: data.usage?.total_tokens ?? 0,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.01,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[snow-media-ai] log/threshold failed:', e);
+    }
+
+
     if (saveConversation && savedConversationId) {
       const { error: assistantMessageError } = await supabaseAdmin
         .from('ai_messages')
