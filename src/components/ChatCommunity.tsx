@@ -307,7 +307,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     }
 
     const aiCost = 0.01;
-    if (!checkCredits(aiCost)) {
+    const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
+    if (!isOwnerAdmin && !checkCredits(aiCost)) {
       toast({
         title: "Insufficient credits",
         description: `You need ${aiCost.toFixed(2)} credits. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
