@@ -125,7 +125,7 @@ const PinnedAppsPopup = ({
           </div>
           
           {/* 4 Equal Slots Grid */}
-          <div className="grid grid-cols-4 gap-2" style={{ width: 'max(280px, 22vw)' }}>
+          <div className="grid grid-cols-4 gap-2" style={{ width: 'min(90vw, 320px)' }}>
             {slots.map((pinnedApp, index) => {
               const isFocused = focusedIndex === index;
               
