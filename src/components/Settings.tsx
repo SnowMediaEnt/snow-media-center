@@ -349,6 +349,11 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               </Card>
             </TabsContent>
           )}
+          {isAdmin && (
+            <TabsContent value="ai" className="mt-6">
+              <AdminAIPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
