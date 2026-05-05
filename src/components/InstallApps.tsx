@@ -1039,11 +1039,16 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         alert={pendingAlert?.alert ?? null}
         appName={pendingAlert?.app.name}
         open={!!pendingAlert}
-        onDismiss={() => setPendingAlert(null)}
+        onDismiss={() => { setPendingAlert(null); setPendingDownloadApp(null); }}
         onContinue={() => {
           const app = pendingAlert?.app;
+          const isDownload = !!pendingDownloadApp;
           setPendingAlert(null);
-          if (app) handleLaunch(app);
+          setPendingDownloadApp(null);
+          if (app) {
+            if (isDownload) startDownload(app);
+            else handleLaunch(app);
+          }
         }}
       />
     </div>
