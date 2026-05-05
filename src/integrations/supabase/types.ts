@@ -100,6 +100,90 @@ export type Database = {
           },
         ]
       }
+      ai_safety_state: {
+        Row: {
+          id: number
+          notify_email: string
+          pause_reason: string | null
+          paused: boolean
+          paused_at: string | null
+          paused_until: string | null
+          token_threshold_per_hour: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          notify_email?: string
+          pause_reason?: string | null
+          paused?: boolean
+          paused_at?: string | null
+          paused_until?: string | null
+          token_threshold_per_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          notify_email?: string
+          pause_reason?: string | null
+          paused?: boolean
+          paused_at?: string | null
+          paused_until?: string | null
+          token_threshold_per_hour?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_usage_log: {
+        Row: {
+          completion_tokens: number
+          cost_credits: number
+          created_at: string
+          error_message: string | null
+          feature: string
+          id: string
+          model: string | null
+          prompt: string | null
+          prompt_tokens: number
+          response_preview: string | null
+          status: string
+          total_tokens: number
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completion_tokens?: number
+          cost_credits?: number
+          created_at?: string
+          error_message?: string | null
+          feature: string
+          id?: string
+          model?: string | null
+          prompt?: string | null
+          prompt_tokens?: number
+          response_preview?: string | null
+          status?: string
+          total_tokens?: number
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completion_tokens?: number
+          cost_credits?: number
+          created_at?: string
+          error_message?: string | null
+          feature?: string
+          id?: string
+          model?: string | null
+          prompt?: string | null
+          prompt_tokens?: number
+          response_preview?: string | null
+          status?: string
+          total_tokens?: number
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       app_alerts: {
         Row: {
           active: boolean
@@ -614,6 +698,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_tokens_last_hour: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

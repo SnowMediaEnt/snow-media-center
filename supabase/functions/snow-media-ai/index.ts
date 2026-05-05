@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,19 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+    const userEmail = user.email ?? null;
     console.log('Authenticated user:', userId);
+
+    // Safety pause check (admins bypass)
+    if (!isOwnerEmail(userEmail)) {
+      const pause = await checkPause();
+      if (pause.blocked) {
+        return new Response(
+          JSON.stringify({ error: 'AI temporarily paused', message: pause.reason }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     const {
       message,
@@ -346,6 +359,27 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
         arguments: JSON.parse(aiMessage.function_call.arguments)
       };
     }
+
+    // Log usage + enforce platform-wide token threshold
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'chat',
+        model: 'gpt-4o-mini',
+        prompt: message,
+        response_preview: assistantContent,
+        prompt_tokens: data.usage?.prompt_tokens ?? 0,
+        completion_tokens: data.usage?.completion_tokens ?? 0,
+        total_tokens: data.usage?.total_tokens ?? 0,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.01,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[snow-media-ai] log/threshold failed:', e);
+    }
+
 
     if (saveConversation && savedConversationId) {
       const { error: assistantMessageError } = await supabaseAdmin

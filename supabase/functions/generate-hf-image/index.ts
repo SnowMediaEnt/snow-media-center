@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +54,17 @@ serve(async (req) => {
     }
 
     console.log('Authenticated user:', userId, 'email:', userEmail);
+
+    // Safety pause check (admins bypass)
+    if (!isOwnerEmail(userEmail)) {
+      const pause = await checkPause();
+      if (pause.blocked) {
+        return new Response(
+          JSON.stringify({ error: 'AI temporarily paused', details: pause.reason }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     const { prompt } = await req.json()
 
@@ -126,8 +138,25 @@ serve(async (req) => {
 
     console.log('Successfully generated image with Lovable AI Gateway for user:', userId);
 
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'image',
+        model: 'google/gemini-2.5-flash-image',
+        prompt,
+        response_preview: imageUrl.slice(0, 200),
+        total_tokens: 1500, // approximate per-image budget for threshold accounting
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[generate-hf-image] log/threshold failed:', e);
+    }
+
     return new Response(
-      JSON.stringify({ image: imageUrl }),
+      JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {

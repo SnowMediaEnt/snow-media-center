@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,7 +41,18 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+    const userEmail = user.email ?? null;
     console.log('Authenticated user:', userId);
+
+    if (!isOwnerEmail(userEmail)) {
+      const pause = await checkPause();
+      if (pause.blocked) {
+        return new Response(JSON.stringify({ success: false, error: pause.reason }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     const { prompt, size = '1024x1024' } = await req.json();
 
@@ -128,10 +140,28 @@ serve(async (req) => {
       throw new Error('No image data found in OpenAI response');
     }
 
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'image',
+        model: 'dall-e-3',
+        prompt,
+        response_preview: '[image]',
+        total_tokens: 2000,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[generate-ai-image] log/threshold failed:', e);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       image: imageData,
-      prompt: prompt
+      prompt: prompt,
+      isAdmin: isOwnerEmail(userEmail),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Bot } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import ApkCacheViewer from '@/components/ApkCacheViewer';
+import AdminAIPanel from '@/components/AdminAIPanel';
 import { useAdminRole } from '@/hooks/useAdminRole';
 
 interface SettingsProps {
@@ -233,7 +234,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} bg-slate-800/50 border-slate-600`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} bg-slate-800/50 border-slate-600`}>
             <TabsTrigger 
               data-settings-focus="tab-layout"
               value="layout" 
@@ -266,6 +267,15 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 App Alerts
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger 
+                value="ai" 
+                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200`}
+              >
+                <Bot className="w-4 h-4 mr-2" />
+                AI
               </TabsTrigger>
             )}
           </TabsList>
@@ -337,6 +347,11 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               <Card data-settings-focus="alerts-content" className="bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6">
                 <AppAlertsManager />
               </Card>
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="ai" className="mt-6">
+              <AdminAIPanel />
             </TabsContent>
           )}
         </Tabs>
