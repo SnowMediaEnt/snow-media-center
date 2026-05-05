@@ -23,9 +23,12 @@ const SKU_CREDITS: Record<string, number> = {
   ai600: 600,
 };
 
-const ORDER_APPROVED_TYPES = new Set([
+const ACCEPTED_EVENT_TYPES = new Set([
   'wix.ecom.v1.order_approved',
+  'wix.ecom.v1.order_paid',
+  'wix.ecom.order_paid',
   'OrderApproved',
+  'OrderPaid',
 ]);
 
 // ---------- JWT verification helpers ----------
@@ -121,8 +124,9 @@ Deno.serve(async (req) => {
 
     console.log(`Event id=${eventId} type=${eventType}`);
 
-    if (!ORDER_APPROVED_TYPES.has(eventType) && !String(eventType).toLowerCase().includes('order_approved')) {
-      console.log('Ignoring non-order_approved event');
+    const etLower = String(eventType).toLowerCase();
+    if (!ACCEPTED_EVENT_TYPES.has(eventType) && !etLower.includes('order_approved') && !etLower.includes('order_paid')) {
+      console.log('Ignoring event type:', eventType);
       return new Response(JSON.stringify({ ok: true, ignored: eventType }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
