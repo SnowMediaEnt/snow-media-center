@@ -53,3 +53,15 @@
   outline-offset: 4px;
   transform: scale(1.02);
 }
+
+/* Global D-pad focus boost — make whatever is focused unmistakable */
+:focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 0 0 4px hsl(var(--brand-gold) / 0.95),
+    0 0 24px 6px hsl(var(--brand-gold) / 0.55),
+    0 0 48px 12px hsl(var(--brand-ice) / 0.35) !important;
+  border-radius: 8px;
+  z-index: 20;
+  position: relative;
+}
