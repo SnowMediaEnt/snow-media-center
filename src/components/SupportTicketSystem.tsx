@@ -105,6 +105,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   };
 
+  // Auto-scroll AI chat to latest message
+  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (view === 'ai-chat') {
+      aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [aiConversationMessages.length, view, aiLoading]);
+
   // Hierarchical back button handling
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
