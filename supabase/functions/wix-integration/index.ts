@@ -236,20 +236,73 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json',
         };
         
+        // Resolve variantId for items that have options (e.g. { Amount: "50" })
+        // Wix silently drops line items if option name/value casing doesn't match
+        // a variant exactly, so we look up the real variantId server-side.
+        const resolvedLineItems = await Promise.all(items.map(async (item: any) => {
+          let variantId: string | null = null;
+          if (item.options && Object.keys(item.options).length > 0) {
+            try {
+              const vRes = await fetch(
+                `https://www.wixapis.com/stores/v1/products/${item.productId}/variants/query`,
+                {
+                  method: 'POST',
+                  headers: checkoutHeaders,
+                  body: JSON.stringify({}),
+                }
+              );
+              const vText = await vRes.text();
+              console.log(`[create-cart] variants for ${item.productId}:`, vText.substring(0, 800));
+              if (vRes.ok) {
+                const vData = JSON.parse(vText);
+                const variants = vData.variants || [];
+                const wantedLower: Record<string, string> = {};
+                for (const [k, v] of Object.entries(item.options)) {
+                  wantedLower[String(k).toLowerCase()] = String(v).toLowerCase();
+                }
+                const match = variants.find((v: any) => {
+                  const choices = v.choices || {};
+                  return Object.entries(wantedLower).every(
+                    ([k, val]) => {
+                      const found = Object.entries(choices).find(
+                        ([ck]) => String(ck).toLowerCase() === k
+                      );
+                      return found && String(found[1]).toLowerCase() === val;
+                    }
+                  );
+                });
+                if (match) {
+                  variantId = match.id || match.variant?.id || null;
+                  console.log(`[create-cart] matched variantId: ${variantId}`);
+                } else {
+                  console.warn(`[create-cart] no variant matched options`, item.options);
+                }
+              }
+            } catch (e) {
+              console.error('[create-cart] variant lookup failed:', e);
+            }
+          }
+          return {
+            catalogReference: {
+              appId: "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+              catalogItemId: item.productId,
+              ...(variantId
+                ? { options: { variantId } }
+                : item.options
+                  ? { options: { options: item.options } }
+                  : {}),
+            },
+            quantity: item.quantity,
+          };
+        }));
+
         // Create checkout directly with line items (skip cart creation)
         const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
           method: 'POST',
           headers: checkoutHeaders,
           body: JSON.stringify({
             channelType: 'WEB',
-            lineItems: items.map((item: any) => ({
-              catalogReference: {
-                appId: "215238eb-22a5-4c36-9e7b-e7c08025e04e",
-                catalogItemId: item.productId,
-                ...(item.options ? { options: { options: item.options } } : {})
-              },
-              quantity: item.quantity
-            }))
+            lineItems: resolvedLineItems,
           })
         });
 
