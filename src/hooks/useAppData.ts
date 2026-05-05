@@ -273,21 +273,23 @@ export const useAppData = () => {
       console.warn('[AppData] Supabase cache miss:', err);
     }
 
-    // 2. Refresh from live PHP feed in the background so additions/deletions
-    //    on snowmediaapps.com show up without blocking the UI.
+    // 2. Trigger PHP→Supabase sync in the background (edge function fetches PHP
+    //    server-side, no CORS). Then re-pull from Supabase so the UI shows the
+    //    fresh, complete list — never overwrite with a partial direct PHP result.
     try {
-      const remoteApps = await fetchRemoteApps();
-      if (remoteApps.length > 0) {
-        console.log(`[AppData] Refreshed ${remoteApps.length} apps from live PHP feed`);
-        setApps(sortApps(remoteApps));
-        setError(null);
-        setLoading(false);
-        void triggerBackgroundSync();
-        return;
+      const changed = await triggerBackgroundSync();
+      if (changed || !shownFromCache) {
+        const refreshed = await fetchSupabaseApps();
+        if (refreshed.length > 0) {
+          console.log(`[AppData] Refreshed ${refreshed.length} apps after PHP sync`);
+          setApps(sortApps(refreshed));
+          setError(null);
+          setLoading(false);
+          return;
+        }
       }
     } catch (err) {
-      console.warn('[AppData] Live PHP feed failed:', err);
-      // If we already showed cached data, don't surface the error
+      console.warn('[AppData] Background sync/refresh failed:', err);
       if (shownFromCache) return;
     }
 
