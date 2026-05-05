@@ -11,7 +11,6 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
-import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -42,7 +41,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
-  const { createConversation: createAIConversation, sendMessage: sendSavedAIMessage } = useAIConversations();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
