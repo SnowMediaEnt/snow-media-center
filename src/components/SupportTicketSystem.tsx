@@ -457,6 +457,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <p className="text-slate-200 whitespace-pre-wrap">{m.message}</p>
                     </div>
                   ))}
+                  <div ref={aiMessagesEndRef} />
                 </div>
               </ScrollArea>
 
