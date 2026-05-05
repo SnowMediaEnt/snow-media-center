@@ -55,6 +55,17 @@ serve(async (req) => {
 
     console.log('Authenticated user:', userId, 'email:', userEmail);
 
+    // Safety pause check (admins bypass)
+    if (!isOwnerEmail(userEmail)) {
+      const pause = await checkPause();
+      if (pause.blocked) {
+        return new Response(
+          JSON.stringify({ error: 'AI temporarily paused', details: pause.reason }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const { prompt } = await req.json()
 
     if (!prompt) {
