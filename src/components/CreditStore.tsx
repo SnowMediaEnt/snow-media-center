@@ -135,19 +135,46 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     }
   };
 
+  const [altWixEmail, setAltWixEmail] = useState<string | null>(null);
+
+  const runSync = async (wixEmailOverride?: string) => {
+    const { data, error } = await supabase.functions.invoke('wix-integration', {
+      body: {
+        action: 'sync-credit-orders',
+        email: user!.email,
+        wixEmail: wixEmailOverride || altWixEmail || user!.email,
+      },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const promptForWixEmail = (): string | null => {
+    const entered = window.prompt(
+      "Payment not found under " + (user?.email || "your email") +
+      ".\n\nIf you paid on the website with a different account, enter that email here:"
+    );
+    const trimmed = entered?.trim().toLowerCase() || '';
+    if (!trimmed || !trimmed.includes('@')) return null;
+    setAltWixEmail(trimmed);
+    return trimmed;
+  };
+
   const handleVerifyPayment = async () => {
     if (!user?.email) return;
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: { action: 'sync-credit-orders', email: user.email },
-      });
-      if (error) throw error;
+      let data = await runSync();
+      if (!data?.newOrders) {
+        const alt = promptForWixEmail();
+        if (alt) data = await runSync(alt);
+      }
 
       if (data?.newOrders > 0) {
         setQrOpen(false);
         setPendingOrderId(null);
         setQrUrl(null);
+        setAltWixEmail(null);
         toast({
           title: 'Purchase Successful!',
           description: `Added ${data.totalCreditsAdded} credits from your Wix purchase.`,
@@ -156,7 +183,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       } else {
         toast({
           title: 'Payment not found yet',
-          description: 'Finish checkout on your phone, then tap again.',
+          description: 'Finish checkout on your phone, then tap again. If you paid with a different email, you can enter it next time.',
           variant: 'destructive',
         });
       }
@@ -174,10 +201,11 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     }
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: { action: 'sync-credit-orders', email: user.email },
-      });
-      if (error) throw error;
+      let data = await runSync();
+      if (!data?.newOrders) {
+        const alt = promptForWixEmail();
+        if (alt) data = await runSync(alt);
+      }
       if (data?.newOrders > 0) {
         toast({
           title: 'Wix Purchases Synced',

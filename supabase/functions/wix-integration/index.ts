@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       payload = {};
     }
     
-    const { action, email, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
+    const { action, email, wixEmail, wixMemberId, items, memberData, subject, message: messageText, senderEmail, senderName } = payload;
     
     // Define public actions that don't require authentication
     // These include read-only actions needed for dashboard/store functionality
@@ -672,11 +672,15 @@ Deno.serve(async (req) => {
 
         // SKU -> credits map (case-insensitive)
         const SKU_CREDITS: Record<string, number> = {
-          'ai5': 50,
+          'ai50': 50,
           'ai120': 120,
           'ai250': 250,
           'ai600': 600,
         };
+
+        // Allow caller to pass an alternate Wix email (e.g. user paid on Wix
+        // with a different account than the one signed in to the app).
+        const wixEmail: string = (body?.wixEmail || email || '').toLowerCase().trim();
 
         // Fetch orders for this email
         const ordersRes = await fetch('https://www.wixapis.com/ecom/v1/orders/search', {
@@ -688,7 +692,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             search: {
-              filter: { 'buyerInfo.email': { $eq: email } },
+              filter: { 'buyerInfo.email': { $eq: wixEmail } },
               paging: { limit: 100 },
               sort: [{ fieldName: 'createdDate', order: 'DESC' }],
             }
@@ -706,13 +710,13 @@ Deno.serve(async (req) => {
         const ordersJson = await ordersRes.json();
         const allOrders: any[] = ordersJson.orders || [];
 
-        // Manual email filter (Wix sometimes ignores filter)
-        const normEmail = email.toLowerCase().trim();
+        // Manual email filter (Wix sometimes ignores filter). Match against
+        // the Wix-side email, which may differ from the app's signed-in email.
         const orders = allOrders.filter((o: any) =>
-          (o.buyerInfo?.email || '').toLowerCase().trim() === normEmail
+          (o.buyerInfo?.email || '').toLowerCase().trim() === wixEmail
         );
 
-        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email`);
+        console.log(`Wix returned ${allOrders.length} orders, ${orders.length} match email ${wixEmail}`);
 
         // Service-role client for writes
         const adminClient = createClient(
