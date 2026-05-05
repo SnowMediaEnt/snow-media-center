@@ -584,6 +584,76 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             </div>
           )}
         </div>
+
+        {/* AI Chat History - purple section */}
+        <div className="mt-10">
+          <Card className="bg-purple-950/40 border-purple-700/50">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-purple-300" />
+                  AI Chat History
+                </CardTitle>
+                <Badge variant="outline" className="text-purple-200 border-purple-400/50">
+                  Last 5 saved
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Start new AI chat */}
+              <div className="flex gap-2">
+                <Input
+                  value={aiNewMessage}
+                  onChange={(e) => setAiNewMessage(e.target.value)}
+                  placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
+                  disabled={!user}
+                  className="bg-slate-700 border-purple-600/50 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
+                />
+                <Button
+                  onClick={handleStartAIChat}
+                  disabled={!user || !aiNewMessage.trim() || aiLoading}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Chat
+                </Button>
+              </div>
+
+              {/* Saved conversations */}
+              {aiConversations.length === 0 ? (
+                <p className="text-sm text-purple-200/70 text-center py-4">
+                  No saved AI conversations yet. Start one above.
+                </p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {aiConversations.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => handleOpenAIChat(c.id)}
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
+                        <p className="text-xs text-purple-200/70">
+                          Last message: {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleDeleteAIChat(c.id, e)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
