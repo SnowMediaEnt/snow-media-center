@@ -107,11 +107,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   // Auto-scroll AI chat to latest message
   const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  const aiScrollAreaRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (view === 'ai-chat') {
-      aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      requestAnimationFrame(() => {
+        aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        const viewport = aiScrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null;
+        if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      });
     }
-  }, [aiConversationMessages.length, view, aiLoading]);
+  }, [aiConversationMessages.length, selectedAIConversationId, view, aiLoading]);
 
   // Hierarchical back button handling
   useEffect(() => {
@@ -435,7 +440,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-96 pr-4">
+              <ScrollArea ref={aiScrollAreaRef} className="h-96 pr-4">
                 <div className="space-y-4">
                   {aiConversationMessages.map((m) => (
                     <div
