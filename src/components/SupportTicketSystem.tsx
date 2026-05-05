@@ -34,11 +34,14 @@ interface SupportTicketSystemProps {
 }
 
 const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
-  const [view, setView] = useState<'list' | 'ticket' | 'create'>('list');
+  const [view, setView] = useState<'list' | 'ticket' | 'create' | 'ai-chat'>('list');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
+  const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
+  const [aiNewMessage, setAiNewMessage] = useState('');
+  const [aiReplyMessage, setAiReplyMessage] = useState('');
 
   const { user } = useAuth();
   const { toast } = useToast();
