@@ -46,7 +46,11 @@ serve(async (req) => {
     const userId = user.id;
     console.log('Authenticated user:', userId);
 
-    const { message } = await req.json();
+    const {
+      message,
+      conversationId: incomingConversationId,
+      saveConversation = false,
+    } = await req.json();
 
     if (!message) {
       throw new Error('Message is required');
@@ -60,6 +64,48 @@ serve(async (req) => {
     // Use service role for fetching knowledge documents
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    let savedConversationId: string | null = null;
+
+    if (saveConversation) {
+      if (incomingConversationId) {
+        const { data: existingConversation, error: existingError } = await supabaseAdmin
+          .from('ai_conversations')
+          .select('id')
+          .eq('id', incomingConversationId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingError) throw existingError;
+        savedConversationId = existingConversation?.id ?? null;
+      }
+
+      if (!savedConversationId) {
+        const title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
+        const { data: conversation, error: conversationError } = await supabaseAdmin
+          .from('ai_conversations')
+          .insert({ user_id: userId, title: title || 'New Conversation' })
+          .select('id')
+          .single();
+
+        if (conversationError) throw conversationError;
+        savedConversationId = conversation.id;
+      }
+
+      const { error: userMessageError } = await supabaseAdmin
+        .from('ai_messages')
+        .insert({
+          conversation_id: savedConversationId,
+          sender_type: 'user',
+          message,
+        });
+
+      if (userMessageError) throw userMessageError;
+
+      await supabaseAdmin
+        .from('ai_conversations')
+        .update({ updated_at: new Date().toISOString(), last_message_at: new Date().toISOString() })
+        .eq('id', savedConversationId);
+    }
     
     let knowledgeContext = '';
     try {
@@ -291,6 +337,7 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
     console.log('AI Response for user', userId, ':', data.usage);
 
     const aiMessage = data.choices[0].message;
+    const assistantContent = aiMessage.content || "I can help with that.";
     let functionCall = null;
 
     if (aiMessage.function_call) {
@@ -300,8 +347,27 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       };
     }
 
+    if (saveConversation && savedConversationId) {
+      const { error: assistantMessageError } = await supabaseAdmin
+        .from('ai_messages')
+        .insert({
+          conversation_id: savedConversationId,
+          sender_type: 'assistant',
+          message: assistantContent,
+        });
+
+      if (assistantMessageError) throw assistantMessageError;
+
+      await supabaseAdmin
+        .from('ai_conversations')
+        .update({ updated_at: new Date().toISOString(), last_message_at: new Date().toISOString() })
+        .eq('id', savedConversationId);
+    }
+
     return new Response(JSON.stringify({ 
-      message: aiMessage.content,
+      message: assistantContent,
+      response: assistantContent,
+      conversationId: savedConversationId,
       functionCall,
       usage: data.usage || { total_tokens: 0 }
     }), {
