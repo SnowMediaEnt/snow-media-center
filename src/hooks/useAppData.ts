@@ -256,14 +256,29 @@ export const useAppData = () => {
     setLoading(true);
     setError(null);
 
-    console.log('[AppData] Starting fetch — live PHP feed first...');
+    console.log('[AppData] Starting fetch — Supabase first for instant load...');
 
-    // Always use apps.json.php as the source of truth when Main Apps opens so
-    // deletions/additions on snowmediaapps.com are reflected immediately.
+    // 1. Supabase first — fast, cached copy of the feed. Shows the UI immediately.
+    let shownFromCache = false;
+    try {
+      const supabaseApps = await fetchSupabaseApps();
+      if (supabaseApps.length > 0) {
+        console.log(`[AppData] Showing ${supabaseApps.length} apps from Supabase cache`);
+        setApps(sortApps(supabaseApps));
+        setError(null);
+        setLoading(false);
+        shownFromCache = true;
+      }
+    } catch (err) {
+      console.warn('[AppData] Supabase cache miss:', err);
+    }
+
+    // 2. Refresh from live PHP feed in the background so additions/deletions
+    //    on snowmediaapps.com show up without blocking the UI.
     try {
       const remoteApps = await fetchRemoteApps();
       if (remoteApps.length > 0) {
-        console.log(`[AppData] Using ${remoteApps.length} apps from live PHP feed`);
+        console.log(`[AppData] Refreshed ${remoteApps.length} apps from live PHP feed`);
         setApps(sortApps(remoteApps));
         setError(null);
         setLoading(false);
@@ -271,21 +286,12 @@ export const useAppData = () => {
         return;
       }
     } catch (err) {
-      console.warn('[AppData] Live PHP feed failed, trying Supabase:', err);
+      console.warn('[AppData] Live PHP feed failed:', err);
+      // If we already showed cached data, don't surface the error
+      if (shownFromCache) return;
     }
 
-    try {
-      const supabaseApps = await fetchSupabaseApps();
-      if (supabaseApps.length > 0) {
-        console.log(`[AppData] Using ${supabaseApps.length} apps from Supabase (post-sync)`);
-        setApps(sortApps(supabaseApps));
-        setError(null);
-        setLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn('[AppData] Supabase failed, trying remote:', err);
-    }
+    if (shownFromCache) return;
 
     console.warn('[AppData] All sources failed, using fallback apps');
     setApps(fallbackApps);
