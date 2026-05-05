@@ -61,6 +61,53 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
 
+  // AI conversations
+  const {
+    conversations: aiConversations,
+    messages: aiMessages,
+    loading: aiLoading,
+    fetchConversationMessages: fetchAIMessages,
+    createConversation: createAIConversation,
+    sendMessage: sendAIMessage,
+    deleteConversation: deleteAIConversation,
+  } = useAIConversations();
+
+  const selectedAIConversation = aiConversations.find(c => c.id === selectedAIConversationId);
+  const aiConversationMessages = selectedAIConversationId ? aiMessages[selectedAIConversationId] || [] : [];
+
+  const handleStartAIChat = async () => {
+    if (!aiNewMessage.trim()) return;
+    try {
+      const title = aiNewMessage.slice(0, 50) + (aiNewMessage.length > 50 ? '...' : '');
+      const id = await createAIConversation(title, aiNewMessage);
+      setAiNewMessage('');
+      setSelectedAIConversationId(id);
+      setView('ai-chat');
+      await fetchAIMessages(id);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleOpenAIChat = async (id: string) => {
+    setSelectedAIConversationId(id);
+    setView('ai-chat');
+    await fetchAIMessages(id);
+  };
+
+  const handleSendAIReply = async () => {
+    if (!selectedAIConversationId || !aiReplyMessage.trim()) return;
+    try {
+      await sendAIMessage(selectedAIConversationId, aiReplyMessage);
+      setAiReplyMessage('');
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteAIChat = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this AI conversation?')) {
+      await deleteAIConversation(id);
+    }
+  };
+
   // Hierarchical back button handling
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
