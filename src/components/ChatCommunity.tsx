@@ -1025,7 +1025,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             </p>
             
             {/* AI Chat Messages */}
-            <div className="bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+            <div ref={aiChatContainerRef} className="bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
               {aiChat.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
                   <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
