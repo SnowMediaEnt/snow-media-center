@@ -131,6 +131,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           return;
         }
         
+        // If viewing an AI chat, go back to list
+        if (view === 'ai-chat') {
+          setView('list');
+          setSelectedAIConversationId(null);
+          return;
+        }
+        
         // If in create form, go back to list
         if (view === 'create') {
           setView('list');
