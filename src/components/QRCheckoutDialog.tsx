@@ -37,7 +37,7 @@ export const QRCheckoutDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-blue-500/40 text-white max-w-md">
+      <DialogContent className="bg-slate-900 border-blue-500/40 text-white w-[92vw] max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Smartphone className="w-6 h-6 text-blue-400" />
@@ -49,11 +49,11 @@ export const QRCheckoutDialog = ({
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">
-          <div className="bg-white p-4 rounded-lg shadow-lg">
+          <div className="bg-white p-3 rounded-lg shadow-lg">
             {qrDataUrl ? (
-              <img src={qrDataUrl} alt="Checkout QR Code" className="w-72 h-72" />
+              <img src={qrDataUrl} alt="Checkout QR Code" className="w-[min(60vh,18rem)] h-[min(60vh,18rem)]" />
             ) : (
-              <div className="w-72 h-72 flex items-center justify-center">
+              <div className="w-[min(60vh,18rem)] h-[min(60vh,18rem)] flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-slate-700 animate-spin" />
               </div>
             )}
