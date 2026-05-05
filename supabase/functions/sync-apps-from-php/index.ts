@@ -145,8 +145,9 @@ Deno.serve(async (req) => {
         const inferredCategory = app.support ? "support" : "main";
 
         return {
-          // Keep the existing id when updating to avoid breaking references
-          ...(existing?.id ? { id: existing.id } : {}),
+          // Do not send `id` in mixed upsert batches. Supabase/PostgREST fills
+          // missing ids as null when other rows include id, breaking new apps.
+          // `external_id` is the conflict key, so existing rows still update.
           external_id: externalId,
           name: prettyName(externalId, app.name ?? externalId),
           description:
