@@ -42,7 +42,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
-  const { conversations: aiConversations, fetchConversations: fetchAIConversations } = useAIConversations();
+  const {
+    conversations: aiConversations,
+    messages: savedAIMessages,
+    fetchConversations: fetchAIConversations,
+    fetchConversationMessages,
+  } = useAIConversations();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
@@ -56,6 +61,18 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       });
     }
   }, [activeTab, aiChat.length, aiLoading]);
+
+  const handleOpenSavedAIConversation = async (conversationId: string) => {
+    setActiveAIConversationId(conversationId);
+    await fetchConversationMessages(conversationId);
+    const conversationMessages = savedAIMessages[conversationId] || [];
+    setAiChat(conversationMessages.map((message) => ({
+      role: message.sender_type === 'user' ? 'user' : 'ai',
+      content: message.message,
+      timestamp: new Date(message.created_at),
+    })));
+    setActiveTab('ai');
+  };
 
   // Helper to check if ticket is active (has activity in last 24 hours)
   const isTicketActive = (ticket: SupportTicket) => {
