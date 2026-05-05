@@ -411,56 +411,29 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       return;
     }
 
-    // Skip duplicate downloads — if the app is already installed on the device,
-    // offer to launch it instead of wasting bandwidth/storage.
+    // Skip duplicate downloads — if already on the device, don't re-download.
     if (Capacitor.isNativePlatform()) {
       const alreadyInstalled = await checkInstallStatus(app);
       if (alreadyInstalled) {
         toast({
           title: "Already Installed",
-          description: `${app.name} is already on this device. Launching instead.`,
+          description: `${app.name} is already on this device.`,
         });
-        attemptLaunch(app);
         return;
       }
     }
 
-    // Show any active alert/warning BEFORE downloading too (not just on launch),
-    // so users get critical notices even on a fresh install.
+    // Show any active warning BEFORE downloading too — so users get critical
+    // notices even on a brand-new install, not only when launching.
     const alert = getAlertForApp(app.name);
     if (alert) {
       setPendingAlert({ alert, app });
-      // The dialog's "Continue Anyway" launches; for downloads we instead
-      // route through a flag so Continue starts the download.
       setPendingDownloadApp(app);
       return;
     }
 
     startDownload(app);
-  }, [toast, checkInstallStatus, attemptLaunch, getAlertForApp, startDownload]);
-
-  // Track whether the pending alert was triggered by a download (vs launch).
-  const [pendingDownloadApp, setPendingDownloadApp] = useState<AppData | null>(null);
-
-  // ---- legacy fallback path kept below for safety; unreachable due to early return above ----
-  const _legacyDownloadFallback = (app: AppData) => {
-    if (Capacitor.isNativePlatform()) {
-      setDownloadingApp(app);
-    } else {
-      // On web, open in browser (fallback)
-      let url = app.downloadUrl;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `https://${url}`;
-      }
-      window.open(url, '_blank');
-      toast({
-        title: "Download Started",
-        description: `${app.name} download opened in browser.`,
-      });
-    }
-  }, [toast]);
-
-  // Initialize app statuses when apps load
+  }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
   useEffect(() => {
     if (apps.length > 0) {
       apps.forEach(app => {
