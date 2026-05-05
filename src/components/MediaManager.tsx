@@ -90,6 +90,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           }
           return;
         }
+        // Allow ArrowUp to exit input back to Back button (or parent)
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          (target as HTMLInputElement).blur();
+          if (focusedElement === 'prompt-input') {
+            setFocusedElement(embedded ? 'prompt-input' : 'back');
+          }
+          return;
+        }
         // Let normal typing happen
         return;
       }
@@ -99,6 +108,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           event.keyCode === 4 || event.which === 4) {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
         
         // Level 1: If inside asset card (toggle/delete buttons), exit to parent card first
         if (focusedElement.startsWith('asset-toggle-') || focusedElement.startsWith('asset-delete-')) {
@@ -275,8 +285,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [focusedElement, assets, onBack, isActive]);
 
   // Scroll focused element into view - always keep selector visible.
