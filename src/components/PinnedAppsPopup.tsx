@@ -113,8 +113,8 @@ const PinnedAppsPopup = ({
 
   return (
     <>
-      <div className="absolute bottom-full left-0 mb-4 z-50">
-        <Card className="bg-slate-900/95 border-slate-600 shadow-2xl p-4">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50">
+        <Card className="bg-slate-900/95 border-2 border-brand-gold/60 shadow-[0_0_30px_rgba(255,200,80,0.35)] p-3">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <Pin className="w-4 h-4 text-brand-gold" />
