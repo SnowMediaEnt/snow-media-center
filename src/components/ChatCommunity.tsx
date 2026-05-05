@@ -20,6 +20,11 @@ interface ChatCommunityProps {
   onNavigate?: (section: string) => void;
 }
 
+type AIFunctionCall = {
+  name: string;
+  arguments: Record<string, string | undefined>;
+};
+
 const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>('admin');
   const [adminMessage, setAdminMessage] = useState('');
@@ -144,7 +149,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   };
 
   // AI function handler
-  const handleAiFunction = useCallback((functionCall: any) => {
+  const handleAiFunction = useCallback((functionCall: AIFunctionCall) => {
     const { name, arguments: args } = functionCall;
     
     switch (name) {
@@ -156,7 +161,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             'media': 'store',
             'user': 'user'
           };
-          const targetSection = sectionMap[args.section] || args.section;
+          const requestedSection = args.section || '';
+          const targetSection = sectionMap[requestedSection] || requestedSection;
           onNavigate(targetSection);
           toast({
             title: "Navigation",
