@@ -10,7 +10,9 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.*
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
 
