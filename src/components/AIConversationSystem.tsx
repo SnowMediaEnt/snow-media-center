@@ -253,20 +253,29 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {conversations.filter(c => c.id !== selectedConversationId).length === 0 ? (
-                <p className="text-sm text-slate-500">No other saved conversations.</p>
+              {conversations.length === 0 ? (
+                <p className="text-sm text-slate-500">No saved conversations yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {conversations
-                    .filter(c => c.id !== selectedConversationId)
-                    .map(c => (
+                  {conversations.map(c => {
+                    const isActive = c.id === selectedConversationId;
+                    return (
                       <div
                         key={c.id}
-                        onClick={() => handleViewConversation(c.id)}
-                        className="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/60 cursor-pointer transition-colors"
+                        onClick={() => !isActive && handleViewConversation(c.id)}
+                        className={`flex items-center justify-between gap-3 p-3 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-blue-600/30 border border-blue-400/50 cursor-default'
+                            : 'bg-slate-700/30 hover:bg-slate-700/60 cursor-pointer'
+                        }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
+                            {isActive && (
+                              <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">Active</Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-400">
                             Last message: {formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}
                           </p>
@@ -280,7 +289,8 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               )}
               <p className="text-xs text-slate-500 mt-3">Showing up to 5 most recent</p>
