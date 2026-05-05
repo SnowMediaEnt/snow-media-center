@@ -15,13 +15,19 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  LogIn
+  LogIn,
+  Bot,
+  Trash2
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useAIConversations } from '@/hooks/useAIConversations';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
 
 interface SupportTicketSystemProps {
   onBack: () => void;
