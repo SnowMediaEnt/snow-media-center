@@ -463,6 +463,66 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_credits: {
+        Row: {
+          buyer_email: string | null
+          created_at: string
+          credits: number
+          id: string
+          raw_payload: Json | null
+          resolved: boolean
+          resolved_user_id: string | null
+          wix_order_id: string
+          wix_order_number: string | null
+        }
+        Insert: {
+          buyer_email?: string | null
+          created_at?: string
+          credits?: number
+          id?: string
+          raw_payload?: Json | null
+          resolved?: boolean
+          resolved_user_id?: string | null
+          wix_order_id: string
+          wix_order_number?: string | null
+        }
+        Update: {
+          buyer_email?: string | null
+          created_at?: string
+          credits?: number
+          id?: string
+          raw_payload?: Json | null
+          resolved?: boolean
+          resolved_user_id?: string | null
+          wix_order_id?: string
+          wix_order_number?: string | null
+        }
+        Relationships: []
+      }
+      processed_wix_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          order_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
