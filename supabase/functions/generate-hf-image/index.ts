@@ -138,8 +138,25 @@ serve(async (req) => {
 
     console.log('Successfully generated image with Lovable AI Gateway for user:', userId);
 
+    try {
+      await logUsage({
+        user_id: userId,
+        user_email: userEmail,
+        feature: 'image',
+        model: 'google/gemini-2.5-flash-image',
+        prompt,
+        response_preview: imageUrl.slice(0, 200),
+        total_tokens: 1500, // approximate per-image budget for threshold accounting
+        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        status: 'ok',
+      });
+      await enforceThreshold();
+    } catch (e) {
+      console.error('[generate-hf-image] log/threshold failed:', e);
+    }
+
     return new Response(
-      JSON.stringify({ image: imageUrl }),
+      JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
