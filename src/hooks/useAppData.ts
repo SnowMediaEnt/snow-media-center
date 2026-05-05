@@ -81,7 +81,7 @@ export const useAppData = () => {
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
 
-  // PRIMARY: Fetch apps from the live PHP JSON feed
+  // Supabase fallback: cached copy of the PHP feed
   const fetchSupabaseApps = async (): Promise<AppData[]> => {
     try {
       console.log('[AppData] Fetching apps from Supabase...');
