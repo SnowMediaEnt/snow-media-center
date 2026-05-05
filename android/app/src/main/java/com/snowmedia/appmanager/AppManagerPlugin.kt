@@ -328,11 +328,25 @@ class AppManagerPlugin : Plugin() {
   fun openAppSettings(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
-    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-      .setData(Uri.parse("package:$pkg"))
-      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
-    call.resolve()
+    // Verify the target package actually exists. If we pass an unknown package
+    // to ACTION_APPLICATION_DETAILS_SETTINGS, some Android versions silently
+    // fall back to opening the caller's (SMC's) own App Info page instead.
+    try {
+      context.packageManager.getPackageInfo(pkg, 0)
+    } catch (_: Exception) {
+      call.reject("Package not installed: $pkg")
+      return
+    }
+    try {
+      val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:$pkg"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      call.resolve()
+    } catch (e: Exception) {
+      Log.e(TAG, "openAppSettings failed for $pkg", e)
+      call.reject("Could not open App Info for $pkg: ${e.message}")
+    }
   }
 
   // ---------- Cache-clear Accessibility Service bridge ----------
