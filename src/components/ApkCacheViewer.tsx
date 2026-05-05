@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Trash2, RefreshCw, Package, FileWarning } from 'lucide-react';
+import { Trash2, RefreshCw, Package, FileWarning, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { AppManager, type CachedApkInfo } from '@/capacitor/AppManager';
@@ -75,6 +75,30 @@ const ApkCacheViewer = () => {
       setBusyName(null);
     }
   };
+
+  const installOne = async (file: CachedApkInfo) => {
+    setBusyName(file.name);
+    try {
+      await AppManager.installApk({ filePath: file.path });
+      toast({
+        title: 'Opening installer',
+        description: `Tap Install on the system prompt for ${file.name}.`,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      const isPerm = /install permission|unknown app sources|unknown sources/i.test(msg);
+      toast({
+        title: isPerm ? 'Allow install from this source' : 'Install failed',
+        description: isPerm
+          ? "Enable 'Install unknown apps' for Snow Media Center, then tap Install again."
+          : msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setBusyName(null);
+    }
+  };
+
 
   const deleteAll = async () => {
     if (files.length === 0) return;
@@ -165,24 +189,7 @@ const ApkCacheViewer = () => {
           {files.map((f, idx) => (
             <li
               key={f.name}
-              data-apk-row={idx}
-              tabIndex={0}
-              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  (document.querySelector(`[data-apk-row="${idx + 1}"]`) as HTMLElement | null)?.focus();
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  const prev = document.querySelector(`[data-apk-row="${idx - 1}"]`) as HTMLElement | null;
-                  if (prev) prev.focus();
-                  else (document.querySelector('[data-apk-cache-first]') as HTMLElement | null)?.focus();
-                } else if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  deleteOne(f.name);
-                }
-              }}
-              className="flex items-center gap-3 p-3 bg-slate-800/40 focus:outline-none focus:ring-4 focus:ring-brand-ice"
+              className="flex items-center gap-3 p-3 bg-slate-800/40"
             >
               <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
                 <Package className="w-5 h-5 text-orange-300" />
@@ -195,11 +202,24 @@ const ApkCacheViewer = () => {
                 </p>
               </div>
               <Button
+                data-apk-row={idx}
+                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onClick={() => installOne(f)}
+                disabled={busyName === f.name}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-4 focus:ring-brand-gold focus:scale-110 transition-all"
+                title="Install this APK"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                Install
+              </Button>
+              <Button
+                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                 onClick={() => deleteOne(f.name)}
                 disabled={busyName === f.name}
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="text-red-300 hover:text-red-100 hover:bg-red-500/20"
+                className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:outline-none focus:ring-4 focus:ring-red-300 focus:scale-110 transition-all"
                 title="Delete this APK"
               >
                 <Trash2 className="w-4 h-4" />

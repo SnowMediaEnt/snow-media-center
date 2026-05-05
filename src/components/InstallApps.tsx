@@ -745,7 +745,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-6 pb-8">
@@ -760,7 +760,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             key={app.id} 
             data-focus-id={`app-${app.id}`}
             onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02]' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.03] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
