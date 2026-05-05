@@ -343,7 +343,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         await fetchAIConversations();
       }
 
-      await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
+      if (!isOwnerAdmin) {
+        await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
+      }
 
       const responseText = data.response || data.message;
       setAiChat(prev => [...prev, {
