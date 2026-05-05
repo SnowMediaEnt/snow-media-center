@@ -177,9 +177,9 @@ const PinnedAppsPopup = ({
                     }}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
-                      border border-dashed border-slate-600 hover:border-brand-gold/50 
+                      border-2 border-dashed border-slate-600 hover:border-brand-gold/50 
                       transition-all duration-150 group cursor-pointer
-                      ${isFocused ? 'ring-2 ring-brand-ice border-brand-ice scale-105' : ''}
+                      ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5">
