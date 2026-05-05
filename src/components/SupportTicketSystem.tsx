@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -104,6 +104,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       await deleteAIConversation(id);
     }
   };
+
+  // Auto-scroll AI chat to latest message
+  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (view === 'ai-chat') {
+      aiMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [aiConversationMessages.length, view, aiLoading]);
 
   // Hierarchical back button handling
   useEffect(() => {
@@ -449,6 +457,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <p className="text-slate-200 whitespace-pre-wrap">{m.message}</p>
                     </div>
                   ))}
+                  <div ref={aiMessagesEndRef} />
                 </div>
               </ScrollArea>
 
