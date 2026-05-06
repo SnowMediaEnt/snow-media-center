@@ -99,18 +99,18 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
   const startPolling = (token: string) => {
     const interval = setInterval(async () => {
       try {
-        // Check if someone has authenticated with this token
-        const { data, error } = await supabase
-          .from('qr_login_sessions')
-          .select('*')
-          .eq('token', token)
-          .eq('is_used', false)
-          .single();
+        // Check via SECURITY DEFINER RPC (raw rows are no longer publicly readable)
+        const { data: rows, error } = await supabase
+          .rpc('get_qr_session', { p_token: token });
 
-        if (error && error.code !== 'PGRST116') {
+        const data = Array.isArray(rows) ? rows[0] : null;
+
+        if (error) {
           console.error('Polling error:', error);
           return;
         }
+
+        if (data && data.user_id && !data.is_used) {
 
         if (data && data.user_id) {
           // Someone has authenticated, sign them in
