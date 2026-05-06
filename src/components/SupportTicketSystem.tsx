@@ -369,11 +369,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={async () => {
                   if (!selectedTicketId) return;
                   if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
-                  const ok = await deleteTicket(selectedTicketId);
-                  if (ok) {
-                    setSelectedTicketId(null);
-                    setView('list');
-                  }
+                  await deleteTicket(selectedTicketId);
+                  setSelectedTicketId(null);
+                  setView('list');
                 }}
                 variant="outline"
                 className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white"
