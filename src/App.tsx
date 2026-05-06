@@ -11,6 +11,7 @@ import QRLogin from "./pages/QRLogin";
 import SsoConsume from "./pages/SsoConsume";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
+import Welcome from "./pages/Welcome";
 import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
 const queryClient = new QueryClient();
