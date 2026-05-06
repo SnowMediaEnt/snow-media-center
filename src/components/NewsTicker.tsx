@@ -14,9 +14,9 @@ const INITIAL_NEWS = ['Loading news feed...'];
 const sameItems = (a: string[], b: string[]) =>
   a.length === b.length && a.every((item, index) => item === b[index]);
 
-const STORAGE_KEY = 'snow-media-news-ticker-v1';
-const STORAGE_TIMESTAMP_KEY = 'snow-media-news-ticker-ts-v1';
-const NATIVE_REFRESH_MS = 30 * 60 * 1000; // 30 minutes
+const STORAGE_KEY = 'snow-media-news-ticker-v2';
+const STORAGE_TIMESTAMP_KEY = 'snow-media-news-ticker-ts-v2';
+const NATIVE_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 const WEB_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
 type CachedNews = { items: string[]; updatedAt: number } | null;
@@ -63,11 +63,12 @@ const NewsTicker = memo(() => {
 
     const fetchRSSFeed = async () => {
       try {
-        const rssUrl = 'https://snowmediaapps.com/smc/newsfeed.xml';
+        // Cache-bust so devices don't get a stale CDN copy of the feed
+        const rssUrl = `https://snowmediaapps.com/smc/newsfeed.xml?ts=${Date.now()}`;
 
         const response = await robustFetch(rssUrl, {
-          timeout: isNative ? 4000 : 8000,
-          retries: isNative ? 0 : 1,
+          timeout: isNative ? 12000 : 8000,
+          retries: isNative ? 1 : 1,
           useCorsProxy: !isNative,
         });
 
@@ -105,7 +106,9 @@ const NewsTicker = memo(() => {
       } catch (error) {
         if (cancelled) return;
         console.warn('Error fetching RSS feed:', error);
-        applyItems(FALLBACK_NEWS);
+        // Don't poison the cache with fallback strings — only show fallback
+        // in-memory so the next successful fetch replaces it cleanly.
+        setNewsItems((prev) => (sameItems(prev, FALLBACK_NEWS) ? prev : FALLBACK_NEWS));
       }
     };
 
