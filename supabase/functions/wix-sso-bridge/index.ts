@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
     const sharedSecret = Deno.env.get('WIX_SSO_SHARED_SECRET');
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixSiteId = Deno.env.get('WIX_SITE_ID');
+    const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
       }
 
       // Re-verify Wix membership before emailing
-      const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
+      const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId, wixAccountId);
       if (!matched) {
         return jsonResponse({ error: 'No matching Wix member found' }, 404);
       }
@@ -233,7 +234,7 @@ Deno.serve(async (req) => {
     // ========== ACTION: mint-link (default) ==========
     console.log('[wix-sso-bridge] SSO mint-link request for:', normalizedEmail);
 
-    const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
+    const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId, wixAccountId);
     if (!matched) {
       console.warn('[wix-sso-bridge] Email is not a Wix member:', normalizedEmail);
       return jsonResponse({ error: 'No matching Wix member found' }, 404);
