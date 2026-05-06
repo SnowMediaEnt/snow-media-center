@@ -22,7 +22,8 @@ import {
   XCircle,
   User,
   Mail,
-  Shield
+  Shield,
+  Trash2
 } from 'lucide-react';
 import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
 import { formatDistanceToNow } from 'date-fns';
@@ -48,7 +49,8 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
     unreadCount,
     fetchTicketMessages,
     sendAdminReply,
-    updateTicketStatus
+    updateTicketStatus,
+    deleteTicket
   } = useAdminTickets();
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
@@ -166,6 +168,21 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
                 <span>{selectedTicket.user_email}</span>
               </div>
             </div>
+            <Button
+              onClick={async () => {
+                if (confirm('Delete this ticket? This cannot be undone.')) {
+                  await deleteTicket(selectedTicket.id);
+                  setView('list');
+                  setSelectedTicketId(null);
+                }
+              }}
+              variant="outline"
+              size="sm"
+              className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
@@ -349,7 +366,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
                   onClick={() => handleViewTicket(ticket.id)}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           {ticket.admin_has_unread && (
@@ -379,6 +396,19 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
                           </span>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Delete this ticket? This cannot be undone.')) {
+                            deleteTicket(ticket.id);
+                          }
+                        }}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

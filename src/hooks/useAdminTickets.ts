@@ -55,11 +55,23 @@ export const useAdminTickets = () => {
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-      const enrichedTickets: AdminTicket[] = (ticketsData || []).map(ticket => ({
-        ...ticket,
-        user_email: profileMap.get(ticket.user_id)?.email || 'Unknown',
-        user_name: profileMap.get(ticket.user_id)?.full_name || undefined,
-      }));
+      // Fallback: if any user_id missing a profile, try to grab current admin's identity
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      const enrichedTickets: AdminTicket[] = (ticketsData || []).map(ticket => {
+        const profile = profileMap.get(ticket.user_id);
+        let email = profile?.email;
+        let name = profile?.full_name || undefined;
+        if (!email && currentUser && currentUser.id === ticket.user_id) {
+          email = currentUser.email || undefined;
+          name = (currentUser.user_metadata as any)?.full_name || name;
+        }
+        return {
+          ...ticket,
+          user_email: email || `User ${ticket.user_id.slice(0, 8)}`,
+          user_name: name,
+        };
+      });
 
       setTickets(enrichedTickets);
     } catch (error) {
@@ -171,6 +183,30 @@ export const useAdminTickets = () => {
     }
   }, [fetchTickets, toast]);
 
+  // Delete ticket (admin)
+  const deleteTicket = useCallback(async (ticketId: string) => {
+    try {
+      const { error: msgErr } = await supabase
+        .from('support_messages')
+        .delete()
+        .eq('ticket_id', ticketId);
+      if (msgErr) throw msgErr;
+
+      const { error } = await supabase
+        .from('support_tickets')
+        .delete()
+        .eq('id', ticketId);
+      if (error) throw error;
+
+      setTickets(prev => prev.filter(t => t.id !== ticketId));
+      toast({ title: 'Deleted', description: 'Ticket deleted' });
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+      toast({ title: 'Error', description: 'Failed to delete ticket', variant: 'destructive' });
+      throw error;
+    }
+  }, [toast]);
+
   // Mark ticket as read by admin
   const markTicketAsRead = useCallback(async (ticketId: string) => {
     try {
@@ -207,6 +243,7 @@ export const useAdminTickets = () => {
     fetchTicketMessages,
     sendAdminReply,
     updateTicketStatus,
-    markTicketAsRead
+    markTicketAsRead,
+    deleteTicket
   };
 };
