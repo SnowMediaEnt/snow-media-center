@@ -30,6 +30,11 @@ export interface CartItem {
   image?: string;
 }
 
+interface CreateCartOptions {
+  appUserId?: string;
+  email?: string;
+}
+
 // Mock product data for testing - replace with real Wix data later
 const mockProducts: WixProduct[] = [
   {
@@ -150,7 +155,7 @@ export const useWixStore = () => {
     }
   };
 
-  const createCart = async (items: CartItem[]) => {
+  const createCart = async (items: CartItem[], options: CreateCartOptions = {}) => {
     try {
       const { data, error: funcError } = await invokeEdgeFunction<{
         cart: unknown;
@@ -158,6 +163,8 @@ export const useWixStore = () => {
       }>('wix-integration', {
         body: { 
           action: 'create-cart',
+          appUserId: options.appUserId,
+          email: options.email,
           items: items.map(item => ({
             productId: item.productId,
             quantity: item.quantity
