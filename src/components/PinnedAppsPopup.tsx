@@ -39,6 +39,7 @@ const PinnedAppsPopup = ({
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
+  const { installedApps: deviceApps } = useDeviceInstalledApps();
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
@@ -109,7 +110,6 @@ const PinnedAppsPopup = ({
 
   // Build selector list from PHP-synced apps + device-installed apps.
   // Dedupe by lowercased name, then by packageName as a safety net.
-  const { installedApps: deviceApps } = useDeviceInstalledApps();
   const allSelectableApps: InstalledApp[] = [];
   const seenNames = new Set<string>();
   const seenPkgs = new Set<string>();
