@@ -880,7 +880,7 @@ Deno.serve(async (req) => {
           if (buyerEmail && buyerEmail === wixEmail) return true;
           const fields: any[] = o.customFields || o.checkoutCustomFields || [];
           return fields.some((f: any) =>
-            (f.title === 'app_user_id' || f.name === 'app_user_id') &&
+            (f.title === 'smc_user_id' || f.name === 'smc_user_id' || f.title === 'app_user_id' || f.name === 'app_user_id') &&
             String(f.value || '').trim() === String(userId)
           );
         });
