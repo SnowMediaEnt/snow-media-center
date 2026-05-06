@@ -704,11 +704,14 @@ Deno.serve(async (req) => {
           });
         }
 
+        let linkedUserId: string | null = null;
         const existingUser = existingUsers?.users?.find((u) => normalizeEmail(u.email) === bridgeEmail);
         if (existingUser) {
-          console.log('App account already exists for Wix email; confirming/linking metadata without changing password');
+          linkedUserId = existingUser.id;
+          console.log('App account already exists for Wix email; confirming/linking metadata');
           const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingUser.id, {
             email_confirm: true,
+            ...(existingUser.user_metadata?.wix_member_id ? { password: String(payload.password) } : {}),
             user_metadata: { ...(existingUser.user_metadata || {}), full_name: fullName, wix_member_id: member.id, wix_source: source },
           });
           if (updateErr) {
@@ -720,7 +723,7 @@ Deno.serve(async (req) => {
           }
         } else {
           console.log('Creating confirmed Supabase user from Wix account');
-          const { error: createErr } = await adminClient.auth.admin.createUser({
+          const { data: createdUser, error: createErr } = await adminClient.auth.admin.createUser({
             email: bridgeEmail,
             password: String(payload.password),
             email_confirm: true,
@@ -733,6 +736,14 @@ Deno.serve(async (req) => {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
+          linkedUserId = createdUser.user?.id || null;
+        }
+
+        if (linkedUserId) {
+          const { error: profileErr } = await adminClient
+            .from('profiles')
+            .upsert({ user_id: linkedUserId, email: bridgeEmail, full_name: fullName, wix_account_id: member.id }, { onConflict: 'user_id' });
+          if (profileErr) console.warn('Profile upsert for Wix bridge failed:', profileErr);
         }
 
         return new Response(JSON.stringify({
