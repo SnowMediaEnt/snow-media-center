@@ -759,6 +759,17 @@ export type Database = {
     }
     Functions: {
       ai_tokens_last_hour: { Args: never; Returns: number }
+      get_qr_session: {
+        Args: { p_token: string }
+        Returns: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_used: boolean
+          token: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
