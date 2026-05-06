@@ -406,10 +406,15 @@ Deno.serve(async (req) => {
           channelType: 'WEB',
           lineItems: resolvedLineItems,
         };
-        if (appUserIdFromBody) {
-          checkoutBody.customFields = [
-            { title: 'smc_user_id', value: String(appUserIdFromBody) },
-          ];
+        if (appUserIdFromBody || email) {
+          checkoutBody.checkoutInfo = {
+            ...(email ? { buyerInfo: { email: normalizeEmail(email) } } : {}),
+            ...(appUserIdFromBody ? {
+              customFields: [
+                { title: 'smc_user_id', value: String(appUserIdFromBody) },
+              ],
+            } : {}),
+          };
         }
         const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
           method: 'POST',
