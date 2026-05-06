@@ -1,7 +1,10 @@
 import { memo, useEffect, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { useUpdateCheck } from '@/hooks/useUpdateCheck';
 
 interface HomeClockProps {
   version: string;
+  onUpdateClick?: () => void;
 }
 
 /**
