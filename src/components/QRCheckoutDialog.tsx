@@ -63,6 +63,10 @@ export const QRCheckoutDialog = ({
             <p className="text-sm text-white/70">
               Open your phone camera and point it at the QR code.
             </p>
+            <div className="bg-blue-600/15 border border-blue-400/40 rounded-md p-3 text-left text-xs text-blue-100 space-y-1">
+              <p className="font-semibold text-blue-200">Heads up — sign-in required at checkout</p>
+              <p>You'll be asked to sign in on the website to complete your purchase. Use the <span className="font-semibold">same email & password</span> you use here in the app, or create a new account on the site.</p>
+            </div>
             {url && (
               <a
                 href={url}
