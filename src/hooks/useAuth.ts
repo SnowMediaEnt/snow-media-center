@@ -4,6 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
 
+const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
+
+const getEmailConfirmationRedirectUrl = () => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // Never send customer confirmation emails back to Lovable preview URLs.
+  if (origin && /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/i.test(origin)) {
+    return `${origin}/sso`;
+  }
+
+  return APP_CONFIRMATION_REDIRECT_URL;
+};
+
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -73,7 +86,7 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/welcome`;
+      const redirectUrl = getEmailConfirmationRedirectUrl();
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
@@ -129,7 +142,7 @@ export const useAuth = () => {
       if (data.user?.email) {
         supabase.functions.invoke('wix-integration', {
           body: { action: 'sync-credit-orders', email: data.user.email },
-        }).then(({ data: sd }: any) => {
+        }).then(({ data: sd }: { data: { newOrders?: number; totalCreditsAdded?: number } | null }) => {
           if (sd?.newOrders > 0) {
             console.log('[Auth] Wix credit sync added', sd.totalCreditsAdded, 'credits');
           }
@@ -137,10 +150,10 @@ export const useAuth = () => {
       }
 
       return { error: null };
-    } catch (error: any) {
-      const msg = error?.message || String(error);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error('[Auth] SignIn exception:', msg);
-      console.error('[Auth] Exception details:', JSON.stringify(error, Object.getOwnPropertyNames(error || {})));
+      console.error('[Auth] Exception details:', error instanceof Error ? JSON.stringify(error, Object.getOwnPropertyNames(error)) : String(error));
       return { error: { message: `Login failed: ${msg}` } as AuthError };
     }
   };
