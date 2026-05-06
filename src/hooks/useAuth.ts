@@ -142,7 +142,7 @@ export const useAuth = () => {
       if (data.user?.email) {
         supabase.functions.invoke('wix-integration', {
           body: { action: 'sync-credit-orders', email: data.user.email },
-        }).then(({ data: sd }: any) => {
+        }).then(({ data: sd }: { data: { newOrders?: number; totalCreditsAdded?: number } | null }) => {
           if (sd?.newOrders > 0) {
             console.log('[Auth] Wix credit sync added', sd.totalCreditsAdded, 'credits');
           }
@@ -150,10 +150,10 @@ export const useAuth = () => {
       }
 
       return { error: null };
-    } catch (error: any) {
-      const msg = error?.message || String(error);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error('[Auth] SignIn exception:', msg);
-      console.error('[Auth] Exception details:', JSON.stringify(error, Object.getOwnPropertyNames(error || {})));
+      console.error('[Auth] Exception details:', error instanceof Error ? JSON.stringify(error, Object.getOwnPropertyNames(error)) : String(error));
       return { error: { message: `Login failed: ${msg}` } as AuthError };
     }
   };
