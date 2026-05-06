@@ -11,7 +11,7 @@ import { Browser } from '@capacitor/browser';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
-import PinnedAppsBar from '@/components/PinnedAppsBar';
+
 import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
