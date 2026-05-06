@@ -171,6 +171,30 @@ export const useAdminTickets = () => {
     }
   }, [fetchTickets, toast]);
 
+  // Delete ticket (admin)
+  const deleteTicket = useCallback(async (ticketId: string) => {
+    try {
+      const { error: msgErr } = await supabase
+        .from('support_messages')
+        .delete()
+        .eq('ticket_id', ticketId);
+      if (msgErr) throw msgErr;
+
+      const { error } = await supabase
+        .from('support_tickets')
+        .delete()
+        .eq('id', ticketId);
+      if (error) throw error;
+
+      setTickets(prev => prev.filter(t => t.id !== ticketId));
+      toast({ title: 'Deleted', description: 'Ticket deleted' });
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+      toast({ title: 'Error', description: 'Failed to delete ticket', variant: 'destructive' });
+      throw error;
+    }
+  }, [toast]);
+
   // Mark ticket as read by admin
   const markTicketAsRead = useCallback(async (ticketId: string) => {
     try {
@@ -207,6 +231,7 @@ export const useAdminTickets = () => {
     fetchTicketMessages,
     sendAdminReply,
     updateTicketStatus,
-    markTicketAsRead
+    markTicketAsRead,
+    deleteTicket
   };
 };
