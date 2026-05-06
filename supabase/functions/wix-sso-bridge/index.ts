@@ -40,8 +40,10 @@ function jsonResponse(body: unknown, status = 200) {
 async function verifyWixMember(
   email: string,
   wixApiKey: string,
-  wixSiteId: string
+  wixSiteId: string,
+  wixAccountId?: string
 ): Promise<{ id: string; profile?: any } | null> {
+  const normalizedEmail = email.toLowerCase().trim();
   const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
     method: 'POST',
     headers: {
@@ -50,7 +52,7 @@ async function verifyWixMember(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      filter: { loginEmail: { $eq: email } },
+      query: { filter: { loginEmail: { $eq: normalizedEmail } }, paging: { limit: 100 } },
       fieldsets: ['FULL'],
     }),
   });
@@ -62,9 +64,37 @@ async function verifyWixMember(
   }
 
   const memberData = await memberResponse.json();
-  return memberData.members?.find(
-    (m: any) => m.loginEmail?.toLowerCase().trim() === email
-  ) ?? null;
+  const member = memberData.members?.find(
+    (m: any) => m.loginEmail?.toLowerCase().trim() === normalizedEmail
+  );
+  if (member) return member;
+
+  if (!wixAccountId) return null;
+
+  const contactResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts/query', {
+    method: 'POST',
+    headers: {
+      'Authorization': wixApiKey,
+      'wix-account-id': wixAccountId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query: { filter: { 'info.emails.email': { $eq: normalizedEmail } }, paging: { limit: 5 } } }),
+  });
+
+  if (!contactResponse.ok) return null;
+  const contactData = await contactResponse.json();
+  const contact = (contactData.contacts || []).find((c: any) =>
+    (c?.primaryInfo?.email || c?.info?.emails?.items?.[0]?.email || '').toLowerCase().trim() === normalizedEmail
+  );
+
+  return contact ? {
+    id: contact.id,
+    profile: {
+      firstName: contact.info?.name?.first || '',
+      lastName: contact.info?.name?.last || '',
+      nickname: contact.info?.name?.first || normalizedEmail.split('@')[0],
+    },
+  } : null;
 }
 
 async function sendMagicLinkEmail(
