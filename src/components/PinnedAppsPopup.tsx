@@ -36,6 +36,8 @@ const PinnedAppsPopup = ({
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
