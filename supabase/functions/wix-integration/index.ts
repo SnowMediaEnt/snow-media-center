@@ -697,9 +697,8 @@ Deno.serve(async (req) => {
 
         const existingUser = existingUsers?.users?.find((u) => normalizeEmail(u.email) === bridgeEmail);
         if (existingUser) {
-          console.log('App account already exists for Wix email; updating password and confirming email');
+          console.log('App account already exists for Wix email; confirming/linking metadata without changing password');
           const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingUser.id, {
-            password: String(payload.password),
             email_confirm: true,
             user_metadata: { ...(existingUser.user_metadata || {}), full_name: fullName, wix_member_id: member.id, wix_source: source },
           });
