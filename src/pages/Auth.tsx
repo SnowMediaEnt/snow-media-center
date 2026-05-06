@@ -76,11 +76,12 @@ const Auth = () => {
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'email') setFocusedElement('tab-login');
+          if (focusedElement === 'tab-login' || focusedElement === 'tab-signup') setFocusedElement('back');
+          else if (focusedElement === 'email') setFocusedElement(activeTab === 'signup' ? 'name' : 'tab-login');
           else if (focusedElement === 'password') setFocusedElement('email');
-          else if (focusedElement === 'submit') setFocusedElement('password');
+          else if (focusedElement === 'confirm') setFocusedElement('password');
+          else if (focusedElement === 'submit') setFocusedElement(activeTab === 'signup' ? 'confirm' : 'password');
           else if (focusedElement === 'name') setFocusedElement('tab-signup');
-          else if (focusedElement === 'confirm') setFocusedElement('name');
           break;
           
         case 'ArrowDown':
@@ -88,9 +89,10 @@ const Auth = () => {
           else if (focusedElement === 'tab-login' || focusedElement === 'tab-signup') {
             if (activeTab === 'login') setFocusedElement('email');
             else if (activeTab === 'signup') setFocusedElement('name');
-          } else if (focusedElement === 'email') setFocusedElement('password');
-          else if (focusedElement === 'password') setFocusedElement('submit');
-          else if (focusedElement === 'name') setFocusedElement('email');
+          } else if (focusedElement === 'name') setFocusedElement('email');
+          else if (focusedElement === 'email') setFocusedElement('password');
+          else if (focusedElement === 'password') setFocusedElement(activeTab === 'signup' ? 'confirm' : 'submit');
+          else if (focusedElement === 'confirm') setFocusedElement('submit');
           break;
           
         case 'Enter':
@@ -295,6 +297,9 @@ const Auth = () => {
             </TabsList>
 
             <TabsContent value="login">
+              <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3 mb-4">
+                Already have an account on the Snow Media website (snowmediaent.com)? You can sign in here using the same email and password.
+              </p>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <Label htmlFor="login-email" className="text-white">Email</Label>
