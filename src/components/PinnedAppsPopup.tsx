@@ -232,6 +232,13 @@ const PinnedAppsPopup = ({
               else if (e.key === 'ArrowLeft') next = Math.max(0, selectorFocusIndex - 1);
               else if (e.key === 'ArrowDown') next = Math.min(total - 1, selectorFocusIndex + cols);
               else if (e.key === 'ArrowUp') next = Math.max(0, selectorFocusIndex - cols);
+              else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                const app = allSelectableApps[selectorFocusIndex];
+                if (app) handleTogglePin(app);
+                return;
+              }
               else return;
               e.preventDefault();
               e.stopPropagation();
