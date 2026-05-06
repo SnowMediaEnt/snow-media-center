@@ -83,6 +83,11 @@ export const useAuth = () => {
         }
       });
       
+      // Detect "user already exists" — Supabase returns success with empty identities for security
+      if (!error && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        return { error: { message: 'User already registered' } as AuthError };
+      }
+
       // Sync to Wix in background (non-blocking)
       if (!error && data.user) {
         syncUserToWix(email, fullName);
