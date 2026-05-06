@@ -4,6 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
 
+const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
+
+const getEmailConfirmationRedirectUrl = () => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // Never send customer confirmation emails back to Lovable preview URLs.
+  if (origin && /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/i.test(origin)) {
+    return `${origin}/sso`;
+  }
+
+  return APP_CONFIRMATION_REDIRECT_URL;
+};
+
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -73,7 +86,7 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/welcome`;
+      const redirectUrl = getEmailConfirmationRedirectUrl();
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
