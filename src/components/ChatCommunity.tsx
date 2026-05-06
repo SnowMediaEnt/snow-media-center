@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check } from 'lucide-react';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2 } from 'lucide-react';
 import VoiceInput from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -46,7 +46,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
-  const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
+  const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
     conversations: aiConversations,
     fetchConversations: fetchAIConversations,
@@ -862,6 +862,21 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                       Close Ticket
                     </Button>
                   )}
+                  <Button
+                    onClick={async () => {
+                      if (!selectedTicket) return;
+                      if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                      await deleteTicket(selectedTicket.id);
+                      setSelectedTicket(null);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    data-focus-id="delete-ticket"
+                    className={`border-red-500 text-red-400 hover:bg-red-600 hover:text-white transition-all duration-200 shrink-0 ${focusRing('delete-ticket')}`}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Delete
+                  </Button>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <h4 className="text-xl font-semibold text-slate-900 truncate">{selectedTicket.subject}</h4>
                     <Badge className={`shrink-0 ${
@@ -985,6 +1000,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                           }>
                             {ticket.status}
                           </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                              await deleteTicket(ticket.id);
+                            }}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-900/30"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
