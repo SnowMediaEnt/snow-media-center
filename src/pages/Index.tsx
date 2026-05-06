@@ -519,7 +519,7 @@ const Index = () => {
           </div>
 
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
-          <HomeClock version={version} />
+          <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
 
           {/* News Ticker */}
           <NewsTicker />
