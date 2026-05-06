@@ -3,11 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
 
 interface UserDashboardProps {
   onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games') => void;
@@ -24,8 +30,30 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
-  const [focusedElement, setFocusedElement] = useState(0); // 0: back, 1: sign out, 2-5: tabs, 6-7: action buttons
+  const [focusedElement, setFocusedElement] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke('delete-account', {
+        body: {},
+      });
+      if (error) throw error;
+      toast({ title: 'Account deleted', description: 'Your account has been permanently deleted.' });
+      await signOut();
+      onViewChange('home');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not delete your account.';
+      toast({ title: 'Deletion failed', description: msg, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
 
   // Focus positions:
   // 0: back, 1: signout
@@ -298,6 +326,21 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </div>
                 </div>
               </div>
+              <div className="mt-8 pt-6 border-t border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+                <p className="text-slate-400 text-sm mb-4">
+                  Permanently delete your Snow Media app account and all associated data.
+                  This does not affect your Snow Media website (Wix) account.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete My Account
+                </Button>
+              </div>
             </Card>
           </TabsContent>
 
@@ -484,6 +527,31 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsContent>
         </Tabs>
       </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300">
+              This permanently removes your Snow Media app account, profile, credits,
+              chats, support tickets and media. This cannot be undone. Your separate
+              Snow Media website (Wix) account is not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={handleDeleteAccount}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Deleting…' : 'Yes, delete my account'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
