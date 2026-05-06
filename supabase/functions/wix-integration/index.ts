@@ -114,6 +114,10 @@ async function findWixMemberByEmail(email: string, wixApiKey: string, wixSiteId:
       console.log(`Found Wix member on page ${page}: id=${matchingMember.id}, status=${matchingMember.status}`);
       return { source: 'members', member: matchingMember, totalScanned };
     }
+    if (page === 0 && batch.length === PAGE_SIZE) {
+      console.warn('Wix members query returned a full non-matching page; falling back to contacts lookup');
+      break;
+    }
     if (batch.length < PAGE_SIZE) break;
   }
 
