@@ -494,58 +494,25 @@ Deno.serve(async (req) => {
           );
         }
         
-        const normalizedEmail = email?.toLowerCase().trim();
-        let matchingMember: any = null;
-        let totalScanned = 0;
-        const PAGE_SIZE = 100;
-        const MAX_PAGES = 50; // up to 5,000 members
+        const { member: matchingMember, totalScanned, source } = await findWixMemberByEmail(
+          email,
+          wixApiKey,
+          wixSiteId,
+          wixAccountId || undefined,
+        );
 
-        for (let page = 0; page < MAX_PAGES; page++) {
-          const memberResponse = await fetch(`https://www.wixapis.com/members/v1/members/query`, {
-            method: 'POST',
-            headers: {
-              'Authorization': wixApiKey,
-              'wix-site-id': wixSiteId,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              filter: { loginEmail: { $eq: email } },
-              fieldsets: ['FULL'],
-              paging: { limit: PAGE_SIZE, offset: page * PAGE_SIZE }
-            })
-          });
-
-          if (memberResponse.status === 404) break;
-          if (!memberResponse.ok) {
-            const errorText = await memberResponse.text();
-            console.error('Wix API error:', errorText);
-            throw new Error(`Wix API error: ${memberResponse.status} ${memberResponse.statusText}`);
-          }
-
-          const memberData = await memberResponse.json();
-          const batch = memberData.members || [];
-          totalScanned += batch.length;
-
-          matchingMember = batch.find((m: any) =>
-            m.loginEmail?.toLowerCase().trim() === normalizedEmail
-          );
-
-          if (matchingMember) {
-            console.log(`Found member on page ${page}: id=${matchingMember.id}, email=${matchingMember.loginEmail}`);
-            break;
-          }
-
-          if (batch.length < PAGE_SIZE) break; // last page
-        }
-
-        console.log(`Scanned ${totalScanned} Wix members for ${email}, found: ${!!matchingMember}`);
+        console.log(`Scanned ${totalScanned} Wix members for ${email}, source: ${source}, found: ${!!matchingMember}`);
 
         return new Response(
           JSON.stringify({ 
             exists: !!matchingMember,
+            source,
             member: matchingMember ? {
               id: matchingMember.id,
               email: matchingMember.loginEmail,
+              status: matchingMember.status,
+              profile: matchingMember.profile || {},
+              contact: matchingMember.contact || null,
               name: matchingMember.profile?.firstName || matchingMember.profile?.nickname || 'Unknown'
             } : null
           }),
