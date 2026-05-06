@@ -653,6 +653,93 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
+      case 'bridge-wix-login': {
+        console.log('Bridging Wix login for:', email);
+
+        if (!wixSiteId) {
+          return new Response(JSON.stringify({ error: 'Site ID required for Wix login bridge' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (!email || !payload.password || String(payload.password).length < 6) {
+          return new Response(JSON.stringify({ error: 'Valid email and password are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const bridgeEmail = normalizeEmail(email);
+        const { member, source } = await findWixMemberByEmail(bridgeEmail, wixApiKey, wixSiteId, wixAccountId || undefined);
+        if (!member) {
+          return new Response(JSON.stringify({ exists: false, error: 'No approved Wix account found for this email' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const adminClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+
+        const fullName = [member.profile?.firstName, member.profile?.lastName].filter(Boolean).join(' ') || member.profile?.nickname || '';
+        const { data: existingUsers, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        if (listErr) {
+          console.error('Supabase user lookup failed:', listErr);
+          return new Response(JSON.stringify({ error: 'Could not check app account' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const existingUser = existingUsers?.users?.find((u) => normalizeEmail(u.email) === bridgeEmail);
+        if (existingUser) {
+          console.log('App account already exists for Wix email; updating password and confirming email');
+          const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingUser.id, {
+            password: String(payload.password),
+            email_confirm: true,
+            user_metadata: { ...(existingUser.user_metadata || {}), full_name: fullName, wix_member_id: member.id, wix_source: source },
+          });
+          if (updateErr) {
+            console.error('Supabase user update failed:', updateErr);
+            return new Response(JSON.stringify({ error: 'Could not link existing app account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } else {
+          console.log('Creating confirmed Supabase user from Wix account');
+          const { error: createErr } = await adminClient.auth.admin.createUser({
+            email: bridgeEmail,
+            password: String(payload.password),
+            email_confirm: true,
+            user_metadata: { full_name: fullName, wix_member_id: member.id, wix_source: source },
+          });
+          if (createErr) {
+            console.error('Supabase user creation failed:', createErr);
+            return new Response(JSON.stringify({ error: 'Could not create app account from Wix account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          exists: true,
+          source,
+          member: {
+            id: member.id,
+            email: member.loginEmail,
+            status: member.status,
+            profile: member.profile || {},
+            name: member.profile?.firstName || member.profile?.nickname || 'Unknown',
+          },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       case 'get-orders':
         console.log('Getting orders for member:', wixMemberId || email);
         
