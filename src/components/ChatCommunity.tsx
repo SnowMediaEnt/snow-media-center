@@ -1000,6 +1000,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                           }>
                             {ticket.status}
                           </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                              await deleteTicket(ticket.id);
+                            }}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-900/30"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
