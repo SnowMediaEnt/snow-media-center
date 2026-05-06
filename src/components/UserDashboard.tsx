@@ -3,11 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
 
 interface UserDashboardProps {
   onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games') => void;
@@ -24,8 +30,30 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
-  const [focusedElement, setFocusedElement] = useState(0); // 0: back, 1: sign out, 2-5: tabs, 6-7: action buttons
+  const [focusedElement, setFocusedElement] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke('delete-account', {
+        body: {},
+      });
+      if (error) throw error;
+      toast({ title: 'Account deleted', description: 'Your account has been permanently deleted.' });
+      await signOut();
+      onViewChange('home');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not delete your account.';
+      toast({ title: 'Deletion failed', description: msg, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
 
   // Focus positions:
   // 0: back, 1: signout
