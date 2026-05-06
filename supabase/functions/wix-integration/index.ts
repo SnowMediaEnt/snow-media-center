@@ -631,6 +631,11 @@ Deno.serve(async (req) => {
                 lastName: memberData.lastName || '',
                 nickname: memberData.nickname || memberData.email.split('@')[0]
               },
+              contact: {
+                firstName: memberData.firstName || '',
+                lastName: memberData.lastName || '',
+                emails: [memberData.email],
+              },
               status: 'APPROVED'
             }
           })
