@@ -57,10 +57,25 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
         </div>
         <div className="w-px h-4 bg-white/40 flex-shrink-0" />
         <div
-          className="font-nunito text-shadow-soft"
+          className="font-nunito text-shadow-soft flex items-center gap-1.5"
           style={{ color: '#FFD700', fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}
         >
           v{version}
+          {updateAvailable && (
+            <button
+              type="button"
+              onClick={onUpdateClick}
+              title={latestVersion ? `Update available: v${latestVersion}` : 'Update available'}
+              aria-label="Update available — open Settings → Updates"
+              className="flex items-center justify-center rounded-full p-0.5 hover:bg-white/10 transition-colors animate-pulse"
+            >
+              <AlertTriangle
+                className="text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]"
+                style={{ width: 'clamp(14px, 1.1vw, 20px)', height: 'clamp(14px, 1.1vw, 20px)' }}
+                fill="currentColor"
+              />
+            </button>
+          )}
         </div>
       </div>
     </div>
