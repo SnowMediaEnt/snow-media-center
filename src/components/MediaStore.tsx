@@ -358,7 +358,10 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         image: item.images?.[0] || ''
       }));
 
-      const { checkoutUrl } = await createCart(wixCartItems);
+      const { checkoutUrl } = await createCart(wixCartItems, {
+        appUserId: user?.id,
+        email: user?.email,
+      });
 
       if (checkoutUrl) {
         setQrUrl(checkoutUrl);
