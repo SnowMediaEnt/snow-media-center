@@ -52,7 +52,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     fetchTicketMessages,
     createTicket,
     sendMessage,
-    closeTicket
+    closeTicket,
+    deleteTicket
   } = useSupportTickets(user);
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
@@ -281,6 +282,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
+                  enterKeyHint="done"
                   placeholder="Brief description of your issue..."
                   className="bg-slate-700 border-slate-600 text-white"
                 />
@@ -295,6 +303,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Describe your issue in detail..."
                   rows={8}
+                  enterKeyHint="done"
                   className="bg-slate-700 border-slate-600 text-white"
                 />
               </div>
