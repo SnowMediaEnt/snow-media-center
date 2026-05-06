@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Pin, Plus, Play, Check } from 'lucide-react';
 import { PinnedApp } from '@/hooks/usePinnedApps';
 import { AppData } from '@/hooks/useAppData';
-import { defaultInstalledApps, InstalledApp } from '@/data/installedApps';
+import { InstalledApp } from '@/data/installedApps';
+import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
