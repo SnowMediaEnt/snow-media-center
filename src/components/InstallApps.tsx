@@ -967,16 +967,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             <p className="text-xl text-blue-200">Download, Install & Launch APKs</p>
           </div>
         </div>
-
-        {/* Pinned Apps Bar */}
-        <PinnedAppsBar
-          pinnedApps={pinnedApps}
-          onLaunchApp={attemptLaunch}
-          focusedElement={focusedElement}
-          onFocus={(id) => setFocusedElement(id as FocusType)}
-          apps={apps}
-        />
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
