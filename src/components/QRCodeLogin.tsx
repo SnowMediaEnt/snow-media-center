@@ -111,8 +111,6 @@ const QRCodeLogin = ({ onSuccess }: QRCodeLoginProps) => {
         }
 
         if (data && data.user_id && !data.is_used) {
-
-        if (data && data.user_id) {
           // Someone has authenticated, sign them in
           clearInterval(interval);
           
