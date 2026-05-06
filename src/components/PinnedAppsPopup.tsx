@@ -41,7 +41,7 @@ const PinnedAppsPopup = ({
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
-    if (!isVisible || focusedIndex < 0) return;
+    if (!isVisible || focusedIndex < 0 || showAppSelector) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
@@ -70,7 +70,17 @@ const PinnedAppsPopup = ({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isVisible, focusedIndex, pinnedApps.length, onFocusChange, onExitFocus]);
+  }, [isVisible, focusedIndex, pinnedApps.length, onFocusChange, onExitFocus, showAppSelector]);
+
+  // Auto-focus first item when selector opens (once)
+  useEffect(() => {
+    if (showAppSelector) {
+      const t = setTimeout(() => {
+        selectorButtonsRef.current[0]?.focus();
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, [showAppSelector]);
 
   // Focus the button when focusedIndex changes
   useEffect(() => {
@@ -222,6 +232,13 @@ const PinnedAppsPopup = ({
               else if (e.key === 'ArrowLeft') next = Math.max(0, selectorFocusIndex - 1);
               else if (e.key === 'ArrowDown') next = Math.min(total - 1, selectorFocusIndex + cols);
               else if (e.key === 'ArrowUp') next = Math.max(0, selectorFocusIndex - cols);
+              else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                const app = allSelectableApps[selectorFocusIndex];
+                if (app) handleTogglePin(app);
+                return;
+              }
               else return;
               e.preventDefault();
               e.stopPropagation();
@@ -241,11 +258,12 @@ const PinnedAppsPopup = ({
                   key={app.id}
                   ref={(el) => {
                     selectorButtonsRef.current[idx] = el;
-                    if (el && showAppSelector && idx === 0 && selectorFocusIndex === 0 && document.activeElement !== el) {
-                      setTimeout(() => el.focus(), 50);
-                    }
                   }}
-                  onClick={() => handleTogglePin(app)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleTogglePin(app);
+                  }}
                   disabled={!canSelect}
                   className={`
                     p-3 rounded-xl border transition-all duration-150
