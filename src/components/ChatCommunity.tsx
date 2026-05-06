@@ -46,7 +46,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const { profile, checkCredits, deductCredits } = useUserProfile();
   const { toast } = useToast();
   const { sendMessage } = useWixIntegration();
-  const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket } = useSupportTickets(user);
+  const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
     conversations: aiConversations,
     fetchConversations: fetchAIConversations,
