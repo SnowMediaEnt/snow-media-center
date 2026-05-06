@@ -862,6 +862,21 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                       Close Ticket
                     </Button>
                   )}
+                  <Button
+                    onClick={async () => {
+                      if (!selectedTicket) return;
+                      if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                      await deleteTicket(selectedTicket.id);
+                      setSelectedTicket(null);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    data-focus-id="delete-ticket"
+                    className={`border-red-500 text-red-400 hover:bg-red-600 hover:text-white transition-all duration-200 shrink-0 ${focusRing('delete-ticket')}`}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Delete
+                  </Button>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <h4 className="text-xl font-semibold text-slate-900 truncate">{selectedTicket.subject}</h4>
                     <Badge className={`shrink-0 ${
