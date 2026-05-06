@@ -142,40 +142,29 @@ const Auth = () => {
       if (error) {
         console.error('[Auth Page] Login error:', error.message);
 
-        // Wix bridge: if invalid credentials, check if user exists on Wix.
-        // If yes, auto-create a Supabase account with the same password and sign in.
+        // Wix bridge: if invalid credentials, confirm the email exists in Wix,
+        // create/confirm the matching Supabase app account server-side, then retry login.
         const isInvalidCreds = /invalid login credentials/i.test(error.message || '');
         if (isInvalidCreds) {
           try {
-            console.log('[Auth Page] Checking Wix for account:', loginForm.email);
-            const { data: wixData } = await supabase.functions.invoke('wix-integration', {
-              body: { action: 'verify-member', email: loginForm.email },
+            console.log('[Auth Page] Bridging Wix account:', loginForm.email);
+            const { data: wixData, error: wixBridgeError } = await supabase.functions.invoke('wix-integration', {
+              body: {
+                action: 'bridge-wix-login',
+                email: loginForm.email,
+                password: loginForm.password,
+              },
             });
 
-            if (wixData?.exists) {
-              console.log('[Auth Page] Wix account found — bridging to Supabase');
+            if (wixBridgeError || wixData?.error) {
+              console.warn('[Auth Page] Wix bridge returned no login:', wixBridgeError || wixData?.error);
+            } else if (wixData?.success) {
+              console.log('[Auth Page] Wix account linked — retrying Supabase login');
               toast({
                 title: "Linking your Wix account…",
                 description: "Setting up your app login. One moment.",
               });
 
-              const fullName = wixData.member?.profile?.nickname
-                || [wixData.member?.contact?.firstName, wixData.member?.contact?.lastName].filter(Boolean).join(' ')
-                || '';
-
-              const { error: signUpError } = await signUp(loginForm.email, loginForm.password, fullName);
-
-              if (signUpError && !/already registered|already been registered|user already/i.test(signUpError.message || '')) {
-                toast({
-                  title: "Could not link Wix account",
-                  description: signUpError.message,
-                  variant: "destructive",
-                });
-                setLoading(false);
-                return;
-              }
-
-              // Try signing in again with the same credentials
               const { error: retryError } = await signIn(loginForm.email, loginForm.password);
               if (!retryError) {
                 toast({ title: "Welcome!", description: "Signed in with your Wix account." });
@@ -185,8 +174,8 @@ const Auth = () => {
               }
 
               toast({
-                title: "Password didn't match",
-                description: "Your Wix account exists, but this password is incorrect for the app. Use the same password you set on the website, or create a new account.",
+                title: "Could not finish sign in",
+                description: retryError.message || "Your Wix account was found, but app sign-in could not complete.",
                 variant: "destructive",
               });
               setLoading(false);
