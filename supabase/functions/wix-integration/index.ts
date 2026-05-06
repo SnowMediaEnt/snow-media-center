@@ -197,6 +197,7 @@ Deno.serve(async (req) => {
       'get-loyalty',
       'get-referral-info',
       'create-member',  // Allow signup flow to work
+      'bridge-wix-login', // Allow Wix website accounts to create confirmed app login
       'create-cart'     // Allow checkout without auth (guest checkout)
     ];
     const isPublicAction = publicActions.includes(action);
