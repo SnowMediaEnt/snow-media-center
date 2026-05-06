@@ -65,6 +65,112 @@ interface TestResults {
   totalMembers: number;
 }
 
+const normalizeEmail = (value?: string | null) => value?.toLowerCase().trim() || '';
+
+function emailFromContact(contact: any): string {
+  return normalizeEmail(
+    contact?.primaryInfo?.email ||
+    contact?.info?.emails?.items?.[0]?.email ||
+    contact?.info?.emails?.[0]?.email ||
+    contact?.emails?.items?.[0]?.email
+  );
+}
+
+async function findWixMemberByEmail(email: string, wixApiKey: string, wixSiteId: string, wixAccountId?: string) {
+  const normalizedEmail = normalizeEmail(email);
+  let totalScanned = 0;
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 50;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
+      method: 'POST',
+      headers: {
+        'Authorization': wixApiKey,
+        'wix-site-id': wixSiteId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: {
+          filter: { loginEmail: { $eq: normalizedEmail } },
+          paging: { limit: PAGE_SIZE, offset: page * PAGE_SIZE },
+        },
+        fieldsets: ['FULL'],
+      })
+    });
+
+    if (memberResponse.status === 404) break;
+    if (!memberResponse.ok) {
+      const errorText = await memberResponse.text();
+      console.error('Wix members lookup error:', memberResponse.status, errorText);
+      throw new Error(`Wix members lookup failed: ${memberResponse.status}`);
+    }
+
+    const memberData = await memberResponse.json();
+    const batch = memberData.members || [];
+    totalScanned += batch.length;
+    const matchingMember = batch.find((m: any) => normalizeEmail(m.loginEmail) === normalizedEmail);
+    if (matchingMember) {
+      console.log(`Found Wix member on page ${page}: id=${matchingMember.id}, status=${matchingMember.status}`);
+      return { source: 'members', member: matchingMember, totalScanned };
+    }
+    if (page === 0 && batch.length === PAGE_SIZE) {
+      console.warn('Wix members query returned a full non-matching page; falling back to contacts lookup');
+      break;
+    }
+    if (batch.length < PAGE_SIZE) break;
+  }
+
+  console.log(`Members lookup scanned ${totalScanned} members for ${normalizedEmail}; trying contacts fallback`);
+
+  if (wixAccountId) {
+    for (const filter of [
+      { 'info.emails.email': { $eq: normalizedEmail } },
+      { 'primaryInfo.email': { $eq: normalizedEmail } },
+    ]) {
+      const contactResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts/query', {
+        method: 'POST',
+        headers: {
+          'Authorization': wixApiKey,
+          'wix-account-id': wixAccountId,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: { filter, paging: { limit: 5 } } }),
+      });
+
+      if (!contactResponse.ok) {
+        console.warn('Wix contact lookup non-OK:', contactResponse.status, await contactResponse.text());
+        continue;
+      }
+
+      const contactData = await contactResponse.json();
+      const contacts = contactData.contacts || [];
+      const contact = contacts.find((c: any) => emailFromContact(c) === normalizedEmail);
+      if (contact) {
+        console.log(`Found Wix contact fallback: id=${contact.id}, email=${normalizedEmail}`);
+        return {
+          source: 'contacts',
+          totalScanned,
+          member: {
+            id: contact.id,
+            contactId: contact.id,
+            loginEmail: normalizedEmail,
+            status: 'APPROVED',
+            profile: {
+              firstName: contact.info?.name?.first || '',
+              lastName: contact.info?.name?.last || '',
+              nickname: contact.info?.name?.first || normalizedEmail.split('@')[0],
+            },
+            contact,
+          },
+        };
+      }
+    }
+  }
+
+  return { source: 'none', member: null, totalScanned };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -95,6 +201,7 @@ Deno.serve(async (req) => {
       'get-loyalty',
       'get-referral-info',
       'create-member',  // Allow signup flow to work
+      'bridge-wix-login', // Allow Wix website accounts to create confirmed app login
       'create-cart'     // Allow checkout without auth (guest checkout)
     ];
     const isPublicAction = publicActions.includes(action);
@@ -303,10 +410,15 @@ Deno.serve(async (req) => {
           channelType: 'WEB',
           lineItems: resolvedLineItems,
         };
-        if (appUserIdFromBody) {
-          checkoutBody.customFields = [
-            { title: 'smc_user_id', value: String(appUserIdFromBody) },
-          ];
+        if (appUserIdFromBody || email) {
+          checkoutBody.checkoutInfo = {
+            ...(email ? { buyerInfo: { email: normalizeEmail(email) } } : {}),
+            ...(appUserIdFromBody ? {
+              customFields: [
+                { title: 'smc_user_id', value: String(appUserIdFromBody) },
+              ],
+            } : {}),
+          };
         }
         const checkoutResponse = await fetch(`https://www.wixapis.com/ecom/v1/checkouts`, {
           method: 'POST',
@@ -392,58 +504,25 @@ Deno.serve(async (req) => {
           );
         }
         
-        const normalizedEmail = email?.toLowerCase().trim();
-        let matchingMember: any = null;
-        let totalScanned = 0;
-        const PAGE_SIZE = 100;
-        const MAX_PAGES = 50; // up to 5,000 members
+        const { member: matchingMember, totalScanned, source } = await findWixMemberByEmail(
+          email,
+          wixApiKey,
+          wixSiteId,
+          wixAccountId || undefined,
+        );
 
-        for (let page = 0; page < MAX_PAGES; page++) {
-          const memberResponse = await fetch(`https://www.wixapis.com/members/v1/members/query`, {
-            method: 'POST',
-            headers: {
-              'Authorization': wixApiKey,
-              'wix-site-id': wixSiteId,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              filter: { loginEmail: { $eq: email } },
-              fieldsets: ['FULL'],
-              paging: { limit: PAGE_SIZE, offset: page * PAGE_SIZE }
-            })
-          });
-
-          if (memberResponse.status === 404) break;
-          if (!memberResponse.ok) {
-            const errorText = await memberResponse.text();
-            console.error('Wix API error:', errorText);
-            throw new Error(`Wix API error: ${memberResponse.status} ${memberResponse.statusText}`);
-          }
-
-          const memberData = await memberResponse.json();
-          const batch = memberData.members || [];
-          totalScanned += batch.length;
-
-          matchingMember = batch.find((m: any) =>
-            m.loginEmail?.toLowerCase().trim() === normalizedEmail
-          );
-
-          if (matchingMember) {
-            console.log(`Found member on page ${page}: id=${matchingMember.id}, email=${matchingMember.loginEmail}`);
-            break;
-          }
-
-          if (batch.length < PAGE_SIZE) break; // last page
-        }
-
-        console.log(`Scanned ${totalScanned} Wix members for ${email}, found: ${!!matchingMember}`);
+        console.log(`Scanned ${totalScanned} Wix members for ${email}, source: ${source}, found: ${!!matchingMember}`);
 
         return new Response(
           JSON.stringify({ 
             exists: !!matchingMember,
+            source,
             member: matchingMember ? {
               id: matchingMember.id,
               email: matchingMember.loginEmail,
+              status: matchingMember.status,
+              profile: matchingMember.profile || {},
+              contact: matchingMember.contact || null,
               name: matchingMember.profile?.firstName || matchingMember.profile?.nickname || 'Unknown'
             } : null
           }),
@@ -584,6 +663,103 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
+      case 'bridge-wix-login': {
+        console.log('Bridging Wix login for:', email);
+
+        if (!wixSiteId) {
+          return new Response(JSON.stringify({ error: 'Site ID required for Wix login bridge' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (!email || !payload.password || String(payload.password).length < 6) {
+          return new Response(JSON.stringify({ error: 'Valid email and password are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const bridgeEmail = normalizeEmail(email);
+        const { member, source } = await findWixMemberByEmail(bridgeEmail, wixApiKey, wixSiteId, wixAccountId || undefined);
+        if (!member) {
+          return new Response(JSON.stringify({ exists: false, error: 'No approved Wix account found for this email' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const adminClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+
+        const fullName = [member.profile?.firstName, member.profile?.lastName].filter(Boolean).join(' ') || member.profile?.nickname || '';
+        const { data: existingUsers, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        if (listErr) {
+          console.error('Supabase user lookup failed:', listErr);
+          return new Response(JSON.stringify({ error: 'Could not check app account' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        let linkedUserId: string | null = null;
+        const existingUser = existingUsers?.users?.find((u) => normalizeEmail(u.email) === bridgeEmail);
+        if (existingUser) {
+          linkedUserId = existingUser.id;
+          console.log('App account already exists for Wix email; confirming/linking metadata');
+          const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingUser.id, {
+            email_confirm: true,
+            ...(existingUser.user_metadata?.wix_member_id ? { password: String(payload.password) } : {}),
+            user_metadata: { ...(existingUser.user_metadata || {}), full_name: fullName, wix_member_id: member.id, wix_source: source },
+          });
+          if (updateErr) {
+            console.error('Supabase user update failed:', updateErr);
+            return new Response(JSON.stringify({ error: 'Could not link existing app account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } else {
+          console.log('Creating confirmed Supabase user from Wix account');
+          const { data: createdUser, error: createErr } = await adminClient.auth.admin.createUser({
+            email: bridgeEmail,
+            password: String(payload.password),
+            email_confirm: true,
+            user_metadata: { full_name: fullName, wix_member_id: member.id, wix_source: source },
+          });
+          if (createErr) {
+            console.error('Supabase user creation failed:', createErr);
+            return new Response(JSON.stringify({ error: 'Could not create app account from Wix account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          linkedUserId = createdUser.user?.id || null;
+        }
+
+        if (linkedUserId) {
+          const { error: profileErr } = await adminClient
+            .from('profiles')
+            .upsert({ user_id: linkedUserId, email: bridgeEmail, full_name: fullName, wix_account_id: member.id }, { onConflict: 'user_id' });
+          if (profileErr) console.warn('Profile upsert for Wix bridge failed:', profileErr);
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          exists: true,
+          source,
+          member: {
+            id: member.id,
+            email: member.loginEmail,
+            status: member.status,
+            profile: member.profile || {},
+            name: member.profile?.firstName || member.profile?.nickname || 'Unknown',
+          },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       case 'get-orders':
         console.log('Getting orders for member:', wixMemberId || email);
         
@@ -715,7 +891,7 @@ Deno.serve(async (req) => {
           if (buyerEmail && buyerEmail === wixEmail) return true;
           const fields: any[] = o.customFields || o.checkoutCustomFields || [];
           return fields.some((f: any) =>
-            (f.title === 'app_user_id' || f.name === 'app_user_id') &&
+            (f.title === 'smc_user_id' || f.name === 'smc_user_id' || f.title === 'app_user_id' || f.name === 'app_user_id') &&
             String(f.value || '').trim() === String(userId)
           );
         });

@@ -40,8 +40,10 @@ function jsonResponse(body: unknown, status = 200) {
 async function verifyWixMember(
   email: string,
   wixApiKey: string,
-  wixSiteId: string
+  wixSiteId: string,
+  wixAccountId?: string
 ): Promise<{ id: string; profile?: any } | null> {
+  const normalizedEmail = email.toLowerCase().trim();
   const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
     method: 'POST',
     headers: {
@@ -50,7 +52,7 @@ async function verifyWixMember(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      filter: { loginEmail: { $eq: email } },
+      query: { filter: { loginEmail: { $eq: normalizedEmail } }, paging: { limit: 100 } },
       fieldsets: ['FULL'],
     }),
   });
@@ -62,9 +64,37 @@ async function verifyWixMember(
   }
 
   const memberData = await memberResponse.json();
-  return memberData.members?.find(
-    (m: any) => m.loginEmail?.toLowerCase().trim() === email
-  ) ?? null;
+  const member = memberData.members?.find(
+    (m: any) => m.loginEmail?.toLowerCase().trim() === normalizedEmail
+  );
+  if (member) return member;
+
+  if (!wixAccountId) return null;
+
+  const contactResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts/query', {
+    method: 'POST',
+    headers: {
+      'Authorization': wixApiKey,
+      'wix-account-id': wixAccountId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query: { filter: { 'info.emails.email': { $eq: normalizedEmail } }, paging: { limit: 5 } } }),
+  });
+
+  if (!contactResponse.ok) return null;
+  const contactData = await contactResponse.json();
+  const contact = (contactData.contacts || []).find((c: any) =>
+    (c?.primaryInfo?.email || c?.info?.emails?.items?.[0]?.email || '').toLowerCase().trim() === normalizedEmail
+  );
+
+  return contact ? {
+    id: contact.id,
+    profile: {
+      firstName: contact.info?.name?.first || '',
+      lastName: contact.info?.name?.last || '',
+      nickname: contact.info?.name?.first || normalizedEmail.split('@')[0],
+    },
+  } : null;
 }
 
 async function sendMagicLinkEmail(
@@ -145,6 +175,7 @@ Deno.serve(async (req) => {
     const sharedSecret = Deno.env.get('WIX_SSO_SHARED_SECRET');
     const wixApiKey = Deno.env.get('WIX_API_KEY');
     const wixSiteId = Deno.env.get('WIX_SITE_ID');
+    const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
@@ -186,7 +217,7 @@ Deno.serve(async (req) => {
       }
 
       // Re-verify Wix membership before emailing
-      const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
+      const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId, wixAccountId);
       if (!matched) {
         return jsonResponse({ error: 'No matching Wix member found' }, 404);
       }
@@ -203,7 +234,7 @@ Deno.serve(async (req) => {
     // ========== ACTION: mint-link (default) ==========
     console.log('[wix-sso-bridge] SSO mint-link request for:', normalizedEmail);
 
-    const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId);
+    const matched = await verifyWixMember(normalizedEmail, wixApiKey, wixSiteId, wixAccountId);
     if (!matched) {
       console.warn('[wix-sso-bridge] Email is not a Wix member:', normalizedEmail);
       return jsonResponse({ error: 'No matching Wix member found' }, 404);
