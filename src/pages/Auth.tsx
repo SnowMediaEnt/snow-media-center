@@ -257,12 +257,15 @@ const Auth = () => {
       );
       
       if (error) {
-        if (error.message.includes('already registered')) {
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
           toast({
-            title: "Account exists",
-            description: "An account with this email already exists. Please sign in instead.",
+            title: "Account already exists",
+            description: "This email is already registered. Please sign in instead, or use 'Forgot password' to reset it.",
             variant: "destructive",
           });
+          setActiveTab('login');
+          setLoginForm((prev) => ({ ...prev, email: signupForm.email }));
         } else {
           toast({
             title: "Signup failed",
