@@ -12,8 +12,9 @@ interface HomeClockProps {
  * re-rendering the rest of the home tree. Shaves significant work
  * on low-power STB/FireTV devices.
  */
-const HomeClock = memo(({ version }: HomeClockProps) => {
+const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
   const [now, setNow] = useState(() => new Date());
+  const { updateAvailable, latestVersion } = useUpdateCheck(version);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
