@@ -11,6 +11,7 @@ import QRLogin from "./pages/QRLogin";
 import SsoConsume from "./pages/SsoConsume";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
+import Welcome from "./pages/Welcome";
 import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,7 @@ const App = () => {
                 <Route path="/qr-login" element={<QRLogin />} />
                 <Route path="/sso" element={<SsoConsume />} />
                 <Route path="/admin/knowledge" element={<AdminKnowledge />} />
+                <Route path="/welcome" element={<Welcome />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

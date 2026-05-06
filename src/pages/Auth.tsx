@@ -349,7 +349,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="login-email" className="text-white">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="login-email"
                       type="email"
@@ -367,7 +367,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="login-password" className="text-white">Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="login-password"
                       type={showLoginPassword ? "text" : "password"}
@@ -382,7 +382,7 @@ const Auth = () => {
                     <button
                       type="button"
                       onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      className="absolute right-3 top-3 text-blue-400 hover:text-blue-300"
+                      className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                     >
                       {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -412,7 +412,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="signup-name" className="text-white">Full Name</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <User className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="signup-name"
                       type="text"
@@ -427,7 +427,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="signup-email" className="text-white">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="signup-email"
                       type="email"
@@ -443,7 +443,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="signup-password" className="text-white">Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="signup-password"
                       type={showSignupPassword ? "text" : "password"}
@@ -456,7 +456,7 @@ const Auth = () => {
                     <button
                       type="button"
                       onClick={() => setShowSignupPassword(!showSignupPassword)}
-                      className="absolute right-3 top-3 text-blue-400 hover:text-blue-300"
+                      className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                     >
                       {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -466,7 +466,7 @@ const Auth = () => {
                 <div>
                   <Label htmlFor="signup-confirm" className="text-white">Confirm Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                     <Input
                       id="signup-confirm"
                       type={showConfirmPassword ? "text" : "password"}
@@ -479,7 +479,7 @@ const Auth = () => {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-3 text-blue-400 hover:text-blue-300"
+                      className="absolute right-3 top-3 text-blue-600 hover:text-blue-700 z-10"
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
