@@ -110,7 +110,6 @@ const PinnedAppsPopup = ({
 
   // Build selector list from PHP-synced apps + device-installed apps.
   // Dedupe by lowercased name, then by packageName as a safety net.
-  const { installedApps: deviceApps } = useDeviceInstalledApps();
   const allSelectableApps: InstalledApp[] = [];
   const seenNames = new Set<string>();
   const seenPkgs = new Set<string>();
