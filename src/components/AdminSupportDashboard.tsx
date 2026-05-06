@@ -446,6 +446,17 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
             </div>
           </TabsContent>
 
+          <TabsContent value="users">
+            <Card className="bg-gradient-to-br from-blue-900/30 to-slate-900/40 border-blue-700/40 p-6">
+              <AdminUserManager
+                onOpenUserTickets={(id, email) => {
+                  setUserFilter({ id, email });
+                  setActiveSection('tickets');
+                }}
+              />
+            </Card>
+          </TabsContent>
+
           <TabsContent value="alerts">
             <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
               <AppAlertsManager />
