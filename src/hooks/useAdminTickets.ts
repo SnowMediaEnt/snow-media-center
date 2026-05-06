@@ -55,11 +55,23 @@ export const useAdminTickets = () => {
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-      const enrichedTickets: AdminTicket[] = (ticketsData || []).map(ticket => ({
-        ...ticket,
-        user_email: profileMap.get(ticket.user_id)?.email || 'Unknown',
-        user_name: profileMap.get(ticket.user_id)?.full_name || undefined,
-      }));
+      // Fallback: if any user_id missing a profile, try to grab current admin's identity
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      const enrichedTickets: AdminTicket[] = (ticketsData || []).map(ticket => {
+        const profile = profileMap.get(ticket.user_id);
+        let email = profile?.email;
+        let name = profile?.full_name || undefined;
+        if (!email && currentUser && currentUser.id === ticket.user_id) {
+          email = currentUser.email || undefined;
+          name = (currentUser.user_metadata as any)?.full_name || name;
+        }
+        return {
+          ...ticket,
+          user_email: email || `User ${ticket.user_id.slice(0, 8)}`,
+          user_name: name,
+        };
+      });
 
       setTickets(enrichedTickets);
     } catch (error) {
