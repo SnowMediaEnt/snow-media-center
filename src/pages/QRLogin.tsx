@@ -43,12 +43,11 @@ const QRLogin = () => {
 
       console.log('✅ Session found, checking QR token validity...');
       
-      // Check if token exists and is valid
-      const { data: tokenData, error: tokenError } = await supabase
-        .from('qr_login_sessions')
-        .select('*')
-        .eq('token', token)
-        .maybeSingle();
+      // Check if token exists and is valid (via SECURITY DEFINER RPC — raw rows are not publicly readable)
+      const { data: sessionRows, error: tokenError } = await supabase
+        .rpc('get_qr_session', { p_token: token });
+
+      const tokenData = Array.isArray(sessionRows) ? sessionRows[0] : null;
 
       console.log('🎫 Token data:', tokenData);
       console.log('❗ Token error:', tokenError);
