@@ -354,16 +354,32 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </span>
               </Badge>
             </div>
-            {selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved' && (
-              <Button 
-                onClick={handleCloseTicket}
+            <div className="flex items-center gap-2">
+              {selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved' && (
+                <Button 
+                  onClick={handleCloseTicket}
+                  variant="outline"
+                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Close Ticket
+                </Button>
+              )}
+              <Button
+                onClick={async () => {
+                  if (!selectedTicketId) return;
+                  if (!confirm('Delete this ticket and all its messages? This cannot be undone.')) return;
+                  await deleteTicket(selectedTicketId);
+                  setSelectedTicketId(null);
+                  setView('list');
+                }}
                 variant="outline"
-                className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white"
+                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white"
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Close Ticket
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Ticket
               </Button>
-            )}
+            </div>
           </div>
 
           <div className="grid gap-6">
