@@ -29,7 +29,8 @@ import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
 import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
-import { AlertTriangle } from 'lucide-react';
+import AdminUserManager from '@/components/AdminUserManager';
+import { AlertTriangle, Users } from 'lucide-react';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -40,7 +41,8 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [activeSection, setActiveSection] = useState<'tickets' | 'alerts'>('tickets');
+  const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts'>('tickets');
 
   const {
     tickets,
@@ -56,9 +58,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
 
+  const baseTickets = userFilter ? tickets.filter(t => t.user_id === userFilter.id) : tickets;
   const filteredTickets = statusFilter === 'all' 
-    ? tickets 
-    : tickets.filter(t => t.status === statusFilter);
+    ? baseTickets 
+    : baseTickets.filter(t => t.status === statusFilter);
 
   // Hierarchical back button handling
   useEffect(() => {
@@ -343,11 +346,15 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
-        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'alerts')} className="w-full">
+        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts')} className="w-full">
           <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
             <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               <MessageCircle className="h-4 w-4 mr-2" />
               Tickets {unreadCount > 0 && <Badge className="ml-2 bg-purple-500">{unreadCount}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+              <Users className="h-4 w-4 mr-2" />
+              Users
             </TabsTrigger>
             <TabsTrigger value="alerts" className="data-[state=active]:bg-yellow-600 data-[state=active]:text-white">
               <AlertTriangle className="h-4 w-4 mr-2" />
@@ -356,6 +363,17 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </TabsList>
 
           <TabsContent value="tickets">
+            {userFilter && (
+              <div className="mb-3 flex items-center justify-between gap-2 p-3 rounded-md bg-purple-900/30 border border-purple-700/40">
+                <span className="text-sm text-purple-100">
+                  Filtering tickets for: <strong>{userFilter.email || userFilter.id}</strong>
+                </span>
+                <Button size="sm" variant="outline" onClick={() => setUserFilter(null)}
+                  className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white">
+                  Clear filter
+                </Button>
+              </div>
+            )}
             <div className="grid gap-4">
               {filteredTickets.map((ticket) => (
                 <Card 
@@ -426,6 +444,17 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <Card className="bg-gradient-to-br from-blue-900/30 to-slate-900/40 border-blue-700/40 p-6">
+              <AdminUserManager
+                onOpenUserTickets={(id, email) => {
+                  setUserFilter({ id, email });
+                  setActiveSection('tickets');
+                }}
+              />
+            </Card>
           </TabsContent>
 
           <TabsContent value="alerts">
