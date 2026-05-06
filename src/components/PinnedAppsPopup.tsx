@@ -7,6 +7,7 @@ import { PinnedApp } from '@/hooks/usePinnedApps';
 import { AppData } from '@/hooks/useAppData';
 import { InstalledApp } from '@/data/installedApps';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
+import { App as CapApp } from '@capacitor/app';
 
 interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
