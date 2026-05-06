@@ -11,7 +11,7 @@ import { Browser } from '@capacitor/browser';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 import { generatePackageName } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
-import PinnedAppsBar from '@/components/PinnedAppsBar';
+
 import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
@@ -967,16 +967,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             <p className="text-xl text-blue-200">Download, Install & Launch APKs</p>
           </div>
         </div>
-
-        {/* Pinned Apps Bar */}
-        <PinnedAppsBar
-          pinnedApps={pinnedApps}
-          onLaunchApp={attemptLaunch}
-          focusedElement={focusedElement}
-          onFocus={(id) => setFocusedElement(id as FocusType)}
-          apps={apps}
-        />
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
