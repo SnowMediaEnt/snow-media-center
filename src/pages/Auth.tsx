@@ -293,7 +293,10 @@ const Auth = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
+    >
       <div className="max-w-md mx-auto">
         {/* Back Button - Fixed to top left corner like other pages */}
         <div className="fixed top-4 left-4 z-50">
