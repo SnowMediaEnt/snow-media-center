@@ -527,6 +527,31 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsContent>
         </Tabs>
       </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300">
+              This permanently removes your Snow Media app account, profile, credits,
+              chats, support tickets and media. This cannot be undone. Your separate
+              Snow Media website (Wix) account is not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={handleDeleteAccount}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Deleting…' : 'Yes, delete my account'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
