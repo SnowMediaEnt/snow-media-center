@@ -107,18 +107,42 @@ const PinnedAppsPopup = ({
     }
   };
 
-  // Merge defaultInstalledApps with fetched apps for the selector, deduplicating by packageName
-  const allSelectableApps: InstalledApp[] = [...defaultInstalledApps];
+  // Build selector list from PHP-synced apps + device-installed apps.
+  // Dedupe by lowercased name, then by packageName as a safety net.
+  const { installedApps: deviceApps } = useDeviceInstalledApps();
+  const allSelectableApps: InstalledApp[] = [];
+  const seenNames = new Set<string>();
+  const seenPkgs = new Set<string>();
+
+  const tryAdd = (candidate: InstalledApp) => {
+    const nameKey = (candidate.name || '').trim().toLowerCase();
+    const pkgKey = (candidate.packageName || '').trim().toLowerCase();
+    if (!nameKey) return;
+    if (seenNames.has(nameKey)) return;
+    if (pkgKey && seenPkgs.has(pkgKey)) return;
+    seenNames.add(nameKey);
+    if (pkgKey) seenPkgs.add(pkgKey);
+    allSelectableApps.push(candidate);
+  };
+
+  // 1. Apps from apps.json.php (via Supabase `apps` table)
   for (const app of apps) {
-    const alreadyExists = allSelectableApps.some(a => a.packageName === app.packageName);
-    if (!alreadyExists) {
-      allSelectableApps.push({
-        id: app.id,
-        name: app.name,
-        icon: app.icon,
-        packageName: app.packageName,
-      });
-    }
+    tryAdd({
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      packageName: app.packageName,
+    });
+  }
+
+  // 2. Apps actually installed on the device that aren't in our catalog
+  for (const app of deviceApps) {
+    tryAdd({
+      id: `device:${app.packageName}`,
+      name: app.appName,
+      icon: '',
+      packageName: app.packageName,
+    });
   }
 
   // Create 4 equal slots
