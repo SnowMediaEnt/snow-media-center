@@ -326,6 +326,21 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </div>
                 </div>
               </div>
+              <div className="mt-8 pt-6 border-t border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+                <p className="text-slate-400 text-sm mb-4">
+                  Permanently delete your Snow Media app account and all associated data.
+                  This does not affect your Snow Media website (Wix) account.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete My Account
+                </Button>
+              </div>
             </Card>
           </TabsContent>
 
