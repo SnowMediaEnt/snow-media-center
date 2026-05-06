@@ -555,9 +555,24 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     <CardTitle className="text-white text-lg line-clamp-2">
                       {ticket.subject}
                     </CardTitle>
-                    {ticket.user_has_unread && (
-                      <Badge className="bg-blue-600 text-white ml-2">New</Badge>
-                    )}
+                    <div className="flex items-center gap-2 ml-2">
+                      {ticket.user_has_unread && (
+                        <Badge className="bg-blue-600 text-white">New</Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Delete this ticket? This cannot be undone.')) {
+                            deleteTicket(ticket.id);
+                          }
+                        }}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={getStatusColor(ticket.status, ticketActive)}>
