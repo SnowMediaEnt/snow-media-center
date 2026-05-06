@@ -36,6 +36,8 @@ const PinnedAppsPopup = ({
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
@@ -202,22 +204,47 @@ const PinnedAppsPopup = ({
       </div>
 
       {/* App Selector Dialog */}
-      <Dialog open={showAppSelector} onOpenChange={setShowAppSelector}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-md">
+      <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); }}>
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Pin className="w-5 h-5 text-brand-gold" />
               Select Apps to Pin
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {allSelectableApps.map((app) => {
+          <div
+            className="grid grid-cols-2 gap-3 mt-4 overflow-y-auto pr-1 flex-1"
+            onKeyDown={(e) => {
+              const cols = 2;
+              const total = allSelectableApps.length;
+              let next = selectorFocusIndex;
+              if (e.key === 'ArrowRight') next = Math.min(total - 1, selectorFocusIndex + 1);
+              else if (e.key === 'ArrowLeft') next = Math.max(0, selectorFocusIndex - 1);
+              else if (e.key === 'ArrowDown') next = Math.min(total - 1, selectorFocusIndex + cols);
+              else if (e.key === 'ArrowUp') next = Math.max(0, selectorFocusIndex - cols);
+              else return;
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectorFocusIndex(next);
+              const btn = selectorButtonsRef.current[next];
+              btn?.focus();
+              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }}
+          >
+            {allSelectableApps.map((app, idx) => {
               const isAppPinned = isPinned(app.id);
               const canSelect = canPinMore || isAppPinned;
-              
+              const isFocused = selectorFocusIndex === idx;
+
               return (
                 <button
                   key={app.id}
+                  ref={(el) => {
+                    selectorButtonsRef.current[idx] = el;
+                    if (el && showAppSelector && idx === 0 && selectorFocusIndex === 0 && document.activeElement !== el) {
+                      setTimeout(() => el.focus(), 50);
+                    }
+                  }}
                   onClick={() => handleTogglePin(app)}
                   disabled={!canSelect}
                   className={`
@@ -228,6 +255,7 @@ const PinnedAppsPopup = ({
                         ? 'bg-slate-800 border-slate-600 hover:border-brand-ice/50'
                         : 'bg-slate-800/50 border-slate-700 opacity-50 cursor-not-allowed'
                     }
+                    ${isFocused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}
                   `}
                 >
                   <div className="flex items-center gap-3">
