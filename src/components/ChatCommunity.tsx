@@ -431,13 +431,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         { id: 'join-groups', type: 'button' },
       ];
     } else {
+      const aiHistoryItems = aiConversations.map((c, i) => ({
+        id: `ai-history-${i}`,
+        type: 'button',
+        conversationId: c.id,
+      }));
       return [
         ...header,
         { id: 'ai-input', type: 'input' },
         { id: 'ai-send', type: 'button' },
+        ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
