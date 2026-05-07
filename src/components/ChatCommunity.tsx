@@ -665,6 +665,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
+          } else if (currentFocusId === 'ai-voice') {
+            const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+            btn?.click();
           } else if (currentFocusId.startsWith('ai-history-')) {
             const idx = parseInt(currentFocusId.replace('ai-history-', ''));
             const conv = aiConversations[idx];
