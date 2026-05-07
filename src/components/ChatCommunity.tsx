@@ -84,6 +84,27 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       console.error('TTS playback failed:', err);
     }
   }, []);
+
+  // Hardware voice-key support: Fire TV / Alexa mic, Android voice remote, Bixby, etc.
+  // These remotes typically dispatch keys 231 (CALL), 84 (SEARCH), 79 (HEADSETHOOK), or "MicrophoneToggle"/"AudioVolumeMute"
+  useEffect(() => {
+    if (activeTab !== 'ai') return;
+    const VOICE_KEYS = new Set([
+      'MicrophoneToggle', 'BrowserSearch', 'LaunchMail', 'MediaPlayPause',
+    ]);
+    const VOICE_CODES = new Set([231, 84, 79, 220]); // CALL, SEARCH, HEADSETHOOK, MIC
+    const handler = (e: KeyboardEvent) => {
+      const isVoiceKey = VOICE_KEYS.has(e.key) || VOICE_CODES.has(e.keyCode);
+      if (!isVoiceKey) return;
+      const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+      if (btn) {
+        e.preventDefault();
+        btn.click();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeTab]);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
