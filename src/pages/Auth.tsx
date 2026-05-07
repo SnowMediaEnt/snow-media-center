@@ -421,6 +421,7 @@ const Auth = () => {
                 </div>
 
                 <Button 
+                  id="login-submit"
                   type="submit" 
                   disabled={loading}
                   className={`w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${
