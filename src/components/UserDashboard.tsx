@@ -139,23 +139,26 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
 
-  // When focus moves to the tab strip, keep the tabs in view (don't jump to
-  // the bottom of the active panel — that hid the user above the Danger Zone).
+  // When the active tab changes, scroll the tab strip into view once.
+  // Intentionally does NOT depend on focusedElement — otherwise it fights
+  // the manual scrollBy in the D-pad handler when moving between tabs.
   useEffect(() => {
-    if (focusedElement < 5 || focusedElement > 8) return;
     const id = setTimeout(() => {
       const tab = document.querySelector('[role="tab"][data-state="active"]') as HTMLElement | null;
       tab?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
     return () => clearTimeout(id);
-  }, [activeTab, focusedElement]);
+  }, [activeTab]);
 
-  // Fetch Wix data when user changes
+  // Fetch Wix data once per email change. Do NOT depend on wixLoading —
+  // fetchWixData itself flips wixLoading, which would otherwise cause a
+  // refetch loop (twice per email change).
   useEffect(() => {
-    if (user?.email && !wixLoading) {
+    if (user?.email) {
       fetchWixData(user.email);
     }
-  }, [user?.email, wixLoading, fetchWixData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
 
   const handleSignOut = async () => {
     const { error } = await signOut();

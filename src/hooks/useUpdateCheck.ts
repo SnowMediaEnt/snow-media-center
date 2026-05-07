@@ -68,10 +68,13 @@ export const useUpdateCheck = (currentVersion: string) => {
       }
     };
 
-    check();
+    // Defer first check so it doesn't compete with NewsTicker + Wix calls
+    // during the home-screen first paint on low-power STB devices.
+    const initialDelay = setTimeout(check, 6000);
     const id = setInterval(check, 10 * 60 * 1000);
     return () => {
       cancelled = true;
+      clearTimeout(initialDelay);
       clearInterval(id);
     };
   }, [currentVersion]);

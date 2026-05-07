@@ -343,7 +343,8 @@ const Index = () => {
           
         case 'Escape':
         case 'Backspace':
-          // Handle double-press to exit on home screen (already handled above)
+          // Only reached on home view (non-home returned earlier above).
+          // Triggers the double-press-to-exit flow in useNavigation.
           goBack();
           break;
       }
