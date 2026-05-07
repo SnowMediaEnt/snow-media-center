@@ -323,6 +323,7 @@ const Auth = () => {
         {/* Back Button - Fixed to top left corner like other pages */}
         <div className="fixed top-4 left-4 z-50">
           <Button 
+            id="auth-back"
             onClick={() => navigate('/')}
             variant="outline" 
             size="lg"
