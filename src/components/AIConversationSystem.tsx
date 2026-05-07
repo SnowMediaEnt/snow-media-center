@@ -79,6 +79,16 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, onBack]);
 
+  // Auto-focus first conversation card when list view opens
+  useEffect(() => {
+    if (view !== 'list' || conversations.length === 0) return;
+    const t = setTimeout(() => {
+      const first = document.querySelector<HTMLElement>('[data-convo-idx="0"]');
+      first?.focus();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [view, conversations.length]);
+
   const handleCreateConversation = async () => {
     if (!newMessage.trim()) return;
     
@@ -275,11 +285,37 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {conversations.map((conversation) => (
-            <Card 
+          {conversations.map((conversation, idx) => (
+            <Card
               key={conversation.id}
-              className="bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors"
+              tabIndex={0}
+              data-convo-idx={idx}
+              role="button"
+              className="bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all outline-none focus:scale-105 focus:shadow-[0_0_20px_rgba(96,165,250,0.6)] focus:border-blue-400"
               onClick={() => handleViewConversation(conversation.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleViewConversation(conversation.id);
+                  return;
+                }
+                const navKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+                if (!navKeys.includes(e.key)) return;
+                e.preventDefault();
+                const cards = Array.from(
+                  document.querySelectorAll<HTMLElement>('[data-convo-idx]')
+                );
+                const cols = window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1;
+                let next = idx;
+                if (e.key === 'ArrowRight') next = idx + 1;
+                else if (e.key === 'ArrowLeft') next = idx - 1;
+                else if (e.key === 'ArrowDown') next = idx + cols;
+                else if (e.key === 'ArrowUp') next = idx - cols;
+                if (next >= 0 && next < cards.length) {
+                  cards[next].focus();
+                  cards[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+              }}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
