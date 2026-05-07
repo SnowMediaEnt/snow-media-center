@@ -142,7 +142,13 @@ const Auth = () => {
       'submit': activeTab === 'login' ? 'login-submit' : 'signup-submit',
     };
     const el = document.getElementById(idMap[focusedElement]);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Auto-focus input fields so user can type immediately
+      if (el.tagName === 'INPUT' && document.activeElement !== el) {
+        (el as HTMLInputElement).focus();
+      }
+    }
   }, [focusedElement, activeTab]);
 
   const handleLogin = async (e: React.FormEvent) => {
