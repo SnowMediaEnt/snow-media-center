@@ -189,8 +189,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   }
 
   return (
-    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
-      <div className="max-w-6xl mx-auto pb-16">
+    <div className="tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white min-h-dvh">
+      <div className="max-w-6xl mx-auto pb-24">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
