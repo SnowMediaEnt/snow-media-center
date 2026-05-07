@@ -202,7 +202,9 @@ Deno.serve(async (req) => {
       'get-referral-info',
       'create-member',  // Allow signup flow to work
       'bridge-wix-login', // Allow Wix website accounts to create confirmed app login
-      'create-cart'     // Allow checkout without auth (guest checkout)
+      'create-cart',    // Allow checkout without auth (guest checkout)
+      'get-blog-posts', // Public read of Wix blog posts
+      'get-blog-post'   // Public read of a single Wix blog post
     ];
     const isPublicAction = publicActions.includes(action);
     
