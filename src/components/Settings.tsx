@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Layout, Image, RefreshCw, AlertTriangle, Bot } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -12,45 +12,34 @@ import { useAdminRole } from '@/hooks/useAdminRole';
 
 interface SettingsProps {
   onBack: () => void;
-  layoutMode: 'grid' | 'row';
-  onLayoutChange: (mode: 'grid' | 'row') => void;
+  layoutMode?: 'grid' | 'row';
+  onLayoutChange?: (mode: 'grid' | 'row') => void;
 }
 
-// Focus states: Settings owns all navigation, MediaManager is passive when embedded
-type SettingsFocus = 
-  | 'back' 
-  | 'tab-layout' 
-  | 'tab-media' 
-  | 'tab-updates' 
+type SettingsFocus =
+  | 'back'
+  | 'tab-media'
+  | 'tab-updates'
   | 'tab-alerts'
-  | 'layout-toggle'
   | 'media-content'
   | 'updates-content'
   | 'alerts-content';
 
-const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
+const Settings = ({ onBack }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
-  const [activeTab, setActiveTab] = useState('layout');
+  const [activeTab, setActiveTab] = useState('media');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // When tab changes, reset focus appropriately
   useEffect(() => {
-    if (activeTab === 'media') {
-      // Don't immediately enter media manager - let user press down first
-      setMediaManagerActive(false);
-    } else {
-      setMediaManagerActive(false);
-    }
+    setMediaManagerActive(false);
   }, [activeTab]);
 
-  // Main navigation handler for Settings shell
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // If MediaManager is active, only intercept global back to allow hierarchical exit
       if (mediaManagerActive) {
-        if (event.key === 'Escape' || event.key === 'Backspace' || 
+        if (event.key === 'Escape' || event.key === 'Backspace' ||
             event.keyCode === 4 || event.which === 4) {
           const target = event.target as HTMLElement;
           const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
@@ -59,11 +48,9 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         return;
       }
 
-      // If focus is inside updates content, handle navigation back out
       if (focusedElement === 'updates-content') {
         if (event.key === 'ArrowUp') {
           const active = document.activeElement as HTMLElement | null;
-          // Only bubble back to tabs if focused on the first updater button
           if (active?.matches('[data-app-updater-btn="check"]') ||
               active?.matches('[data-app-updater-btn="download"]')) {
             event.preventDefault();
@@ -92,82 +79,52 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           }
           return;
         }
-        return; // Let AppUpdater / ApkCacheViewer handle their own internal nav
+        return;
       }
 
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-      
-      // Handle back button globally - hierarchical exit
+
       if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack' ||
           (event.key === 'Backspace' && !isTyping)) {
         event.preventDefault();
         event.stopPropagation();
-        
-        // If on a tab content element, go back to tab first
-        if (focusedElement === 'layout-toggle') {
-          setFocusedElement('tab-layout');
-          return;
-        }
-        
-        // Otherwise exit Settings entirely
         onBack();
         return;
       }
-      
-      // Allow Backspace when typing
-      if (event.key === 'Backspace' && isTyping) {
-        return;
-      }
-      
-      // Skip when typing
-      if (isTyping) {
-        return;
-      }
-      
+
+      if (event.key === 'Backspace' && isTyping) return;
+      if (isTyping) return;
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
         event.stopPropagation();
       }
 
       const tabs: SettingsFocus[] = isAdmin
-        ? ['tab-layout', 'tab-media', 'tab-updates', 'tab-alerts']
-        : ['tab-layout', 'tab-media', 'tab-updates'];
+        ? ['tab-media', 'tab-updates', 'tab-alerts']
+        : ['tab-media', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
-      
+
       switch (event.key) {
         case 'ArrowLeft':
-          if (currentTabIdx > 0) {
-            setFocusedElement(tabs[currentTabIdx - 1]);
-          } else if (focusedElement === 'layout-toggle') {
-            setFocusedElement('tab-layout');
-          }
+          if (currentTabIdx > 0) setFocusedElement(tabs[currentTabIdx - 1]);
           break;
-          
         case 'ArrowRight':
           if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
             setFocusedElement(tabs[currentTabIdx + 1]);
           }
           break;
-          
         case 'ArrowUp':
-          if (focusedElement === 'layout-toggle') {
-            setFocusedElement('tab-layout');
-          } else if (currentTabIdx >= 0) {
-            setFocusedElement('back');
-          }
+          if (currentTabIdx >= 0) setFocusedElement('back');
           break;
-          
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            setFocusedElement('tab-layout');
-          } else if (focusedElement === 'tab-layout' && activeTab === 'layout') {
-            setFocusedElement('layout-toggle');
+            setFocusedElement('tab-media');
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
-            // Move native focus into AppUpdater so its key handler activates
             setTimeout(() => {
               const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
               btn?.focus();
@@ -177,37 +134,22 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setFocusedElement('alerts-content');
           }
           break;
-          
         case 'Enter':
         case ' ':
-          if (focusedElement === 'back') {
-            onBack();
-          } else if (focusedElement === 'tab-layout') {
-            setActiveTab('layout');
-          } else if (focusedElement === 'tab-media') {
-            setActiveTab('media');
-          } else if (focusedElement === 'tab-updates') {
-            setActiveTab('updates');
-          } else if (focusedElement === 'tab-alerts') {
-            setActiveTab('alerts');
-          } else if (focusedElement === 'layout-toggle') {
-            onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid');
-          }
+          if (focusedElement === 'back') onBack();
+          else if (focusedElement === 'tab-media') setActiveTab('media');
+          else if (focusedElement === 'tab-updates') setActiveTab('updates');
+          else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, layoutMode, onBack, onLayoutChange, mediaManagerActive, isAdmin]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin]);
 
-  // Scroll focused element into view - ensure back button is always reachable
-  // and that scrolling all the way "up" returns the page to absolute 0,
-  // matching the behavior fixed for Vimeo / Snow Media Store.
   useEffect(() => {
     const scrollAllToTop = () => {
-      // Reset every plausible scroller: container, window, body, html,
-      // plus any tv-scroll-container ancestors we may be nested inside.
       containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.documentElement.scrollTop = 0;
@@ -217,8 +159,6 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
     };
 
-    // The back button and the top tabs are visually at the top of the page,
-    // so any focus on them should snap the entire scroll to 0.
     if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
       const topAnchor = document.getElementById('settings-top');
       topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -227,9 +167,7 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
     }
 
     const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-    if (el) {
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
@@ -237,31 +175,23 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
     ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
     : '';
 
-  // Force row layout — Grid option was removed because it overlapped the
-  // RSS ticker and made the pinned-apps popup misalign on TVs.
-  useEffect(() => {
-    if (layoutMode !== 'row') {
-      onLayoutChange('row');
-    }
-  }, [layoutMode, onLayoutChange]);
-
-  // Callback when MediaManager wants to exit back to Settings tabs
   const handleMediaManagerBack = () => {
     setMediaManagerActive(false);
     setFocusedElement('tab-media');
   };
 
+  const tabColsClass = isAdmin ? 'grid-cols-4' : 'grid-cols-2';
+
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white" style={{ paddingTop: '2vh' }}>
       <div className="max-w-4xl mx-auto pb-16">
-        {/* Scroll anchor to ensure back button is reachable */}
         <div id="settings-top" className="scroll-mt-4" />
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-start w-full">
-            <Button 
+            <Button
               data-settings-focus="back"
               onClick={onBack}
-              variant="gold" 
+              variant="gold"
               size="lg"
               className={`transition-all duration-200 ${focusRing('back')}`}
             >
@@ -276,35 +206,27 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} bg-slate-800/50 border-slate-600`}>
-            <TabsTrigger 
-              data-settings-focus="tab-layout"
-              value="layout" 
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-layout')}`}
-            >
-              <Layout className="w-4 h-4 mr-2" />
-              Layout
-            </TabsTrigger>
-            <TabsTrigger 
+          <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`}>
+            <TabsTrigger
               data-settings-focus="tab-media"
-              value="media" 
+              value="media"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
               <Image className="w-4 h-4 mr-2" />
               Media Manager
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               data-settings-focus="tab-updates"
-              value="updates" 
+              value="updates"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Updates
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger 
+              <TabsTrigger
                 data-settings-focus="tab-alerts"
-                value="alerts" 
+                value="alerts"
                 className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
@@ -312,8 +234,8 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
               </TabsTrigger>
             )}
             {isAdmin && (
-              <TabsTrigger 
-                value="ai" 
+              <TabsTrigger
+                value="ai"
                 className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200`}
               >
                 <Bot className="w-4 h-4 mr-2" />
@@ -322,36 +244,11 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             )}
           </TabsList>
 
-          <TabsContent value="layout" className="mt-6">
-            <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Home Screen Layout</h2>
-              <p className="text-blue-100 text-sm mb-6">
-                Snow Media Center now uses a single optimized row layout to keep
-                the pinned apps and news ticker perfectly aligned on all TVs.
-              </p>
-
-              <div className="flex items-center justify-center">
-                <div
-                  data-settings-focus="layout-toggle"
-                  className={`flex items-center gap-3 bg-slate-800 rounded-lg px-6 py-4 ${focusRing('layout-toggle')}`}
-                >
-                  <div className="flex gap-1">
-                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
-                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
-                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
-                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
-                  </div>
-                  <span className="text-white font-semibold">Row layout (default)</span>
-                </div>
-              </div>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="media" className="mt-6">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
               <h2 className="text-2xl font-bold text-white mb-6">Media Manager</h2>
-              <MediaManager 
-                onBack={handleMediaManagerBack} 
+              <MediaManager
+                onBack={handleMediaManagerBack}
                 embedded={true}
                 isActive={mediaManagerActive}
               />
