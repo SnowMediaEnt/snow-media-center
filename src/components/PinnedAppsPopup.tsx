@@ -48,6 +48,11 @@ const PinnedAppsPopup = ({
     if (!isVisible || focusedIndex < 0 || showAppSelector) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // If a modal dialog is open (e.g. AppAlertDialog), don't move focus in the
+      // popup — the dialog should own all key input until dismissed.
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+        return;
+      }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         e.stopPropagation();

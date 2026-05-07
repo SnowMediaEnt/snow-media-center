@@ -618,23 +618,41 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
       toast({ title: 'No installed apps to clean.' });
       return;
     }
+    // Amazon Fire TV / Firestick doesn't expose our Accessibility Service
+    // (Fire OS strips it). Fall back to opening App Info one-by-one so users
+    // can still clear cache manually.
+    const ua = (navigator.userAgent || '').toLowerCase();
+    const isFireOS = /\b(aft[a-z0-9]+|firetv|fire tv|kf[a-z]{2,4}|amazon)\b/.test(ua);
+
     // Hard-require Accessibility BEFORE we touch system Settings even once.
+    let accessibilityOk = false;
     try {
       const { enabled } = await AppManager.isAccessibilityEnabled();
-      if (!enabled) {
+      accessibilityOk = enabled;
+    } catch {
+      accessibilityOk = false;
+    }
+
+    if (!accessibilityOk) {
+      if (isFireOS) {
         toast({
-          title: 'Enable Cache Cleaner first',
-          description: 'Turn on "Snow Media Cache Cleaner" in Accessibility, then try again.',
+          title: 'Fire TV: manual clear required',
+          description: `Auto-clear isn't available on Fire OS. Opening App Info for each app — tap Storage → Clear cache, then Back.`,
         });
-        await AppManager.openAccessibilitySettings();
+        for (const app of installed) {
+          const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+          try {
+            await AppManager.openAppSettings({ packageName });
+          } catch {/* skip */}
+          await new Promise(r => setTimeout(r, 1500));
+        }
         return;
       }
-    } catch {
       toast({
-        title: 'Accessibility check failed',
-        description: 'Could not verify the Cache Cleaner service. Aborting.',
-        variant: 'destructive',
+        title: 'Enable Cache Cleaner first',
+        description: 'Turn on "Snow Media Cache Cleaner" in Accessibility, then try again.',
       });
+      try { await AppManager.openAccessibilitySettings(); } catch {/* */}
       return;
     }
 
