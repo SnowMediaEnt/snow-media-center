@@ -167,6 +167,12 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
+            // Move native focus into AppUpdater so its key handler activates
+            setTimeout(() => {
+              const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
+              btn?.focus();
+              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
           }
