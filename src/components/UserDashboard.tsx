@@ -497,11 +497,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     </div>
                     <div className="bg-slate-800/50 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-2">Earnings</h3>
-                      <p className="text-3xl font-bold text-green-400">${wixReferrals.totalEarnings || '0.00'}</p>
+                      <p className="text-3xl font-bold text-green-400">{String(wixReferrals.totalEarnings || '').startsWith('$') ? wixReferrals.totalEarnings : `$${wixReferrals.totalEarnings || '0.00'}`}</p>
                     </div>
                     <div className="bg-slate-800/50 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-2">Pending</h3>
-                      <p className="text-3xl font-bold text-yellow-400">${wixReferrals.pendingEarnings || '0.00'}</p>
+                      <p className="text-3xl font-bold text-yellow-400">{String(wixReferrals.pendingEarnings || '').startsWith('$') ? wixReferrals.pendingEarnings : `$${wixReferrals.pendingEarnings || '0.00'}`}</p>
                     </div>
                   </div>
                   
