@@ -23,7 +23,7 @@ interface AppUpdaterProps {
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   const [currentVersion, setCurrentVersion] = useState('1.0.0');
-  const [focusedElement, setFocusedElement] = useState(0);
+  const [focusedElement, setFocusedElement] = useState<number>(-1);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -281,6 +281,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           <Button
             onClick={checkForUpdates}
             onFocus={() => setFocusedElement(0)}
+            onBlur={() => setFocusedElement((prev) => (prev === 0 ? -1 : prev))}
             disabled={isChecking}
             variant="outline"
             data-app-updater-btn="check"
@@ -296,6 +297,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             <Button
               onClick={downloadUpdate}
               onFocus={() => setFocusedElement(1)}
+              onBlur={() => setFocusedElement((prev) => (prev === 1 ? -1 : prev))}
               disabled={isDownloading}
               data-app-updater-btn="download"
               className={`flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${

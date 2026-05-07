@@ -438,6 +438,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       return [
         ...header,
         { id: 'ai-input', type: 'input' },
+        { id: 'ai-voice', type: 'button' },
         { id: 'ai-send', type: 'button' },
         ...aiHistoryItems,
       ];
@@ -580,6 +581,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           } else if (currentFocusId === 'visit-forum') {
             setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
+            setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
+          } else if (currentFocusId === 'ai-voice') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-send'));
           } else if (currentFocusId === 'submit-ticket') {
             setFocusIndex(elements.findIndex(e => e.id === 'cancel-ticket'));
@@ -599,6 +602,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           } else if (currentFocusId === 'join-groups') {
             setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
+            setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
+          } else if (currentFocusId === 'ai-voice') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-input'));
           } else if (currentFocusId === 'cancel-ticket') {
             setFocusIndex(elements.findIndex(e => e.id === 'submit-ticket'));
@@ -660,6 +665,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
+          } else if (currentFocusId === 'ai-voice') {
+            const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+            btn?.click();
           } else if (currentFocusId.startsWith('ai-history-')) {
             const idx = parseInt(currentFocusId.replace('ai-history-', ''));
             const conv = aiConversations[idx];
@@ -1165,10 +1173,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   }
                 }}
               />
-              <VoiceInput
-                onTranscription={(text) => setAiMessage(text)}
-                className=""
-              />
+              <div
+                data-focus-id="ai-voice"
+                className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
+              >
+                <VoiceInput
+                  onTranscription={(text) => setAiMessage(text)}
+                  className=""
+                />
+              </div>
               <Button 
                 onClick={sendAiMessage}
                 disabled={aiLoading || !aiMessage.trim() || !user}
