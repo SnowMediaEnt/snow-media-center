@@ -6,10 +6,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface VoiceInputProps {
   onTranscription: (text: string) => void;
+  onRecordingStart?: () => void;
   className?: string;
 }
 
-export const VoiceInput = ({ onTranscription, className = '' }: VoiceInputProps) => {
+export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }: VoiceInputProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -18,6 +19,8 @@ export const VoiceInput = ({ onTranscription, className = '' }: VoiceInputProps)
 
   const startRecording = async () => {
     try {
+      // Notify parent in gesture context (so it can unlock TTS audio playback)
+      onRecordingStart?.();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
       });

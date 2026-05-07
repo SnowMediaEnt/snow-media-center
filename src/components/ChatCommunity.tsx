@@ -43,6 +43,22 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
+
+  // Must be called from a user gesture to satisfy autoplay policies (browsers, Fire TV, Android TV WebView)
+  const unlockAudioPlayback = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    try {
+      const a = new Audio(
+        // 1-frame silent mp3
+        'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAABQgJAUHQQAB9AAAA0gAFwAAA',
+      );
+      a.volume = 0;
+      void a.play().catch(() => {});
+      ttsAudioRef.current = a;
+      audioUnlockedRef.current = true;
+    } catch {}
+  }, []);
 
   const speakReply = useCallback(async (text: string) => {
     try {
@@ -52,17 +68,43 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       if (error) throw error;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) return;
-      if (ttsAudioRef.current) {
-        ttsAudioRef.current.pause();
-        ttsAudioRef.current = null;
+      const src = `data:audio/mpeg;base64,${audioContent}`;
+      // Reuse the unlocked element if available — preserves the user-gesture activation
+      let audio = ttsAudioRef.current;
+      if (!audio) {
+        audio = new Audio();
+        ttsAudioRef.current = audio;
       }
-      const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
-      ttsAudioRef.current = audio;
+      audio.pause();
+      audio.src = src;
+      audio.volume = 1;
+      audio.currentTime = 0;
       await audio.play();
     } catch (err) {
       console.error('TTS playback failed:', err);
     }
   }, []);
+
+  // Hardware voice-key support: Fire TV / Alexa mic, Android voice remote, Bixby, etc.
+  // These remotes typically dispatch keys 231 (CALL), 84 (SEARCH), 79 (HEADSETHOOK), or "MicrophoneToggle"/"AudioVolumeMute"
+  useEffect(() => {
+    if (activeTab !== 'ai') return;
+    const VOICE_KEYS = new Set([
+      'MicrophoneToggle', 'BrowserSearch', 'LaunchMail', 'MediaPlayPause',
+    ]);
+    const VOICE_CODES = new Set([231, 84, 79, 220]); // CALL, SEARCH, HEADSETHOOK, MIC
+    const handler = (e: KeyboardEvent) => {
+      const isVoiceKey = VOICE_KEYS.has(e.key) || VOICE_CODES.has(e.keyCode);
+      if (!isVoiceKey) return;
+      const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+      if (btn) {
+        e.preventDefault();
+        btn.click();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeTab]);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
@@ -1205,6 +1247,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
               >
                 <VoiceInput
+                  onRecordingStart={() => {
+                    voiceModeRef.current = true;
+                    unlockAudioPlayback();
+                  }}
                   onTranscription={(text) => {
                     voiceModeRef.current = true;
                     setAiMessage(text);
