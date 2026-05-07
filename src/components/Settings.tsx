@@ -318,42 +318,24 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
 
           <TabsContent value="layout" className="mt-6">
             <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Home Screen Layout</h2>
-              
-               <div className="flex items-center justify-center">
-                 <div 
-                   data-settings-focus="layout-toggle"
-                   className={`flex bg-slate-800 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:bg-slate-700 ${focusRing('layout-toggle')}`}
-                   onClick={() => onLayoutChange(layoutMode === 'grid' ? 'row' : 'grid')}
+              <h2 className="text-2xl font-bold text-white mb-2">Home Screen Layout</h2>
+              <p className="text-blue-100 text-sm mb-6">
+                Snow Media Center now uses a single optimized row layout to keep
+                the pinned apps and news ticker perfectly aligned on all TVs.
+              </p>
+
+              <div className="flex items-center justify-center">
+                <div
+                  data-settings-focus="layout-toggle"
+                  className={`flex items-center gap-3 bg-slate-800 rounded-lg px-6 py-4 ${focusRing('layout-toggle')}`}
                 >
-                  {/* Grid Layout Option */}
-                  <div className={`flex flex-col items-center justify-center p-4 rounded-md transition-all duration-200 ${
-                    layoutMode === 'grid' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}>
-                    <div className="grid grid-cols-2 gap-1 mb-2">
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                    </div>
-                    <span className="text-xs font-medium">Grid</span>
+                  <div className="flex gap-1">
+                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
+                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
+                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
+                    <div className="w-3 h-3 bg-brand-gold rounded-sm"></div>
                   </div>
-
-                  {/* Divider */}
-                  <div className="w-px bg-slate-600 mx-2 my-2"></div>
-
-                  {/* Row Layout Option */}
-                  <div className={`flex flex-col items-center justify-center p-4 rounded-md transition-all duration-200 ${
-                    layoutMode === 'row' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}>
-                    <div className="flex gap-1 mb-2">
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                      <div className="w-3 h-3 bg-current rounded-sm opacity-80"></div>
-                    </div>
-                    <span className="text-xs font-medium">Row</span>
-                  </div>
+                  <span className="text-white font-semibold">Row layout (default)</span>
                 </div>
               </div>
             </Card>
