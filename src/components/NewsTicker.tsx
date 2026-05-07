@@ -131,8 +131,9 @@ const NewsTicker = memo(() => {
   }, [cached?.updatedAt, isNative, refreshMs]);
 
   // Build one continuous string so the marquee never restarts mid-cycle.
-  // Duplicate it so the loop appears seamless without React re-mounts.
-  const tickerText = useMemo(() => newsItems.join('   •   '), [newsItems]);
+  // Trailing separator ensures the join between the duplicated copies looks
+  // identical to every other join (no fused/missing items at the seam).
+  const tickerText = useMemo(() => `${newsItems.join('   •   ')}   •   `, [newsItems]);
 
   return (
     <div

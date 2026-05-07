@@ -273,9 +273,11 @@
 
 .news-ticker-track {
   display: inline-flex;
-  gap: 4rem;
+  /* No gap — duplicated copies must sit flush so a -50% translate lands
+     exactly on the start of the second copy. The separator is baked into
+     the text itself (see NewsTicker.tsx). */
   white-space: nowrap;
-  animation: news-ticker-marquee 25s linear infinite;
+  animation: news-ticker-marquee 60s linear infinite;
 }
 
 .home-focus-surface {
