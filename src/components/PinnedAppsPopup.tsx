@@ -92,6 +92,40 @@ const PinnedAppsPopup = ({
     }
   }, [focusedIndex]);
 
+  // Intercept hardware back button (Android TV/STB) to close the app selector
+  // dialog instead of letting it bubble up and exit the app.
+  useEffect(() => {
+    if (!showAppSelector) return;
+
+    let listener: any;
+    let cancelled = false;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('backButton', () => {
+          setShowAppSelector(false);
+        });
+        if (cancelled) listener?.remove?.();
+      } catch {
+        // Capacitor not available (web preview)
+      }
+    })();
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowAppSelector(false);
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+      window.removeEventListener('keydown', handleKey, true);
+    };
+  }, [showAppSelector]);
+
   if (!isVisible) return null;
 
   const handleTogglePin = (app: InstalledApp | AppData) => {
