@@ -51,16 +51,13 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       toast({ title: 'Listening…', description: 'Tap again to stop.' });
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error ?? '');
-      const isFireTV = /AFT[A-Z0-9]+/i.test(navigator.userAgent);
       const isPermissionError = /Permission|NotAllowed|denied/i.test(errMsg);
       const noMicHardware = /NotFound|NotReadable|no.*device/i.test(errMsg);
 
-      if (isFireTV || noMicHardware) {
+      if (noMicHardware) {
         toast({
           title: 'No microphone available',
-          description: isFireTV
-            ? "Fire TV remotes don't expose their mic to apps. Voice input works on phones, tablets and Android TV boxes with a connected mic."
-            : 'No microphone was detected on this device.',
+          description: 'No microphone was detected on this device. If using a Fire TV / Android TV remote with a mic, press and hold the mic key while speaking.',
           variant: 'destructive',
         });
       } else if (isPermissionError && isNativePlatform()) {
