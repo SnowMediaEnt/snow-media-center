@@ -346,7 +346,7 @@ const Auth = () => {
         </div>
 
         <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm">
-          <Tabs defaultValue="login" className="w-full p-6">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')} className="w-full p-6">
             <TabsList className="grid w-full grid-cols-2 bg-blue-800/50 border-blue-600">
               <TabsTrigger 
                 id="auth-tab-login"

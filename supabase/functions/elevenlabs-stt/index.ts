@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const STT_COST = 0.02;
+const STT_COST = 0.04; // 2x cost (charge double)
 const OWNER_EMAIL = 'joshua.perez@snowmediaent.com';
 
 Deno.serve(async (req) => {

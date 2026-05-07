@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const TTS_COST_PER_1K = 0.05; // 0.05 credits per ~1000 chars
+const TTS_COST_PER_1K = 0.10; // 0.10 credits per ~1000 chars (2x cost)
 const DEFAULT_VOICE_ID = 'nwHExYD0xaabDwxhumpc';
 const OWNER_EMAIL = 'joshua.perez@snowmediaent.com';
 
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           text: trimmed,
-          model_id: 'eleven_turbo_v2_5',
+          model_id: 'eleven_flash_v2_5',
           voice_settings: { stability: 0.5, similarity_boost: 0.8, use_speaker_boost: true },
         }),
       },
