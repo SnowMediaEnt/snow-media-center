@@ -99,6 +99,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(2); // header -> purchase credits
           } else if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(5); // action buttons -> first tab
+          } else if (focusedElement >= 5 && focusedElement <= 8) {
+            // Scroll the content area down so users can reach Danger Zone, etc.
+            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
+            container?.scrollBy({ top: 300, behavior: 'smooth' });
           }
           break;
         case 'Enter':
