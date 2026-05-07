@@ -436,7 +436,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-green-400">${order.total}</p>
+                          <p className="font-bold text-green-400">{String(order.total).startsWith('$') ? order.total : `$${order.total}`}</p>
                           <Badge variant="secondary" className="bg-blue-600 text-white">
                             {order.status}
                           </Badge>
