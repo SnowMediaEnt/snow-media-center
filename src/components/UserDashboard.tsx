@@ -150,12 +150,15 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => clearTimeout(id);
   }, [activeTab, focusedElement]);
 
-  // Fetch Wix data when user changes
+  // Fetch Wix data once per email change. Do NOT depend on wixLoading —
+  // fetchWixData itself flips wixLoading, which would otherwise cause a
+  // refetch loop (twice per email change).
   useEffect(() => {
-    if (user?.email && !wixLoading) {
+    if (user?.email) {
       fetchWixData(user.email);
     }
-  }, [user?.email, wixLoading, fetchWixData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
 
   const handleSignOut = async () => {
     const { error } = await signOut();
