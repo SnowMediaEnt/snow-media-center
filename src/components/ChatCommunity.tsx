@@ -428,7 +428,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       return [
         ...header,
         { id: 'visit-forum', type: 'button' },
-        { id: 'join-groups', type: 'button' },
       ];
     } else {
       const aiHistoryItems = aiConversations.map((c, i) => ({
