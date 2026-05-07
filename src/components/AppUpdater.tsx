@@ -297,6 +297,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
             <Button
               onClick={downloadUpdate}
               onFocus={() => setFocusedElement(1)}
+              onBlur={() => setFocusedElement((prev) => (prev === 1 ? -1 : prev))}
               disabled={isDownloading}
               data-app-updater-btn="download"
               className={`flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
