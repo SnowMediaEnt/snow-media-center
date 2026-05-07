@@ -88,6 +88,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   const handleViewTicket = async (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
+    // Land on the Back button first so the user sees a clear highlight
+    // on an action button rather than dropping straight into the message.
+    setFocusIndex(4);
     await fetchTicketMessages(ticket.id);
   };
 
