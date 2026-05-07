@@ -183,24 +183,26 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     }
   };
 
-  // TV remote navigation
+  // TV remote navigation — only respond when one of OUR buttons is focused.
+  // Otherwise we move the highlight in the background while the user is
+  // actually navigating in the cached APK list below.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const ownsFocus = !!active?.closest('[data-app-updater-root]');
+      if (!ownsFocus) return;
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
-      
+
       switch (event.key) {
         case 'ArrowLeft':
-        case 'ArrowUp':
           if (focusedElement === 1 && updateAvailable) setFocusedElement(0);
           break;
-          
         case 'ArrowRight':
-        case 'ArrowDown':
           if (focusedElement === 0 && updateAvailable) setFocusedElement(1);
           break;
-          
         case 'Enter':
         case ' ':
           if (focusedElement === 0) checkForUpdates();
