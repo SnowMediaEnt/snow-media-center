@@ -134,25 +134,36 @@ const Index = () => {
   const handleLaunchPinnedApp = useCallback(async (app: any) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
-      if (Capacitor.isNativePlatform()) {
-        const { AppManager } = await import('@/capacitor/AppManager');
-        const packageName = app.packageName || app.package_name;
-        if (packageName) {
-          await AppManager.launch({ packageName });
+      if (!Capacitor.isNativePlatform()) return;
+      const { AppManager } = await import('@/capacitor/AppManager');
+      const packageName = app.packageName || app.package_name;
+      if (!packageName) return;
+
+      // Verify the package exists before showing any error UI. The native
+      // launch intent often resolves successfully even when our promise
+      // throws; only warn the user if the app truly isn't installed.
+      let installed = true;
+      try {
+        const res = await AppManager.isInstalled({ packageName });
+        installed = !!res?.installed;
+      } catch {/* assume installed */}
+
+      try {
+        await AppManager.launch({ packageName });
+      } catch (err) {
+        if (!installed) {
           toast({
-            title: "Launching App",
-            description: `Opening ${app.name}...`,
+            title: 'App Not Installed',
+            description: `${app.name} isn't installed on this device.`,
+            variant: 'destructive',
           });
-          return;
+        } else {
+          // Launched (or sent intent) but plugin reported a soft error — silent.
+          console.warn('[PinnedLaunch] soft launch error:', err);
         }
       }
     } catch (error) {
       console.error('Launch error:', error);
-      toast({
-        title: "Launch Failed",
-        description: `Could not launch ${app.name}. Make sure it's installed.`,
-        variant: "destructive",
-      });
     }
   }, [toast]);
 
