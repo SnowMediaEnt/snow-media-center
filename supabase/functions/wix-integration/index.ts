@@ -1099,36 +1099,127 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
-      case 'get-referral-info':
+      case 'get-referral-info': {
         console.log('Getting referral info for member:', wixMemberId);
-        
+
         if (!wixSiteId) {
           return new Response(
             JSON.stringify({ error: 'Site ID required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        
-        // Build a referral URL pointing at the Snow Media (Wix) site
-        const referralBaseUrl = Deno.env.get('WIX_SITE_URL') || 'https://www.snowmedia.com';
-        const builtReferralUrl = wixMemberId
-          ? `${referralBaseUrl}/?ref=${encodeURIComponent(wixMemberId)}`
-          : referralBaseUrl;
 
-        return new Response(
-          JSON.stringify({ 
-            referral: {
-              code: wixMemberId || '',
-              link: builtReferralUrl,
-              memberId: wixMemberId || '',
-              referralUrl: builtReferralUrl,
-              totalReferrals: 0,
-              totalEarnings: '$0.00',
-              pendingEarnings: '$0.00'
+        const referralBaseUrl = Deno.env.get('WIX_SITE_URL') || 'https://www.snowmediaent.com';
+
+        const emptyReferral = {
+          code: '',
+          link: referralBaseUrl,
+          memberId: wixMemberId || '',
+          referralUrl: referralBaseUrl,
+          totalReferrals: 0,
+          totalEarnings: '$0.00',
+          pendingEarnings: '$0.00',
+        };
+
+        try {
+          // 1) Look up the member's contactId
+          let contactId: string | null = null;
+          if (wixMemberId) {
+            const memberRes = await fetch(`https://www.wixapis.com/members/v1/members/${wixMemberId}?fieldsets=FULL`, {
+              headers: {
+                'Authorization': wixApiKey,
+                'wix-site-id': wixSiteId,
+              },
+            });
+            if (memberRes.ok) {
+              const m = await memberRes.json();
+              contactId = m?.member?.contactId || null;
+            } else {
+              console.warn('Member lookup for referral failed:', memberRes.status, await memberRes.text().catch(() => ''));
             }
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+          }
+
+          if (!contactId) {
+            return new Response(
+              JSON.stringify({ referral: emptyReferral, warning: 'No contactId for member' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // 2) Generate (or fetch existing) referring customer for this contact
+          const genRes = await fetch('https://www.wixapis.com/referral-customers/v1/referring-customers', {
+            method: 'POST',
+            headers: {
+              'Authorization': wixApiKey,
+              'wix-site-id': wixSiteId,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ contactId }),
+          });
+
+          if (!genRes.ok) {
+            const errText = await genRes.text().catch(() => '');
+            console.error('Generate referring customer failed:', genRes.status, errText);
+            return new Response(
+              JSON.stringify({ referral: emptyReferral, warning: `Wix referral API ${genRes.status}` }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const genData = await genRes.json();
+          const referralCode: string = genData?.referringCustomer?.referralCode || '';
+          const referringCustomerId: string = genData?.referringCustomer?.id || '';
+          const referralUrl = referralCode
+            ? `${referralBaseUrl}/?referralCode=${encodeURIComponent(referralCode)}`
+            : referralBaseUrl;
+
+          // 3) Optional: count this customer's referrals via Referred Friends Query
+          let totalReferrals = 0;
+          try {
+            const friendsRes = await fetch('https://www.wixapis.com/referral-customers/v1/referred-friends/query', {
+              method: 'POST',
+              headers: {
+                'Authorization': wixApiKey,
+                'wix-site-id': wixSiteId,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                query: {
+                  filter: { referringCustomerId },
+                  paging: { limit: 1 },
+                },
+              }),
+            });
+            if (friendsRes.ok) {
+              const fd = await friendsRes.json();
+              totalReferrals = fd?.pagingMetadata?.total ?? fd?.totalResults ?? (fd?.referredFriends?.length || 0);
+            }
+          } catch (e) {
+            console.warn('Referred friends query failed:', e);
+          }
+
+          return new Response(
+            JSON.stringify({
+              referral: {
+                code: referralCode,
+                link: referralUrl,
+                memberId: wixMemberId || '',
+                referralUrl,
+                totalReferrals,
+                totalEarnings: '$0.00',
+                pendingEarnings: '$0.00',
+              },
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (err) {
+          console.error('get-referral-info error:', err);
+          return new Response(
+            JSON.stringify({ referral: emptyReferral, warning: String(err) }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
 
       case 'add-to-email-list':
         console.log('Adding to email list:', payload.memberData);
