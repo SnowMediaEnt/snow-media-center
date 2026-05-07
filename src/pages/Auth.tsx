@@ -129,6 +129,22 @@ const Auth = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate, focusedElement, activeTab]);
 
+  // Keep the focused element in view (TV / STB scrolling fix)
+  useEffect(() => {
+    const idMap: Record<string, string> = {
+      'back': 'auth-back',
+      'tab-login': 'auth-tab-login',
+      'tab-signup': 'auth-tab-signup',
+      'name': 'signup-name',
+      'email': activeTab === 'login' ? 'login-email' : 'signup-email',
+      'password': activeTab === 'login' ? 'login-password' : 'signup-password',
+      'confirm': 'signup-confirm',
+      'submit': activeTab === 'login' ? 'login-submit' : 'signup-submit',
+    };
+    const el = document.getElementById(idMap[focusedElement]);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusedElement, activeTab]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
