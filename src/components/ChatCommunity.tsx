@@ -1190,7 +1190,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             <p className="text-purple-200 mb-6">
               Ask me about snow media, streaming apps, or get help with your SMC app.
               <br />
-              <span className="text-sm text-purple-300">Cost: 0.01 credits per message</span>
+              <span className="block text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 credits per message</span>
+              <span className="block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 credits per voice message · multilingual (32+ languages)</span>
             </p>
             
             {/* AI Chat Messages */}
