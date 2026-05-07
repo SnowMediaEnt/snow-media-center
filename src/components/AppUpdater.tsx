@@ -281,6 +281,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           <Button
             onClick={checkForUpdates}
             onFocus={() => setFocusedElement(0)}
+            onBlur={() => setFocusedElement((prev) => (prev === 0 ? -1 : prev))}
             disabled={isChecking}
             variant="outline"
             data-app-updater-btn="check"
