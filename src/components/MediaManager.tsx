@@ -292,9 +292,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   // Scroll focused element into view - always keep selector visible.
   // Topmost focus targets snap the entire page back to 0 (matches Vimeo/Store fix).
   useEffect(() => {
-    const isTop = focusedElement === 'back' || focusedElement === 'prompt-input' || focusedElement === 'generate-btn';
+    const isTopButton = focusedElement === 'back';
 
-    if (isTop) {
+    if (isTopButton) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
@@ -306,10 +306,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;
     if (!el) return;
 
-    // For top-row focus, prefer block:'start' so we don't push the page back down.
     el.scrollIntoView({
       behavior: 'smooth',
-      block: isTop ? 'start' : 'center',
+      block: 'center',
       inline: 'nearest',
     });
   }, [focusedElement]);
