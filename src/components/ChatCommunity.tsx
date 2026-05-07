@@ -1195,12 +1195,13 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   <Badge className="bg-purple-700 text-white">Last 5</Badge>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  {aiConversations.map((conversation) => (
+                  {aiConversations.map((conversation, idx) => (
                     <button
                       key={conversation.id}
                       type="button"
+                      data-focus-id={`ai-history-${idx}`}
                       onClick={() => handleOpenSavedAIConversation(conversation.id)}
-                      className="text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40"
+                      className={`text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40 ${isFocused(`ai-history-${idx}`) ? 'ring-4 ring-brand-gold scale-[1.04] shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
                     >
                       <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
                       <p className="mt-1 text-xs text-purple-200/70">
