@@ -41,6 +41,28 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
+  const voiceModeRef = useRef(false);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const speakReply = useCallback(async (text: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
+        body: { text },
+      });
+      if (error) throw error;
+      const audioContent = (data as { audioContent?: string })?.audioContent;
+      if (!audioContent) return;
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
+      ttsAudioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error('TTS playback failed:', err);
+    }
+  }, []);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
