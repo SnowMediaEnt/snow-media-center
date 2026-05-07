@@ -35,6 +35,15 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [referralQr, setReferralQr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = wixReferrals?.referralUrl;
+    if (!url) { setReferralQr(null); return; }
+    QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
+      .then(setReferralQr)
+      .catch(() => setReferralQr(null));
+  }, [wixReferrals?.referralUrl]);
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
