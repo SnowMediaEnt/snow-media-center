@@ -379,6 +379,11 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         timestamp: new Date()
       }]);
 
+      if (voiceModeRef.current && responseText) {
+        voiceModeRef.current = false;
+        speakReply(responseText);
+      }
+
       if (data.functionCall) {
         handleAiFunction(data.functionCall);
       }
