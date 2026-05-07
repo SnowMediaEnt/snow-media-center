@@ -320,3 +320,42 @@
     animation-duration: 75s;
   }
 }
+
+/* ============================================================
+   Mobile (touch) tuning — does NOT affect TV/STB or desktop.
+   Triggers only on small screens with coarse pointer (phones).
+   Goal: smoother on Android phones without changing TV behavior.
+   ============================================================ */
+@media (max-width: 767px) and (pointer: coarse) {
+  /* Kill the 300ms tap delay on interactive elements */
+  button, a, [role="button"], [data-focus-id] {
+    touch-action: manipulation;
+  }
+
+  /* TV-safe overscan padding is wasted real estate on phones */
+  .tv-safe { padding: 0.75rem !important; }
+  .tv-safe-grid { padding: 0.5rem !important; }
+
+  /* The big gold D-pad focus glow is overkill on touch — soften it */
+  :focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--brand-gold) / 0.7) !important;
+  }
+
+  /* Heavy focus scale on home cards causes paint on touch — keep subtle */
+  .home-focus-surface[data-focused="true"] {
+    transform: translateZ(0) scale(1.02);
+    box-shadow: 0 0 0 2px hsl(var(--brand-ice) / 0.6);
+  }
+
+  /* Slow the ticker so it's less distracting on a small screen */
+  .news-ticker-track { animation-duration: 90s; }
+}
+
+/* Disable fixed background-attachment on phones — Android WebView repaints
+   the entire viewport on every scroll frame when this is on, which is the
+   single biggest scroll-jank source on mid-range Android devices. */
+@media (max-width: 767px) {
+  [data-app-scroll-root] {
+    background-attachment: scroll !important;
+  }
+}
