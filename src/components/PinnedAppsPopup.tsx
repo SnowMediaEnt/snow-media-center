@@ -212,6 +212,53 @@ const PinnedAppsPopup = ({
                       e.stopPropagation();
                       if (fullApp) onLaunchApp(fullApp);
                     }}
+                    onContextMenu={(e) => {
+                      // Right-click / long-press fallback: open selector to swap this slot
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onUnpinApp(pinnedApp.id);
+                      setShowAppSelector(true);
+                    }}
+                    onPointerDown={(e) => {
+                      // Long-press (touch / remote OK held) to edit pinned slot
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                      longPressTimerRef.current = setTimeout(() => {
+                        onUnpinApp(pinnedApp.id);
+                        setShowAppSelector(true);
+                      }, 600);
+                    }}
+                    onPointerUp={() => {
+                      if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                    }}
+                    onPointerLeave={() => {
+                      if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Hold Enter/OK on remote to edit
+                      if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+                        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = setTimeout(() => {
+                          onUnpinApp(pinnedApp.id);
+                          setShowAppSelector(true);
+                          longPressTimerRef.current = null;
+                        }, 700);
+                      }
+                    }}
+                    onKeyUp={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        if (longPressTimerRef.current) {
+                          clearTimeout(longPressTimerRef.current);
+                          longPressTimerRef.current = null;
+                        }
+                      }
+                    }}
+                    title="Tap to launch · Hold to change"
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
                       border-2 border-slate-600 hover:border-brand-ice/50 
