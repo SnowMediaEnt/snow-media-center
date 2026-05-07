@@ -427,16 +427,18 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       return;
     }
 
-    // Content filter for inappropriate content
+    // Content filter for inappropriate content (word-boundary match to avoid false positives)
     const inappropriateWords = [
-      'naked', 'nude', 'boobs', 'boobies', 'breast', 'penis', 'vagina', 'ass', 'butt', 'nsfw',
-      'sex', 'sexual', 'porn', 'adult', 'explicit', 'erotic', 'intimate', 'underwear', 'bikini',
-      'lingerie', 'topless', 'bottomless', 'revealing', 'suggestive', 'seductive'
+      'naked', 'nude', 'nudes', 'boobs', 'boobies', 'penis', 'vagina', 'nsfw',
+      'porn', 'porno', 'pornographic', 'erotic', 'erotica', 'topless', 'bottomless',
+      'lingerie', 'sexual', 'sexy', 'orgasm', 'fetish'
     ];
-    
+
     const promptLower = generatePrompt.toLowerCase();
-    const foundInappropriate = inappropriateWords.find(word => promptLower.includes(word));
-    
+    const foundInappropriate = inappropriateWords.find(word =>
+      new RegExp(`\\b${word}\\b`, 'i').test(promptLower)
+    );
+
     if (foundInappropriate) {
       toast({
         title: "Content Policy Violation",
