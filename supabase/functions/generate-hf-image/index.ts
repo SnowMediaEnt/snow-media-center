@@ -94,7 +94,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: `Generate a high quality wallpaper background image: ${prompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. Safe for work, family-friendly.`
+            content: `Create a high-quality, family-friendly image suitable for use as a desktop or TV wallpaper. Subject: ${prompt}. Style: detailed, professional, visually appealing.`
           }
         ],
         modalities: ['image', 'text']
