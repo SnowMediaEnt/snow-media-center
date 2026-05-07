@@ -227,7 +227,17 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
+  const focusRing = (id: string) => isFocused(id)
+    ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
+    : '';
+
+  // Force row layout — Grid option was removed because it overlapped the
+  // RSS ticker and made the pinned-apps popup misalign on TVs.
+  useEffect(() => {
+    if (layoutMode !== 'row') {
+      onLayoutChange('row');
+    }
+  }, [layoutMode, onLayoutChange]);
 
   // Callback when MediaManager wants to exit back to Settings tabs
   const handleMediaManagerBack = () => {
