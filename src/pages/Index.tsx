@@ -341,11 +341,11 @@ const Index = () => {
           }
           break;
           
-        case 'Escape':
-        case 'Backspace':
-          // Handle double-press to exit on home screen (already handled above)
-          goBack();
-          break;
+        // NOTE: Escape/Backspace are intentionally not handled here.
+        // - Non-home views return early at the top of this handler after goBack().
+        // - On home, the double-press-to-exit logic lives in useNavigation's
+        //   Capacitor backButton listener and the early-return above.
+        // Re-handling them here caused goBack() to fire twice per press.
       }
     };
 
