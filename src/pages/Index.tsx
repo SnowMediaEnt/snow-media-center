@@ -601,6 +601,18 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      <AppAlertDialog
+        alert={pendingAlert?.alert ?? null}
+        appName={pendingAlert?.app?.name}
+        open={!!pendingAlert}
+        onDismiss={() => setPendingAlert(null)}
+        onContinue={() => {
+          const pa = pendingAlert;
+          setPendingAlert(null);
+          if (pa) performLaunchPinnedApp(pa.app);
+        }}
+      />
     </div>
   );
 };
