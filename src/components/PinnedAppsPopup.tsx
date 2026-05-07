@@ -89,10 +89,16 @@ const PinnedAppsPopup = ({
     }
   }, [showAppSelector]);
 
-  // Focus the button when focusedIndex changes
+  // Focus the button when focusedIndex changes; blur any pinned button
+  // when focus leaves the popup so no stale highlight remains.
   useEffect(() => {
     if (focusedIndex >= 0 && buttonsRef.current[focusedIndex]) {
       buttonsRef.current[focusedIndex]?.focus();
+    } else {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && buttonsRef.current.includes(active as HTMLButtonElement)) {
+        active.blur();
+      }
     }
   }, [focusedIndex]);
 
