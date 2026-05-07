@@ -39,6 +39,7 @@ const PinnedAppsPopup = ({
   const [showAppSelector, setShowAppSelector] = useState(false);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
   const { installedApps: deviceApps } = useDeviceInstalledApps();
 
