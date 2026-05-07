@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
+import { ToastAction } from '@/components/ui/toast';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { AppManager } from '@/capacitor/AppManager';
+import { isNativePlatform } from '@/utils/platform';
 
 interface VoiceInputProps {
   onTranscription: (text: string) => void;
