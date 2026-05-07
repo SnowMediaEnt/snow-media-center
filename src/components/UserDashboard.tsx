@@ -517,25 +517,34 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={wixReferrals.referralUrl || 'Loading...'}
-                        readOnly
-                        className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white"
-                      />
-                      <Button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(wixReferrals.referralUrl || '');
-                          toast({
-                            title: "Copied!",
-                            description: "Referral link copied to clipboard.",
-                          });
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Copy
-                      </Button>
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      {referralQr && (
+                        <div className="bg-white p-2 rounded-lg shrink-0">
+                          <img src={referralQr} alt="Referral QR code" className="w-40 h-40" />
+                        </div>
+                      )}
+                      <div className="flex-1 w-full space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={wixReferrals.referralUrl || 'Loading...'}
+                            readOnly
+                            className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white text-sm"
+                          />
+                          <Button
+                            onClick={() => {
+                              navigator.clipboard.writeText(wixReferrals.referralUrl || '');
+                              toast({ title: 'Copied!', description: 'Referral link copied to clipboard.' });
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <p className="text-slate-400 text-sm">
+                          Scan the QR code or share your link. Friends who sign up on snowmedia.com count toward your referrals.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
