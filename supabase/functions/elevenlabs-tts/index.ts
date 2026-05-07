@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           text: trimmed,
-          model_id: 'eleven_turbo_v2_5',
+          model_id: 'eleven_flash_v2_5',
           voice_settings: { stability: 0.5, similarity_boost: 0.8, use_speaker_boost: true },
         }),
       },
