@@ -519,9 +519,12 @@ const Auth = () => {
                 </div>
 
                 <Button 
+                  id="signup-submit"
                   type="submit" 
                   disabled={loading}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  className={`w-full bg-purple-600 hover:bg-purple-700 text-white transition-all duration-200 ${
+                    focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
+                  }`}
                 >
                 {loading ? (
                     <span className="flex items-center gap-2">
