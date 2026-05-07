@@ -91,7 +91,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(0); // action buttons -> back
           } else if (focusedElement >= 5 && focusedElement <= 8) {
-            setFocusedElement(2); // tabs -> purchase credits
+            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
+            if (container && container.scrollTop > 10) {
+              container.scrollBy({ top: -300, behavior: 'smooth' });
+            } else {
+              setFocusedElement(2); // tabs -> purchase credits
+            }
           }
           break;
         case 'ArrowDown':
