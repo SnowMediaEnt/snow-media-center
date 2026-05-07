@@ -129,6 +129,28 @@ const Auth = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate, focusedElement, activeTab]);
 
+  // Keep the focused element in view (TV / STB scrolling fix)
+  useEffect(() => {
+    const idMap: Record<string, string> = {
+      'back': 'auth-back',
+      'tab-login': 'auth-tab-login',
+      'tab-signup': 'auth-tab-signup',
+      'name': 'signup-name',
+      'email': activeTab === 'login' ? 'login-email' : 'signup-email',
+      'password': activeTab === 'login' ? 'login-password' : 'signup-password',
+      'confirm': 'signup-confirm',
+      'submit': activeTab === 'login' ? 'login-submit' : 'signup-submit',
+    };
+    const el = document.getElementById(idMap[focusedElement]);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Auto-focus input fields so user can type immediately
+      if (el.tagName === 'INPUT' && document.activeElement !== el) {
+        (el as HTMLInputElement).focus();
+      }
+    }
+  }, [focusedElement, activeTab]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -301,6 +323,7 @@ const Auth = () => {
         {/* Back Button - Fixed to top left corner like other pages */}
         <div className="fixed top-4 left-4 z-50">
           <Button 
+            id="auth-back"
             onClick={() => navigate('/')}
             variant="outline" 
             size="lg"
@@ -326,6 +349,7 @@ const Auth = () => {
           <Tabs defaultValue="login" className="w-full p-6">
             <TabsList className="grid w-full grid-cols-2 bg-blue-800/50 border-blue-600">
               <TabsTrigger 
+                id="auth-tab-login"
                 value="login" 
                 className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
                   focusedElement === 'tab-login' ? 'ring-4 ring-white/60 scale-105' : ''
@@ -336,6 +360,7 @@ const Auth = () => {
                 Sign In
               </TabsTrigger>
               <TabsTrigger 
+                id="auth-tab-signup"
                 value="signup" 
                 className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
                   focusedElement === 'tab-signup' ? 'ring-4 ring-white/60 scale-105' : ''
@@ -396,6 +421,7 @@ const Auth = () => {
                 </div>
 
                 <Button 
+                  id="login-submit"
                   type="submit" 
                   disabled={loading}
                   className={`w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${
@@ -493,9 +519,12 @@ const Auth = () => {
                 </div>
 
                 <Button 
+                  id="signup-submit"
                   type="submit" 
                   disabled={loading}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  className={`w-full bg-purple-600 hover:bg-purple-700 text-white transition-all duration-200 ${
+                    focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
+                  }`}
                 >
                 {loading ? (
                     <span className="flex items-center gap-2">
