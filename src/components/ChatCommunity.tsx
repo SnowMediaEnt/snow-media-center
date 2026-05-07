@@ -602,6 +602,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           } else if (currentFocusId === 'join-groups') {
             setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
+            setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
+          } else if (currentFocusId === 'ai-voice') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-input'));
           } else if (currentFocusId === 'cancel-ticket') {
             setFocusIndex(elements.findIndex(e => e.id === 'submit-ticket'));
