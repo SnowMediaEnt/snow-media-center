@@ -43,19 +43,36 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
 
-  // Must be called from a user gesture to satisfy autoplay policies (browsers, Fire TV, Android TV WebView)
+  // Must be called from a user gesture to satisfy autoplay policies
+  // (browsers, Fire TV WebView, Android TV WebView).
   const unlockAudioPlayback = useCallback(() => {
     if (audioUnlockedRef.current) return;
     try {
-      const a = new Audio(
-        // 1-frame silent mp3
-        'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAABQgJAUHQQAB9AAAA0gAFwAAA',
-      );
+      // Real ~50ms silent mp3 — the previously-used short data URI was
+      // truncated/invalid and didn't actually grant autoplay activation,
+      // which is why TTS playback failed on Fire TV after the async AI call.
+      const SILENT_MP3 =
+        'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7097v337/+vrfff/19WI=';
+      const a = new Audio(SILENT_MP3);
       a.volume = 0;
-      void a.play().catch(() => {});
+      void a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
       ttsAudioRef.current = a;
+
+      // Also prime an AudioContext as a second activation channel — some
+      // Android WebViews honor AudioContext.resume() even when <audio>
+      // playback is suspended.
+      try {
+        const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (Ctx) {
+          const ctx = new Ctx();
+          void ctx.resume().catch(() => {});
+          audioCtxRef.current = ctx;
+        }
+      } catch {}
+
       audioUnlockedRef.current = true;
     } catch {}
   }, []);
@@ -67,9 +84,12 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       });
       if (error) throw error;
       const audioContent = (data as { audioContent?: string })?.audioContent;
-      if (!audioContent) return;
+      if (!audioContent) {
+        console.warn('TTS returned no audioContent');
+        return;
+      }
       const src = `data:audio/mpeg;base64,${audioContent}`;
-      // Reuse the unlocked element if available — preserves the user-gesture activation
+      // Reuse the unlocked element to preserve user-gesture activation
       let audio = ttsAudioRef.current;
       if (!audio) {
         audio = new Audio();
@@ -79,6 +99,8 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       audio.src = src;
       audio.volume = 1;
       audio.currentTime = 0;
+      // Try AudioContext resume right before play — keeps Fire TV happy
+      try { await audioCtxRef.current?.resume(); } catch {}
       await audio.play();
     } catch (err) {
       console.error('TTS playback failed:', err);
