@@ -1173,10 +1173,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   }
                 }}
               />
-              <VoiceInput
-                onTranscription={(text) => setAiMessage(text)}
-                className=""
-              />
+              <div
+                data-focus-id="ai-voice"
+                className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
+              >
+                <VoiceInput
+                  onTranscription={(text) => setAiMessage(text)}
+                  className=""
+                />
+              </div>
               <Button 
                 onClick={sendAiMessage}
                 disabled={aiLoading || !aiMessage.trim() || !user}
