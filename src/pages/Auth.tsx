@@ -349,6 +349,7 @@ const Auth = () => {
           <Tabs defaultValue="login" className="w-full p-6">
             <TabsList className="grid w-full grid-cols-2 bg-blue-800/50 border-blue-600">
               <TabsTrigger 
+                id="auth-tab-login"
                 value="login" 
                 className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
                   focusedElement === 'tab-login' ? 'ring-4 ring-white/60 scale-105' : ''
@@ -359,6 +360,7 @@ const Auth = () => {
                 Sign In
               </TabsTrigger>
               <TabsTrigger 
+                id="auth-tab-signup"
                 value="signup" 
                 className={`data-[state=active]:bg-blue-600 transition-all duration-200 ${
                   focusedElement === 'tab-signup' ? 'ring-4 ring-white/60 scale-105' : ''
