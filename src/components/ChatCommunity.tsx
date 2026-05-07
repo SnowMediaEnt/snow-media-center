@@ -438,6 +438,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       return [
         ...header,
         { id: 'ai-input', type: 'input' },
+        { id: 'ai-voice', type: 'button' },
         { id: 'ai-send', type: 'button' },
         ...aiHistoryItems,
       ];
