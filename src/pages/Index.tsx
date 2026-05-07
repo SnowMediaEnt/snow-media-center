@@ -122,6 +122,9 @@ const Index = () => {
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
+  const { resolvePackageName } = useDeviceInstalledApps();
+  const { getAlertForApp } = useAppAlerts();
+  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: any } | null>(null);
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
@@ -134,42 +137,42 @@ const Index = () => {
     pinApp(pinnedAppData);
   }, [pinApp]);
 
-  // Handle launching pinned apps
-  const handleLaunchPinnedApp = useCallback(async (app: any) => {
+  // Actually launch a pinned app — mirrors InstallApps.handleLaunch
+  const performLaunchPinnedApp = useCallback(async (app: any) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) return;
       const { AppManager } = await import('@/capacitor/AppManager');
-      const packageName = app.packageName || app.package_name;
-      if (!packageName) return;
-
-      // Verify the package exists before showing any error UI. The native
-      // launch intent often resolves successfully even when our promise
-      // throws; only warn the user if the app truly isn't installed.
-      let installed = true;
-      try {
-        const res = await AppManager.isInstalled({ packageName });
-        installed = !!res?.installed;
-      } catch {/* assume installed */}
-
-      try {
-        await AppManager.launch({ packageName });
-      } catch (err) {
-        if (!installed) {
-          toast({
-            title: 'App Not Installed',
-            description: `${app.name} isn't installed on this device.`,
-            variant: 'destructive',
-          });
-        } else {
-          // Launched (or sent intent) but plugin reported a soft error — silent.
-          console.warn('[PinnedLaunch] soft launch error:', err);
-        }
-      }
+      const packageName =
+        resolvePackageName(app.name, app.packageName || app.package_name) ||
+        app.packageName ||
+        app.package_name ||
+        generatePackageName(app.name);
+      console.log(`[PinnedLaunch] ${app.name} → ${packageName}`);
+      await AppManager.launch({ packageName });
+      toast({
+        title: 'Launching App',
+        description: `Opening ${app.name}...`,
+      });
     } catch (error) {
-      console.error('Launch error:', error);
+      console.error('[PinnedLaunch] error:', error);
+      toast({
+        title: 'Launch Failed',
+        description: `Could not launch ${app.name}. Make sure it's installed.`,
+        variant: 'destructive',
+      });
     }
-  }, [toast]);
+  }, [resolvePackageName, toast]);
+
+  // Entry point used by the popup — shows alert popup first if one exists
+  const handleLaunchPinnedApp = useCallback(async (app: any) => {
+    const alert = getAlertForApp(app.name);
+    if (alert) {
+      setPendingAlert({ alert, app });
+      return;
+    }
+    performLaunchPinnedApp(app);
+  }, [getAlertForApp, performLaunchPinnedApp]);
 
   // Detect screen resolution for TV optimization (throttled via rAF)
   useEffect(() => {
