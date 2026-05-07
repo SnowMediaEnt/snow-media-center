@@ -43,6 +43,22 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
+
+  // Must be called from a user gesture to satisfy autoplay policies (browsers, Fire TV, Android TV WebView)
+  const unlockAudioPlayback = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    try {
+      const a = new Audio(
+        // 1-frame silent mp3
+        'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAABQgJAUHQQAB9AAAA0gAFwAAA',
+      );
+      a.volume = 0;
+      void a.play().catch(() => {});
+      ttsAudioRef.current = a;
+      audioUnlockedRef.current = true;
+    } catch {}
+  }, []);
 
   const speakReply = useCallback(async (text: string) => {
     try {
@@ -52,12 +68,17 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       if (error) throw error;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) return;
-      if (ttsAudioRef.current) {
-        ttsAudioRef.current.pause();
-        ttsAudioRef.current = null;
+      const src = `data:audio/mpeg;base64,${audioContent}`;
+      // Reuse the unlocked element if available — preserves the user-gesture activation
+      let audio = ttsAudioRef.current;
+      if (!audio) {
+        audio = new Audio();
+        ttsAudioRef.current = audio;
       }
-      const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
-      ttsAudioRef.current = audio;
+      audio.pause();
+      audio.src = src;
+      audio.volume = 1;
+      audio.currentTime = 0;
       await audio.play();
     } catch (err) {
       console.error('TTS playback failed:', err);
