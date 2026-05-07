@@ -50,11 +50,46 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
 
       toast({ title: 'Listening…', description: 'Tap again to stop.' });
     } catch (error) {
-      toast({
-        title: 'Microphone access denied',
-        description: 'Please allow microphone access to use voice input.',
-        variant: 'destructive',
-      });
+      const errMsg = error instanceof Error ? error.message : String(error ?? '');
+      const isFireTV = /AFT[A-Z0-9]+/i.test(navigator.userAgent);
+      const isPermissionError = /Permission|NotAllowed|denied/i.test(errMsg);
+      const noMicHardware = /NotFound|NotReadable|no.*device/i.test(errMsg);
+
+      if (isFireTV || noMicHardware) {
+        toast({
+          title: 'No microphone available',
+          description: isFireTV
+            ? "Fire TV remotes don't expose their mic to apps. Voice input works on phones, tablets and Android TV boxes with a connected mic."
+            : 'No microphone was detected on this device.',
+          variant: 'destructive',
+        });
+      } else if (isPermissionError && isNativePlatform()) {
+        toast({
+          title: 'Microphone access denied',
+          description: 'Tap "Open Settings", then enable Microphone for Snow Media Center.',
+          variant: 'destructive',
+          action: (
+            <ToastAction
+              altText="Open Settings"
+              onClick={async () => {
+                try {
+                  await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
+                } catch (e) {
+                  console.warn('openAppSettings failed', e);
+                }
+              }}
+            >
+              Open Settings
+            </ToastAction>
+          ),
+        });
+      } else {
+        toast({
+          title: 'Microphone access denied',
+          description: 'Please allow microphone access to use voice input.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
