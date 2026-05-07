@@ -229,7 +229,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   }
 
   return (
-    <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 relative">
+    <Card data-app-updater-root className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 relative">
       {onClose && (
         <Button
           onClick={onClose}
