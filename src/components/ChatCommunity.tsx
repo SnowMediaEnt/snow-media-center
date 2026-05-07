@@ -1226,6 +1226,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
               >
                 <VoiceInput
+                  onRecordingStart={() => {
+                    voiceModeRef.current = true;
+                    unlockAudioPlayback();
+                  }}
                   onTranscription={(text) => {
                     voiceModeRef.current = true;
                     setAiMessage(text);
