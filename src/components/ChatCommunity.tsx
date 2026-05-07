@@ -41,6 +41,28 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
+  const voiceModeRef = useRef(false);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const speakReply = useCallback(async (text: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
+        body: { text },
+      });
+      if (error) throw error;
+      const audioContent = (data as { audioContent?: string })?.audioContent;
+      if (!audioContent) return;
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
+      ttsAudioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      console.error('TTS playback failed:', err);
+    }
+  }, []);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
@@ -356,6 +378,11 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         content: responseText,
         timestamp: new Date()
       }]);
+
+      if (voiceModeRef.current && responseText) {
+        voiceModeRef.current = false;
+        speakReply(responseText);
+      }
 
       if (data.functionCall) {
         handleAiFunction(data.functionCall);
@@ -1178,7 +1205,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
               >
                 <VoiceInput
-                  onTranscription={(text) => setAiMessage(text)}
+                  onTranscription={(text) => {
+                    voiceModeRef.current = true;
+                    setAiMessage(text);
+                    // auto-send after transcription
+                    setTimeout(() => {
+                      const btn = document.querySelector('[data-focus-id="ai-send"]') as HTMLButtonElement | null;
+                      btn?.click();
+                    }, 100);
+                  }}
                   className=""
                 />
               </div>

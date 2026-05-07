@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VoiceInputProps {
   onTranscription: (text: string) => void;
@@ -17,45 +18,36 @@ export const VoiceInput = ({ onTranscription, className = '' }: VoiceInputProps)
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000
-        } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
       });
-      
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-      
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
-      
+
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      
+
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
         await processAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
-      
+
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsRecording(true);
-      
-      toast({
-        title: "Recording started",
-        description: "Speak now... Press again to stop.",
-      });
+
+      toast({ title: 'Listening…', description: 'Tap again to stop.' });
     } catch (error) {
       toast({
-        title: "Microphone access denied",
-        description: "Please allow microphone access to use voice input.",
-        variant: "destructive",
+        title: 'Microphone access denied',
+        description: 'Please allow microphone access to use voice input.',
+        variant: 'destructive',
       });
     }
   };
@@ -70,44 +62,49 @@ export const VoiceInput = ({ onTranscription, className = '' }: VoiceInputProps)
 
   const processAudio = async (audioBlob: Blob) => {
     try {
-      // Convert blob to base64
       const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      
-      // Note: This would need a Supabase edge function for voice-to-text
-      // For now, we'll simulate the transcription
-      setTimeout(() => {
-        setIsProcessing(false);
-        toast({
-          title: "Voice input not yet configured",
-          description: "Voice-to-text feature needs backend setup.",
-          variant: "destructive",
-        });
-      }, 1000);
-      
-    } catch (error) {
-      setIsProcessing(false);
-      toast({
-        title: "Processing failed",
-        description: "Could not process audio. Please try again.",
-        variant: "destructive",
+      const bytes = new Uint8Array(arrayBuffer);
+      // Chunk-encode to avoid stack overflow
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const base64Audio = btoa(binary);
+
+      const { data, error } = await supabase.functions.invoke('elevenlabs-stt', {
+        body: { audio: base64Audio, mimeType: 'audio/webm' },
       });
+
+      if (error) throw error;
+      const text = (data as { text?: string })?.text?.trim();
+      if (!text) {
+        toast({ title: 'No speech detected', description: 'Please try again.', variant: 'destructive' });
+      } else {
+        onTranscription(text);
+      }
+    } catch (error) {
+      console.error('STT error:', error);
+      toast({
+        title: 'Voice input failed',
+        description: error instanceof Error ? error.message : 'Could not transcribe audio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const toggleRecording = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    if (isRecording) stopRecording();
+    else startRecording();
   };
 
   return (
     <Button
       onClick={toggleRecording}
       disabled={isProcessing}
-      variant={isRecording ? "destructive" : "gold"}
+      variant={isRecording ? 'destructive' : 'gold'}
       size="sm"
       className={`transition-all duration-200 ${className}`}
     >
@@ -119,12 +116,12 @@ export const VoiceInput = ({ onTranscription, className = '' }: VoiceInputProps)
       ) : isRecording ? (
         <>
           <MicOff className="w-4 h-4 mr-2 animate-pulse" />
-          Stop Recording
+          Stop
         </>
       ) : (
         <>
           <Mic className="w-4 h-4 mr-2" />
-          Voice Input
+          Voice
         </>
       )}
     </Button>
