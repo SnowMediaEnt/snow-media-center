@@ -1109,14 +1109,19 @@ Deno.serve(async (req) => {
           );
         }
         
-        // Return placeholder referral data - Wix referrals API may not be available
+        // Build a referral URL pointing at the Snow Media (Wix) site
+        const referralBaseUrl = Deno.env.get('WIX_SITE_URL') || 'https://www.snowmedia.com';
+        const builtReferralUrl = wixMemberId
+          ? `${referralBaseUrl}/?ref=${encodeURIComponent(wixMemberId)}`
+          : referralBaseUrl;
+
         return new Response(
           JSON.stringify({ 
             referral: {
-              code: '',
-              link: '',
+              code: wixMemberId || '',
+              link: builtReferralUrl,
               memberId: wixMemberId || '',
-              referralUrl: '',
+              referralUrl: builtReferralUrl,
               totalReferrals: 0,
               totalEarnings: '$0.00',
               pendingEarnings: '$0.00'

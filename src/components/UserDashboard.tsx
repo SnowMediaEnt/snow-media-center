@@ -13,6 +13,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import QRCode from 'qrcode';
 
 
 interface UserDashboardProps {
@@ -34,6 +35,15 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [referralQr, setReferralQr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = wixReferrals?.referralUrl;
+    if (!url) { setReferralQr(null); return; }
+    QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
+      .then(setReferralQr)
+      .catch(() => setReferralQr(null));
+  }, [wixReferrals?.referralUrl]);
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
@@ -91,7 +101,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(0); // action buttons -> back
           } else if (focusedElement >= 5 && focusedElement <= 8) {
-            setFocusedElement(2); // tabs -> purchase credits
+            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
+            if (container && container.scrollTop > 10) {
+              container.scrollBy({ top: -300, behavior: 'smooth' });
+            } else {
+              setFocusedElement(2); // tabs -> purchase credits
+            }
           }
           break;
         case 'ArrowDown':
@@ -99,6 +114,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(2); // header -> purchase credits
           } else if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(5); // action buttons -> first tab
+          } else if (focusedElement >= 5 && focusedElement <= 8) {
+            // Scroll the content area down so users can reach Danger Zone, etc.
+            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
+            container?.scrollBy({ top: 300, behavior: 'smooth' });
           }
           break;
         case 'Enter':
@@ -427,7 +446,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-green-400">${order.total}</p>
+                          <p className="font-bold text-green-400">{String(order.total).startsWith('$') ? order.total : `$${order.total}`}</p>
                           <Badge variant="secondary" className="bg-blue-600 text-white">
                             {order.status}
                           </Badge>
@@ -488,35 +507,44 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     </div>
                     <div className="bg-slate-800/50 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-2">Earnings</h3>
-                      <p className="text-3xl font-bold text-green-400">${wixReferrals.totalEarnings || '0.00'}</p>
+                      <p className="text-3xl font-bold text-green-400">{String(wixReferrals.totalEarnings || '').startsWith('$') ? wixReferrals.totalEarnings : `$${wixReferrals.totalEarnings || '0.00'}`}</p>
                     </div>
                     <div className="bg-slate-800/50 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-2">Pending</h3>
-                      <p className="text-3xl font-bold text-yellow-400">${wixReferrals.pendingEarnings || '0.00'}</p>
+                      <p className="text-3xl font-bold text-yellow-400">{String(wixReferrals.pendingEarnings || '').startsWith('$') ? wixReferrals.pendingEarnings : `$${wixReferrals.pendingEarnings || '0.00'}`}</p>
                     </div>
                   </div>
                   
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={wixReferrals.referralUrl || 'Loading...'}
-                        readOnly
-                        className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white"
-                      />
-                      <Button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(wixReferrals.referralUrl || '');
-                          toast({
-                            title: "Copied!",
-                            description: "Referral link copied to clipboard.",
-                          });
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Copy
-                      </Button>
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      {referralQr && (
+                        <div className="bg-white p-2 rounded-lg shrink-0">
+                          <img src={referralQr} alt="Referral QR code" className="w-40 h-40" />
+                        </div>
+                      )}
+                      <div className="flex-1 w-full space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={wixReferrals.referralUrl || 'Loading...'}
+                            readOnly
+                            className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white text-sm"
+                          />
+                          <Button
+                            onClick={() => {
+                              navigator.clipboard.writeText(wixReferrals.referralUrl || '');
+                              toast({ title: 'Copied!', description: 'Referral link copied to clipboard.' });
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <p className="text-slate-400 text-sm">
+                          Scan the QR code or share your link. Friends who sign up on snowmedia.com count toward your referrals.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

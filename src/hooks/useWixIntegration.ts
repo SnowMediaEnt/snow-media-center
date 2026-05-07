@@ -219,17 +219,22 @@ export const useWixIntegration = () => {
         try {
           const { loyalty, referrals } = await getLoyaltyAndReferrals(userEmail);
           setWixLoyalty(loyalty);
-          if (referrals) {
-            setWixReferrals({
-              code: '',
-              link: '',
-              memberId: memberResult.member.id,
-              referralUrl: '',
-              totalReferrals: referrals.totalReferrals,
-              totalEarnings: referrals.earnings,
-              pendingEarnings: '0.00'
-            });
+          let referralUrl = '';
+          try {
+            const refInfo = await getReferralInfo(memberResult.member.id);
+            referralUrl = refInfo?.referral?.referralUrl || refInfo?.referral?.link || '';
+          } catch (e) {
+            console.error('Error fetching referral link:', e);
           }
+          setWixReferrals({
+            code: '',
+            link: referralUrl,
+            memberId: memberResult.member.id,
+            referralUrl,
+            totalReferrals: referrals?.totalReferrals || 0,
+            totalEarnings: referrals?.earnings || '$0.00',
+            pendingEarnings: '$0.00'
+          });
         } catch (error) {
           console.error('Error fetching loyalty/referrals:', error);
         }
@@ -239,7 +244,7 @@ export const useWixIntegration = () => {
     } finally {
       setLoading(false);
     }
-  }, [loading, verifyWixMember, getProfile, getOrders, getLoyaltyAndReferrals]);
+  }, [loading, verifyWixMember, getProfile, getOrders, getLoyaltyAndReferrals, getReferralInfo]);
 
   const testConnection = useCallback(async (): Promise<{ connected: boolean; totalMembers?: number; error?: string; message?: string }> => {
     setLoading(true);
