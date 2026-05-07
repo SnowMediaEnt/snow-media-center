@@ -428,7 +428,6 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       return [
         ...header,
         { id: 'visit-forum', type: 'button' },
-        { id: 'join-groups', type: 'button' },
       ];
     } else {
       const aiHistoryItems = aiConversations.map((c, i) => ({
@@ -1071,38 +1070,29 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         {/* Community Tab Content */}
         {activeTab === 'community' && (
           <Card className="bg-gradient-to-br from-green-900/30 to-slate-900 border-green-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-4">Community Forum</h3>
+            <h3 className="text-2xl font-bold text-white mb-4">Community Blog</h3>
             <p className="text-green-200 mb-6">
-              Connect with other Snow Media users, share tips, and get help from the community.
+              Read the latest posts and announcements from the Snow Media community blog — directly in the app.
             </p>
-            
+
             <div className="bg-slate-800 rounded-lg p-6 mb-6">
               <div className="text-center py-8">
                 <MessageSquare className="w-16 h-16 mx-auto text-green-400/50 mb-4" />
-                <h4 className="text-xl font-semibold text-white mb-2">Community Forum</h4>
+                <h4 className="text-xl font-semibold text-white mb-2">Snow Media Blog</h4>
                 <p className="text-slate-400 mb-4">
-                  Access the forum directly within the app to connect with other users.
+                  Tips, updates, and news from our team — pulled live from our website's blog.
                 </p>
               </div>
             </div>
-            
+
             <div className="flex gap-4">
-              <Button 
-                onClick={() => onNavigate?.('wix-forum')}
+              <Button
+                onClick={() => onNavigate?.('wix-blog')}
                 data-focus-id="visit-forum"
                 className={`bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 flex-1 transition-all duration-200 ${focusRing('visit-forum')}`}
               >
                 <MessageSquare className="w-5 h-5 mr-2" />
-                Visit Community Forum
-              </Button>
-              <Button 
-                onClick={() => window.open('https://snowmediaent.com/groups', '_blank')}
-                variant="outline"
-                data-focus-id="join-groups"
-                className={`border-green-500 text-green-400 hover:bg-green-600 hover:text-white text-lg px-8 py-3 transition-all duration-200 ${focusRing('join-groups')}`}
-              >
-                <MessageSquare className="w-5 h-5 mr-2" />
-                Join Groups
+                Open Community Blog
               </Button>
             </div>
           </Card>

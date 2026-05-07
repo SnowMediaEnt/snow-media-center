@@ -202,7 +202,9 @@ Deno.serve(async (req) => {
       'get-referral-info',
       'create-member',  // Allow signup flow to work
       'bridge-wix-login', // Allow Wix website accounts to create confirmed app login
-      'create-cart'     // Allow checkout without auth (guest checkout)
+      'create-cart',    // Allow checkout without auth (guest checkout)
+      'get-blog-posts', // Public read of Wix blog posts
+      'get-blog-post'   // Public read of a single Wix blog post
     ];
     const isPublicAction = publicActions.includes(action);
     
@@ -1373,6 +1375,81 @@ Deno.serve(async (req) => {
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+
+      case 'get-blog-posts': {
+        if (!wixSiteId) {
+          return new Response(
+            JSON.stringify({ error: 'WIX_SITE_ID required for blog' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const limit = Math.min(Number(payload.limit) || 30, 100);
+        const offset = Number(payload.offset) || 0;
+        const blogResponse = await fetch(
+          `https://www.wixapis.com/blog/v3/posts?paging.limit=${limit}&paging.offset=${offset}&fieldsets=URL,RICH_CONTENT,CONTENT_TEXT,SEO`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': wixApiKey,
+              'wix-site-id': wixSiteId,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const blogText = await blogResponse.text();
+        if (!blogResponse.ok) {
+          console.error('Blog API error:', blogResponse.status, blogText);
+          return new Response(
+            JSON.stringify({ error: `Wix Blog API error: ${blogResponse.status}`, details: blogText }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const blogData = JSON.parse(blogText);
+        return new Response(
+          JSON.stringify({ posts: blogData.posts || [], total: blogData.metaData?.total || 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'get-blog-post': {
+        if (!wixSiteId) {
+          return new Response(
+            JSON.stringify({ error: 'WIX_SITE_ID required for blog' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const postId = payload.postId;
+        if (!postId) {
+          return new Response(
+            JSON.stringify({ error: 'postId required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const postResponse = await fetch(
+          `https://www.wixapis.com/blog/v3/posts/${encodeURIComponent(postId)}?fieldsets=URL,RICH_CONTENT,CONTENT_TEXT,SEO`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': wixApiKey,
+              'wix-site-id': wixSiteId,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const postText = await postResponse.text();
+        if (!postResponse.ok) {
+          console.error('Blog post error:', postResponse.status, postText);
+          return new Response(
+            JSON.stringify({ error: `Wix Blog post error: ${postResponse.status}`, details: postText }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const postData = JSON.parse(postText);
+        return new Response(
+          JSON.stringify({ post: postData.post || null }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       default:
         return new Response(

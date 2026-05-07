@@ -33,6 +33,7 @@ const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'
 const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const Games = lazy(() => import('@/components/Games'));
+const WixBlog = lazy(() => import('@/components/WixBlog'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -393,6 +394,7 @@ const Index = () => {
         {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
         {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
         {currentView === 'games' && <Games onBack={() => goBack()} />}
+        {currentView === 'wix-blog' && <WixBlog onBack={() => goBack()} />}
         {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
         {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
         {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
