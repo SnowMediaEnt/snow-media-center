@@ -394,6 +394,7 @@ const Index = () => {
         {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
         {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
         {currentView === 'games' && <Games onBack={() => goBack()} />}
+        {currentView === 'wix-blog' && <WixBlog onBack={() => goBack()} />}
         {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
         {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
         {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
