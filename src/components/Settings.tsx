@@ -62,9 +62,14 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
       // If focus is inside updates content, handle navigation back out
       if (focusedElement === 'updates-content') {
         if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          event.stopPropagation();
-          setFocusedElement('tab-updates');
+          const active = document.activeElement as HTMLElement | null;
+          // Only bubble back to tabs if focused on the first updater button
+          if (active?.matches('[data-app-updater-btn="check"]') ||
+              active?.matches('[data-app-updater-btn="download"]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            setFocusedElement('tab-updates');
+          }
           return;
         }
         if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
@@ -74,17 +79,20 @@ const Settings = ({ onBack, layoutMode, onLayoutChange }: SettingsProps) => {
           return;
         }
         if (event.key === 'ArrowDown') {
-          // Move into the cached APKs panel below
-          event.preventDefault();
-          event.stopPropagation();
-          const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
-          if (apkBtn) {
-            apkBtn.focus();
-            apkBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          const active = document.activeElement as HTMLElement | null;
+          if (active?.matches('[data-app-updater-btn="check"]') ||
+              active?.matches('[data-app-updater-btn="download"]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
+            if (apkBtn) {
+              apkBtn.focus();
+              apkBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
           }
           return;
         }
-        return; // Let AppUpdater handle its own internal nav
+        return; // Let AppUpdater / ApkCacheViewer handle their own internal nav
       }
 
       const target = event.target as HTMLElement;
