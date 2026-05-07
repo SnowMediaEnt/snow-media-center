@@ -661,6 +661,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
+          } else if (currentFocusId.startsWith('ai-history-')) {
+            const idx = parseInt(currentFocusId.replace('ai-history-', ''));
+            const conv = aiConversations[idx];
+            if (conv) handleOpenSavedAIConversation(conv.id);
           }
           break;
       }
