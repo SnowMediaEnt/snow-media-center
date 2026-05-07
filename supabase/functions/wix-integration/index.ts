@@ -1428,8 +1428,11 @@ Deno.serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+        const fsParamsPost = ['URL', 'RICH_CONTENT', 'CONTENT_TEXT', 'SEO']
+          .map((f) => `fieldsets=${f}`)
+          .join('&');
         const postResponse = await fetch(
-          `https://www.wixapis.com/blog/v3/posts/${encodeURIComponent(postId)}?fieldsets=URL,RICH_CONTENT,CONTENT_TEXT,SEO`,
+          `https://www.wixapis.com/blog/v3/posts/${encodeURIComponent(postId)}?${fsParamsPost}`,
           {
             method: 'GET',
             headers: {
