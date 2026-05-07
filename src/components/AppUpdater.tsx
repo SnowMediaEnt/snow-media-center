@@ -183,24 +183,26 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     }
   };
 
-  // TV remote navigation
+  // TV remote navigation — only respond when one of OUR buttons is focused.
+  // Otherwise we move the highlight in the background while the user is
+  // actually navigating in the cached APK list below.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const ownsFocus = !!active?.closest('[data-app-updater-root]');
+      if (!ownsFocus) return;
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
-      
+
       switch (event.key) {
         case 'ArrowLeft':
-        case 'ArrowUp':
           if (focusedElement === 1 && updateAvailable) setFocusedElement(0);
           break;
-          
         case 'ArrowRight':
-        case 'ArrowDown':
           if (focusedElement === 0 && updateAvailable) setFocusedElement(1);
           break;
-          
         case 'Enter':
         case ' ':
           if (focusedElement === 0) checkForUpdates();
@@ -227,7 +229,7 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   }
 
   return (
-    <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 relative">
+    <Card data-app-updater-root className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 relative">
       {onClose && (
         <Button
           onClick={onClose}
@@ -278,10 +280,12 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         <div className="flex gap-3">
           <Button
             onClick={checkForUpdates}
+            onFocus={() => setFocusedElement(0)}
             disabled={isChecking}
             variant="outline"
+            data-app-updater-btn="check"
             className={`flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
-              focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
+              focusedElement === 0 ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''
             }`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
@@ -291,9 +295,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           {updateAvailable && updateInfo && (
             <Button
               onClick={downloadUpdate}
+              onFocus={() => setFocusedElement(1)}
               disabled={isDownloading}
+              data-app-updater-btn="download"
               className={`flex-1 bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
-                focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === 1 ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''
               }`}
             >
               <Download className="w-4 h-4 mr-2" />

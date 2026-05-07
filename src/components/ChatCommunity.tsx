@@ -88,6 +88,9 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   const handleViewTicket = async (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
+    // Land on the Back button first so the user sees a clear highlight
+    // on an action button rather than dropping straight into the message.
+    setFocusIndex(4);
     await fetchTicketMessages(ticket.id);
   };
 
@@ -428,13 +431,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         { id: 'join-groups', type: 'button' },
       ];
     } else {
+      const aiHistoryItems = aiConversations.map((c, i) => ({
+        id: `ai-history-${i}`,
+        type: 'button',
+        conversationId: c.id,
+      }));
       return [
         ...header,
         { id: 'ai-input', type: 'input' },
         { id: 'ai-send', type: 'button' },
+        ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -442,7 +451,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const currentFocusId = currentElement?.id || 'back';
 
   const isFocused = (id: string) => currentFocusId === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
+  const focusRing = (id: string) =>
+    isFocused(id)
+      ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
+      : '';
 
   // D-pad Navigation Handler
   useEffect(() => {
@@ -649,6 +661,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
             window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
+          } else if (currentFocusId.startsWith('ai-history-')) {
+            const idx = parseInt(currentFocusId.replace('ai-history-', ''));
+            const conv = aiConversations[idx];
+            if (conv) handleOpenSavedAIConversation(conv.id);
           }
           break;
       }
@@ -1183,12 +1199,13 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   <Badge className="bg-purple-700 text-white">Last 5</Badge>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  {aiConversations.map((conversation) => (
+                  {aiConversations.map((conversation, idx) => (
                     <button
                       key={conversation.id}
                       type="button"
+                      data-focus-id={`ai-history-${idx}`}
                       onClick={() => handleOpenSavedAIConversation(conversation.id)}
-                      className="text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40"
+                      className={`text-left rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-white transition-colors hover:bg-purple-800/40 ${isFocused(`ai-history-${idx}`) ? 'ring-4 ring-brand-gold scale-[1.04] shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
                     >
                       <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
                       <p className="mt-1 text-xs text-purple-200/70">

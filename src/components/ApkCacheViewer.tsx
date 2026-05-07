@@ -134,8 +134,16 @@ const ApkCacheViewer = () => {
     );
   }
 
+  const focusByAttr = (sel: string) => {
+    const el = document.querySelector(sel) as HTMLElement | null;
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  };
+
   return (
-    <Card className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 p-6">
+    <Card data-apk-cache-root className="bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 p-6">
       <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
         <div>
           <h3 className="text-lg font-bold text-white mb-1">Downloaded APKs</h3>
@@ -156,13 +164,13 @@ const ApkCacheViewer = () => {
             onKeyDown={(e) => {
               if (e.key === 'ArrowRight' && files.length > 0) {
                 e.preventDefault();
-                (document.querySelector('[data-apk-clear-all]') as HTMLElement | null)?.focus();
-              } else if (e.key === 'ArrowDown') {
+                focusByAttr('[data-apk-clear-all]');
+              } else if (e.key === 'ArrowDown' && files.length > 0) {
                 e.preventDefault();
-                (document.querySelector('[data-apk-row="0"]') as HTMLElement | null)?.focus();
+                focusByAttr('[data-apk-row-install="0"]');
               }
             }}
-            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-ice focus:outline-none"
+            className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-gold focus:scale-110 focus:outline-none transition-all"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -175,7 +183,16 @@ const ApkCacheViewer = () => {
               size="sm"
               data-apk-clear-all
               onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:ring-4 focus:ring-red-300 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focusByAttr('[data-apk-cache-first]');
+                } else if (e.key === 'ArrowDown' && files.length > 0) {
+                  e.preventDefault();
+                  focusByAttr('[data-apk-row-install="0"]');
+                }
+              }}
+              className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:ring-4 focus:ring-red-300 focus:scale-110 focus:outline-none transition-all"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Clear all
@@ -202,8 +219,21 @@ const ApkCacheViewer = () => {
                 </p>
               </div>
               <Button
-                data-apk-row={idx}
+                data-apk-row-install={idx}
                 onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    focusByAttr(`[data-apk-row-delete="${idx}"]`);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (idx + 1 < files.length) focusByAttr(`[data-apk-row-install="${idx + 1}"]`);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (idx === 0) focusByAttr('[data-apk-cache-first]');
+                    else focusByAttr(`[data-apk-row-install="${idx - 1}"]`);
+                  }
+                }}
                 onClick={() => installOne(f)}
                 disabled={busyName === f.name}
                 size="sm"
@@ -214,7 +244,21 @@ const ApkCacheViewer = () => {
                 Install
               </Button>
               <Button
+                data-apk-row-delete={idx}
                 onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    focusByAttr(`[data-apk-row-install="${idx}"]`);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (idx + 1 < files.length) focusByAttr(`[data-apk-row-delete="${idx + 1}"]`);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (idx === 0) focusByAttr('[data-apk-clear-all]');
+                    else focusByAttr(`[data-apk-row-delete="${idx - 1}"]`);
+                  }
+                }}
                 onClick={() => deleteOne(f.name)}
                 disabled={busyName === f.name}
                 variant="outline"

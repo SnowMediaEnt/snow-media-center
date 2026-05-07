@@ -120,13 +120,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
 
-  // When the user switches tabs (or moves focus into the tab strip),
-  // scroll the active TabsContent into view so the panel is visible below.
+  // When focus moves to the tab strip, keep the tabs in view (don't jump to
+  // the bottom of the active panel — that hid the user above the Danger Zone).
   useEffect(() => {
     if (focusedElement < 5 || focusedElement > 8) return;
     const id = setTimeout(() => {
-      const panel = document.querySelector('[role="tabpanel"][data-state="active"]') as HTMLElement | null;
-      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const tab = document.querySelector('[role="tab"][data-state="active"]') as HTMLElement | null;
+      tab?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
     return () => clearTimeout(id);
   }, [activeTab, focusedElement]);
