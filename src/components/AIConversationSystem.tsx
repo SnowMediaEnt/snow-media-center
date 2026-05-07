@@ -79,6 +79,16 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, onBack]);
 
+  // Auto-focus first conversation card when list view opens
+  useEffect(() => {
+    if (view !== 'list' || conversations.length === 0) return;
+    const t = setTimeout(() => {
+      const first = document.querySelector<HTMLElement>('[data-convo-idx="0"]');
+      first?.focus();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [view, conversations.length]);
+
   const handleCreateConversation = async () => {
     if (!newMessage.trim()) return;
     
