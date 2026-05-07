@@ -341,11 +341,12 @@ const Index = () => {
           }
           break;
           
-        // NOTE: Escape/Backspace are intentionally not handled here.
-        // - Non-home views return early at the top of this handler after goBack().
-        // - On home, the double-press-to-exit logic lives in useNavigation's
-        //   Capacitor backButton listener and the early-return above.
-        // Re-handling them here caused goBack() to fire twice per press.
+        case 'Escape':
+        case 'Backspace':
+          // Only reached on home view (non-home returned earlier above).
+          // Triggers the double-press-to-exit flow in useNavigation.
+          goBack();
+          break;
       }
     };
 
