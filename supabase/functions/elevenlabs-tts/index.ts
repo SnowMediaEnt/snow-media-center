@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const TTS_COST_PER_1K = 0.05; // 0.05 credits per ~1000 chars
+const TTS_COST_PER_1K = 0.10; // 0.10 credits per ~1000 chars (2x cost)
 const DEFAULT_VOICE_ID = 'nwHExYD0xaabDwxhumpc';
 const OWNER_EMAIL = 'joshua.perez@snowmediaent.com';
 
