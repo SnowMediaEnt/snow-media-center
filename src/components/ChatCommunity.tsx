@@ -1205,7 +1205,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                 className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
               >
                 <VoiceInput
-                  onTranscription={(text) => setAiMessage(text)}
+                  onTranscription={(text) => {
+                    voiceModeRef.current = true;
+                    setAiMessage(text);
+                    // auto-send after transcription
+                    setTimeout(() => {
+                      const btn = document.querySelector('[data-focus-id="ai-send"]') as HTMLButtonElement | null;
+                      btn?.click();
+                    }, 100);
+                  }}
                   className=""
                 />
               </div>
