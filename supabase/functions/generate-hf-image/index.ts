@@ -94,7 +94,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: `Create a high-quality, detailed image. Subject: ${prompt}. Style: detailed, professional, visually appealing. Allowed: historical figures, public figures, political subjects, religious imagery, weapons in historical/educational context, mild violence in artistic context. Only restriction: no nudity or sexual content.`
+            content: prompt
           }
         ],
         modalities: ['image', 'text']
