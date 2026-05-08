@@ -25,6 +25,14 @@ interface UserDashboardProps {
   onGames?: () => void;
 }
 
+interface WixOrderSummary {
+  id: string;
+  number?: string | number;
+  created_at: string;
+  total: string | number;
+  status?: string;
+}
+
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames }: UserDashboardProps) => {
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
@@ -36,6 +44,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [referralQr, setReferralQr] = useState<string | null>(null);
+  const dashboardScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const url = wixReferrals?.referralUrl;
@@ -101,9 +110,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(0); // action buttons -> back
           } else if (focusedElement >= 5 && focusedElement <= 8) {
-            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
-            if (container && container.scrollTop > 10) {
-              container.scrollBy({ top: -300, behavior: 'smooth' });
+            const container = dashboardScrollRef.current;
+            const currentTop = container?.scrollTop ?? window.scrollY;
+            if (currentTop > 10) {
+              if (container) container.scrollBy({ top: -300, behavior: 'smooth' });
+              else window.scrollBy({ top: -300, behavior: 'smooth' });
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
@@ -116,8 +127,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(5); // action buttons -> first tab
           } else if (focusedElement >= 5 && focusedElement <= 8) {
             // Scroll the content area down so users can reach Danger Zone, etc.
-            const container = document.querySelector('.tv-scroll-container') as HTMLElement | null;
-            container?.scrollBy({ top: 300, behavior: 'smooth' });
+            const container = dashboardScrollRef.current;
+            if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
+            else window.scrollBy({ top: 300, behavior: 'smooth' });
           }
           break;
         case 'Enter':
@@ -147,6 +159,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     if (!didMountRef.current) {
       didMountRef.current = true;
       // Ensure we start at the top on entry.
+      dashboardScrollRef.current?.scrollTo({ top: 0, left: 0 });
       window.scrollTo({ top: 0, left: 0 });
       return;
     }
@@ -196,7 +209,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   }
 
   return (
-    <div className="tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white min-h-dvh">
+    <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white h-dvh overflow-y-auto overscroll-contain">
       <div className="max-w-6xl mx-auto pb-24">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
@@ -300,10 +313,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto gap-2 mb-8 bg-slate-800/50 border-slate-600 p-2">
             <TabsTrigger 
               value="overview" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -311,7 +324,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="credits" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -319,7 +332,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="store" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 7 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -327,7 +340,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="referrals" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 8 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -441,7 +454,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   <p className="text-slate-400 text-center py-8">Loading store data...</p>
                 ) : wixOrders && wixOrders.length > 0 ? (
                   <div className="space-y-3">
-                    {wixOrders.map((order: any) => (
+                    {(wixOrders as WixOrderSummary[]).map((order) => (
                       <div 
                         key={order.id}
                         className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"

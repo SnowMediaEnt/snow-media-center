@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('general');
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -46,7 +47,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   ];
 
   // Build focusable elements list: back, rooms..., input, send
-  const focusableIds = ['back', ...rooms.map(r => `room-${r.id}`), 'input', 'send'];
+  const focusableIds = useMemo(() => ['back', ...rooms.map(r => `room-${r.id}`), 'input', 'send'], []);
 
   const getCurrentFocusId = () => focusableIds[focusedIndex];
 
@@ -142,7 +143,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
           setFocusedIndex(navigateInDirection('right'));
           break;
         case 'Enter':
-        case ' ':
+        case ' ': {
           const currentId = getCurrentFocusId();
           if (currentId === 'back') {
             onBack();
@@ -154,6 +155,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
             sendMessageRef.current();
           }
           break;
+        }
       }
     };
 
@@ -170,6 +172,43 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [focusedIndex]);
+
+  const loadMessages = useCallback(async () => {
+    if (!user) {
+      setMessages([]);
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from('community_messages')
+        .select('id,user_id,username,message,reply_to,created_at,is_pinned,room_id')
+        .eq('room_id', selectedRoom)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error) throw error;
+      setMessages((data || []) as CommunityMessage[]);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      setLoadError('Could not load this chat room. Please try again.');
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedRoom, user]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [messages]);
 
   // sendMessage function
   const handleSendMessage = async () => {
@@ -189,6 +228,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
       if (error) throw error;
 
       setNewMessage('');
+      await loadMessages();
       toast({
         title: "Message sent!",
         description: "Your message has been posted to the community.",
@@ -212,7 +252,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white h-dvh overflow-y-auto overscroll-contain">
       <div className="max-w-6xl mx-auto pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -241,7 +281,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Room Selector */}
           <div className="lg:col-span-1">
-            <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30">
+            <Card className="bg-slate-900/95 border-blue-400/60 shadow-[0_0_24px_rgba(161,213,220,0.14)]">
               <CardHeader>
                 <CardTitle className="text-white">Chat Rooms</CardTitle>
               </CardHeader>
@@ -252,15 +292,15 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                     data-focus-id={`room-${room.id}`}
                     onClick={() => setSelectedRoom(room.id)}
                     variant={selectedRoom === room.id ? "default" : "outline"}
-                    className={`w-full justify-start transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
+                    className={`w-full min-h-16 justify-start px-4 py-3 transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
                       selectedRoom === room.id 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
-                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-950/40' 
+                        : 'bg-slate-800 border-slate-500 text-white hover:bg-slate-700 hover:border-blue-400'
                     }`}
                   >
                     <div className="text-left">
                       <div className="font-medium">{room.name}</div>
-                      <div className="text-xs opacity-70">{room.description}</div>
+                      <div className="text-xs text-blue-100">{room.description}</div>
                     </div>
                   </Button>
                 ))}
@@ -270,7 +310,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
 
           {/* Chat Area */}
           <div className="lg:col-span-3">
-            <Card className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 h-[600px] flex flex-col">
+            <Card className="bg-slate-900/95 border-blue-400/60 min-h-[70dvh] lg:h-[600px] flex flex-col shadow-[0_0_24px_rgba(161,213,220,0.14)]">
               <CardHeader>
                 <CardTitle className="text-white">
                   #{rooms.find(r => r.id === selectedRoom)?.name}
@@ -281,25 +321,31 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
               <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-white/60">Loading messages...</div>
+                    <div className="text-slate-200">Loading messages...</div>
+                  </div>
+                ) : loadError ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-red-200 font-medium">{loadError}</div>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
-                      <Users className="w-12 h-12 text-white/40 mx-auto mb-4" />
-                      <div className="text-white/60">No messages yet</div>
-                      <div className="text-white/40 text-sm">Be the first to start the conversation!</div>
+                      <Users className="w-12 h-12 text-blue-200 mx-auto mb-4" />
+                      <div className="text-slate-100 font-medium">No messages yet</div>
+                      <div className="text-slate-300 text-sm">Be the first to start the conversation!</div>
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
+                  messages.map((message) => {
+                    const displayName = message.username || 'Member';
+                    return (
                     <div key={message.id} className="flex space-x-3">
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {message.username.charAt(0).toUpperCase()}
+                        {displayName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                          <span className="font-medium text-white">{message.username}</span>
+                          <span className="font-medium text-white">{displayName}</span>
                           <span className="text-xs text-white/60 flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
                             {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
@@ -316,7 +362,8 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
                 <div ref={messagesEndRef} />
               </CardContent>
@@ -324,14 +371,14 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
               {/* Message Input */}
               <div className="p-4 border-t border-white/10">
                 {user ? (
-                  <div className="flex space-x-2">
+                  <div className="flex gap-2">
                     <Input
                       ref={inputRef}
                       data-focus-id="input"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder={`Message #${rooms.find(r => r.id === selectedRoom)?.name}...`}
-                      className={`flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all duration-200 ${focusRing('input')}`}
+                      className={`flex-1 min-h-12 bg-slate-800 border-blue-300/70 text-white placeholder:text-blue-100 transition-all duration-200 ${focusRing('input')}`}
                       onKeyPress={(e) => e.key === 'Enter' && sendMessageRef.current()}
                       disabled={sending}
                     />
@@ -339,13 +386,13 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                       data-focus-id="send"
                       onClick={() => sendMessageRef.current()}
                       disabled={!newMessage.trim() || sending}
-                      className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${focusRing('send')}`}
+                      className={`min-h-12 min-w-14 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-300 transition-all duration-200 ${focusRing('send')}`}
                     >
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="text-center text-white/60">
+                  <div className="text-center text-slate-100 font-medium bg-slate-800 border border-blue-300/50 rounded-lg p-4">
                     Please sign in to participate in the chat
                   </div>
                 )}
