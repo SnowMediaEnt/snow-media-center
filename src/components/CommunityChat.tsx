@@ -251,7 +251,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white h-dvh overflow-y-auto overscroll-contain">
       <div className="max-w-6xl mx-auto pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -280,7 +280,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Room Selector */}
           <div className="lg:col-span-1">
-            <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30">
+            <Card className="bg-slate-900/95 border-blue-400/60 shadow-[0_0_24px_rgba(161,213,220,0.14)]">
               <CardHeader>
                 <CardTitle className="text-white">Chat Rooms</CardTitle>
               </CardHeader>
@@ -291,15 +291,15 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                     data-focus-id={`room-${room.id}`}
                     onClick={() => setSelectedRoom(room.id)}
                     variant={selectedRoom === room.id ? "default" : "outline"}
-                    className={`w-full justify-start transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
+                    className={`w-full min-h-16 justify-start px-4 py-3 transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
                       selectedRoom === room.id 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
-                        : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-950/40' 
+                        : 'bg-slate-800 border-slate-500 text-white hover:bg-slate-700 hover:border-blue-400'
                     }`}
                   >
                     <div className="text-left">
                       <div className="font-medium">{room.name}</div>
-                      <div className="text-xs opacity-70">{room.description}</div>
+                      <div className="text-xs text-blue-100">{room.description}</div>
                     </div>
                   </Button>
                 ))}
@@ -309,7 +309,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
 
           {/* Chat Area */}
           <div className="lg:col-span-3">
-            <Card className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 h-[600px] flex flex-col">
+            <Card className="bg-slate-900/95 border-blue-400/60 min-h-[70dvh] lg:h-[600px] flex flex-col shadow-[0_0_24px_rgba(161,213,220,0.14)]">
               <CardHeader>
                 <CardTitle className="text-white">
                   #{rooms.find(r => r.id === selectedRoom)?.name}
@@ -320,14 +320,18 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
               <CardContent className="flex-1 overflow-y-auto space-y-4 p-4">
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-white/60">Loading messages...</div>
+                    <div className="text-slate-200">Loading messages...</div>
+                  </div>
+                ) : loadError ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-red-200 font-medium">{loadError}</div>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
-                      <Users className="w-12 h-12 text-white/40 mx-auto mb-4" />
-                      <div className="text-white/60">No messages yet</div>
-                      <div className="text-white/40 text-sm">Be the first to start the conversation!</div>
+                      <Users className="w-12 h-12 text-blue-200 mx-auto mb-4" />
+                      <div className="text-slate-100 font-medium">No messages yet</div>
+                      <div className="text-slate-300 text-sm">Be the first to start the conversation!</div>
                     </div>
                   </div>
                 ) : (
