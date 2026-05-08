@@ -164,7 +164,16 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     setActiveTab('ai');
   };
 
-  // Helper to check if ticket is active (has activity in last 24 hours)
+  const handleDeleteAIConversation = async (conversationId: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!confirm('Delete this AI conversation? This cannot be undone.')) return;
+    if (activeAIConversationId === conversationId) {
+      setActiveAIConversationId(null);
+      setAiChat([]);
+    }
+    await deleteAIConversation(conversationId);
+  };
   const isTicketActive = (ticket: SupportTicket) => {
     if (ticket.status === 'closed' || ticket.status === 'resolved') return false;
     const lastActivity = new Date(ticket.last_message_at);
