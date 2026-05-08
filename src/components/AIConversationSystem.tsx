@@ -204,10 +204,50 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-96 pr-4">
+              <div
+                className="h-96 pr-4 overflow-y-auto outline-none focus:ring-2 focus:ring-blue-400 rounded-md"
+                tabIndex={0}
+                data-ai-messages-scroll
+                onKeyDown={(e) => {
+                  const navKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'];
+                  if (!navKeys.includes(e.key)) return;
+                  const container = e.currentTarget;
+                  const msgs = Array.from(container.querySelectorAll<HTMLElement>('[data-ai-msg]'));
+                  if (msgs.length === 0) return;
+                  e.preventDefault();
+                  const focusedIdx = msgs.findIndex((m) => m === document.activeElement);
+                  if (e.key === 'ArrowDown') {
+                    const next = focusedIdx < 0 ? 0 : Math.min(focusedIdx + 1, msgs.length - 1);
+                    msgs[next].focus();
+                    msgs[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  } else if (e.key === 'ArrowUp') {
+                    if (focusedIdx <= 0) {
+                      // exit upward releases focus back to scroll container
+                      container.focus();
+                      container.scrollBy({ top: -100, behavior: 'smooth' });
+                      return;
+                    }
+                    const next = focusedIdx - 1;
+                    msgs[next].focus();
+                    msgs[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  } else if (e.key === 'PageDown') {
+                    container.scrollBy({ top: container.clientHeight * 0.8, behavior: 'smooth' });
+                  } else if (e.key === 'PageUp') {
+                    container.scrollBy({ top: -container.clientHeight * 0.8, behavior: 'smooth' });
+                  } else if (e.key === 'Home') {
+                    container.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else if (e.key === 'End') {
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                  }
+                }}
+              >
                 <div className="space-y-4">
                   {conversationMessages.map((message) => (
-                    <div key={message.id} className={`p-4 rounded-lg ${
+                    <div
+                      key={message.id}
+                      data-ai-msg
+                      tabIndex={0}
+                      className={`p-4 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 focus:scale-[1.01] transition-transform ${
                       message.sender_type === 'user' 
                         ? 'bg-blue-600/20 ml-8' 
                         : 'bg-slate-700/50 mr-8'
@@ -231,7 +271,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
               
               <Separator className="my-4 bg-slate-600" />
               
