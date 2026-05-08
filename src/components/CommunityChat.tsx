@@ -335,14 +335,16 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
+                  messages.map((message) => {
+                    const displayName = message.username || 'Member';
+                    return (
                     <div key={message.id} className="flex space-x-3">
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {message.username.charAt(0).toUpperCase()}
+                        {displayName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                          <span className="font-medium text-white">{message.username}</span>
+                          <span className="font-medium text-white">{displayName}</span>
                           <span className="text-xs text-white/60 flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
                             {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
@@ -359,7 +361,8 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
                 <div ref={messagesEndRef} />
               </CardContent>
