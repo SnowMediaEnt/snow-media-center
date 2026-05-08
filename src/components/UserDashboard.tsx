@@ -139,10 +139,17 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
 
-  // When the active tab changes, scroll the tab strip into view once.
-  // Intentionally does NOT depend on focusedElement — otherwise it fights
-  // the manual scrollBy in the D-pad handler when moving between tabs.
+  // When the active tab changes (after initial mount), scroll the tab strip
+  // into view. Skipping the first run keeps the dashboard scrolled to the top
+  // on entry so the Back / Sign Out buttons are visible.
+  const didMountRef = useRef(false);
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      // Ensure we start at the top on entry.
+      window.scrollTo({ top: 0, left: 0 });
+      return;
+    }
     const id = setTimeout(() => {
       const tab = document.querySelector('[role="tab"][data-state="active"]') as HTMLElement | null;
       tab?.scrollIntoView({ behavior: 'smooth', block: 'center' });
