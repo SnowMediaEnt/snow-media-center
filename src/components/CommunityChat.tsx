@@ -30,6 +30,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('general');
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -171,6 +172,43 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
     }
   }, [focusedIndex]);
 
+  const loadMessages = useCallback(async () => {
+    if (!user) {
+      setMessages([]);
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from('community_messages')
+        .select('id,user_id,username,message,reply_to,created_at,is_pinned,room_id')
+        .eq('room_id', selectedRoom)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error) throw error;
+      setMessages((data || []) as CommunityMessage[]);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      setLoadError('Could not load this chat room. Please try again.');
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedRoom, user]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [messages]);
+
   // sendMessage function
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return;
@@ -189,6 +227,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
       if (error) throw error;
 
       setNewMessage('');
+      await loadMessages();
       toast({
         title: "Message sent!",
         description: "Your message has been posted to the community.",
