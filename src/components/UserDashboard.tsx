@@ -305,10 +305,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto gap-2 mb-8 bg-slate-800/50 border-slate-600 p-2">
             <TabsTrigger 
               value="overview" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -316,7 +316,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="credits" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -324,7 +324,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="store" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 7 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
@@ -332,7 +332,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </TabsTrigger>
             <TabsTrigger 
               value="referrals" 
-              className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${
+              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
                 focusedElement === 8 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
