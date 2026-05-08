@@ -25,6 +25,14 @@ interface UserDashboardProps {
   onGames?: () => void;
 }
 
+interface WixOrderSummary {
+  id: string;
+  number?: string | number;
+  created_at: string;
+  total: string | number;
+  status?: string;
+}
+
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames }: UserDashboardProps) => {
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
@@ -446,7 +454,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   <p className="text-slate-400 text-center py-8">Loading store data...</p>
                 ) : wixOrders && wixOrders.length > 0 ? (
                   <div className="space-y-3">
-                    {wixOrders.map((order: any) => (
+                    {(wixOrders as WixOrderSummary[]).map((order) => (
                       <div 
                         key={order.id}
                         className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
