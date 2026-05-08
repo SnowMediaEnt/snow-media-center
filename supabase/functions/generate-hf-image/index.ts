@@ -127,25 +127,14 @@ serve(async (req) => {
     
     if (!imageUrl) {
       console.error('No image in response:', JSON.stringify(data));
-      
-      // Check if it was a content moderation refusal
-      if (messageContent && (
-        messageContent.toLowerCase().includes('cannot fulfill') ||
-        messageContent.toLowerCase().includes('cannot generate') ||
-        messageContent.toLowerCase().includes('sorry') ||
-        messageContent.toLowerCase().includes('unable to')
-      )) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Content not allowed', 
-            details: 'This image prompt was blocked by content moderation. Please try a different prompt without political figures, celebrities, or sensitive content.',
-            refusal: messageContent
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-      
-      throw new Error('No image generated in response');
+      return new Response(
+        JSON.stringify({
+          error: 'Image generation failed',
+          details: messageContent || 'The image generator did not return an image. Try rephrasing your prompt.',
+          refusal: messageContent
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     console.log('Successfully generated image with Lovable AI Gateway for user:', userId);
