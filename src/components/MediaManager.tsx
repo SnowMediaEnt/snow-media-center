@@ -472,8 +472,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     try {
       setGenerating(true);
       
-      // Enhance prompt for wallpaper/background generation with safety filters
-      const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. Safe for work, family-friendly, no NSFW content.`;
+      // Light prompt enhancement for wallpaper quality (no content restrictions beyond nudity)
+      const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. No nudity.`;
       
       // Get the user's session token for authentication
       const { data: { session } } = await supabase.auth.getSession();
