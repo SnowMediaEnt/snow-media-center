@@ -788,6 +788,13 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         const len = inputEl.value?.length || 0;
         inputEl.setSelectionRange(len, len);
       }, 100);
+    } else {
+      // Navigating away from any input — blur it so the global :focus-visible
+      // glow doesn't double up with the new focus target's ring.
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+        active.blur();
+      }
     }
   }, [currentFocusId]);
 
