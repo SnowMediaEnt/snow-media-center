@@ -472,8 +472,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     try {
       setGenerating(true);
       
-      // Light prompt enhancement for wallpaper quality (no content restrictions beyond nudity)
-      const enhancedPrompt = `High quality wallpaper background image: ${generatePrompt}. Ultra detailed, professional wallpaper quality, suitable for desktop background. No nudity.`;
+      // No client-side prompt restrictions — pass user prompt straight through
+      const enhancedPrompt = generatePrompt;
       
       // Get the user's session token for authentication
       const { data: { session } } = await supabase.auth.getSession();
