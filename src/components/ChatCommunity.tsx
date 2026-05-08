@@ -1163,17 +1163,29 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {aiConversations.map((conversation) => (
-                        <button
+                        <div
                           key={conversation.id}
-                          type="button"
-                          onClick={() => handleOpenSavedAIConversation(conversation.id)}
-                          className="rounded-lg border border-purple-700/40 bg-purple-900/30 p-3 text-left text-white transition-colors hover:bg-purple-800/40"
+                          className="relative rounded-lg border border-purple-700/40 bg-purple-900/30 transition-colors hover:bg-purple-800/40"
                         >
-                          <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
-                          <p className="mt-1 text-xs text-purple-200/70">
-                            Last message: {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
-                          </p>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSavedAIConversation(conversation.id)}
+                            className="block w-full p-3 pr-12 text-left text-white"
+                          >
+                            <p className="line-clamp-1 text-sm font-medium">{conversation.title}</p>
+                            <p className="mt-1 text-xs text-purple-200/70">
+                              Last message: {format(new Date(conversation.last_message_at), 'MMM d, h:mm a')}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete AI conversation"
+                            onClick={(e) => handleDeleteAIConversation(conversation.id, e)}
+                            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-2 text-red-300 hover:bg-red-900/30 hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
