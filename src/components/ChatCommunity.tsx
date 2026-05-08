@@ -137,6 +137,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     conversations: aiConversations,
     fetchConversations: fetchAIConversations,
     fetchConversationMessages,
+    deleteConversation: deleteAIConversation,
   } = useAIConversations();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
