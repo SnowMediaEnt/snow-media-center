@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,7 +47,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   ];
 
   // Build focusable elements list: back, rooms..., input, send
-  const focusableIds = ['back', ...rooms.map(r => `room-${r.id}`), 'input', 'send'];
+  const focusableIds = useMemo(() => ['back', ...rooms.map(r => `room-${r.id}`), 'input', 'send'], []);
 
   const getCurrentFocusId = () => focusableIds[focusedIndex];
 
@@ -143,7 +143,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
           setFocusedIndex(navigateInDirection('right'));
           break;
         case 'Enter':
-        case ' ':
+        case ' ': {
           const currentId = getCurrentFocusId();
           if (currentId === 'back') {
             onBack();
@@ -155,6 +155,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
             sendMessageRef.current();
           }
           break;
+        }
       }
     };
 
