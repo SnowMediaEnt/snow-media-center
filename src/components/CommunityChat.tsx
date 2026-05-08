@@ -367,14 +367,14 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
               {/* Message Input */}
               <div className="p-4 border-t border-white/10">
                 {user ? (
-                  <div className="flex space-x-2">
+                  <div className="flex gap-2">
                     <Input
                       ref={inputRef}
                       data-focus-id="input"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder={`Message #${rooms.find(r => r.id === selectedRoom)?.name}...`}
-                      className={`flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all duration-200 ${focusRing('input')}`}
+                      className={`flex-1 min-h-12 bg-slate-800 border-blue-300/70 text-white placeholder:text-blue-100 transition-all duration-200 ${focusRing('input')}`}
                       onKeyPress={(e) => e.key === 'Enter' && sendMessageRef.current()}
                       disabled={sending}
                     />
@@ -382,13 +382,13 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
                       data-focus-id="send"
                       onClick={() => sendMessageRef.current()}
                       disabled={!newMessage.trim() || sending}
-                      className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${focusRing('send')}`}
+                      className={`min-h-12 min-w-14 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-300 transition-all duration-200 ${focusRing('send')}`}
                     >
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="text-center text-white/60">
+                  <div className="text-center text-slate-100 font-medium bg-slate-800 border border-blue-300/50 rounded-lg p-4">
                     Please sign in to participate in the chat
                   </div>
                 )}
