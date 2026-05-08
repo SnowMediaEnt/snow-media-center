@@ -226,6 +226,12 @@ export const useAIConversations = () => {
   // Delete a conversation
   const deleteConversation = async (conversationId: string) => {
     try {
+      // Remove messages first (no FK cascade in schema)
+      await supabase
+        .from('ai_messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
       const { error } = await supabase
         .from('ai_conversations')
         .delete()
@@ -242,8 +248,8 @@ export const useAIConversations = () => {
       });
 
       toast({
-        title: "Success",
-        description: "Conversation deleted successfully"
+        title: "Deleted",
+        description: "AI conversation removed"
       });
     } catch (error) {
       console.error('Error deleting conversation:', error);
