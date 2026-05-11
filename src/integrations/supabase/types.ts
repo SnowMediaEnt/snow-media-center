@@ -379,6 +379,181 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_devices: {
+        Row: {
+          created_at: string
+          customer_id: string
+          device_type: string
+          id: string
+          label: string | null
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          device_type: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          device_type?: string
+          id?: string
+          label?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_devices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          id: string
+          method: string
+          notes: string | null
+          paid_at: string
+          service_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          id?: string
+          method: string
+          notes?: string | null
+          paid_at: string
+          service_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          id?: string
+          method?: string
+          notes?: string | null
+          paid_at?: string
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_payments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "customer_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_services: {
+        Row: {
+          created_at: string
+          customer_id: string
+          expiration_date: string | null
+          id: string
+          line_id: string | null
+          notes: string | null
+          panel_username: string | null
+          renewal_status: string | null
+          service_type: string
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          expiration_date?: string | null
+          id?: string
+          line_id?: string | null
+          notes?: string | null
+          panel_username?: string | null
+          renewal_status?: string | null
+          service_type: string
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          expiration_date?: string | null
+          id?: string
+          line_id?: string | null
+          notes?: string | null
+          panel_username?: string | null
+          renewal_status?: string | null
+          service_type?: string
+          start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_services_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          notes: string | null
+          payment_handle: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string | null
+          wix_contact_id: string | null
+          wix_member_id: string | null
+          wix_synced_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          payment_handle?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+          wix_contact_id?: string | null
+          wix_member_id?: string | null
+          wix_synced_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          payment_handle?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+          wix_contact_id?: string | null
+          wix_member_id?: string | null
+          wix_synced_at?: string | null
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           category: string | null
@@ -530,11 +705,15 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          phone: string | null
           total_spent: number
           updated_at: string
           user_id: string
           username: string | null
           wix_account_id: string | null
+          wix_contact_id: string | null
+          wix_member_id: string | null
+          wix_synced_at: string | null
         }
         Insert: {
           created_at?: string
@@ -542,11 +721,15 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           total_spent?: number
           updated_at?: string
           user_id: string
           username?: string | null
           wix_account_id?: string | null
+          wix_contact_id?: string | null
+          wix_member_id?: string | null
+          wix_synced_at?: string | null
         }
         Update: {
           created_at?: string
@@ -554,11 +737,15 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           total_spent?: number
           updated_at?: string
           user_id?: string
           username?: string | null
           wix_account_id?: string | null
+          wix_contact_id?: string | null
+          wix_member_id?: string | null
+          wix_synced_at?: string | null
         }
         Relationships: []
       }
@@ -588,6 +775,92 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      renewal_reminders: {
+        Row: {
+          channel: string
+          customer_id: string
+          id: string
+          notes: string | null
+          sent_at: string
+          sent_by: string | null
+          service_id: string | null
+        }
+        Insert: {
+          channel?: string
+          customer_id: string
+          id?: string
+          notes?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          service_id?: string | null
+        }
+        Update: {
+          channel?: string
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_reminders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_reminders_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "customer_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_screenshots: {
+        Row: {
+          created_at: string
+          extracted: Json | null
+          id: string
+          kind: string
+          matched_customer_id: string | null
+          status: string
+          storage_path: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          extracted?: Json | null
+          id?: string
+          kind?: string
+          matched_customer_id?: string | null
+          status?: string
+          storage_path: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          extracted?: Json | null
+          id?: string
+          kind?: string
+          matched_customer_id?: string | null
+          status?: string
+          storage_path?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_screenshots_matched_customer_id_fkey"
+            columns: ["matched_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_messages: {
         Row: {
@@ -662,6 +935,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      unmatched_leads: {
+        Row: {
+          created_at: string
+          extracted: Json
+          id: string
+          notes: string | null
+          source_screenshot_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          extracted: Json
+          id?: string
+          notes?: string | null
+          source_screenshot_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          extracted?: Json
+          id?: string
+          notes?: string | null
+          source_screenshot_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unmatched_leads_source_screenshot_id_fkey"
+            columns: ["source_screenshot_id"]
+            isOneToOne: false
+            referencedRelation: "service_screenshots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -759,6 +1064,7 @@ export type Database = {
     }
     Functions: {
       ai_tokens_last_hour: { Args: never; Returns: number }
+      backfill_customers_from_auth: { Args: never; Returns: Json }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
