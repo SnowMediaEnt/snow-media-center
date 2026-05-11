@@ -15,7 +15,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   const { videos, loading, error } = useVimeoVideos();
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [focusedElement, setFocusedElement] = useState<'back' | 'tab-0' | 'tab-1' | 'tab-2' | string>('back');
-  const [activeTab, setActiveTab] = useState<string>('device');
+  const [activeTab, setActiveTab] = useState<string>('all');
   const containerRef = useRef<HTMLDivElement>(null);
   const topAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -125,9 +125,9 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
         case 'Enter':
         case ' ':
           if (focusedElement === 'back') onBack();
-          else if (focusedElement === 'tab-0') setActiveTab('device');
+          else if (focusedElement === 'tab-0') setActiveTab('all');
           else if (focusedElement === 'tab-1') setActiveTab('service');
-          else if (focusedElement === 'tab-2') setActiveTab('all');
+          else if (focusedElement === 'tab-2') setActiveTab('device');
           else if (focusedElement.startsWith('video-')) {
             const video = currentVideos.find(v => focusedElement === `video-${v.id}`);
             if (video) handleVideoClick(video.embed_url);
@@ -315,22 +315,22 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-800/50 border-slate-600">
               <TabsTrigger 
-                value="device" 
+                value="all" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-0' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                Device ({deviceVideos.length})
+                All ({allVideos.length})
               </TabsTrigger>
               <TabsTrigger 
                 value="service" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-1' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                Service ({serviceVideos.length})
+                Services ({serviceVideos.length})
               </TabsTrigger>
               <TabsTrigger 
-                value="all" 
+                value="device" 
                 className={`text-white data-[state=active]:bg-brand-gold text-center ${focusedElement === 'tab-2' ? 'ring-2 ring-brand-ice' : ''}`}
               >
-                All ({allVideos.length})
+                Devices ({deviceVideos.length})
               </TabsTrigger>
             </TabsList>
             
