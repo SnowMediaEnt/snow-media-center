@@ -163,20 +163,32 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           (pct) => setDownloadProgress(pct)
         );
 
-        toast({
-          title: "Update Downloaded",
-          description: `Opening installer for v${updateInfo.version}…`,
-        });
+        const installed = await refreshInstalledVersion();
+        const apkInfo = await AppManager.getApkInfo({ filePath });
 
-        try {
-          await AppManager.installApk({ filePath });
-        } catch (e) {
-          console.warn('Installer launch failed:', e);
+        if (apkInfo.packageName && installed.packageName && apkInfo.packageName !== installed.packageName) {
+          throw new Error(`Downloaded APK is for ${apkInfo.packageName}, not ${installed.packageName}`);
         }
 
-        setCurrentVersion(updateInfo.version);
-        setUpdateAvailable(false);
-        setUpdateInfo(null);
+        if (apkInfo.versionName && apkInfo.versionName !== updateInfo.version) {
+          throw new Error(`Downloaded APK is v${apkInfo.versionName}, but update.json lists v${updateInfo.version}`);
+        }
+
+        if (apkInfo.versionCode && installed.versionCode && apkInfo.versionCode <= installed.versionCode) {
+          throw new Error(`Downloaded APK is not newer than installed v${installed.versionName || currentVersion}. Upload a build with a higher versionCode.`);
+        }
+
+        toast({
+          title: "Update Downloaded",
+          description: `Opening Android installer for v${apkInfo.versionName || updateInfo.version}…`,
+        });
+
+        await AppManager.installApk({ filePath });
+
+        toast({
+          title: "Installer Opened",
+          description: "After Android finishes, reopen Snow Media Center to verify the new version.",
+        });
       } else {
         // Web fallback - direct download
         const link = document.createElement('a');
