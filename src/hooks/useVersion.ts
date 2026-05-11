@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react';
+import { isNativePlatform } from '@/utils/platform';
 
 // Hook to fetch and display the app version
 export const useVersion = () => {
   const [version, setVersion] = useState<string>('1.0.0');
+  const [versionCode, setVersionCode] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchVersion = async () => {
       try {
+        if (isNativePlatform()) {
+          const { AppManager } = await import('@/capacitor/AppManager');
+          const nativeInfo = await AppManager.getAppInfo({});
+          if (nativeInfo?.versionName) {
+            setVersion(nativeInfo.versionName);
+            setVersionCode(nativeInfo.versionCode || 0);
+            return;
+          }
+        }
+
         const response = await fetch('/version.json');
         if (response.ok) {
           const versionData = await response.json();
@@ -26,5 +38,5 @@ export const useVersion = () => {
     fetchVersion();
   }, []);
 
-  return { version, isLoading };
+  return { version, versionCode, isLoading };
 };

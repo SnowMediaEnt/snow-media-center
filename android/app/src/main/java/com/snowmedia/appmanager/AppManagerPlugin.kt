@@ -236,7 +236,7 @@ class AppManagerPlugin : Plugin() {
       }
 
       val file = resolveApkFile(path)
-      if (!file.exists()) { call.reject("APK file not found"); return }
+      if (file == null || !file.exists()) { call.reject("APK file not found"); return }
 
       val uri = FileProvider.getUriForFile(
         context, context.packageName + ".fileprovider", file

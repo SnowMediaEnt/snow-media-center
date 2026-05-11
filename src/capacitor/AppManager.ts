@@ -15,8 +15,18 @@ export interface CachedApkInfo {
   modifiedAt: number;
 }
 
+export interface AppPackageInfo {
+  installed?: boolean;
+  packageName: string;
+  appName?: string;
+  versionName: string;
+  versionCode: number;
+}
+
 export interface AppManagerPlugin {
   isInstalled(options: { packageName: string }): Promise<{ installed: boolean }>;
+  getAppInfo(options?: { packageName?: string }): Promise<AppPackageInfo>;
+  getApkInfo(options: { filePath: string }): Promise<AppPackageInfo>;
   getInstalledApps(): Promise<{ apps: InstalledAppInfo[] }>;
   listCachedApks(): Promise<{ files: CachedApkInfo[]; totalBytes: number; count: number }>;
   deleteCachedApk(options: { name: string }): Promise<{ deleted: boolean }>;
@@ -36,6 +46,8 @@ export const WEB_UNSUPPORTED_MSG =
 
 const webFallback: AppManagerPlugin = {
   async isInstalled() { return { installed: false }; },
+  async getAppInfo() { return { installed: false, packageName: '', versionName: '', versionCode: 0 }; },
+  async getApkInfo() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async getInstalledApps() { return { apps: [] }; },
   async listCachedApks() { return { files: [], totalBytes: 0, count: 0 }; },
   async deleteCachedApk() { return { deleted: false }; },
