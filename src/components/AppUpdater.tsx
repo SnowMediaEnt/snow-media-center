@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, RefreshCw, CheckCircle, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
-import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useVersion } from '@/hooks/useVersion';
 
 interface UpdateInfo {
   version: string;
+  versionCode?: number;
   downloadUrl: string;
   changelog: string;
   releaseDate: string;
@@ -23,13 +23,15 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
-  const { version: detectedVersion } = useVersion();
+  const { version: detectedVersion, versionCode: detectedVersionCode } = useVersion();
   const [currentVersion, setCurrentVersion] = useState('1.0.0');
+  const [currentVersionCode, setCurrentVersionCode] = useState(0);
 
-  // Sync detected version from version.json into local state
+  // Sync detected version from the native package first, then version.json on web.
   useEffect(() => {
     if (detectedVersion) setCurrentVersion(detectedVersion);
-  }, [detectedVersion]);
+    if (detectedVersionCode) setCurrentVersionCode(detectedVersionCode);
+  }, [detectedVersion, detectedVersionCode]);
   const [focusedElement, setFocusedElement] = useState<number>(-1);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -37,6 +39,16 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const { toast } = useToast();
+
+  const refreshInstalledVersion = useCallback(async () => {
+    if (!isNativePlatform()) return { versionName: currentVersion, versionCode: currentVersionCode, packageName: '' };
+
+    const { AppManager } = await import('@/capacitor/AppManager');
+    const installed = await AppManager.getAppInfo({});
+    if (installed?.versionName) setCurrentVersion(installed.versionName);
+    if (installed?.versionCode) setCurrentVersionCode(installed.versionCode);
+    return installed;
+  }, [currentVersion, currentVersionCode]);
 
   const checkForUpdates = async () => {
     if (isChecking) return;
@@ -46,6 +58,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       const updateUrl = 'https://snowmediaapps.com/smc/update.json';
       const timestamp = Date.now();
       const isNative = isNativePlatform();
+      const installed = isNative
+        ? await refreshInstalledVersion()
+        : { versionName: currentVersion, versionCode: currentVersionCode };
+      const installedVersion = installed.versionName || currentVersion;
+      const installedVersionCode = installed.versionCode || currentVersionCode;
       
       console.log(`Checking for updates (native: ${isNative})...`);
       
@@ -77,7 +94,9 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       }
       
       // Compare versions
-      if (data.version !== currentVersion && isVersionNewer(data.version, currentVersion)) {
+      const newerByCode = !!data.versionCode && !!installedVersionCode && data.versionCode > installedVersionCode;
+      const newerByName = data.version !== installedVersion && isVersionNewer(data.version, installedVersion);
+      if (newerByCode || newerByName) {
         setUpdateInfo(data);
         setUpdateAvailable(true);
         
@@ -144,20 +163,32 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
           (pct) => setDownloadProgress(pct)
         );
 
-        toast({
-          title: "Update Downloaded",
-          description: `Opening installer for v${updateInfo.version}…`,
-        });
+        const installed = await refreshInstalledVersion();
+        const apkInfo = await AppManager.getApkInfo({ filePath });
 
-        try {
-          await AppManager.installApk({ filePath });
-        } catch (e) {
-          console.warn('Installer launch failed:', e);
+        if (apkInfo.packageName && installed.packageName && apkInfo.packageName !== installed.packageName) {
+          throw new Error(`Downloaded APK is for ${apkInfo.packageName}, not ${installed.packageName}`);
         }
 
-        setCurrentVersion(updateInfo.version);
-        setUpdateAvailable(false);
-        setUpdateInfo(null);
+        if (apkInfo.versionName && apkInfo.versionName !== updateInfo.version) {
+          throw new Error(`Downloaded APK is v${apkInfo.versionName}, but update.json lists v${updateInfo.version}`);
+        }
+
+        if (apkInfo.versionCode && installed.versionCode && apkInfo.versionCode <= installed.versionCode) {
+          throw new Error(`Downloaded APK is not newer than installed v${installed.versionName || currentVersion}. Upload a build with a higher versionCode.`);
+        }
+
+        toast({
+          title: "Update Downloaded",
+          description: `Opening Android installer for v${apkInfo.versionName || updateInfo.version}…`,
+        });
+
+        await AppManager.installApk({ filePath });
+
+        toast({
+          title: "Installer Opened",
+          description: "After Android finishes, reopen Snow Media Center to verify the new version.",
+        });
       } else {
         // Web fallback - direct download
         const link = document.createElement('a');

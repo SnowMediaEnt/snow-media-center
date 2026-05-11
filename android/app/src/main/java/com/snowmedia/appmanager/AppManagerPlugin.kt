@@ -36,6 +36,48 @@ class AppManagerPlugin : Plugin() {
   }
 
   @PluginMethod
+  fun getAppInfo(call: PluginCall) {
+    val pkg = call.getString("packageName") ?: context.packageName
+    try {
+      val pm = context.packageManager
+      val info = pm.getPackageInfo(pkg, 0)
+      val appInfo = info.applicationInfo
+      val result = JSObject()
+      result.put("installed", true)
+      result.put("packageName", pkg)
+      result.put("appName", if (appInfo != null) pm.getApplicationLabel(appInfo).toString() else "")
+      result.put("versionName", info.versionName ?: "")
+      result.put("versionCode", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+        info.longVersionCode else info.versionCode.toLong())
+      call.resolve(result)
+    } catch (e: Exception) {
+      Log.e(TAG, "getAppInfo failed for $pkg", e)
+      call.resolve(JSObject().put("installed", false).put("packageName", pkg))
+    }
+  }
+
+  @PluginMethod
+  fun getApkInfo(call: PluginCall) {
+    val path = call.getString("filePath")
+    if (path.isNullOrBlank()) { call.reject("filePath required"); return }
+    try {
+      val file = resolveApkFile(path)
+      if (file == null || !file.exists()) { call.reject("APK file not found"); return }
+      val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+      if (info == null) { call.reject("Downloaded file is not a valid APK"); return }
+      val result = JSObject()
+      result.put("packageName", info.packageName ?: "")
+      result.put("versionName", info.versionName ?: "")
+      result.put("versionCode", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+        info.longVersionCode else info.versionCode.toLong())
+      call.resolve(result)
+    } catch (e: Exception) {
+      Log.e(TAG, "getApkInfo failed", e)
+      call.reject("Could not read APK info: ${e.message}")
+    }
+  }
+
+  @PluginMethod
   fun getInstalledApps(call: PluginCall) {
     try {
       val pm = context.packageManager
@@ -156,6 +198,21 @@ class AppManagerPlugin : Plugin() {
     return freed
   }
 
+  private fun resolveApkFile(path: String): File? {
+    val cleanPath = path.removePrefix("file://").removePrefix("content://")
+    var file = File(cleanPath)
+
+    if (!file.exists()) {
+      val cacheSubPath = cleanPath.substringAfter("cache/", "")
+      if (cacheSubPath.isNotEmpty()) file = File(context.cacheDir, cacheSubPath)
+    }
+    if (!file.exists()) {
+      val filename = cleanPath.substringAfterLast("/")
+      file = File(context.cacheDir, "apk/$filename")
+    }
+    return file
+  }
+
   @PluginMethod
   fun installApk(call: PluginCall) {
     val path = call.getString("filePath")
@@ -178,18 +235,8 @@ class AppManagerPlugin : Plugin() {
         }
       }
 
-      val cleanPath = path.removePrefix("file://").removePrefix("content://")
-      var file = File(cleanPath)
-
-      if (!file.exists()) {
-        val cacheSubPath = cleanPath.substringAfter("cache/", "")
-        if (cacheSubPath.isNotEmpty()) file = File(context.cacheDir, cacheSubPath)
-      }
-      if (!file.exists()) {
-        val filename = cleanPath.substringAfterLast("/")
-        file = File(context.cacheDir, "apk/$filename")
-      }
-      if (!file.exists()) { call.reject("APK file not found"); return }
+      val file = resolveApkFile(path)
+      if (file == null || !file.exists()) { call.reject("APK file not found"); return }
 
       val uri = FileProvider.getUriForFile(
         context, context.packageName + ".fileprovider", file
