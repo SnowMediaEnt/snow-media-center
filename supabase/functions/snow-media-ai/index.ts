@@ -178,8 +178,7 @@ serve(async (req) => {
       console.log('[update-check] failed:', e);
     }
 
-    // System prompt with Snow Media context and app control functions
-    const systemPrompt = `You are Snow Media AI, an intelligent assistant for the Snow Media Center (SMC) Android app. You are knowledgeable about:
+    let knowledgeContext = '';
 
     try {
       const { data: docs, error } = await supabaseAdmin
