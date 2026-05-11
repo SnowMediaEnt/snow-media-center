@@ -63,6 +63,7 @@ serve(async (req) => {
       message,
       conversationId: incomingConversationId,
       saveConversation = false,
+      currentVersion: clientCurrentVersion,
     } = await req.json();
 
     if (!message) {
