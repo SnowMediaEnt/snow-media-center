@@ -278,23 +278,26 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         )}
         
         <div className="flex gap-3">
-          <Button
-            onClick={checkForUpdates}
-            onFocus={() => setFocusedElement(0)}
-            onBlur={() => setFocusedElement((prev) => (prev === 0 ? -1 : prev))}
-            disabled={isChecking}
-            variant="outline"
-            data-app-updater-btn="check"
-            className={`flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
-              focusedElement === 0 ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
-            {isChecking ? 'Checking...' : 'Check for Updates'}
-          </Button>
-          
+          {!updateAvailable && (
+            <Button
+              onClick={checkForUpdates}
+              onFocus={() => setFocusedElement(0)}
+              onBlur={() => setFocusedElement((prev) => (prev === 0 ? -1 : prev))}
+              disabled={isChecking}
+              variant="outline"
+              data-app-updater-btn="check"
+              className={`flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20 transition-all duration-200 ${
+                focusedElement === 0 ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''
+              }`}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
+              {isChecking ? 'Checking...' : 'Check for Updates'}
+            </Button>
+          )}
+
           {updateAvailable && updateInfo && (
             <Button
+              autoFocus
               onClick={downloadUpdate}
               onFocus={() => setFocusedElement(1)}
               onBlur={() => setFocusedElement((prev) => (prev === 1 ? -1 : prev))}
@@ -305,11 +308,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
               }`}
             >
               <Download className="w-4 h-4 mr-2" />
-              {isDownloading ? `${downloadProgress}%` : 'Download'}
+              {isDownloading ? `${downloadProgress}%` : `Download v${updateInfo.version}`}
             </Button>
           )}
         </div>
-        
+
         {isDownloading && (
           <div className="w-full bg-gray-700 rounded-full h-2">
             <div 
