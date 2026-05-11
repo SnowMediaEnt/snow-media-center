@@ -260,6 +260,8 @@ WHERE TO WATCH SPORTS / PPV (CRITICAL ROUTING RULES — always answer with these
 - Always phrase it like: "Catch it in **DreamStreams → MLB Zone** (or **VibezTV → MLB** if that's your service)." Then offer to open the app via the open_app / find_support_video function if relevant.
 
 ${knowledgeContext ? `\nKNOWLEDGE BASE DOCUMENTS:\n${knowledgeContext}\n` : ''}
+${userContext ? `\nCURRENT USER ACCOUNT (use this to answer questions about their plan, services, credits, expirations, billing dates, and to proactively warn about upcoming expirations within 14 days):\n${userContext}\n` : ''}
+${updateContext ? `\nSMC APP UPDATE STATUS (use this when the user asks about updates, "is there a new version", or when relevant. Tell them clearly if an update is available and where to get it):\n${updateContext}\n` : ''}
 ${liveContext ? `\nLIVE WEB RESULTS (real-time, use these as the source of truth for upcoming events / PPV / sports / schedules):\n${liveContext}\n${liveCitations.length ? `Sources: ${liveCitations.slice(0,5).join(', ')}` : ''}\n` : ''}
 
 APP CONTROL FUNCTIONS:
