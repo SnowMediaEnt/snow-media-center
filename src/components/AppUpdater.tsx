@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { useVersion } from '@/hooks/useVersion';
 
 interface UpdateInfo {
   version: string;
@@ -22,7 +23,13 @@ interface AppUpdaterProps {
 }
 
 const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
+  const { version: detectedVersion } = useVersion();
   const [currentVersion, setCurrentVersion] = useState('1.0.0');
+
+  // Sync detected version from version.json into local state
+  useEffect(() => {
+    if (detectedVersion) setCurrentVersion(detectedVersion);
+  }, [detectedVersion]);
   const [focusedElement, setFocusedElement] = useState<number>(-1);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
