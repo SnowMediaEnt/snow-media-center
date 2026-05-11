@@ -79,31 +79,68 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
   const speakReply = useCallback(async (text: string) => {
     try {
+      console.log('[TTS] Requesting voice for', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
         body: { text },
       });
       if (error) throw error;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
-        console.warn('TTS returned no audioContent');
+        console.warn('[TTS] No audioContent returned');
         return;
       }
-      const src = `data:audio/mpeg;base64,${audioContent}`;
-      // Reuse the unlocked element to preserve user-gesture activation
+
+      // Decode base64 -> ArrayBuffer (chunked to avoid stack overflow on long replies)
+      const binary = atob(audioContent);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+      // Prefer Web Audio API on Android/Fire TV WebView — once the AudioContext
+      // is unlocked by a user gesture, BufferSource playback is NOT re-locked
+      // by the long async gap (transcribe → AI reply → TTS). HTMLAudioElement
+      // playback IS re-locked on Fire TV after that gap, which is why the old
+      // <audio> path was silent.
+      let ctx = audioCtxRef.current;
+      if (!ctx) {
+        const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (Ctx) {
+          ctx = new Ctx();
+          audioCtxRef.current = ctx;
+        }
+      }
+
+      if (ctx) {
+        try { await ctx.resume(); } catch {}
+        try {
+          // decodeAudioData accepts the ArrayBuffer; clone it because some
+          // implementations detach the buffer after decoding.
+          const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.start(0);
+          console.log('[TTS] Playing via Web Audio,', buf.duration.toFixed(1), 's');
+          return;
+        } catch (decodeErr) {
+          console.warn('[TTS] Web Audio decode failed, falling back to <audio>:', decodeErr);
+        }
+      }
+
+      // Fallback: HTMLAudioElement (works on web/desktop)
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
       let audio = ttsAudioRef.current;
       if (!audio) {
         audio = new Audio();
         ttsAudioRef.current = audio;
       }
       audio.pause();
-      audio.src = src;
+      audio.src = url;
       audio.volume = 1;
       audio.currentTime = 0;
-      // Try AudioContext resume right before play — keeps Fire TV happy
-      try { await audioCtxRef.current?.resume(); } catch {}
       await audio.play();
+      console.log('[TTS] Playing via <audio> fallback');
     } catch (err) {
-      console.error('TTS playback failed:', err);
+      console.error('[TTS] Playback failed:', err);
     }
   }, []);
 
