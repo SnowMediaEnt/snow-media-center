@@ -9,6 +9,7 @@ import { useVersion } from '@/hooks/useVersion';
 
 interface UpdateInfo {
   version: string;
+  versionCode?: number;
   downloadUrl: string;
   changelog: string;
   releaseDate: string;
@@ -39,6 +40,16 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const { toast } = useToast();
 
+  const refreshInstalledVersion = useCallback(async () => {
+    if (!isNativePlatform()) return { versionName: currentVersion, versionCode: currentVersionCode, packageName: '' };
+
+    const { AppManager } = await import('@/capacitor/AppManager');
+    const installed = await AppManager.getAppInfo({});
+    if (installed?.versionName) setCurrentVersion(installed.versionName);
+    if (installed?.versionCode) setCurrentVersionCode(installed.versionCode);
+    return installed;
+  }, [currentVersion, currentVersionCode]);
+
   const checkForUpdates = async () => {
     if (isChecking) return;
     
@@ -47,6 +58,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       const updateUrl = 'https://snowmediaapps.com/smc/update.json';
       const timestamp = Date.now();
       const isNative = isNativePlatform();
+      const installed = isNative
+        ? await refreshInstalledVersion()
+        : { versionName: currentVersion, versionCode: currentVersionCode };
+      const installedVersion = installed.versionName || currentVersion;
+      const installedVersionCode = installed.versionCode || currentVersionCode;
       
       console.log(`Checking for updates (native: ${isNative})...`);
       
@@ -78,7 +94,9 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
       }
       
       // Compare versions
-      if (data.version !== currentVersion && isVersionNewer(data.version, currentVersion)) {
+      const newerByCode = !!data.versionCode && !!installedVersionCode && data.versionCode > installedVersionCode;
+      const newerByName = data.version !== installedVersion && isVersionNewer(data.version, installedVersion);
+      if (newerByCode || newerByName) {
         setUpdateInfo(data);
         setUpdateAvailable(true);
         
