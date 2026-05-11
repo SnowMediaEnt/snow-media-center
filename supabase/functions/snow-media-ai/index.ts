@@ -63,6 +63,7 @@ serve(async (req) => {
       message,
       conversationId: incomingConversationId,
       saveConversation = false,
+      currentVersion: clientCurrentVersion,
     } = await req.json();
 
     if (!message) {
@@ -119,8 +120,66 @@ serve(async (req) => {
         .update({ updated_at: new Date().toISOString(), last_message_at: new Date().toISOString() })
         .eq('id', savedConversationId);
     }
-    
+
+    // ---- USER ACCOUNT CONTEXT (profile + subscriptions/services) ----
+    let userContext = '';
+    try {
+      const [{ data: profile }, { data: subs }] = await Promise.all([
+        supabaseAdmin.from('profiles').select('username, full_name, email, credits, total_spent').eq('user_id', userId).maybeSingle(),
+        supabaseAdmin.from('user_subscriptions').select('plan_name, service_type, status, monthly_price, connection_count, next_billing_date').eq('user_id', userId),
+      ]);
+      const lines: string[] = [];
+      if (profile) {
+        lines.push(`User: ${profile.full_name || profile.username || profile.email || 'Unknown'} (${profile.email || 'no email'})`);
+        lines.push(`Credits: ${profile.credits ?? 0} | Total spent: $${profile.total_spent ?? 0}`);
+      }
+      if (subs && subs.length) {
+        lines.push('Subscriptions / Services:');
+        for (const s of subs) {
+          const expires = s.next_billing_date ? ` | next billing/expires: ${s.next_billing_date}` : '';
+          lines.push(`  - ${s.plan_name} (${s.service_type}) — status: ${s.status}, $${s.monthly_price}/mo, ${s.connection_count} connection(s)${expires}`);
+        }
+      } else {
+        lines.push('Subscriptions: none on file.');
+      }
+      userContext = lines.join('\n');
+    } catch (e) {
+      console.log('[user-context] failed:', e);
+    }
+
+    // ---- SMC APP UPDATE CHECK ----
+    // Triggered if the user asks about updates / version, OR always lightly included so the AI can volunteer it.
+    let updateContext = '';
+    const updateTriggers = /\b(update|updates|new version|newer version|latest version|upgrade|out of date|outdated|smc version|app version|version check)\b/i;
+    const wantsUpdate = updateTriggers.test(message);
+    try {
+      const upRes = await fetch('https://snowmediaapps.com/smc/update.json', { cache: 'no-store' as any });
+      if (upRes.ok) {
+        const up = await upRes.json();
+        const latest = up?.version ?? 'unknown';
+        const installed = clientCurrentVersion ?? 'unknown';
+        const cmp = (a: string, b: string) => {
+          const pa = a.split('.').map(n => parseInt(n) || 0);
+          const pb = b.split('.').map(n => parseInt(n) || 0);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+            if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+          }
+          return 0;
+        };
+        const newer = installed !== 'unknown' && latest !== 'unknown' && cmp(latest, installed) > 0;
+        updateContext = [
+          `Installed SMC version: ${installed}`,
+          `Latest SMC version available: ${latest}`,
+          newer ? `An update IS available. Download URL: ${up?.downloadUrl ?? 'n/a'}. Release notes: ${up?.releaseNotes ?? 'n/a'}` : `User is on the latest version.`,
+        ].join('\n');
+      }
+    } catch (e) {
+      console.log('[update-check] failed:', e);
+    }
+
     let knowledgeContext = '';
+
     try {
       const { data: docs, error } = await supabaseAdmin
         .from('knowledge_documents')
@@ -201,6 +260,8 @@ WHERE TO WATCH SPORTS / PPV (CRITICAL ROUTING RULES — always answer with these
 - Always phrase it like: "Catch it in **DreamStreams → MLB Zone** (or **VibezTV → MLB** if that's your service)." Then offer to open the app via the open_app / find_support_video function if relevant.
 
 ${knowledgeContext ? `\nKNOWLEDGE BASE DOCUMENTS:\n${knowledgeContext}\n` : ''}
+${userContext ? `\nCURRENT USER ACCOUNT (use this to answer questions about their plan, services, credits, expirations, billing dates, and to proactively warn about upcoming expirations within 14 days):\n${userContext}\n` : ''}
+${updateContext ? `\nSMC APP UPDATE STATUS (use this when the user asks about updates, "is there a new version", or when relevant. Tell them clearly if an update is available and where to get it):\n${updateContext}\n` : ''}
 ${liveContext ? `\nLIVE WEB RESULTS (real-time, use these as the source of truth for upcoming events / PPV / sports / schedules):\n${liveContext}\n${liveCitations.length ? `Sources: ${liveCitations.slice(0,5).join(', ')}` : ''}\n` : ''}
 
 APP CONTROL FUNCTIONS:

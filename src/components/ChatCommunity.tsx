@@ -464,12 +464,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     }]);
 
     try {
+      const currentVersion = await fetch('/version.json').then(r => r.json()).then(d => d.currentVersion).catch(() => undefined);
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
         body: {
           message: userMessage,
           userId: user.id,
           conversationId: activeAIConversationId,
           saveConversation: true,
+          currentVersion,
         }
       });
 

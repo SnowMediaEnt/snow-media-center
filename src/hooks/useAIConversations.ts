@@ -186,11 +186,13 @@ export const useAIConversations = () => {
         .map(msg => `${msg.sender_type === 'user' ? 'User' : 'Assistant'}: ${msg.message}`)
         .join('\n');
 
+      const currentVersion = await fetch('/version.json').then(r => r.json()).then(d => d.currentVersion).catch(() => undefined);
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
         body: {
           message: userMessage,
           context: context,
-          conversationId
+          conversationId,
+          currentVersion,
         }
       });
 
