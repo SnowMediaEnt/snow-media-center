@@ -1,143 +1,54 @@
-# Prompt for your Telegram bot (paste into Claude Code)
-
-Copy everything below the line into your bot project's Claude Code session. It contains everything the bot needs to post App Alerts into Snow Media Center the same way the admin UI does — using your admin Supabase login, RLS-safe, no service-role key on the bot.
-
----
+# Add In-App Speedtest to Install Apps
 
 ## Goal
+Add a **Speedtest** button at the top of the Install Apps screen (next to Back / Refresh / Clear All). Tapping it opens a full-screen in-app speed test that measures download, upload, ping, and jitter — runs entirely inside Snow Media Center, works on Android TV / STB / mobile, fully D-pad navigable.
 
-Extend the existing Python Telegram bot (the one that already updates the RSS feed) with a new conversational command that creates an **App Alert** in the Snow Media Center Supabase project. The flow:
+## Why LibreSpeed
+- Open source (LGPL), free forever, no API key
+- Pure browser JS — runs inside the WebView, no native plugin needed
+- Uses public LibreSpeed backends (Cloudflare-hosted) by default; can be self-hosted on snowmediaapps.com later if you want your own server
+- Accuracy comparable to Ookla for typical home connections
 
-1. Admin sends `/alert` (or mentions "new alert").
-2. Bot lists the available apps (fetched live from the `apps` table) and asks which one(s) the alert is for. Accept multiple selections.
-3. Bot asks for a **title** (default `Heads up` if user replies "skip").
-4. Bot asks for a **message** (required, free text).
-5. Bot asks for **severity**: `info`, `warning`, or `critical`.
-6. Bot shows a confirmation summary, waits for "yes/no".
-7. On "yes", bot inserts one row per selected app into `public.app_alerts` and replies with the alert IDs.
+## Where it goes
+Top action row in `src/components/InstallApps.tsx`, alongside Back / Refresh / Clear All. Gauge icon, blue gradient (matches the secondary-action button pattern in memory).
 
-Also support: `/alerts` to list active alerts, `/alert_off <id>` to deactivate, `/alert_delete <id>` to delete.
+## What gets built
 
-Restrict the whole feature to a hard-coded allowlist of Telegram user IDs (the admin's chat IDs).
+### 1. New component `src/components/SpeedTest.tsx`
+Full-screen overlay with:
+- Big circular gauge showing live download/upload Mbps
+- Ping & jitter readouts
+- Start / Stop / Run Again buttons (D-pad focusable, glow-and-grow focus)
+- Result summary card after the run with a "Good for 4K?" badge using the 15 Mbps threshold from the existing buffering guide memory
+- Back button returns to Install Apps with focus restored
 
-## Snow Media Center Supabase project
+Uses the official LibreSpeed `speedtest.js` worker (vendored to `public/librespeed/`) — single ~25 KB file plus a worker. No npm package, no build changes.
 
-- Project ref: `falmwzhvxoefvkfsiylp`
-- Supabase URL: `https://falmwzhvxoefvkfsiylp.supabase.co`
-- Anon (publishable) key — safe to embed in the bot:
-  `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhbG13emh2eG9lZnZrZnNpeWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4MjIwNDMsImV4cCI6MjA2NzM5ODA0M30.I-YfvZxAuOvhehrdoZOgrANirZv0-ucGUKbW9gOfQak`
+### 2. New focus type `'speedtest'` in `InstallApps.tsx`
+- Add button to the top action row (left of Refresh)
+- Wire D-pad: Back ↔ Speedtest ↔ Refresh ↔ Clear All
+- Open `<SpeedTest />` as a state-toggled overlay (same pattern as `AppAlertDialog`)
 
-## Authentication (use admin email/password — DO NOT use service-role key)
+### 3. Native network allowance
+LibreSpeed defaults to Cloudflare endpoints (`speedtest.net`-style HTTPS). Add the LibreSpeed test host to `android/app/src/main/res/xml/network_security_config.xml` whitelist so Android 7+ cleartext/TLS rules don't block it.
 
-The `app_alerts` table is protected by RLS. INSERT / UPDATE / DELETE require `has_role(auth.uid(), 'admin')`. So the bot must sign in **as the admin user** with email + password and use the returned JWT for every request.
+### 4. No backend / no Edge Function
+Fully client-side. No Supabase changes, no secrets, no migrations.
 
-Store these as env vars in the bot:
-- `SMC_SUPABASE_URL`
-- `SMC_SUPABASE_ANON_KEY`
-- `SMC_ADMIN_EMAIL`
-- `SMC_ADMIN_PASSWORD`
-- `TELEGRAM_ADMIN_IDS` (comma-separated list of allowed Telegram user IDs)
+## D-pad / TV behavior
+- Glow-and-grow focus, no boxy outlines (per Core memory)
+- Back button on remote closes the speedtest overlay first, then exits Install Apps (uses existing hierarchical back-nav pattern)
+- `scrollIntoView({block:"center"})` on focus changes inside the result card
 
-Use `supabase-py` (`pip install supabase`):
+## Out of scope
+- Ookla branding/Speedtest.net embed (not licensable for this use case)
+- Self-hosting a LibreSpeed backend on snowmediaapps.com — can be added later by dropping the PHP backend on your server and pointing the component at it
+- History of past speedtest results (can be added later via a `speedtest_results` table if you want)
 
-```python
-from supabase import create_client
-sb = create_client(os.environ["SMC_SUPABASE_URL"], os.environ["SMC_SUPABASE_ANON_KEY"])
-sb.auth.sign_in_with_password({"email": os.environ["SMC_ADMIN_EMAIL"],
-                                "password": os.environ["SMC_ADMIN_PASSWORD"]})
-```
+## Files touched
+- **New**: `src/components/SpeedTest.tsx`
+- **New**: `public/librespeed/speedtest.js`, `public/librespeed/speedtest_worker.js` (vendored)
+- **Edit**: `src/components/InstallApps.tsx` — add button + focus wiring + overlay state
+- **Edit**: `android/app/src/main/res/xml/network_security_config.xml` — whitelist LibreSpeed test host
 
-Refresh the session if it expires (catch the 401 and re-sign in, or call `sb.auth.refresh_session()` on a timer).
-
-## Tables and shape
-
-### `public.apps` — read this to list app names
-
-Columns the bot needs: `id`, `name`, `is_available`. Query:
-
-```python
-apps = sb.table("apps").select("id,name,is_available").eq("is_available", True).order("name").execute().data
-```
-
-The `name` value is what gets stored in `app_alerts.app_match` — it must match exactly.
-
-### `public.app_alerts` — insert here
-
-Columns:
-- `app_match` (text, required) — exact app name from `apps.name`
-- `title` (text, default `'Heads up'`)
-- `message` (text, required)
-- `severity` (text: `info` | `warning` | `critical`, default `warning`)
-- `active` (bool, default `true`) — set `true` to publish
-- `source` (text, default `'admin'`) — set to `'telegram-bot'` so we can tell where it came from
-- `created_by` (uuid) — set to the admin's `auth.uid()` (get from `sb.auth.get_user().user.id`)
-
-Insert example (one row per selected app):
-
-```python
-admin_uid = sb.auth.get_user().user.id
-rows = [{
-    "app_match": app_name,
-    "title": title or "Heads up",
-    "message": message,
-    "severity": severity,           # 'info' | 'warning' | 'critical'
-    "active": True,
-    "source": "telegram-bot",
-    "created_by": admin_uid,
-} for app_name in selected_app_names]
-
-result = sb.table("app_alerts").insert(rows).execute()
-inserted_ids = [r["id"] for r in result.data]
-```
-
-### Listing / deactivating / deleting
-
-```python
-# List active
-sb.table("app_alerts").select("id,app_match,title,severity,created_at") \
-  .eq("active", True).order("created_at", desc=True).execute()
-
-# Deactivate
-sb.table("app_alerts").update({"active": False}).eq("id", alert_id).execute()
-
-# Delete
-sb.table("app_alerts").delete().eq("id", alert_id).execute()
-```
-
-## Conversation UX (use python-telegram-bot ConversationHandler)
-
-States: `PICK_APPS → TITLE → MESSAGE → SEVERITY → CONFIRM`.
-
-- `PICK_APPS`: send an InlineKeyboard with one button per app (toggle ✅ on tap), plus a "Done" button. Also accept typed names separated by commas. Validate every name against the live `apps` list; if anything doesn't match, reply with the closest matches and re-ask.
-- `TITLE`: free text, "skip" keeps default `Heads up`.
-- `MESSAGE`: free text, required, reject empty.
-- `SEVERITY`: InlineKeyboard with three buttons (`info`, `warning`, `critical`).
-- `CONFIRM`: show summary `Apps: A, B, C\nTitle: …\nSeverity: …\nMessage: …` with Yes / Cancel buttons. On Yes, do the insert and reply with the inserted IDs and a link to the admin UI: `https://id-preview--f4432411-0df8-40ae-a0a1-fb97cafa76e7.lovable.app` (or the published URL once it exists).
-
-## Authorization gate
-
-At the start of every handler:
-
-```python
-if update.effective_user.id not in ADMIN_TG_IDS:
-    await update.message.reply_text("Not authorized.")
-    return ConversationHandler.END
-```
-
-## Error handling
-
-- Wrap Supabase calls in try/except; on `PostgrestAPIError` reply with the error message so I can see it in chat.
-- On 401 (JWT expired), call `sb.auth.sign_in_with_password(...)` again and retry once.
-- Log everything with the `logging` module at INFO level.
-
-## Deliverables
-
-1. New module `bot/app_alerts.py` exposing `register_handlers(app)` that the existing bot's main file can import and call.
-2. Update the bot's main file to call `register_handlers(app)` alongside the existing RSS handlers.
-3. Update the bot's `.env.example` and README with the four new env vars listed above and the `TELEGRAM_ADMIN_IDS` list.
-4. Add `supabase>=2.0.0` to `requirements.txt`.
-5. No changes to the RSS feature.
-
----
-
-That's the full prompt. Drop it into Claude Code in the bot repo and it should be able to build the feature end-to-end. After it's running, the bot will appear in the Snow Media Center admin under the alerts list with `source = 'telegram-bot'` so we can audit which alerts came from chat.
+After merging you'll need to run `npx cap sync android` once for the network config change to take effect.
