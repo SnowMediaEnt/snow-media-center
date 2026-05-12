@@ -732,14 +732,12 @@ const Step3 = ({
   setSpeedInput,
   onRunInApp,
   onSaveTyped,
-  onUnknown,
 }: {
   speedMbps: number | null;
   speedInput: string;
   setSpeedInput: (v: string) => void;
   onRunInApp: () => void;
   onSaveTyped: () => void;
-  onUnknown: () => void;
 }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
     <div>
@@ -765,17 +763,10 @@ const Step3 = ({
         placeholder="Download speed (Mbps)"
         className="flex-1 px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
-      <Button onClick={onSaveTyped} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
+      <Button onClick={onSaveTyped} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         Save
       </Button>
     </div>
-
-    <button
-      onClick={onUnknown}
-      className="text-xs text-white/50 hover:text-white/80 underline"
-    >
-      I can't run a speed test — skip this step
-    </button>
 
     {typeof speedMbps === 'number' && (
       <div
