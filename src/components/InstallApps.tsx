@@ -59,7 +59,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
 // Focus types for navigation
 type FocusType = 
-  | 'back' | 'speedtest' | 'refresh' | 'clearAll'
+  | 'back' | 'speedtest' | 'guide' | 'refresh' | 'clearAll'
   | 'tab-0' | 'tab-1'
   | `app-${string}` 
   | `pin-${string}`
