@@ -263,7 +263,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
+          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'guide' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('tab-')) {
             if (categoryApps.length > 0) {
