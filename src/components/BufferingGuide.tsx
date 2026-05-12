@@ -232,10 +232,25 @@ const BufferingGuide = ({
       // Prefer first focusable inside the content area (skip header Close button)
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
       const target = contentFocusables[0] || focusables[0];
-      target?.focus();
+      if (target) {
+        target.focus();
+        lastFocusedRef.current = target;
+      }
     }, 80);
     return () => clearTimeout(t);
   }, [stepIndex, showSpeedTest]);
+
+  // Track last-focused element inside the modal so D-pad can resume after focus loss
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && root.contains(t)) lastFocusedRef.current = t;
+    };
+    root.addEventListener('focusin', onFocusIn);
+    return () => root.removeEventListener('focusin', onFocusIn);
+  }, []);
 
   // Helpers to find the AppData entry for the chosen streaming app or VPN
   const findApp = (matchKeys: string[], pkg?: string | null): AppData | undefined =>
