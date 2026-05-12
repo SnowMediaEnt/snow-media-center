@@ -85,6 +85,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const clearAllCancelRef = useRef<boolean>(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const [showSpeedTest, setShowSpeedTest] = useState(false);
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
