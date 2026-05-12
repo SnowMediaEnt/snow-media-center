@@ -1093,6 +1093,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         }}
       />
       {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
+      {showGuide && <BufferingGuide onClose={() => setShowGuide(false)} />}
     </div>
   );
 };
