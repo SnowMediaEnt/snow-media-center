@@ -216,7 +216,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
+          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             // Stay
           } else if (focusedElement.startsWith('tab-')) {
             setFocusedElement('back');
