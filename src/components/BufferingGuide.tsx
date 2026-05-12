@@ -358,10 +358,28 @@ const BufferingGuide = ({
     }
   };
 
-  const emailSupport = () => {
-    const subject = encodeURIComponent('Buffering Walkthrough Results');
-    const body = encodeURIComponent(supportScript);
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+  const submitAsTicket = async () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in via Chat & Community to submit a ticket.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      setSubmittingTicket(true);
+      await createTicket('Buffering Walkthrough Results', supportScript);
+      toast({
+        title: 'Ticket submitted',
+        description: 'Find it in Chat & Community → My Tickets.',
+      });
+      onClose();
+    } catch (err) {
+      // toast already handled inside hook
+    } finally {
+      setSubmittingTicket(false);
+    }
   };
 
   return (
