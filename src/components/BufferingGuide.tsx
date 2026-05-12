@@ -155,16 +155,53 @@ const BufferingGuide = ({
       }
       e.preventDefault();
       e.stopPropagation();
-      const idx = active ? focusables.indexOf(active) : -1;
-      let nextIdx = idx;
-      if (idx === -1) {
-        nextIdx = 0;
-      } else if (key === 'ArrowDown' || key === 'ArrowRight') {
-        nextIdx = Math.min(focusables.length - 1, idx + 1);
-      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
-        nextIdx = Math.max(0, idx - 1);
+
+      // Spatial 2D navigation based on bounding rects
+      const activeEl = (document.activeElement as HTMLElement | null) && focusables.includes(document.activeElement as HTMLElement)
+        ? (document.activeElement as HTMLElement)
+        : null;
+      if (!activeEl) {
+        focusables[0]?.focus();
+        focusables[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return;
       }
-      const next = focusables[nextIdx];
+      const cur = activeEl.getBoundingClientRect();
+      const curCx = cur.left + cur.width / 2;
+      const curCy = cur.top + cur.height / 2;
+
+      const candidates = focusables
+        .filter((el) => el !== activeEl)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return { el, r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+        });
+
+      const inDirection = candidates.filter(({ r, cx, cy }) => {
+        const dx = cx - curCx;
+        const dy = cy - curCy;
+        if (key === 'ArrowDown') return r.top > cur.top + 4;
+        if (key === 'ArrowUp') return r.bottom < cur.bottom - 4;
+        if (key === 'ArrowRight') return r.left > cur.left + 4 && Math.abs(dy) < Math.max(cur.height, r.height);
+        if (key === 'ArrowLeft') return r.right < cur.right - 4 && Math.abs(dy) < Math.max(cur.height, r.height);
+        return false;
+      });
+
+      const scored = inDirection
+        .map(({ el, cx, cy }) => {
+          const dx = cx - curCx;
+          const dy = cy - curCy;
+          // Penalize off-axis distance more heavily for vertical/horizontal moves
+          let score: number;
+          if (key === 'ArrowDown' || key === 'ArrowUp') {
+            score = Math.abs(dy) + Math.abs(dx) * 2;
+          } else {
+            score = Math.abs(dx) + Math.abs(dy) * 2;
+          }
+          return { el, score };
+        })
+        .sort((a, b) => a.score - b.score);
+
+      const next = scored[0]?.el;
       if (next) {
         next.focus();
         next.scrollIntoView({ block: 'center', behavior: 'smooth' });
