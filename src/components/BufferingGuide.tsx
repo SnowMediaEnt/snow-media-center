@@ -165,9 +165,13 @@ const BufferingGuide = ({
       e.stopPropagation();
 
       // Spatial 2D navigation based on bounding rects
-      const activeEl = (document.activeElement as HTMLElement | null) && focusables.includes(document.activeElement as HTMLElement)
-        ? (document.activeElement as HTMLElement)
-        : null;
+      const docActive = document.activeElement as HTMLElement | null;
+      let activeEl: HTMLElement | null =
+        docActive && focusables.includes(docActive) ? docActive : null;
+      // If focus was lost (e.g. body), resume from the last focused element
+      if (!activeEl && lastFocusedRef.current && focusables.includes(lastFocusedRef.current)) {
+        activeEl = lastFocusedRef.current;
+      }
       if (!activeEl) {
         focusables[0]?.focus();
         focusables[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
