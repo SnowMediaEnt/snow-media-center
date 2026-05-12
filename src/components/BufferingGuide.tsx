@@ -322,7 +322,9 @@ const BufferingGuide = ({
   };
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150 [&_a:focus]:outline-none [&_a:focus]:ring-2 [&_a:focus]:ring-yellow-300 [&_a:focus]:rounded">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-white/10 bg-gradient-to-b from-blue-950/60 to-transparent">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
