@@ -125,6 +125,7 @@ const BufferingGuide = ({
   const [speedInput, setSpeedInput] = useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   const step: StepKey = STEPS[stepIndex];
 
@@ -164,9 +165,13 @@ const BufferingGuide = ({
       e.stopPropagation();
 
       // Spatial 2D navigation based on bounding rects
-      const activeEl = (document.activeElement as HTMLElement | null) && focusables.includes(document.activeElement as HTMLElement)
-        ? (document.activeElement as HTMLElement)
-        : null;
+      const docActive = document.activeElement as HTMLElement | null;
+      let activeEl: HTMLElement | null =
+        docActive && focusables.includes(docActive) ? docActive : null;
+      // If focus was lost (e.g. body), resume from the last focused element
+      if (!activeEl && lastFocusedRef.current && focusables.includes(lastFocusedRef.current)) {
+        activeEl = lastFocusedRef.current;
+      }
       if (!activeEl) {
         focusables[0]?.focus();
         focusables[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -211,6 +216,7 @@ const BufferingGuide = ({
       const next = scored[0]?.el;
       if (next) {
         next.focus();
+        lastFocusedRef.current = next;
         next.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     };
@@ -226,10 +232,25 @@ const BufferingGuide = ({
       // Prefer first focusable inside the content area (skip header Close button)
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
       const target = contentFocusables[0] || focusables[0];
-      target?.focus();
+      if (target) {
+        target.focus();
+        lastFocusedRef.current = target;
+      }
     }, 80);
     return () => clearTimeout(t);
   }, [stepIndex, showSpeedTest]);
+
+  // Track last-focused element inside the modal so D-pad can resume after focus loss
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && root.contains(t)) lastFocusedRef.current = t;
+    };
+    root.addEventListener('focusin', onFocusIn);
+    return () => root.removeEventListener('focusin', onFocusIn);
+  }, []);
 
   // Helpers to find the AppData entry for the chosen streaming app or VPN
   const findApp = (matchKeys: string[], pkg?: string | null): AppData | undefined =>
@@ -616,7 +637,15 @@ const ChoiceButton = ({
   className?: string;
 }) => (
   <Button
-    onClick={onClick}
+    onClick={(e) => {
+      onClick();
+      // Ensure the clicked button keeps focus so D-pad nav has an anchor
+      (e.currentTarget as HTMLElement).focus();
+    }}
+    onMouseDown={(e) => {
+      // Prevent some browsers from blurring the button on mouse interaction
+      (e.currentTarget as HTMLElement).focus();
+    }}
     variant="outline"
     className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
       active
