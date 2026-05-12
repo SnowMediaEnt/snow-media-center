@@ -107,6 +107,9 @@ const BufferingGuide = ({
   onDownload,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { createTicket } = useSupportTickets(user);
+  const [submittingTicket, setSubmittingTicket] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<State>({
     appType: null,
