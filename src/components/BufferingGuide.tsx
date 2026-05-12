@@ -14,18 +14,30 @@ import {
   ShieldCheck,
   AlertTriangle,
   HelpCircle,
+  Settings as SettingsIcon,
+  Download as DownloadIcon,
+  Play,
+  ExternalLink,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useToast } from '@/hooks/use-toast';
 import SpeedTest from '@/components/SpeedTest';
+import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
+import type { AppData } from '@/hooks/useAppData';
 
 interface BufferingGuideProps {
   onClose: () => void;
+  apps: AppData[];
+  appStatuses: Map<string, { installed: boolean }>;
+  onLaunch: (app: AppData) => void | Promise<void>;
+  onDownload: (app: AppData) => void;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
 type Step1Choice = 'one_only' | 'all_buffer' | null;
 type YesNo = boolean | null;
 type VpnTest = 'fixed' | 'still_buffering' | null;
+type VpnChoice = 'ipvanish' | 'surfshark' | null;
 
 interface State {
   appType: AppType;
@@ -33,6 +45,7 @@ interface State {
   didRestartAndCache: YesNo;
   speedMbps: number | null;
   speedMethod: 'speedtest_app' | 'in_app' | 'unknown' | null;
+  vpnChoice: VpnChoice;
   vpnSpeedOk: YesNo;
   vpnTest: VpnTest;
 }
@@ -45,13 +58,51 @@ type StepKey = typeof STEPS[number];
 const HINTS: Record<StepKey, string> = {
   intro: 'Choose your app type to start.',
   step1: 'If only one channel/title, report it so we can fix it fast.',
-  step2: 'Restart + clear cache fixes a lot of issues.',
+  step2: 'Open the app settings, Force Stop + Clear Cache, then press Back.',
   step3: 'Run a speed test on this device (15+ Mbps).',
-  step4: 'VPN test checks for ISP throttling.',
+  step4: 'Pick a VPN, install/sign in, then re-run speed.',
   summary: 'You\'re done — copy or email results if needed.',
 };
 
-const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
+const APP_LABELS: Record<Exclude<AppType, null>, string> = {
+  dreamstreams: 'Dreamstreams',
+  vibeztv: 'VibezTV',
+  plex: 'Plex',
+  other: 'your app',
+};
+
+// Known package names for the streaming apps in step1
+const STREAMING_PKG: Record<Exclude<AppType, null>, string | null> = {
+  dreamstreams: 'com.dreamstreams.app',
+  vibeztv: 'com.vibeztv.app',
+  plex: 'com.plexapp.android',
+  other: null,
+};
+
+const VPN_INFO = {
+  ipvanish: {
+    label: 'IPVanish',
+    pkg: 'com.ixonn.ipvanish',
+    downloaderCode: '805133',
+    signupUrl: 'https://ssqt.co/mzS1auK',
+    matchKeys: ['ipvanish'],
+  },
+  surfshark: {
+    label: 'Surfshark',
+    pkg: 'com.surfshark.vpnclient.android',
+    downloaderCode: '3829522',
+    signupUrl: 'https://surfshark.com',
+    matchKeys: ['surfshark'],
+  },
+} as const;
+
+const BufferingGuide = ({
+  onClose,
+  apps,
+  appStatuses,
+  onLaunch,
+  onDownload,
+}: BufferingGuideProps) => {
   const { toast } = useToast();
   const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<State>({
@@ -60,6 +111,7 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
     didRestartAndCache: null,
     speedMbps: null,
     speedMethod: null,
+    vpnChoice: null,
     vpnSpeedOk: null,
     vpnTest: null,
   });
@@ -69,13 +121,38 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
 
   const step: StepKey = STEPS[stepIndex];
 
+  // Helpers to find the AppData entry for the chosen streaming app or VPN
+  const findApp = (matchKeys: string[], pkg?: string | null): AppData | undefined =>
+    apps.find((a) => {
+      const name = (a.name || '').toLowerCase();
+      const id = (a.id || '').toLowerCase();
+      const apkPkg = (a.packageName || '').toLowerCase();
+      if (pkg && apkPkg === pkg.toLowerCase()) return true;
+      return matchKeys.some((k) => name.includes(k) || id.includes(k));
+    });
+
+  const chosenApp: AppData | undefined = useMemo(() => {
+    if (!state.appType || state.appType === 'other') return undefined;
+    return findApp([state.appType], STREAMING_PKG[state.appType]);
+  }, [state.appType, apps]);
+
+  const chosenAppInstalled = chosenApp ? !!appStatuses.get(chosenApp.id)?.installed : false;
+
+  const vpnApp: AppData | undefined = useMemo(() => {
+    if (!state.vpnChoice) return undefined;
+    const info = VPN_INFO[state.vpnChoice];
+    return findApp([...info.matchKeys], info.pkg);
+  }, [state.vpnChoice, apps]);
+
+  const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+
   const canNext = (() => {
     switch (step) {
       case 'intro': return !!state.appType;
       case 'step1': return state.step1Choice === 'all_buffer';
       case 'step2': return state.didRestartAndCache === false; // true short-circuits to summary
       case 'step3': return typeof state.speedMbps === 'number' && state.speedMbps >= 15;
-      case 'step4': return state.vpnSpeedOk !== null && state.vpnTest === 'still_buffering';
+      case 'step4': return !!state.vpnChoice && state.vpnSpeedOk !== null && state.vpnTest === 'still_buffering';
       default: return false;
     }
   })();
@@ -116,11 +193,48 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
       didRestartAndCache: null,
       speedMbps: null,
       speedMethod: null,
+      vpnChoice: null,
       vpnSpeedOk: null,
       vpnTest: null,
     });
     setSpeedInput('');
     setStepIndex(0);
+  };
+
+  const openAppSettings = async (packageName: string) => {
+    try {
+      await AppManager.openAppSettings({ packageName });
+      toast({
+        title: 'Opened app settings',
+        description: 'Tap Force Stop, then Storage → Clear Cache. Press Back when done.',
+      });
+    } catch (err) {
+      if (isWebUnsupportedError(err)) {
+        toast({
+          title: 'Open in the installed app',
+          description: 'This action only works inside the installed Snow Media Center app.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Could not open settings', description: String(err), variant: 'destructive' });
+      }
+    }
+  };
+
+  const launchPackage = async (packageName: string) => {
+    try {
+      await AppManager.launch({ packageName });
+    } catch (err) {
+      if (isWebUnsupportedError(err)) {
+        toast({
+          title: 'Open in the installed app',
+          description: 'This action only works inside the installed Snow Media Center app.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Could not launch app', description: String(err), variant: 'destructive' });
+      }
+    }
   };
 
   const diagnosis = useMemo(() => getDiagnosis(state), [state]);
@@ -203,6 +317,20 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
           {step === 'step2' && (
             <Step2
               value={state.didRestartAndCache}
+              appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
+              chosenApp={chosenApp}
+              chosenAppInstalled={chosenAppInstalled}
+              onOpenSettings={() => {
+                const pkg = chosenApp?.packageName || (state.appType ? STREAMING_PKG[state.appType] : null);
+                if (!pkg) {
+                  toast({
+                    title: 'Open Android Settings → Apps',
+                    description: 'Find the app, then tap Force Stop and Clear Cache.',
+                  });
+                  return;
+                }
+                openAppSettings(pkg);
+              }}
               onSelect={(v) => {
                 setState((s) => ({ ...s, didRestartAndCache: v }));
                 if (v === true) {
@@ -243,8 +371,21 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
 
           {step === 'step4' && (
             <Step4
+              vpnChoice={state.vpnChoice}
               vpnSpeedOk={state.vpnSpeedOk}
               vpnTest={state.vpnTest}
+              vpnApp={vpnApp}
+              vpnInstalled={vpnInstalled}
+              onChooseVpn={(c) => setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }))}
+              onDownloadVpn={() => {
+                if (vpnApp) onDownload(vpnApp);
+                else toast({ title: 'VPN not in store', description: 'Use the Downloader code instead.', variant: 'destructive' });
+              }}
+              onLaunchVpn={() => {
+                const pkg = vpnApp?.packageName || (state.vpnChoice ? VPN_INFO[state.vpnChoice].pkg : null);
+                if (pkg) launchPackage(pkg);
+              }}
+              onRunSpeedTest={() => setShowSpeedTest(true)}
               onVpnSpeedOk={(ok) => {
                 setState((s) => ({ ...s, vpnSpeedOk: ok }));
                 if (!ok) {
@@ -265,6 +406,12 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
                   jumpToSummary();
                 }
               }}
+              onTestStreamingApp={() => {
+                if (chosenApp) onLaunch(chosenApp);
+                else toast({ title: 'Open the streaming app manually.' });
+              }}
+              chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
+              chosenAppAvailable={!!chosenApp && chosenAppInstalled}
             />
           )}
 
@@ -272,6 +419,10 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
             <Summary
               diagnosis={diagnosis}
               supportScript={supportScript}
+              chosenApp={chosenApp}
+              chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
+              chosenAppInstalled={chosenAppInstalled}
+              onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
               onCopy={copyScript}
               onEmail={emailSupport}
               onRestart={restart}
@@ -311,7 +462,6 @@ const BufferingGuide = ({ onClose }: BufferingGuideProps) => {
         <SpeedTest
           onClose={() => {
             setShowSpeedTest(false);
-            // After in-app speed test, prompt user to enter the result they saw
             toast({
               title: 'Enter your download speed',
               description: 'Type the Mbps you saw above, then continue.',
@@ -329,10 +479,12 @@ const ChoiceButton = ({
   active,
   onClick,
   children,
+  className = '',
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  className?: string;
 }) => (
   <Button
     onClick={onClick}
@@ -341,7 +493,7 @@ const ChoiceButton = ({
       active
         ? 'bg-cyan-600/30 border-cyan-400 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
         : 'bg-white/5 border-white/20 text-white hover:bg-white/10'
-    }`}
+    } ${className}`}
   >
     {children}
   </Button>
@@ -391,23 +543,56 @@ const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Cho
   </Card>
 );
 
-const Step2 = ({ value, onSelect }: { value: YesNo; onSelect: (v: boolean) => void }) => (
+const Step2 = ({
+  value,
+  appLabel,
+  chosenApp,
+  chosenAppInstalled,
+  onOpenSettings,
+  onSelect,
+}: {
+  value: YesNo;
+  appLabel: string;
+  chosenApp: AppData | undefined;
+  chosenAppInstalled: boolean;
+  onOpenSettings: () => void;
+  onSelect: (v: boolean) => void;
+}) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
     <div>
-      <h2 className="text-xl font-semibold text-white">Restart device + clear app cache</h2>
+      <h2 className="text-xl font-semibold text-white">Force Stop + Clear Cache for {appLabel}</h2>
       <p className="text-sm text-white/70 mt-1">
-        Force-stop the app, clear its cache (use the Clear Cache button on the app's tile), then fully restart your device.
-        Open the streaming app again and try a few channels/titles.
+        We'll open Android's settings page for {appLabel}. Tap <strong>Force Stop</strong>,
+        then <strong>Storage → Clear Cache</strong> (don't tap Clear Data).
+        When you're done, press the <strong>Back</strong> button to return here.
       </p>
     </div>
-    <div className="space-y-2">
-      <ChoiceButton active={value === true} onClick={() => onSelect(true)}>
-        <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" />
-        Yes — that fixed it
-      </ChoiceButton>
-      <ChoiceButton active={value === false} onClick={() => onSelect(false)}>
-        Still buffering
-      </ChoiceButton>
+
+    <Button
+      onClick={onOpenSettings}
+      className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
+    >
+      <SettingsIcon className="w-4 h-4 mr-2" />
+      Open {appLabel} Settings
+    </Button>
+
+    {chosenApp && !chosenAppInstalled && (
+      <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-md p-2">
+        {appLabel} doesn't appear to be installed on this device. Install it from Main Apps first.
+      </p>
+    )}
+
+    <div className="pt-2">
+      <p className="text-sm text-white mb-2">Did that fix the buffering?</p>
+      <div className="space-y-2">
+        <ChoiceButton active={value === true} onClick={() => onSelect(true)}>
+          <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" />
+          Yes — that fixed it
+        </ChoiceButton>
+        <ChoiceButton active={value === false} onClick={() => onSelect(false)}>
+          Still buffering
+        </ChoiceButton>
+      </div>
     </div>
   </Card>
 );
@@ -479,15 +664,35 @@ const Step3 = ({
 );
 
 const Step4 = ({
+  vpnChoice,
   vpnSpeedOk,
   vpnTest,
+  vpnApp,
+  vpnInstalled,
+  onChooseVpn,
+  onDownloadVpn,
+  onLaunchVpn,
+  onRunSpeedTest,
   onVpnSpeedOk,
   onVpnTest,
+  onTestStreamingApp,
+  chosenAppLabel,
+  chosenAppAvailable,
 }: {
+  vpnChoice: VpnChoice;
   vpnSpeedOk: YesNo;
   vpnTest: VpnTest;
+  vpnApp: AppData | undefined;
+  vpnInstalled: boolean;
+  onChooseVpn: (c: VpnChoice) => void;
+  onDownloadVpn: () => void;
+  onLaunchVpn: () => void;
+  onRunSpeedTest: () => void;
   onVpnSpeedOk: (ok: boolean) => void;
   onVpnTest: (v: VpnTest) => void;
+  onTestStreamingApp: () => void;
+  chosenAppLabel: string | null;
+  chosenAppAvailable: boolean;
 }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-5">
     <div>
@@ -495,53 +700,188 @@ const Step4 = ({
         <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
       </h2>
       <p className="text-sm text-white/70 mt-1">
-        Connect a premium VPN, then check the questions below.
+        A premium VPN bypasses ISP throttling. Pick one below — we'll install it, help you sign in, and re-test.
       </p>
     </div>
 
-    <div className="bg-black/30 border border-white/10 rounded-md p-3 text-sm text-white/80 space-y-1">
-      <p className="font-medium text-white">Recommended VPNs (premium)</p>
-      <p>Download with Downloader app:</p>
-      <p>• IPVanish code: <span className="text-cyan-300 font-mono">805133</span></p>
-      <p>• Surfshark code: <span className="text-cyan-300 font-mono">3829522</span></p>
-      <p className="text-white/60 text-xs pt-1">We don't recommend free VPNs.</p>
+    {/* VPN choice */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <ChoiceButton active={vpnChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
+        <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
+      </ChoiceButton>
+      <ChoiceButton active={vpnChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
+        <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
+      </ChoiceButton>
     </div>
 
-    <div>
-      <p className="text-sm text-white mb-2">After connecting VPN: is your speed still 15+ Mbps?</p>
-      <div className="space-y-2">
-        <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)}>
-          Yes — 15+ Mbps with VPN
-        </ChoiceButton>
-        <ChoiceButton active={vpnSpeedOk === false} onClick={() => onVpnSpeedOk(false)}>
-          No — speed dropped below 15
-        </ChoiceButton>
-      </div>
-    </div>
+    {vpnChoice && (
+      <VpnSection
+        choice={vpnChoice}
+        vpnApp={vpnApp}
+        vpnInstalled={vpnInstalled}
+        onDownloadVpn={onDownloadVpn}
+        onLaunchVpn={onLaunchVpn}
+      />
+    )}
 
-    <div>
-      <p className="text-sm text-white mb-2">Now test the stream with VPN ON</p>
-      <div className="space-y-2">
-        <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')}>
-          <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" /> VPN fixed it
-        </ChoiceButton>
-        <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')}>
-          Still buffering
-        </ChoiceButton>
-      </div>
-    </div>
+    {vpnChoice && vpnInstalled && (
+      <>
+        <div className="border-t border-white/10 pt-4">
+          <p className="text-sm text-white mb-2">After connecting the VPN, re-test your speed:</p>
+          <Button
+            onClick={onRunSpeedTest}
+            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+          >
+            <Gauge className="w-4 h-4 mr-2" /> Run Speedtest with VPN On
+          </Button>
+        </div>
+
+        <div>
+          <p className="text-sm text-white mb-2">Is your speed still 15+ Mbps?</p>
+          <div className="space-y-2">
+            <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)}>
+              Yes — 15+ Mbps with VPN
+            </ChoiceButton>
+            <ChoiceButton active={vpnSpeedOk === false} onClick={() => onVpnSpeedOk(false)}>
+              No — speed dropped below 15 (switch to a closer VPN city/server)
+            </ChoiceButton>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm text-white mb-2">
+            Now test your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}:
+          </p>
+          {chosenAppAvailable && (
+            <Button
+              onClick={onTestStreamingApp}
+              variant="outline"
+              className="w-full mb-2 bg-white/5 border-white/20 text-white hover:bg-white/10"
+            >
+              <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel}
+            </Button>
+          )}
+          <div className="space-y-2">
+            <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')}>
+              <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" /> VPN fixed it
+            </ChoiceButton>
+            <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')}>
+              Still buffering
+            </ChoiceButton>
+          </div>
+        </div>
+      </>
+    )}
   </Card>
 );
+
+const VpnSection = ({
+  choice,
+  vpnApp,
+  vpnInstalled,
+  onDownloadVpn,
+  onLaunchVpn,
+}: {
+  choice: 'ipvanish' | 'surfshark';
+  vpnApp: AppData | undefined;
+  vpnInstalled: boolean;
+  onDownloadVpn: () => void;
+  onLaunchVpn: () => void;
+}) => {
+  const info = VPN_INFO[choice];
+  return (
+    <div className="bg-black/30 border border-white/10 rounded-md p-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium text-white">{info.label}</p>
+          <p className="text-xs text-white/60 mt-0.5">
+            {vpnInstalled ? 'Installed on this device' : 'Not installed yet'}
+          </p>
+        </div>
+        {vpnInstalled ? (
+          <Button onClick={onLaunchVpn} className="bg-green-600/80 hover:bg-green-600 text-white">
+            <Play className="w-4 h-4 mr-2" /> Open
+          </Button>
+        ) : (
+          <Button onClick={onDownloadVpn} className="bg-cyan-600/80 hover:bg-cyan-600 text-white">
+            <DownloadIcon className="w-4 h-4 mr-2" /> Install
+          </Button>
+        )}
+      </div>
+
+      {!vpnInstalled && (
+        <p className="text-xs text-white/70">
+          Or install via the <span className="text-white">Downloader</span> app using code{' '}
+          <span className="text-cyan-300 font-mono">{info.downloaderCode}</span>.
+        </p>
+      )}
+
+      <div className="border-t border-white/10 pt-3 space-y-3">
+        <p className="text-sm text-white">Need an account?</p>
+        <p className="text-xs text-white/70">
+          Reach out to your reseller for sign-in details, or sign up yourself by scanning the QR code below.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <QrBlock value={info.signupUrl} />
+          <div className="flex-1 min-w-0 text-center sm:text-left">
+            <p className="text-xs text-white/60 mb-1">Sign up link:</p>
+            <a
+              href={info.signupUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan-300 text-sm break-all hover:underline inline-flex items-center gap-1"
+            >
+              {info.signupUrl}
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QrBlock = ({ value }: { value: string }) => {
+  const [dataUrl, setDataUrl] = useState<string>('');
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(value, { width: 180, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
+      .then((url) => {
+        if (!cancelled) setDataUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+  return (
+    <div className="bg-white p-2 rounded-md flex-shrink-0">
+      {dataUrl ? (
+        <img src={dataUrl} alt="QR code" className="w-[160px] h-[160px]" />
+      ) : (
+        <div className="w-[160px] h-[160px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
+      )}
+    </div>
+  );
+};
 
 const Summary = ({
   diagnosis,
   supportScript,
+  chosenApp,
+  chosenAppLabel,
+  chosenAppInstalled,
+  onLaunchApp,
   onCopy,
   onEmail,
   onRestart,
 }: {
   diagnosis: { title: string; bullets: string[] };
   supportScript: string;
+  chosenApp: AppData | undefined;
+  chosenAppLabel: string | null;
+  chosenAppInstalled: boolean;
+  onLaunchApp: () => void;
   onCopy: () => void;
   onEmail: () => void;
   onRestart: () => void;
@@ -558,6 +898,15 @@ const Summary = ({
         {diagnosis.bullets.map((b, i) => <li key={i}>{b}</li>)}
       </ul>
     </div>
+
+    {chosenApp && chosenAppInstalled && chosenAppLabel && (
+      <Button
+        onClick={onLaunchApp}
+        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+      >
+        <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel} to Test
+      </Button>
+    )}
 
     <div>
       <p className="text-sm text-white mb-2">Copy/paste for support:</p>
@@ -599,7 +948,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
       title: 'Resolved: app/device glitch (cache) fixed it',
       bullets: [
         'Clearing cache + restarting refreshes the app and connection.',
-        'If it happens again, repeat the restart + clear cache step first.',
+        'If it happens again, repeat the Force Stop + Clear Cache step first.',
       ],
     };
   }
@@ -639,11 +988,12 @@ function buildSupportScript(state: State, d: { title: string; bullets: string[] 
   lines.push(`• App type: ${state.appType ?? 'N/A'}`);
   lines.push(`• Step 1 choice: ${state.step1Choice ?? 'N/A'} (one_only / all_buffer)`);
   lines.push(
-    `• Restart + clear cache fixed it: ${
+    `• Force Stop + Clear Cache fixed it: ${
       state.didRestartAndCache === null ? 'N/A' : state.didRestartAndCache ? 'Yes' : 'No'
     }`
   );
   lines.push(`• Speed test (Mbps): ${state.speedMbps ?? 'N/A'} (goal 15+)`);
+  lines.push(`• VPN chosen: ${state.vpnChoice ?? 'N/A'}`);
   lines.push(
     `• VPN speed 15+ with VPN: ${
       state.vpnSpeedOk === null ? 'N/A' : state.vpnSpeedOk ? 'Yes' : 'No'
