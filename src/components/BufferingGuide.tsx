@@ -125,6 +125,7 @@ const BufferingGuide = ({
   const [speedInput, setSpeedInput] = useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   const step: StepKey = STEPS[stepIndex];
 
