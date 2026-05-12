@@ -77,17 +77,15 @@ const QRLogin = () => {
         return;
       }
 
-      // Update the token with the current user
-      const { error: updateError } = await supabase
-        .from('qr_login_sessions')
-        .update({
-          user_id: session.user.id,
-          is_used: true
-        })
-        .eq('token', token);
+      // Claim the QR session via secure RPC (validates auth.uid server-side)
+      const { data: claimed, error: updateError } = await supabase
+        .rpc('claim_qr_session', { p_token: token });
 
-      if (updateError) {
-        throw updateError;
+      if (updateError) throw updateError;
+      if (!claimed) {
+        setStatus('error');
+        setMessage('QR session could not be claimed (expired or already used).');
+        return;
       }
 
       setStatus('success');
