@@ -84,8 +84,6 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const clearAllCancelRef = useRef<boolean>(false);
-  const [isClearingAll, setIsClearingAll] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   
