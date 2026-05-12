@@ -118,8 +118,74 @@ const BufferingGuide = ({
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [speedInput, setSpeedInput] = useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const step: StepKey = STEPS[stepIndex];
+
+  // Collect focusable buttons/links/inputs inside the modal
+  const getFocusables = (): HTMLElement[] => {
+    if (!rootRef.current) return [];
+    const nodes = rootRef.current.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    return Array.from(nodes).filter((el) => {
+      if (el.getAttribute('aria-hidden') === 'true') return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+  };
+
+  // D-pad / Arrow key navigation between focusables
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (showSpeedTest) return;
+      const key = e.key;
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
+      const focusables = getFocusables();
+      if (focusables.length === 0) return;
+      const active = document.activeElement as HTMLElement | null;
+      const target = e.target as HTMLElement | null;
+      // Allow text inputs/textareas to handle arrows themselves
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        if (key === 'ArrowDown') {
+          (target as HTMLInputElement).blur();
+        } else {
+          return;
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = active ? focusables.indexOf(active) : -1;
+      let nextIdx = idx;
+      if (idx === -1) {
+        nextIdx = 0;
+      } else if (key === 'ArrowDown' || key === 'ArrowRight') {
+        nextIdx = Math.min(focusables.length - 1, idx + 1);
+      } else if (key === 'ArrowUp' || key === 'ArrowLeft') {
+        nextIdx = Math.max(0, idx - 1);
+      }
+      const next = focusables[nextIdx];
+      if (next) {
+        next.focus();
+        next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [showSpeedTest, stepIndex]);
+
+  // Auto-focus the first focusable element when step changes
+  useEffect(() => {
+    if (showSpeedTest) return;
+    const t = setTimeout(() => {
+      const focusables = getFocusables();
+      // Prefer first focusable inside the content area (skip header Close button)
+      const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
+      const target = contentFocusables[0] || focusables[0];
+      target?.focus();
+    }, 80);
+    return () => clearTimeout(t);
+  }, [stepIndex, showSpeedTest]);
 
   // Helpers to find the AppData entry for the chosen streaming app or VPN
   const findApp = (matchKeys: string[], pkg?: string | null): AppData | undefined =>
@@ -256,7 +322,7 @@ const BufferingGuide = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
+    <div ref={rootRef} className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-white/10 bg-gradient-to-b from-blue-950/60 to-transparent">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
