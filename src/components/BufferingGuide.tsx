@@ -177,6 +177,25 @@ const BufferingGuide = ({
         focusables[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
         return;
       }
+
+      const focusNextButton = () => {
+        const nextButton = rootRef.current?.querySelector<HTMLElement>('[data-guide-nav="next"]:not([disabled])');
+        if (!nextButton) return false;
+        nextButton.focus();
+        lastFocusedRef.current = nextButton;
+        nextButton.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return true;
+      };
+
+      if (
+        key === 'ArrowDown' &&
+        activeEl.getAttribute('data-guide-choice') === 'true' &&
+        activeEl.getAttribute('data-guide-choice-active') === 'true' &&
+        focusNextButton()
+      ) {
+        return;
+      }
+
       const cur = activeEl.getBoundingClientRect();
       const curCx = cur.left + cur.width / 2;
       const curCy = cur.top + cur.height / 2;
@@ -601,6 +620,7 @@ const BufferingGuide = ({
           <Button
             onClick={goNext}
             disabled={!canNext || stepIndex === STEPS.length - 1}
+            data-guide-nav="next"
             className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
           >
             Next <ArrowRight className="w-4 h-4 ml-2" />
