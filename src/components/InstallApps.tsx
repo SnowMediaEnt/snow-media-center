@@ -14,6 +14,7 @@ import DownloadProgress from '@/components/DownloadProgress';
 
 import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
+import SpeedTest from '@/components/SpeedTest';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
