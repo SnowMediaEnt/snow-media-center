@@ -216,6 +216,7 @@ const BufferingGuide = ({
       const next = scored[0]?.el;
       if (next) {
         next.focus();
+        lastFocusedRef.current = next;
         next.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     };
