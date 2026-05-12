@@ -136,6 +136,7 @@ const BufferingGuide = ({
     );
     return Array.from(nodes).filter((el) => {
       if (el.getAttribute('aria-hidden') === 'true') return false;
+      if (el.getAttribute('data-no-dpad') === 'true') return false;
       const rect = el.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0;
     });
