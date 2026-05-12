@@ -553,7 +553,8 @@ const BufferingGuide = ({
               chosenAppInstalled={chosenAppInstalled}
               onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
               onCopy={copyScript}
-              onEmail={emailSupport}
+              onSubmitTicket={submitAsTicket}
+              submittingTicket={submittingTicket}
               onRestart={restart}
             />
           )}
