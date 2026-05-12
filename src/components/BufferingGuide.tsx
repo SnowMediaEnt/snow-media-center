@@ -616,7 +616,15 @@ const ChoiceButton = ({
   className?: string;
 }) => (
   <Button
-    onClick={onClick}
+    onClick={(e) => {
+      onClick();
+      // Ensure the clicked button keeps focus so D-pad nav has an anchor
+      (e.currentTarget as HTMLElement).focus();
+    }}
+    onMouseDown={(e) => {
+      // Prevent some browsers from blurring the button on mouse interaction
+      (e.currentTarget as HTMLElement).focus();
+    }}
     variant="outline"
     className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
       active
