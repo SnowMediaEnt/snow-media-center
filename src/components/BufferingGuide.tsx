@@ -666,6 +666,8 @@ const ChoiceButton = ({
       // Prevent some browsers from blurring the button on mouse interaction
       (e.currentTarget as HTMLElement).focus();
     }}
+    data-guide-choice="true"
+    data-guide-choice-active={active ? 'true' : 'false'}
     variant="outline"
     className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
       active
