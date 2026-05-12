@@ -621,10 +621,10 @@ const ChoiceButton = ({
   <Button
     onClick={onClick}
     variant="outline"
-    className={`w-full justify-start text-left h-auto py-3 px-4 transition-all duration-200 ${
+    className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
       active
-        ? 'bg-cyan-600/30 border-cyan-400 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-        : 'bg-white/5 border-white/20 text-white hover:bg-white/10'
+        ? 'bg-cyan-600/40 border-cyan-300 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
+        : 'bg-white/10 border-white/30 text-white hover:bg-white/15'
     } ${className}`}
   >
     {children}
