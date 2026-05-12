@@ -24,6 +24,9 @@ import { useToast } from '@/hooks/use-toast';
 import SpeedTest from '@/components/SpeedTest';
 import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
+import { useAuth } from '@/hooks/useAuth';
+import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
   onClose: () => void;
