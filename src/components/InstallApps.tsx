@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge } from 'lucide-react';
+import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge, LifeBuoy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
