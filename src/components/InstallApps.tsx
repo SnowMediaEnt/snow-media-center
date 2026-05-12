@@ -307,6 +307,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             onBack();
           } else if (focusedElement === 'speedtest') {
             setShowSpeedTest(true);
+          } else if (focusedElement === 'guide') {
+            setShowGuide(true);
           } else if (focusedElement === 'refresh') {
             (async () => {
               await refreshDeviceApps();
