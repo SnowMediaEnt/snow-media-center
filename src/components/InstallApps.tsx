@@ -130,6 +130,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // TV Remote Navigation with button-level focus
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // SpeedTest overlay handles its own keys
+      if (showSpeedTest) return;
       // If a modal/dialog is open (alert popup, context menu, download progress),
       // let the dialog handle keys natively. Don't move background focus.
       if (pendingAlert || contextMenu.app || downloadingApp) {
