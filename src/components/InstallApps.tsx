@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
@@ -14,6 +14,7 @@ import DownloadProgress from '@/components/DownloadProgress';
 
 import AppContextMenu from '@/components/AppContextMenu';
 import AppAlertDialog from '@/components/AppAlertDialog';
+import SpeedTest from '@/components/SpeedTest';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
@@ -57,7 +58,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
 
 // Focus types for navigation
 type FocusType = 
-  | 'back' | 'refresh' | 'clearAll'
+  | 'back' | 'speedtest' | 'refresh' | 'clearAll'
   | 'tab-0' | 'tab-1'
   | `app-${string}` 
   | `pin-${string}`
@@ -84,6 +85,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const clearAllCancelRef = useRef<boolean>(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const [showSpeedTest, setShowSpeedTest] = useState(false);
   
   // Pinned apps hook
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
@@ -128,6 +130,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
   // TV Remote Navigation with button-level focus
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // SpeedTest overlay handles its own keys
+      if (showSpeedTest) return;
       // If a modal/dialog is open (alert popup, context menu, download progress),
       // let the dialog handle keys natively. Don't move background focus.
       if (pendingAlert || contextMenu.app || downloadingApp) {
@@ -170,7 +174,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
 
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement === 'refresh') setFocusedElement('back');
+          if (focusedElement === 'speedtest') setFocusedElement('back');
+          else if (focusedElement === 'refresh') setFocusedElement('speedtest');
           else if (focusedElement === 'clearAll') setFocusedElement('refresh');
           else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-0') setFocusedElement('back');
@@ -191,7 +196,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowRight':
-          if (focusedElement === 'back') setFocusedElement('refresh');
+          if (focusedElement === 'back') setFocusedElement('speedtest');
+          else if (focusedElement === 'speedtest') setFocusedElement('refresh');
           else if (focusedElement === 'refresh') setFocusedElement('clearAll');
           else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (currentApp) {
@@ -212,7 +218,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
+          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             // Stay
           } else if (focusedElement.startsWith('tab-')) {
             setFocusedElement('back');
@@ -253,7 +259,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
+          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'refresh' || focusedElement === 'clearAll') {
             setFocusedElement('tab-0');
           } else if (focusedElement.startsWith('tab-')) {
             if (categoryApps.length > 0) {
@@ -295,6 +301,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
         case ' ':
           if (focusedElement === 'back') {
             onBack();
+          } else if (focusedElement === 'speedtest') {
+            setShowSpeedTest(true);
           } else if (focusedElement === 'refresh') {
             (async () => {
               await refreshDeviceApps();
@@ -950,6 +958,17 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
             Back to Home
           </Button>
             <Button
+              data-focus-id="speedtest"
+              onClick={() => setShowSpeedTest(true)}
+              variant="outline"
+              size="lg"
+              className={`bg-cyan-600/20 border-cyan-500/50 text-cyan-100 hover:bg-cyan-600/30 transition-all duration-200 ${focusRing('speedtest')}`}
+              title="Test your internet speed"
+            >
+              <Gauge className="w-5 h-5 mr-2" />
+              Speedtest
+            </Button>
+            <Button
               data-focus-id="refresh"
               onClick={async () => {
                 await refreshDeviceApps();
@@ -1056,6 +1075,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           }
         }}
       />
+      {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
     </div>
   );
 };
