@@ -568,16 +568,15 @@ const BufferingGuide = ({
             onClick={goBack}
             disabled={stepIndex === 0}
             variant="outline"
+            tabIndex={-1}
+            data-no-dpad="true"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10 disabled:opacity-40"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="text-xs text-white/60 hover:text-white truncate hidden sm:block"
-          >
-            Need help? {SUPPORT_EMAIL}
-          </a>
+          <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
+            Submit a Ticket in Chat &amp; Community
+          </span>
           <Button
             onClick={goNext}
             disabled={!canNext || stepIndex === STEPS.length - 1}
