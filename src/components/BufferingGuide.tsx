@@ -495,9 +495,6 @@ const BufferingGuide = ({
                   });
                 }
               }}
-              onUnknown={() => {
-                setState((s) => ({ ...s, speedMbps: 15, speedMethod: 'unknown' }));
-              }}
             />
           )}
 
