@@ -24,6 +24,9 @@ import { useToast } from '@/hooks/use-toast';
 import SpeedTest from '@/components/SpeedTest';
 import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
+import { useAuth } from '@/hooks/useAuth';
+import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
   onClose: () => void;
@@ -104,6 +107,9 @@ const BufferingGuide = ({
   onDownload,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { createTicket } = useSupportTickets(user);
+  const [submittingTicket, setSubmittingTicket] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<State>({
     appType: null,
@@ -130,6 +136,7 @@ const BufferingGuide = ({
     );
     return Array.from(nodes).filter((el) => {
       if (el.getAttribute('aria-hidden') === 'true') return false;
+      if (el.getAttribute('data-no-dpad') === 'true') return false;
       const rect = el.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0;
     });
@@ -352,10 +359,28 @@ const BufferingGuide = ({
     }
   };
 
-  const emailSupport = () => {
-    const subject = encodeURIComponent('Buffering Walkthrough Results');
-    const body = encodeURIComponent(supportScript);
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+  const submitAsTicket = async () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in via Chat & Community to submit a ticket.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      setSubmittingTicket(true);
+      await createTicket('Buffering Walkthrough Results', supportScript);
+      toast({
+        title: 'Ticket submitted',
+        description: 'Find it in Chat & Community → My Tickets.',
+      });
+      onClose();
+    } catch (err) {
+      // toast already handled inside hook
+    } finally {
+      setSubmittingTicket(false);
+    }
   };
 
   return (
@@ -369,6 +394,8 @@ const BufferingGuide = ({
             onClick={onClose}
             variant="outline"
             size="sm"
+            tabIndex={-1}
+            data-no-dpad="true"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Close
@@ -468,9 +495,6 @@ const BufferingGuide = ({
                   });
                 }
               }}
-              onUnknown={() => {
-                setState((s) => ({ ...s, speedMbps: 15, speedMethod: 'unknown' }));
-              }}
             />
           )}
 
@@ -529,7 +553,8 @@ const BufferingGuide = ({
               chosenAppInstalled={chosenAppInstalled}
               onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
               onCopy={copyScript}
-              onEmail={emailSupport}
+              onSubmitTicket={submitAsTicket}
+              submittingTicket={submittingTicket}
               onRestart={restart}
             />
           )}
@@ -543,16 +568,15 @@ const BufferingGuide = ({
             onClick={goBack}
             disabled={stepIndex === 0}
             variant="outline"
+            tabIndex={-1}
+            data-no-dpad="true"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10 disabled:opacity-40"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="text-xs text-white/60 hover:text-white truncate hidden sm:block"
-          >
-            Need help? {SUPPORT_EMAIL}
-          </a>
+          <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
+            Submit a Ticket in Chat &amp; Community
+          </span>
           <Button
             onClick={goNext}
             disabled={!canNext || stepIndex === STEPS.length - 1}
@@ -594,10 +618,10 @@ const ChoiceButton = ({
   <Button
     onClick={onClick}
     variant="outline"
-    className={`w-full justify-start text-left h-auto py-3 px-4 transition-all duration-200 ${
+    className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
       active
-        ? 'bg-cyan-600/30 border-cyan-400 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-        : 'bg-white/5 border-white/20 text-white hover:bg-white/10'
+        ? 'bg-cyan-600/40 border-cyan-300 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
+        : 'bg-white/10 border-white/30 text-white hover:bg-white/15'
     } ${className}`}
   >
     {children}
@@ -708,14 +732,12 @@ const Step3 = ({
   setSpeedInput,
   onRunInApp,
   onSaveTyped,
-  onUnknown,
 }: {
   speedMbps: number | null;
   speedInput: string;
   setSpeedInput: (v: string) => void;
   onRunInApp: () => void;
   onSaveTyped: () => void;
-  onUnknown: () => void;
 }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
     <div>
@@ -741,17 +763,10 @@ const Step3 = ({
         placeholder="Download speed (Mbps)"
         className="flex-1 px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
-      <Button onClick={onSaveTyped} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
+      <Button onClick={onSaveTyped} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         Save
       </Button>
     </div>
-
-    <button
-      onClick={onUnknown}
-      className="text-xs text-white/50 hover:text-white/80 underline"
-    >
-      I can't run a speed test — skip this step
-    </button>
 
     {typeof speedMbps === 'number' && (
       <div
@@ -978,7 +993,8 @@ const Summary = ({
   chosenAppInstalled,
   onLaunchApp,
   onCopy,
-  onEmail,
+  onSubmitTicket,
+  submittingTicket,
   onRestart,
 }: {
   diagnosis: { title: string; bullets: string[] };
@@ -988,7 +1004,8 @@ const Summary = ({
   chosenAppInstalled: boolean;
   onLaunchApp: () => void;
   onCopy: () => void;
-  onEmail: () => void;
+  onSubmitTicket: () => void;
+  submittingTicket: boolean;
   onRestart: () => void;
 }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
@@ -999,7 +1016,7 @@ const Summary = ({
 
     <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-md p-4">
       <p className="font-medium text-cyan-200">{diagnosis.title}</p>
-      <ul className="mt-2 space-y-1 text-sm text-white/80 list-disc list-inside">
+      <ul className="mt-2 space-y-1 text-sm text-white/90 list-disc list-inside">
         {diagnosis.bullets.map((b, i) => <li key={i}>{b}</li>)}
       </ul>
     </div>
@@ -1013,6 +1030,15 @@ const Summary = ({
       </Button>
     )}
 
+    <Button
+      onClick={onSubmitTicket}
+      disabled={submittingTicket}
+      className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
+    >
+      <MessageSquare className="w-4 h-4 mr-2" />
+      {submittingTicket ? 'Submitting…' : 'Submit Ticket to Chat & Community'}
+    </Button>
+
     <div>
       <p className="text-sm text-white mb-2">Copy/paste for support:</p>
       <textarea
@@ -1023,13 +1049,10 @@ const Summary = ({
     </div>
 
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onCopy} className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white">
+      <Button onClick={onCopy} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <Copy className="w-4 h-4 mr-2" /> Copy
       </Button>
-      <Button onClick={onEmail} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
-        <Mail className="w-4 h-4 mr-2" /> Email Support
-      </Button>
-      <Button onClick={onRestart} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
+      <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
     </div>
