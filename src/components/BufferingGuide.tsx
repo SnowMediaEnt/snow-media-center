@@ -993,7 +993,8 @@ const Summary = ({
   chosenAppInstalled,
   onLaunchApp,
   onCopy,
-  onEmail,
+  onSubmitTicket,
+  submittingTicket,
   onRestart,
 }: {
   diagnosis: { title: string; bullets: string[] };
@@ -1003,7 +1004,8 @@ const Summary = ({
   chosenAppInstalled: boolean;
   onLaunchApp: () => void;
   onCopy: () => void;
-  onEmail: () => void;
+  onSubmitTicket: () => void;
+  submittingTicket: boolean;
   onRestart: () => void;
 }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
@@ -1014,7 +1016,7 @@ const Summary = ({
 
     <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-md p-4">
       <p className="font-medium text-cyan-200">{diagnosis.title}</p>
-      <ul className="mt-2 space-y-1 text-sm text-white/80 list-disc list-inside">
+      <ul className="mt-2 space-y-1 text-sm text-white/90 list-disc list-inside">
         {diagnosis.bullets.map((b, i) => <li key={i}>{b}</li>)}
       </ul>
     </div>
@@ -1028,6 +1030,15 @@ const Summary = ({
       </Button>
     )}
 
+    <Button
+      onClick={onSubmitTicket}
+      disabled={submittingTicket}
+      className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
+    >
+      <MessageSquare className="w-4 h-4 mr-2" />
+      {submittingTicket ? 'Submitting…' : 'Submit Ticket to Chat & Community'}
+    </Button>
+
     <div>
       <p className="text-sm text-white mb-2">Copy/paste for support:</p>
       <textarea
@@ -1038,13 +1049,10 @@ const Summary = ({
     </div>
 
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onCopy} className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white">
+      <Button onClick={onCopy} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <Copy className="w-4 h-4 mr-2" /> Copy
       </Button>
-      <Button onClick={onEmail} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
-        <Mail className="w-4 h-4 mr-2" /> Email Support
-      </Button>
-      <Button onClick={onRestart} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
+      <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
     </div>
