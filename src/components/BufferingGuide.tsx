@@ -394,6 +394,8 @@ const BufferingGuide = ({
             onClick={onClose}
             variant="outline"
             size="sm"
+            tabIndex={-1}
+            data-no-dpad="true"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Close
