@@ -179,7 +179,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           if (focusedElement === 'speedtest') setFocusedElement('back');
           else if (focusedElement === 'guide') setFocusedElement('speedtest');
           else if (focusedElement === 'refresh') setFocusedElement('guide');
-          else if (focusedElement === 'clearAll') setFocusedElement('refresh');
+          
           else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-0') setFocusedElement('back');
           else if (currentApp && isInstalled) {
