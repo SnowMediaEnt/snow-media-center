@@ -194,7 +194,8 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           break;
           
         case 'ArrowRight':
-          if (focusedElement === 'back') setFocusedElement('refresh');
+          if (focusedElement === 'back') setFocusedElement('speedtest');
+          else if (focusedElement === 'speedtest') setFocusedElement('refresh');
           else if (focusedElement === 'refresh') setFocusedElement('clearAll');
           else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (currentApp) {
