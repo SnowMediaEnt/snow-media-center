@@ -1065,6 +1065,7 @@ export type Database = {
     Functions: {
       ai_tokens_last_hour: { Args: never; Returns: number }
       backfill_customers_from_auth: { Args: never; Returns: Json }
+      claim_qr_session: { Args: { p_token: string }; Returns: boolean }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
