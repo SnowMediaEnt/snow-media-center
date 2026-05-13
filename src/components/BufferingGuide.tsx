@@ -520,6 +520,11 @@ const BufferingGuide = ({
               chosenApp={chosenApp}
               chosenAppInstalled={chosenAppInstalled}
               onOpenSettings={() => {
+                // Prefer the exact same handler Main Apps uses
+                if (chosenApp && onOpenAppSettings) {
+                  onOpenAppSettings(chosenApp);
+                  return;
+                }
                 const pkg = chosenApp?.packageName || (state.appType ? STREAMING_PKG[state.appType] : null);
                 if (!pkg) {
                   toast({
