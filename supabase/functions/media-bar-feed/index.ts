@@ -60,27 +60,61 @@ const plexImage = (key?: string) =>
 const plexDeepLink = (ratingKey?: string) =>
   ratingKey ? `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${ratingKey}` : undefined;
 
-const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[] }> => {
+const mapPlexItem = (m: any): Item => {
+  const isMovie = m.type === 'movie';
+  return {
+    id: `plex-${m.ratingKey}`,
+    source: 'plex',
+    kind: isMovie ? 'movie' : (m.type === 'episode' ? 'episode' : m.type ?? 'show'),
+    title: m.title ?? 'Untitled',
+    subtitle: isMovie
+      ? (m.year ? String(m.year) : 'Movie')
+      : (m.grandparentTitle ?? (m.year ? String(m.year) : 'Series')),
+    poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    deepLink: plexDeepLink(m.ratingKey),
+  };
+};
+
+const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Item[] }> => {
   const movies: Item[] = [];
   const shows: Item[] = [];
-  const recent = await safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=60'), 'plex recent');
+  const onDeck: Item[] = [];
+
+  // Pull from MULTIPLE Plex endpoints so the bar always has fresh material
+  const [recent, deck, popularMovies, popularShows] = await Promise.all([
+    safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=80'), 'plex recent'),
+    safe(plexFetch('/library/onDeck?X-Plex-Container-Size=40'), 'plex onDeck'),
+    safe(plexFetch('/library/sections/all?type=1&sort=viewCount:desc&X-Plex-Container-Size=40'), 'plex popular movies'),
+    safe(plexFetch('/library/sections/all?type=2&sort=lastViewedAt:desc&X-Plex-Container-Size=40'), 'plex popular shows'),
+  ]);
+
   for (const m of recent?.MediaContainer?.Metadata ?? []) {
-    const isMovie = m.type === 'movie';
-    const item: Item = {
-      id: `plex-${m.ratingKey}`,
-      source: 'plex',
-      kind: isMovie ? 'movie' : (m.type === 'episode' ? 'episode' : m.type ?? 'show'),
-      title: m.title ?? 'Untitled',
-      subtitle: isMovie
-        ? (m.year ? String(m.year) : 'Movie')
-        : (m.grandparentTitle ?? (m.year ? String(m.year) : 'Series')),
-      poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
-      deepLink: plexDeepLink(m.ratingKey),
-    };
-    if (isMovie) movies.push(item);
+    const item = mapPlexItem(m);
+    if (item.kind === 'movie') movies.push(item);
     else shows.push(item);
   }
-  return { movies: movies.slice(0, 14), shows: shows.slice(0, 6) };
+  for (const m of deck?.MediaContainer?.Metadata ?? []) {
+    const item = mapPlexItem(m);
+    item.subtitle = `Continue · ${item.subtitle ?? ''}`.replace(/ · $/, '');
+    onDeck.push(item);
+  }
+  for (const m of popularMovies?.MediaContainer?.Metadata ?? []) {
+    movies.push(mapPlexItem(m));
+  }
+  for (const m of popularShows?.MediaContainer?.Metadata ?? []) {
+    shows.push(mapPlexItem(m));
+  }
+
+  // De-dup within each list
+  const dedupe = (arr: Item[]) => {
+    const seen = new Set<string>();
+    return arr.filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
+  };
+  return {
+    movies: dedupe(movies).slice(0, 60),
+    shows: dedupe(shows).slice(0, 30),
+    onDeck: dedupe(onDeck).slice(0, 20),
+  };
 };
 
 // ---------- ESPN (LIVE NOW only) ----------
@@ -152,9 +186,9 @@ const fetchSportsLiveNow = async (): Promise<Item[]> => {
 };
 
 // ---------- Weave ----------
-// If live sports exist: live sports first, then movies/shows interleaved.
-// If nothing is live: just Plex VOD.
-const weave = (movies: Item[], liveSports: Item[], shows: Item[]): Item[] => {
+// Order: live sports → continue watching → movies/shows interleaved.
+// Goal: a long, varied feed so the bar effectively never "ends".
+const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]): Item[] => {
   const out: Item[] = [];
   const seen = new Set<string>();
   const push = (i?: Item) => {
@@ -163,15 +197,14 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[]): Item[] => {
     out.push(i);
   };
 
-  // All live sports up front (they're the "right now" priority)
   for (const s of liveSports) push(s);
+  for (const d of onDeck) push(d);
 
-  // Then round-robin movies + shows for VOD
   const m = movies.slice();
   const sh = shows.slice();
   while (m.length || sh.length) {
     if (m.length) push(m.shift());
-    if (m.length) push(m.shift()); // movies 2:1 over shows
+    if (m.length) push(m.shift());
     if (sh.length) push(sh.shift());
   }
   return out;
@@ -184,6 +217,12 @@ Deno.serve(async (req) => {
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
     ]);
+    const items = weave(
+      plex?.movies ?? [],
+      sports ?? [],
+      plex?.shows ?? [],
+      plex?.onDeck ?? [],
+    );
     const items = weave(plex?.movies ?? [], sports ?? [], plex?.shows ?? []);
     return new Response(
       JSON.stringify({

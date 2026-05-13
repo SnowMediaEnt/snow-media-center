@@ -244,15 +244,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex justify-center gap-1 pb-1.5">
-          {Array.from({ length: totalPages }).map((_, i) => (
+        <div className="flex justify-center items-center gap-1 pb-1.5">
+          <span className="text-[10px] text-white/50 mr-2">∞</span>
+          {Array.from({ length: Math.min(totalPages, 12) }).map((_, i) => (
             <span
               key={i}
               className={`h-1 rounded-full transition-all ${
-                i === pageIdx ? 'w-4 bg-primary' : 'w-1 bg-white/30'
+                i === pageIdx % 12 ? 'w-4 bg-primary' : 'w-1 bg-white/30'
               }`}
             />
           ))}
+          <span className="text-[10px] text-white/50 ml-2">{pageIdx + 1}/{totalPages}</span>
         </div>
       )}
     </div>
