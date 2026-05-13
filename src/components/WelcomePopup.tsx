@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.0.4': [
+    'Plex deep-linking fixed — tapping a movie or show on the Content Bar now opens that exact item in Plex',
+    'Content Bar duplicates removed — 1080p and 4K versions are merged so each title only appears once (switch to 4K from inside Plex)',
+    'Buffering Guide: IPVanish and Surfshark now download directly from the same source as Main Apps',
+    'Smoother back-button behavior on popups and Pinned Apps',
+  ],
   '1.0.3': [
     'New Content Bar — now connects directly to your Plex library for movies, shows, and Continue Watching',
     'Live TV events now show only what is actually airing right now (Live TV streaming connection coming soon)',
