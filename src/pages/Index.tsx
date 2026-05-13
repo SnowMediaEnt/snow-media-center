@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 import HomeClock from '@/components/HomeClock';
+import smeLogo from '@/assets/sme-logo.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
