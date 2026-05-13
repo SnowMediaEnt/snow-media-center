@@ -280,13 +280,28 @@ const BufferingGuide = ({
 
   const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
 
+  // After choosing a VPN, put D-pad focus directly on the Install/Open action.
+  // Without this, spatial navigation can jump to the footer Next button first.
+  useEffect(() => {
+    if (showSpeedTest || step !== 'step4' || !state.vpnChoice) return;
+    const t = setTimeout(() => {
+      const target = rootRef.current?.querySelector<HTMLElement>('[data-vpn-primary-action="true"]');
+      if (target) {
+        target.focus();
+        lastFocusedRef.current = target;
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [showSpeedTest, step, state.vpnChoice, vpnInstalled]);
+
   const canNext = (() => {
     switch (step) {
       case 'intro': return !!state.appType;
       case 'step1': return state.step1Choice === 'all_buffer';
       case 'step2': return state.didRestartAndCache === false; // true short-circuits to summary
       case 'step3': return typeof state.speedMbps === 'number' && state.speedMbps >= 15;
-      case 'step4': return !!state.vpnChoice;
+      case 'step4': return state.vpnTest === 'still_buffering';
       default: return false;
     }
   })();
@@ -1014,6 +1029,7 @@ const VpnSection = ({
       {vpnInstalled ? (
         <Button
           onClick={onLaunchVpn}
+          data-vpn-primary-action="true"
           className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
         >
           <Play className="w-4 h-4 mr-2" /> Open {info.label}
@@ -1021,6 +1037,7 @@ const VpnSection = ({
       ) : (
         <Button
           onClick={onDownloadVpn}
+          data-vpn-primary-action="true"
           className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
         >
           <DownloadIcon className="w-4 h-4 mr-2" /> Install {info.label}
