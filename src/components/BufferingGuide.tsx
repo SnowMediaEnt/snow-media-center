@@ -35,6 +35,7 @@ interface BufferingGuideProps {
   onLaunch: (app: AppData) => void | Promise<void>;
   onDownload: (app: AppData) => void;
   onOpenAppSettings?: (app: AppData) => void | Promise<void>;
+  onNavigateToChat?: () => void;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
