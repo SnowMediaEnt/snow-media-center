@@ -61,7 +61,7 @@ const HomeActionCard = memo(({
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
     ? { width: 'clamp(170px, 18vw, 400px)', height: 'clamp(125px, 21vh, 290px)' }
-    : { width: 'clamp(150px, 16vw, 300px)', aspectRatio: '1 / 0.85' as const };
+    : { width: 'clamp(170px, 18vw, 340px)', aspectRatio: '1 / 0.92' as const };
 
   return (
     <Card
