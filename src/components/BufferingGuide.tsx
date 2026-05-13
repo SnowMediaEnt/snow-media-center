@@ -307,9 +307,34 @@ const BufferingGuide = ({
     }
   })();
 
-  // Handle ESC / Back to close
+  // Handle ESC / Back to close, and OK/Enter/DPAD_CENTER to activate focused button
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // OK / Enter / DPAD_CENTER / Space → click the focused element
+      const isSelectKey =
+        e.key === 'Enter' ||
+        e.key === ' ' ||
+        e.key === 'Spacebar' ||
+        e.keyCode === 13 ||
+        e.keyCode === 23 || // KEYCODE_DPAD_CENTER
+        e.keyCode === 32 || // Space
+        e.keyCode === 66;   // KEYCODE_ENTER (Android)
+      if (isSelectKey && !showSpeedTest) {
+        const target = e.target as HTMLElement | null;
+        // Don't hijack typing in inputs/textareas
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          active &&
+          rootRef.current?.contains(active) &&
+          (active.tagName === 'BUTTON' || active.tagName === 'A' || active.getAttribute('role') === 'button')
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          active.click();
+          return;
+        }
+      }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
