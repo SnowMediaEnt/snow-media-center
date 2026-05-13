@@ -962,6 +962,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           onLaunch={handleLaunch}
           onDownload={startDownload}
           onOpenAppSettings={handleOpenAppSettings}
+          onNavigateToChat={onNavigateToChat}
         />
       )}
     </div>
