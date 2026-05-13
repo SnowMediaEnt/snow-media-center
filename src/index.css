@@ -366,7 +366,7 @@
   }
 
   /* Slow the ticker so it's less distracting on a small screen */
-  .news-ticker-track { animation-duration: 90s; }
+  .news-ticker-track { animation-duration: 117s; }
 }
 
 /* Disable fixed background-attachment on phones — Android WebView repaints
