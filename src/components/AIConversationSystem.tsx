@@ -335,7 +335,14 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
+                  e.stopPropagation();
                   handleViewConversation(conversation.id);
+                  return;
+                }
+                if (e.key === 'Delete') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deleteConversation(conversation.id);
                   return;
                 }
                 const navKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
