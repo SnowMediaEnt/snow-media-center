@@ -244,6 +244,16 @@ const Index = () => {
         return; // Let individual components handle their own navigation
       }
 
+      // Easter egg overlay swallows Back/Escape/Enter and closes itself
+      if (showEasterEgg) {
+        if (['Escape', 'Backspace', 'Enter', ' '].includes(event.key) || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          setShowEasterEgg(false);
+        }
+        return;
+      }
+
       // MediaBar owns the keys when active
       if (isInMediaBar) {
         return;
