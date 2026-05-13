@@ -43,8 +43,40 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const ttsObjectUrlRef = useRef<string | null>(null);
+  const ttsPlaybackIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
+
+  const stopVoicePlayback = useCallback((closeAudioContext = false) => {
+    ttsPlaybackIdRef.current += 1;
+    voiceModeRef.current = false;
+
+    if (ttsSourceRef.current) {
+      try { ttsSourceRef.current.stop(0); } catch { /* already stopped */ }
+      try { ttsSourceRef.current.disconnect(); } catch { /* already disconnected */ }
+      ttsSourceRef.current = null;
+    }
+
+    if (ttsAudioRef.current) {
+      try { ttsAudioRef.current.pause(); } catch { /* already paused */ }
+      try { ttsAudioRef.current.removeAttribute('src'); } catch { /* source already cleared */ }
+      try { ttsAudioRef.current.load(); } catch { /* media element unavailable */ }
+    }
+
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current);
+      ttsObjectUrlRef.current = null;
+    }
+
+    if (closeAudioContext && audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      audioUnlockedRef.current = false;
+      void ctx.close().catch(() => undefined);
+    }
+  }, []);
 
   // Must be called from a user gesture to satisfy autoplay policies
   // (browsers, Fire TV WebView, Android TV WebView).
@@ -58,7 +90,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7097v337/+vrfff/19WI=';
       const a = new Audio(SILENT_MP3);
       a.volume = 0;
-      void a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+      void a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => undefined);
       ttsAudioRef.current = a;
 
       // Also prime an AudioContext as a second activation channel — some
@@ -71,19 +103,22 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           void ctx.resume().catch(() => {});
           audioCtxRef.current = ctx;
         }
-      } catch {}
+      } catch { /* AudioContext may be unavailable in older WebViews */ }
 
       audioUnlockedRef.current = true;
-    } catch {}
+    } catch { /* autoplay unlock is best-effort */ }
   }, []);
 
   const speakReply = useCallback(async (text: string) => {
+    stopVoicePlayback();
+    const playbackId = ++ttsPlaybackIdRef.current;
     try {
       console.log('[TTS] Requesting voice for', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
         body: { text },
       });
       if (error) throw error;
+      if (playbackId !== ttsPlaybackIdRef.current) return;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
         console.warn('[TTS] No audioContent returned');
@@ -110,14 +145,19 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       }
 
       if (ctx) {
-        try { await ctx.resume(); } catch {}
+        try { await ctx.resume(); } catch { /* context may already be running */ }
         try {
           // decodeAudioData accepts the ArrayBuffer; clone it because some
           // implementations detach the buffer after decoding.
           const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          if (playbackId !== ttsPlaybackIdRef.current) return;
           const src = ctx.createBufferSource();
           src.buffer = buf;
           src.connect(ctx.destination);
+          ttsSourceRef.current = src;
+          src.onended = () => {
+            if (ttsSourceRef.current === src) ttsSourceRef.current = null;
+          };
           src.start(0);
           console.log('[TTS] Playing via Web Audio,', buf.duration.toFixed(1), 's');
           return;
@@ -128,10 +168,16 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
       // Fallback: HTMLAudioElement (works on web/desktop)
       const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+      ttsObjectUrlRef.current = url;
       let audio = ttsAudioRef.current;
       if (!audio) {
         audio = new Audio();
         ttsAudioRef.current = audio;
+      }
+      if (playbackId !== ttsPlaybackIdRef.current) {
+        URL.revokeObjectURL(url);
+        if (ttsObjectUrlRef.current === url) ttsObjectUrlRef.current = null;
+        return;
       }
       audio.pause();
       audio.src = url;
@@ -142,7 +188,11 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     } catch (err) {
       console.error('[TTS] Playback failed:', err);
     }
-  }, []);
+  }, [stopVoicePlayback]);
+
+  useEffect(() => {
+    return () => stopVoicePlayback(true);
+  }, [stopVoicePlayback]);
 
   // Hardware voice-key support: Fire TV / Alexa mic, Android voice remote, Bixby, etc.
   // These remotes typically dispatch keys 231 (CALL), 84 (SEARCH), 79 (HEADSETHOOK), or "MicrophoneToggle"/"AudioVolumeMute"
@@ -157,13 +207,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       if (!isVoiceKey) return;
       const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
       if (btn) {
+        unlockAudioPlayback();
         e.preventDefault();
         btn.click();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeTab]);
+  }, [activeTab, unlockAudioPlayback]);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
@@ -291,6 +342,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     switch (name) {
       case 'navigate_to_section':
         if (onNavigate) {
+          stopVoicePlayback();
           const sectionMap: Record<string, string> = {
             'install-apps': 'apps',
             'support': 'videos',
@@ -309,6 +361,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'find_support_video':
         if (onNavigate) {
+          stopVoicePlayback();
           onNavigate('videos');
           toast({
             title: "Support Videos",
@@ -319,6 +372,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'change_background':
         if (args.action === 'open_settings' && onNavigate) {
+          stopVoicePlayback();
           onNavigate('settings');
           toast({
             title: "Background Settings",
@@ -336,6 +390,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'open_store_section':
         if (onNavigate) {
+          stopVoicePlayback();
           if (args.section === 'credits') {
             onNavigate('credits');
           } else if (args.section === 'media') {
@@ -352,6 +407,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'help_with_installation':
         if (onNavigate) {
+          stopVoicePlayback();
           onNavigate('apps');
           toast({
             title: "App Installation",
@@ -362,6 +418,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'show_credits_info':
         if (args.action === 'purchase' && onNavigate) {
+          stopVoicePlayback();
           onNavigate('credits');
         }
         toast({
@@ -377,7 +434,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       default:
         console.log('Unknown function:', name, args);
     }
-  }, [onNavigate, profile, toast]);
+  }, [onNavigate, profile, stopVoicePlayback, toast]);
 
   const sendAdminMessage = async () => {
     if (!adminMessage.trim() || !adminSubject.trim()) {
@@ -623,6 +680,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         }
         
         // Otherwise exit to previous page
+        stopVoicePlayback(true);
         onBack();
         return;
       }
@@ -758,6 +816,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         case ' ':
           // Execute action based on current focus
           if (currentFocusId === 'back') {
+            stopVoicePlayback(true);
             onBack();
           } else if (currentFocusId === 'tab-admin') {
             setActiveTab('admin');
@@ -819,7 +878,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback]);
 
   // Auto-focus input/textarea when navigating to them with D-pad
   useEffect(() => {
@@ -861,7 +920,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-start">
             <Button 
-              onClick={onBack}
+              onClick={() => {
+                stopVoicePlayback(true);
+                onBack();
+              }}
               variant="gold" 
               size="lg"
               data-focus-id="back"
