@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
-import { ToastAction } from '@/components/ui/toast';
+
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AppManager } from '@/capacitor/AppManager';
@@ -63,23 +63,16 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       } else if (isPermissionError && isNativePlatform()) {
         toast({
           title: 'Microphone access denied',
-          description: 'Tap "Open Settings", then enable Microphone for Snow Media Center.',
+          description: 'Opening system settings — enable Microphone for Snow Media Center, then come back and try Voice again.',
           variant: 'destructive',
-          action: (
-            <ToastAction
-              altText="Open Settings"
-              onClick={async () => {
-                try {
-                  await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
-                } catch (e) {
-                  console.warn('openAppSettings failed', e);
-                }
-              }}
-            >
-              Open Settings
-            </ToastAction>
-          ),
         });
+        // Auto-open the system app-settings page so D-pad users don't need to
+        // hit a toast button (which isn't reachable with a TV remote).
+        try {
+          await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
+        } catch (e) {
+          console.warn('openAppSettings failed', e);
+        }
       } else {
         toast({
           title: 'Microphone access denied',
