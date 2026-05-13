@@ -76,7 +76,7 @@ interface ContextMenuState {
   position: { x: number; y: number };
 }
 
-const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppData[] }) => {
+const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
