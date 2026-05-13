@@ -361,7 +361,10 @@ const Index = () => {
           
         case 'Enter':
         case ' ':
-          if (focusedButton === -2) {
+          if (focusedButton === -3) {
+            // Easter egg: 7 clicks on the logo reveals the hidden image
+            handleLogoActivate();
+          } else if (focusedButton === -2) {
             // Navigate to auth or user dashboard
             if (user) {
               navigateTo('user');
