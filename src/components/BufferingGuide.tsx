@@ -880,6 +880,13 @@ const Step3 = ({
         inputMode="decimal"
         value={speedInput}
         onChange={(e) => setSpeedInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+            onSaveTyped();
+          }
+        }}
         placeholder="Download speed (Mbps)"
         className="flex-1 px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
