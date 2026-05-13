@@ -960,6 +960,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           appStatuses={appStatuses}
           onLaunch={handleLaunch}
           onDownload={startDownload}
+          onOpenAppSettings={handleOpenAppSettings}
         />
       )}
     </div>
