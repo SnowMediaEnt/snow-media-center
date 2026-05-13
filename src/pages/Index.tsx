@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
+import MediaBar from '@/components/MediaBar';
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
@@ -560,6 +561,7 @@ const Index = () => {
 
           {/* News Ticker */}
           <NewsTicker />
+          <MediaBar />
 
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
