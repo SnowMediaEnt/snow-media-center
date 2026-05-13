@@ -6,6 +6,7 @@ import NewsTicker from '@/components/NewsTicker';
 import MediaBar from '@/components/MediaBar';
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo.png';
+import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -110,7 +111,9 @@ HomeActionCard.displayName = 'HomeActionCard';
 
 
 const Index = () => {
-  const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
+  const [focusedButton, setFocusedButton] = useState(0); // -3: logo, -2: auth/user, -1: settings, 0-3: main apps
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
   const [isInPopup, setIsInPopup] = useState(false);
   const [isInMediaBar, setIsInMediaBar] = useState(false);
@@ -214,6 +217,25 @@ const Index = () => {
     localStorage.setItem('snow-media-layout', newMode);
   };
 
+  // Easter egg — 7 logo clicks (or 7 Enter presses while focused) reveals the image.
+  // Counter resets after 2 seconds of inactivity.
+  const handleLogoActivate = useCallback(() => {
+    setLogoClickCount((prev) => {
+      const next = prev + 1;
+      if (next >= 7) {
+        setShowEasterEgg(true);
+        return 0;
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (logoClickCount === 0) return;
+    const t = setTimeout(() => setLogoClickCount(0), 2000);
+    return () => clearTimeout(t);
+  }, [logoClickCount]);
+
   // Handle keyboard navigation for TV remote
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -241,6 +263,16 @@ const Index = () => {
         return; // Let individual components handle their own navigation
       }
 
+      // Easter egg overlay swallows Back/Escape/Enter and closes itself
+      if (showEasterEgg) {
+        if (['Escape', 'Backspace', 'Enter', ' '].includes(event.key) || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+          setShowEasterEgg(false);
+        }
+        return;
+      }
+
       // MediaBar owns the keys when active
       if (isInMediaBar) {
         return;
@@ -261,6 +293,8 @@ const Index = () => {
               setFocusedButton(focusedButton - 1);
             } else if (focusedButton === -1) { // settings
               setFocusedButton(-2); // user/auth
+            } else if (focusedButton === -2) { // user/auth → logo
+              setFocusedButton(-3);
             }
           } else { // row mode
             if (focusedButton > 0) {
@@ -269,6 +303,8 @@ const Index = () => {
               setFocusedButton(-1); // settings
             } else if (focusedButton === -1) {
               setFocusedButton(-2); // user/auth
+            } else if (focusedButton === -2) {
+              setFocusedButton(-3); // logo (easter egg)
             }
           }
           break;
@@ -279,6 +315,8 @@ const Index = () => {
               setFocusedButton(focusedButton + 1);
             } else if (focusedButton === -2) { // user/auth
               setFocusedButton(-1); // settings
+            } else if (focusedButton === -3) { // logo → user/auth
+              setFocusedButton(-2);
             }
           } else { // row mode
             if (focusedButton < maxButtons) {
@@ -289,6 +327,8 @@ const Index = () => {
               setFocusedButton(-2); // user/auth
             } else if (focusedButton === -2) {
               setFocusedButton(0); // back to first app
+            } else if (focusedButton === -3) {
+              setFocusedButton(-2); // logo → user/auth
             }
           }
           break;
@@ -340,7 +380,10 @@ const Index = () => {
           
         case 'Enter':
         case ' ':
-          if (focusedButton === -2) {
+          if (focusedButton === -3) {
+            // Easter egg: 7 clicks on the logo reveals the hidden image
+            handleLogoActivate();
+          } else if (focusedButton === -2) {
             // Navigate to auth or user dashboard
             if (user) {
               navigateTo('user');
@@ -372,7 +415,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar]);
+  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar, showEasterEgg, handleLogoActivate]);
 
   const buttons = useMemo(() => [
     {
@@ -563,18 +606,45 @@ const Index = () => {
             </div>
           </div>
 
-          {/* SME logo top-left */}
-          <img
-            src={smeLogo}
-            alt="Snow Media Entertainment"
-            className="absolute z-20 pointer-events-none select-none"
+          {/* SME logo top-left — secret 7-click easter egg */}
+          <button
+            type="button"
+            onClick={handleLogoActivate}
+            onFocus={() => setFocusedButton(-3)}
+            tabIndex={0}
+            data-focused={focusedButton === -3 ? 'true' : 'false'}
+            aria-label="Snow Media Entertainment"
+            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110 data-[focused=true]:drop-shadow-[0_0_18px_hsl(var(--brand-gold)/0.7)]"
             style={{
               top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
               left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
               height: 'clamp(72px, 11vh, 140px)',
-              width: 'auto',
             }}
-          />
+          >
+            <img
+              src={smeLogo}
+              alt="Snow Media Entertainment"
+              className="h-full w-auto pointer-events-none select-none"
+              draggable={false}
+            />
+          </button>
+
+          {/* Easter egg overlay */}
+          {showEasterEgg && (
+            <div
+              className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-pointer animate-fade-in"
+              onClick={() => setShowEasterEgg(false)}
+              role="button"
+              aria-label="Close"
+            >
+              <img
+                src={easterEggImg}
+                alt=""
+                className="max-h-[92vh] max-w-[92vw] object-contain rounded-lg shadow-2xl"
+                draggable={false}
+              />
+            </div>
+          )}
 
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
