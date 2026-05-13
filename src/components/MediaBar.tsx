@@ -276,7 +276,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     })();
 
     const onBackKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+      if (isHardwareBackKey(e)) {
         e.preventDefault();
         e.stopPropagation();
         setLiveDialog(null);
