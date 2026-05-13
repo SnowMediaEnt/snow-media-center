@@ -1,27 +1,37 @@
-// Aggregates Plex (Recently Added + On Deck), TMDB trending, and TheSportsDB
-// today's events into a single scrolling-bar payload.
+// Aggregates Plex (Recently Added + On Deck) + Live TV sports events
+// (NBA, MLB, NHL, NFL, F1, NASCAR, UFC, WWE) into a single content-bar payload.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
-const TMDB_KEY = Deno.env.get('TMDB_API_KEY') ?? '';
 const SPORTSDB_KEY = '123'; // Free tier
+
+// TheSportsDB league IDs
+const LEAGUES: { id: string; label: string }[] = [
+  { id: '4387', label: 'NBA' },
+  { id: '4424', label: 'MLB' },
+  { id: '4380', label: 'NHL' },
+  { id: '4391', label: 'NFL' },
+  { id: '4370', label: 'F1' },
+  { id: '4393', label: 'NASCAR' },
+  { id: '4443', label: 'UFC' },
+  { id: '4444', label: 'WWE' },
+];
 
 type Item = {
   id: string;
-  source: 'plex' | 'tmdb' | 'sports';
+  source: 'plex' | 'sports';
   kind: string; // movie | show | episode | sport
   title: string;
   subtitle?: string;
   poster?: string;
   deepLink?: string;
   startTime?: string;
+  isLive?: boolean;
 };
 
 const safe = async <T>(p: Promise<T>, label: string): Promise<T | null> => {
-  try {
-    return await p;
-  } catch (e) {
+  try { return await p; } catch (e) {
     console.warn(`[media-bar-feed] ${label} failed:`, (e as Error).message);
     return null;
   }
@@ -31,10 +41,7 @@ const plexFetch = async (path: string) => {
   if (!PLEX_URL || !PLEX_TOKEN) return null;
   const sep = path.includes('?') ? '&' : '?';
   const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${PLEX_TOKEN}`;
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(8000),
-  });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Plex ${res.status}`);
   return await res.json();
 };
@@ -47,8 +54,7 @@ const plexDeepLink = (ratingKey?: string) =>
 
 const fetchPlex = async (): Promise<Item[]> => {
   const items: Item[] = [];
-  // Recently Added
-  const recent = await safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=15'), 'plex recent');
+  const recent = await safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=20'), 'plex recent');
   for (const m of recent?.MediaContainer?.Metadata ?? []) {
     items.push({
       id: `plex-${m.ratingKey}`,
@@ -60,7 +66,6 @@ const fetchPlex = async (): Promise<Item[]> => {
       deepLink: plexDeepLink(m.ratingKey),
     });
   }
-  // On Deck
   const onDeck = await safe(plexFetch('/library/onDeck?X-Plex-Container-Size=10'), 'plex onDeck');
   for (const m of onDeck?.MediaContainer?.Metadata ?? []) {
     items.push({
@@ -76,52 +81,74 @@ const fetchPlex = async (): Promise<Item[]> => {
   return items;
 };
 
-const fetchTMDB = async (): Promise<Item[]> => {
-  if (!TMDB_KEY) return [];
-  const url = `https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}`;
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const isWithinDays = (dateStr: string | undefined, days: number) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr).getTime();
+  if (Number.isNaN(d)) return false;
+  const diff = d - Date.now();
+  return diff > -3 * 60 * 60 * 1000 && diff < days * 24 * 60 * 60 * 1000;
+};
+
+const mapEvent = (e: any, leagueLabel: string): Item => {
+  const today = todayStr();
+  const isToday = e.dateEvent === today;
+  return {
+    id: `sports-${e.idEvent}`,
+    source: 'sports',
+    kind: 'sport',
+    title: e.strEvent ?? 'Event',
+    subtitle: `${leagueLabel}${e.strTime ? ' · ' + String(e.strTime).slice(0, 5) : ''}`,
+    poster: e.strThumb || e.strPoster || e.strSquare || undefined,
+    startTime: e.strTimestamp ?? e.dateEvent,
+    isLive: isToday,
+  };
+};
+
+const fetchLeague = async (leagueId: string, label: string): Promise<Item[]> => {
+  // "next 15 events" — covers today + upcoming
+  const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}/eventsnextleague.php?id=${leagueId}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`TMDB ${res.status}`);
+  if (!res.ok) throw new Error(`league ${leagueId} ${res.status}`);
   const data = await res.json();
-  return (data.results ?? []).slice(0, 15).map((r: any) => ({
-    id: `tmdb-${r.id}`,
-    source: 'tmdb' as const,
-    kind: r.media_type === 'tv' ? 'show' : 'movie',
-    title: r.title ?? r.name ?? 'Trending',
-    subtitle: r.media_type === 'tv' ? 'Trending Show' : 'Trending Movie',
-    poster: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
-  }));
+  return (data.events ?? [])
+    .filter((e: any) => isWithinDays(e.dateEvent, 4))
+    .slice(0, 4)
+    .map((e: any) => mapEvent(e, label));
 };
 
 const fetchSports = async (): Promise<Item[]> => {
-  const today = new Date().toISOString().slice(0, 10);
-  const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}/eventsday.php?d=${today}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`SportsDB ${res.status}`);
-  const data = await res.json();
-  return (data.events ?? []).slice(0, 12).map((e: any) => ({
-    id: `sports-${e.idEvent}`,
-    source: 'sports' as const,
-    kind: 'sport',
-    title: e.strEvent ?? 'Event',
-    subtitle: `${e.strLeague ?? ''}${e.strTime ? ' · ' + e.strTime.slice(0, 5) : ''}`.trim(),
-    poster: e.strThumb || e.strPoster || undefined,
-    startTime: e.strTimestamp,
-  }));
+  const results = await Promise.all(
+    LEAGUES.map((l) => safe(fetchLeague(l.id, l.label), `league ${l.label}`)),
+  );
+  const all = results.flatMap((r) => r ?? []);
+  // Sort: live (today) first, then by date
+  all.sort((a, b) => {
+    if (!!b.isLive !== !!a.isLive) return b.isLive ? 1 : -1;
+    return (a.startTime ?? '').localeCompare(b.startTime ?? '');
+  });
+  return all.slice(0, 24);
+};
+
+// Interleave plex and sports so the bar feels mixed
+const interleave = (a: Item[], b: Item[]): Item[] => {
+  const out: Item[] = [];
+  const max = Math.max(a.length, b.length);
+  for (let i = 0; i < max; i++) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
 };
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    const [plex, tmdb, sports] = await Promise.all([
+    const [plex, sports] = await Promise.all([
       safe(fetchPlex(), 'plex'),
-      safe(fetchTMDB(), 'tmdb'),
       safe(fetchSports(), 'sports'),
     ]);
-    const items = [
-      ...(plex ?? []),
-      ...(sports ?? []),
-      ...(tmdb ?? []),
-    ];
+    const items = interleave(plex ?? [], sports ?? []);
     return new Response(
       JSON.stringify({ items, fetchedAt: Date.now() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } },
