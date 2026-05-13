@@ -680,6 +680,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         }
         
         // Otherwise exit to previous page
+        stopVoicePlayback(true);
         onBack();
         return;
       }
@@ -815,6 +816,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         case ' ':
           // Execute action based on current focus
           if (currentFocusId === 'back') {
+            stopVoicePlayback(true);
             onBack();
           } else if (currentFocusId === 'tab-admin') {
             setActiveTab('admin');
@@ -876,7 +878,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback]);
 
   // Auto-focus input/textarea when navigating to them with D-pad
   useEffect(() => {
