@@ -550,7 +550,7 @@ const Index = () => {
             style={{
               top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
               left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
-              height: 'clamp(48px, 7vh, 88px)',
+              height: 'clamp(72px, 11vh, 140px)',
               width: 'auto',
             }}
           />
