@@ -97,19 +97,24 @@ const openPlex = async (item: MediaItem) => {
 
   if (native && platform === 'android') {
     const androidLink = getPlexAndroidLink(item);
-    const candidates = [androidLink, item.deepLink, item.webLink].filter(Boolean) as string[];
+    // ORDER MATTERS. Plex Android's HTTPS intent-filter on app.plex.tv is the
+    // ONLY scheme that reliably routes to a specific metadata item once the
+    // app is opened. The plex:// scheme variants open the app but land on the
+    // home screen. So try webLink FIRST (with package pinned), then fall back.
+    const targetedCandidates = [item.webLink, androidLink, item.deepLink].filter(Boolean) as string[];
+    const genericCandidates = [item.webLink, androidLink, item.deepLink].filter(Boolean) as string[];
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
-      for (const url of candidates) {
+      for (const url of targetedCandidates) {
         try {
-          console.info('[MediaBar] opening Plex URL', { url, title: item.title });
+          console.info('[MediaBar] opening Plex URL (targeted)', { url, title: item.title });
           await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
           return;
         } catch (error) {
           console.warn('[MediaBar] targeted Plex open failed:', error);
         }
       }
-      for (const url of candidates) {
+      for (const url of genericCandidates) {
         try {
           await AppManager.openUrl({ url });
           return;
@@ -121,16 +126,9 @@ const openPlex = async (item: MediaItem) => {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
-    if (androidLink) {
-      window.location.assign(androidLink);
-      return;
-    }
-
-    if (item.deepLink) {
-      window.location.assign(item.deepLink);
-      return;
-    }
-
+    // Last-resort: build an Android intent:// wrapper around the HTTPS web URL
+    // pinned to com.plexapp.android. This is the most aggressive way to force
+    // Plex to handle the deep link instead of a browser.
     if (item.webLink) {
       const intentUrl = buildPlexAndroidIntent(item.webLink);
       if (intentUrl) {
@@ -139,7 +137,7 @@ const openPlex = async (item: MediaItem) => {
       }
     }
 
-    const fallback = androidLink ?? item.deepLink ?? item.webLink;
+    const fallback = item.webLink ?? androidLink ?? item.deepLink;
     if (fallback) {
       window.location.assign(fallback);
       return;
