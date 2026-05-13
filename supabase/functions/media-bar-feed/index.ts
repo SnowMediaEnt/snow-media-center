@@ -117,6 +117,9 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   const shows: Item[] = [];
   const onDeck: Item[] = [];
 
+  // Need machineIdentifier so deep links route to THIS server inside the Plex app
+  await fetchMachineId();
+
   // Pull from MULTIPLE Plex endpoints so the bar always has fresh material
   const [recent, deck, popularMovies, popularShows] = await Promise.all([
     safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=80'), 'plex recent'),
