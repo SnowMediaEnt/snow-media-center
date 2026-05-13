@@ -91,6 +91,8 @@ const VPN_INFO = {
     downloaderCode: '805133',
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
+    icon: 'https://snowmediaapps.com/icons/ipvanish.png',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=IPVanishTV.apk',
   },
   surfshark: {
     label: 'Surfshark',
@@ -98,6 +100,8 @@ const VPN_INFO = {
     downloaderCode: '3829522',
     signupUrl: 'https://surfshark.com',
     matchKeys: ['surfshark'],
+    icon: 'https://snowmediaapps.com/icons/surfsharkvpn.png',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=Surfshark.apk',
   },
 } as const;
 
