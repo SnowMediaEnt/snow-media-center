@@ -364,6 +364,8 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                   <Button
                     variant="ghost"
                     size="sm"
+                    tabIndex={-1}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => handleDeleteConversation(conversation.id, e)}
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/20 ml-2"
                   >
