@@ -322,6 +322,7 @@ const BufferingGuide = ({
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
         if (showSpeedTest) return; // SpeedTest handles its own
         if (stepIndex > 0) setStepIndex((i) => i - 1);
         else onClose();
