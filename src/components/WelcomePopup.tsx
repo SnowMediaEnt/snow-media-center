@@ -11,12 +11,17 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.0.3': [
+    'New Content Bar — now connects directly to your Plex library for movies, shows, and Continue Watching',
+    'Live TV events now show only what is actually airing right now (Live TV streaming connection coming soon)',
+    'Small fixes and polish to the Buffering Guide',
+    'Layout tweaks across the home screen for a cleaner look',
+  ],
   '1.0.2': [
     'Added the built-in Speed Test',
     'Added the interactive Buffering Guide in Main Apps',
     'Fine-tuned the Snow Media AI assistant',
   ],
-  // Add future versions here, e.g. '1.0.3': [...]
 };
 
 const STORAGE_KEY = 'smc-welcome-shown-version';
