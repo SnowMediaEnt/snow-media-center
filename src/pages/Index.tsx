@@ -606,18 +606,45 @@ const Index = () => {
             </div>
           </div>
 
-          {/* SME logo top-left */}
-          <img
-            src={smeLogo}
-            alt="Snow Media Entertainment"
-            className="absolute z-20 pointer-events-none select-none"
+          {/* SME logo top-left — secret 7-click easter egg */}
+          <button
+            type="button"
+            onClick={handleLogoActivate}
+            onFocus={() => setFocusedButton(-3)}
+            tabIndex={0}
+            data-focused={focusedButton === -3 ? 'true' : 'false'}
+            aria-label="Snow Media Entertainment"
+            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110 data-[focused=true]:drop-shadow-[0_0_18px_hsl(var(--brand-gold)/0.7)]"
             style={{
               top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
               left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
               height: 'clamp(72px, 11vh, 140px)',
-              width: 'auto',
             }}
-          />
+          >
+            <img
+              src={smeLogo}
+              alt="Snow Media Entertainment"
+              className="h-full w-auto pointer-events-none select-none"
+              draggable={false}
+            />
+          </button>
+
+          {/* Easter egg overlay */}
+          {showEasterEgg && (
+            <div
+              className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-pointer animate-fade-in"
+              onClick={() => setShowEasterEgg(false)}
+              role="button"
+              aria-label="Close"
+            >
+              <img
+                src={easterEggImg}
+                alt=""
+                className="max-h-[92vh] max-w-[92vw] object-contain rounded-lg shadow-2xl"
+                draggable={false}
+              />
+            </div>
+          )}
 
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
