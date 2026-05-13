@@ -367,7 +367,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup]);
+  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar]);
 
   const buttons = useMemo(() => [
     {
