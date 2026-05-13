@@ -58,8 +58,22 @@ const plexFetch = async (path: string) => {
 };
 const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
-const plexDeepLink = (ratingKey?: string) =>
-  ratingKey ? `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${ratingKey}` : undefined;
+const plexDeepLink = (ratingKey?: string) => {
+  if (!ratingKey) return undefined;
+  const metadataKey = `/library/metadata/${ratingKey}`;
+  // Plex mobile/TV app deep link — opens directly to the item's preplay screen.
+  // Including the server machineIdentifier ensures it routes to the correct server
+  // even if the user has multiple servers signed in.
+  if (PLEX_MACHINE_ID) {
+    return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}`;
+  }
+  return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}`;
+};
+
+const plexWebLink = (ratingKey?: string) => {
+  if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
+  return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`;
+};
 
 const mapPlexItem = (m: any): Item => {
   const isMovie = m.type === 'movie';
