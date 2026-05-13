@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform } from '@/utils/platform';
+import { isNativePlatform, getPlatform } from '@/utils/platform';
 import {
   Dialog,
   DialogContent,
@@ -54,8 +54,36 @@ const writeCache = (items: MediaItem[]) => {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
 };
 
+// Build an Android `intent://` URL that hands the Plex web URL directly to the
+// Plex Android app (com.plexapp.android). The plain `plex://preplay/...` scheme
+// only opens the app, it does NOT route to the specific item — Plex's own
+// intent-filter on its HTTPS URLs is what actually navigates to the title.
+const buildPlexAndroidIntent = (webUrl: string): string | null => {
+  try {
+    const u = new URL(webUrl);
+    // intent:// strips the scheme; we re-attach via `scheme=https` at the end.
+    const path = `${u.host}${u.pathname}${u.search}${u.hash}`;
+    // S.browser_fallback_url makes Android open the web URL if Plex isn't installed.
+    const fallback = encodeURIComponent(webUrl);
+    return `intent://${path}#Intent;scheme=https;package=com.plexapp.android;S.browser_fallback_url=${fallback};end`;
+  } catch {
+    return null;
+  }
+};
+
 const openPlex = (item: MediaItem) => {
   const native = isNativePlatform();
+  const platform = getPlatform();
+
+  if (native && platform === 'android' && item.webLink) {
+    const intentUrl = buildPlexAndroidIntent(item.webLink);
+    if (intentUrl) {
+      window.location.href = intentUrl;
+      return;
+    }
+  }
+
+  // iOS / fallback: try the plex:// scheme first on native, otherwise web URL
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
   if (native) {

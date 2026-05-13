@@ -62,9 +62,9 @@ const plexImage = (key?: string) =>
 const plexDeepLink = (ratingKey?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
-  // Plex mobile/TV app deep link — opens directly to the item's preplay screen.
-  // Including the server machineIdentifier ensures it routes to the correct server
-  // even if the user has multiple servers signed in.
+  // Plex iOS deep link format. (Android relies on the HTTPS webLink + an
+  // intent:// wrapper built client-side, because plex:// on Android only
+  // opens the app and won't navigate to the specific item.)
   if (PLEX_MACHINE_ID) {
     return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}`;
   }
@@ -72,8 +72,15 @@ const plexDeepLink = (ratingKey?: string) => {
 };
 
 const plexWebLink = (ratingKey?: string) => {
-  if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
-  return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`;
+  if (!ratingKey) return undefined;
+  const metadataKey = `/library/metadata/${ratingKey}`;
+  // Plex's intent-filter on app.plex.tv URLs is what actually navigates the
+  // Android app to a specific item. Always emit a webLink (even without
+  // machineId) so the client always has something to wrap in an intent://.
+  if (PLEX_MACHINE_ID) {
+    return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`;
+  }
+  return `https://app.plex.tv/desktop/#!/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
 const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
