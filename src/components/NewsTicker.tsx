@@ -157,13 +157,21 @@ const NewsTicker = memo(() => {
         contain: 'layout paint style',
       }}
     >
-      <div className="flex items-center h-7">
-        <div className="bg-primary text-primary-foreground px-2.5 py-0 rounded-full text-[10px] font-bold ml-3 z-10 flex-shrink-0 leading-tight">
-          LIVE
-        </div>
-        <div className="flex-1 overflow-hidden ml-3 news-ticker-mask" style={{ contain: 'layout paint' }}>
+      <div className="relative flex items-center h-7">
+        {/* Full-width scrolling track sits behind the LIVE badge */}
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            contain: 'layout paint',
+            paddingLeft: '70px',
+            WebkitMaskImage:
+              'linear-gradient(to right, transparent 0, transparent 60px, black 78px, black 100%)',
+            maskImage:
+              'linear-gradient(to right, transparent 0, transparent 60px, black 78px, black 100%)',
+          }}
+        >
           <div
-            className="news-ticker-track"
+            className="news-ticker-track h-full flex items-center"
             style={{
               willChange: 'transform',
               transform: 'translate3d(0,0,0)',
@@ -180,6 +188,10 @@ const NewsTicker = memo(() => {
               {tickerText}
             </span>
           </div>
+        </div>
+        {/* LIVE badge overlays on top */}
+        <div className="bg-primary text-primary-foreground px-2.5 py-0 rounded-full text-[10px] font-bold ml-3 z-10 flex-shrink-0 leading-tight relative">
+          LIVE
         </div>
       </div>
     </div>
