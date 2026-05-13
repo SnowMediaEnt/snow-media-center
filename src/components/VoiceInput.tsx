@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Volume2 } from 'lucide-react';
 
@@ -17,8 +17,23 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
+
+  // Stop microphone capture on unmount (e.g. user exits Snow AI chat)
+  useEffect(() => {
+    return () => {
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) { /* ignore */ }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      mediaRecorderRef.current = null;
+    };
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -27,6 +42,7 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
       });
+      streamRef.current = stream;
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -40,8 +56,9 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await processAudio(audioBlob);
         stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        if (audioBlob.size > 0) await processAudio(audioBlob);
       };
 
       mediaRecorderRef.current = mediaRecorder;
