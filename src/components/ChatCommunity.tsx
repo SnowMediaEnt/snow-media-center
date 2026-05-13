@@ -920,7 +920,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-start">
             <Button 
-              onClick={onBack}
+              onClick={() => {
+                stopVoicePlayback(true);
+                onBack();
+              }}
               variant="gold" 
               size="lg"
               data-focus-id="back"
