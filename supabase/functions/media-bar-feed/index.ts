@@ -186,9 +186,9 @@ const fetchSportsLiveNow = async (): Promise<Item[]> => {
 };
 
 // ---------- Weave ----------
-// If live sports exist: live sports first, then movies/shows interleaved.
-// If nothing is live: just Plex VOD.
-const weave = (movies: Item[], liveSports: Item[], shows: Item[]): Item[] => {
+// Order: live sports → continue watching → movies/shows interleaved.
+// Goal: a long, varied feed so the bar effectively never "ends".
+const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]): Item[] => {
   const out: Item[] = [];
   const seen = new Set<string>();
   const push = (i?: Item) => {
@@ -197,15 +197,14 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[]): Item[] => {
     out.push(i);
   };
 
-  // All live sports up front (they're the "right now" priority)
   for (const s of liveSports) push(s);
+  for (const d of onDeck) push(d);
 
-  // Then round-robin movies + shows for VOD
   const m = movies.slice();
   const sh = shows.slice();
   while (m.length || sh.length) {
     if (m.length) push(m.shift());
-    if (m.length) push(m.shift()); // movies 2:1 over shows
+    if (m.length) push(m.shift());
     if (sh.length) push(sh.shift());
   }
   return out;
@@ -218,6 +217,12 @@ Deno.serve(async (req) => {
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
     ]);
+    const items = weave(
+      plex?.movies ?? [],
+      sports ?? [],
+      plex?.shows ?? [],
+      plex?.onDeck ?? [],
+    );
     const items = weave(plex?.movies ?? [], sports ?? [], plex?.shows ?? []);
     return new Response(
       JSON.stringify({
