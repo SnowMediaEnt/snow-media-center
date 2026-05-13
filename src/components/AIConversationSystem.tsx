@@ -122,11 +122,10 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
     await fetchConversationMessages(conversationId);
   };
 
-  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this conversation?')) {
-      await deleteConversation(conversationId);
-    }
+    e.preventDefault();
+    await deleteConversation(conversationId);
   };
 
   if (view === 'create') {
