@@ -11,6 +11,18 @@ interface NavigationOptions {
   onRootBack?: () => boolean;
 }
 
+interface LegacyExitWindow extends Window {
+  Capacitor?: { Plugins?: { App?: { exitApp?: () => void } } };
+  device?: { exitApp?: () => void };
+  Android?: { exitApp?: () => void };
+}
+
+interface LegacyNavigator extends Navigator {
+  app?: { exitApp?: () => void };
+}
+
+type CapacitorListenerHandle = { remove?: () => void };
+
 export const useNavigation = (initialView: string = 'home', options: NavigationOptions = {}) => {
   const { onRootBack } = options;
   const [navigationState, setNavigationState] = useState<NavigationState>({
@@ -43,14 +55,16 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
             // Double press detected within 1 second
             try {
               // For Capacitor/Cordova apps
-              if ((window as any).Capacitor) {
-                (window as any).Capacitor.Plugins.App.exitApp();
-              } else if ((window as any).device && (window as any).device.exitApp) {
-                (window as any).device.exitApp();
-              } else if ((window as any).navigator && (window as any).navigator.app) {
-                (window as any).navigator.app.exitApp();
-              } else if ((window as any).Android && (window as any).Android.exitApp) {
-                (window as any).Android.exitApp();
+              const legacyWindow = window as LegacyExitWindow;
+              const legacyNavigator = window.navigator as LegacyNavigator;
+              if (legacyWindow.Capacitor) {
+                legacyWindow.Capacitor.Plugins?.App?.exitApp?.();
+              } else if (legacyWindow.device?.exitApp) {
+                legacyWindow.device.exitApp();
+              } else if (legacyNavigator.app?.exitApp) {
+                legacyNavigator.app.exitApp();
+              } else if (legacyWindow.Android?.exitApp) {
+                legacyWindow.Android.exitApp();
               } else {
                 // For web/desktop - try to close window
                 window.close();
@@ -98,7 +112,7 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
 
   // Capacitor back button handling for Android TV
   useEffect(() => {
-    let backButtonHandler: any;
+    let backButtonHandler: CapacitorListenerHandle | undefined;
     
     const setupBackHandler = async () => {
       try {
