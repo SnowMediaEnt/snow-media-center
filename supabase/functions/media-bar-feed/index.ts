@@ -76,10 +76,9 @@ const plexWebLink = (ratingKey?: string) => {
   return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`;
 };
 
-const mapPlexItem = (m: any): Item => {
+const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
-  // For episodes, ratingKey already points to the specific S/E — Plex deep links to it directly.
   const ratingKey = m.ratingKey;
   let subtitle: string;
   if (isMovie) subtitle = m.year ? String(m.year) : 'Movie';
@@ -98,6 +97,7 @@ const mapPlexItem = (m: any): Item => {
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
     deepLink: plexDeepLink(ratingKey),
     webLink: plexWebLink(ratingKey),
+    _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
   };
 };
 
