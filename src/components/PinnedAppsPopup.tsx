@@ -73,6 +73,11 @@ const PinnedAppsPopup = ({
         // ring doesn't persist on the slot after we leave the popup.
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
+      } else if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        onExitFocus();
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         e.stopPropagation();
@@ -93,6 +98,31 @@ const PinnedAppsPopup = ({
       return () => clearTimeout(t);
     }
   }, [showAppSelector]);
+
+  // Hardware Back while focused inside the pinned-app slots should leave the
+  // popup only; it must not bubble to Home's double-back-to-exit handler.
+  useEffect(() => {
+    if (!isVisible || focusedIndex < 0 || showAppSelector) return;
+
+    let listener: any;
+    let cancelled = false;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('backButton', () => {
+          (document.activeElement as HTMLElement | null)?.blur?.();
+          onExitFocus();
+        });
+        if (cancelled) listener?.remove?.();
+      } catch {
+        // Capacitor not available (web preview)
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+    };
+  }, [isVisible, focusedIndex, showAppSelector, onExitFocus]);
 
   // Focus the button when focusedIndex changes; blur any pinned button
   // when focus leaves the popup so no stale highlight remains.
