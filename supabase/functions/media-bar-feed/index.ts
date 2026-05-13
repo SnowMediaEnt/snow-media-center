@@ -223,7 +223,6 @@ Deno.serve(async (req) => {
       plex?.shows ?? [],
       plex?.onDeck ?? [],
     );
-    const items = weave(plex?.movies ?? [], sports ?? [], plex?.shows ?? []);
     return new Response(
       JSON.stringify({
         items,
