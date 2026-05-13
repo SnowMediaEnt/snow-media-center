@@ -6,6 +6,7 @@ import NewsTicker from '@/components/NewsTicker';
 import MediaBar from '@/components/MediaBar';
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo.png';
+import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
