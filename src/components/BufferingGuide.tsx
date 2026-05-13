@@ -180,24 +180,6 @@ const BufferingGuide = ({
         return;
       }
 
-      const focusNextButton = () => {
-        const nextButton = rootRef.current?.querySelector<HTMLElement>('[data-guide-nav="next"]:not([disabled])');
-        if (!nextButton) return false;
-        nextButton.focus();
-        lastFocusedRef.current = nextButton;
-        nextButton.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        return true;
-      };
-
-      if (
-        key === 'ArrowDown' &&
-        activeEl.getAttribute('data-guide-choice') === 'true' &&
-        activeEl.getAttribute('data-guide-choice-active') === 'true' &&
-        focusNextButton()
-      ) {
-        return;
-      }
-
       const cur = activeEl.getBoundingClientRect();
       const curCx = cur.left + cur.width / 2;
       const curCy = cur.top + cur.height / 2;
