@@ -82,62 +82,82 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not set')
     }
 
-    // Use Lovable AI Gateway with Gemini for image generation
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        modalities: ['image', 'text']
-      }),
-    });
+    // Use Lovable AI Gateway for image generation, with automatic fallback
+    // between models so a single bad model day doesn't break the feature.
+    const MODELS = [
+      'google/gemini-2.5-flash-image',
+      'google/gemini-3.1-flash-image-preview', // nano banana 2 fallback
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Lovable AI Gateway error:', response.status, errorText);
-      if (response.status === 429) {
+    let imageUrl: string | undefined;
+    let lastErrorStatus = 0;
+    let lastErrorBody = '';
+    let lastRefusal: string | undefined;
+    let usedModel = MODELS[0];
+
+    for (const model of MODELS) {
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          modalities: ['image', 'text'],
+        }),
+      });
+
+      if (!response.ok) {
+        lastErrorStatus = response.status;
+        lastErrorBody = await response.text();
+        console.error(`[generate-hf-image] gateway error (${model}):`, response.status, lastErrorBody);
+        // 402/429 are global — bailing out early is correct.
+        if (response.status === 429 || response.status === 402) break;
+        continue;
+      }
+
+      const data = await response.json();
+      const candidate = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      lastRefusal = data.choices?.[0]?.message?.content;
+      if (candidate) {
+        imageUrl = candidate;
+        usedModel = model;
+        break;
+      }
+      console.warn(`[generate-hf-image] no image from ${model}, trying next. refusal:`, lastRefusal);
+    }
+
+    if (!imageUrl) {
+      if (lastErrorStatus === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limited', details: 'Too many image requests. Please wait a moment and try again.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
+      if (lastErrorStatus === 402) {
         return new Response(
           JSON.stringify({ error: 'AI credits exhausted', details: 'The AI image service is out of credits. Please contact the admin.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Check if the model refused the request (content moderation)
-    const messageContent = data.choices?.[0]?.message?.content;
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!imageUrl) {
-      console.error('No image in response:', JSON.stringify(data));
+      const details = lastRefusal
+        || (lastErrorBody ? `Gateway ${lastErrorStatus}: ${lastErrorBody.slice(0, 300)}` : 'The image generator did not return an image. Try rephrasing your prompt.');
+      try {
+        await logUsage({
+          user_id: userId, user_email: userEmail, feature: 'image',
+          model: usedModel, prompt, response_preview: '', total_tokens: 0,
+          cost_credits: 0, status: 'error', error_message: details.slice(0, 500),
+        });
+      } catch (_) { /* swallow */ }
       return new Response(
-        JSON.stringify({
-          error: 'Image generation failed',
-          details: messageContent || 'The image generator did not return an image. Try rephrasing your prompt.',
-          refusal: messageContent
-        }),
+        JSON.stringify({ error: 'Image generation failed', details, refusal: lastRefusal }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
 
-    console.log('Successfully generated image with Lovable AI Gateway for user:', userId);
+    console.log(`[generate-hf-image] success via ${usedModel} for user:`, userId);
 
     try {
       await logUsage({
