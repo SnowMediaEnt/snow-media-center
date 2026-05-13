@@ -644,25 +644,28 @@ const BufferingGuide = ({
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <Button
-            onClick={goBack}
-            disabled={stepIndex === 0}
+            onClick={() => (stepIndex === 0 ? onClose() : goBack())}
             variant="outline"
             data-guide-nav="back"
-            className="bg-white/5 border-white/20 text-white hover:bg-white/10 disabled:opacity-40"
+            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
-          <Button
-            onClick={goNext}
-            disabled={!canNext || stepIndex === STEPS.length - 1}
-            data-guide-nav="next"
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
-          >
-            Next <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          {step !== 'summary' ? (
+            <Button
+              onClick={goNext}
+              disabled={!canNext}
+              data-guide-nav="next"
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
+            >
+              Next <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <span className="w-[88px]" />
+          )}
         </div>
       </div>
 
