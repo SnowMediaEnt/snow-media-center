@@ -540,9 +540,9 @@ const Index = () => {
           {/* Spacer for info bar */}
           <div className="flex-shrink-0" style={{ height: '8vh' }}></div>
 
-          {/* Header - tight container around title */}
+          {/* Header - tight container around title with RSS through middle */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
-            <div className="text-center">
+            <div className="text-center" style={{ opacity: 0.15 }}>
               <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
@@ -551,6 +551,10 @@ const Index = () => {
               <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px' }}>
                 Your Premium Streaming Experience
               </p>
+            </div>
+            {/* News Ticker overlays middle of title */}
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 z-20">
+              <NewsTicker />
             </div>
           </div>
 
@@ -570,13 +574,14 @@ const Index = () => {
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
 
-          {/* News Ticker */}
-          <NewsTicker />
-          <MediaBar
-            active={isInMediaBar}
-            onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
-            onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
-          />
+          {/* New Content Bar - pulled up so pinned apps don't block it */}
+          <div style={{ marginTop: 'clamp(-2rem, -4vh, -1rem)' }}>
+            <MediaBar
+              active={isInMediaBar}
+              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+              onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+            />
+          </div>
 
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
