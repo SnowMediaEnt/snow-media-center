@@ -1137,19 +1137,7 @@ const Summary = ({
       {submittingTicket ? 'Submitting…' : 'Submit Ticket to Chat & Community'}
     </Button>
 
-    <div>
-      <p className="text-sm text-white mb-2">Copy/paste for support:</p>
-      <textarea
-        readOnly
-        value={supportScript}
-        className="w-full h-40 p-3 rounded-md bg-black/40 border border-white/20 text-white/90 text-xs font-mono focus:outline-none focus:border-cyan-400"
-      />
-    </div>
-
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onCopy} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
-        <Copy className="w-4 h-4 mr-2" /> Copy
-      </Button>
       <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
