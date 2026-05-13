@@ -11,6 +11,7 @@ type MediaItem = {
   subtitle?: string;
   poster?: string;
   deepLink?: string;
+  webLink?: string;
 };
 
 type Props = {
