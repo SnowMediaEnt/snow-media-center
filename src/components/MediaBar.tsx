@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { getLiveHints, type LiveHintKind } from '@/lib/liveCategoryHints';
 
 type MediaItem = {
   id: string;
@@ -281,22 +282,63 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       )}
 
       <Dialog open={!!liveDialog} onOpenChange={(o) => !o && setLiveDialog(null)}>
-        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white">
+        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[hsl(var(--brand-gold))]">
               <Tv className="w-5 h-5" />
               Watch Live TV
             </DialogTitle>
-            <DialogDescription className="text-white/80 pt-2 space-y-2">
-              <span className="block font-semibold text-white">{liveDialog?.title}</span>
+            <DialogDescription className="text-white/80 pt-2 space-y-1">
+              <span className="block font-semibold text-white text-base">{liveDialog?.title}</span>
               {liveDialog?.subtitle && (
                 <span className="block text-sm text-white/60">{liveDialog.subtitle}</span>
               )}
-              <span className="block pt-3">
-                Live events stream through your IPTV apps. Open <b>Dreamstreams</b> or <b>VibezTV</b> from your installed apps to tune in.
+              <span className="block pt-2 text-sm">
+                Open <b className="text-[hsl(var(--brand-gold))]">Dreamstreams</b> or <b className="text-[hsl(var(--brand-gold))]">VibezTV</b> and check these categories:
               </span>
             </DialogDescription>
           </DialogHeader>
+
+          {(() => {
+            const hints = getLiveHints(liveDialog);
+            if (!hints.length) {
+              return (
+                <div className="text-sm text-white/70 px-1">
+                  Browse the matching league or sport category in your IPTV app.
+                </div>
+              );
+            }
+            const chipColor: Record<LiveHintKind, string> = {
+              zone: 'bg-[hsl(var(--brand-gold))]/20 text-[hsl(var(--brand-gold))] border-[hsl(var(--brand-gold))]/40',
+              team: 'bg-blue-500/20 text-blue-200 border-blue-400/40',
+              locals: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
+              spectrum: 'bg-orange-500/20 text-orange-200 border-orange-400/40',
+              tip: 'bg-white/10 text-white/70 border-white/20',
+            };
+            return (
+              <ul className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                {hints.map((h, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-3 rounded-md bg-black/30 border border-white/10 px-3 py-2"
+                  >
+                    <span
+                      className={`shrink-0 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded border ${chipColor[h.kind]}`}
+                    >
+                      {h.chip}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white text-sm font-medium leading-snug">{h.label}</div>
+                      {h.sublabel && (
+                        <div className="text-white/60 text-xs mt-0.5">{h.sublabel}</div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+
           <DialogFooter>
             <Button
               variant="outline"
