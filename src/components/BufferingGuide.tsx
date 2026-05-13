@@ -304,7 +304,7 @@ const BufferingGuide = ({
       case 'step1': return state.step1Choice === 'all_buffer';
       case 'step2': return state.didRestartAndCache === false; // true short-circuits to summary
       case 'step3': return typeof state.speedMbps === 'number' && state.speedMbps >= 15;
-      case 'step4': return !!state.vpnChoice && state.vpnSpeedOk !== null && state.vpnTest === 'still_buffering';
+      case 'step4': return !!state.vpnChoice;
       default: return false;
     }
   })();
