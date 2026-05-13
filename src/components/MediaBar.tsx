@@ -53,10 +53,7 @@ const writeCache = (items: MediaItem[]) => {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
 };
 
-const handleClick = (item: MediaItem) => {
-  // On native (Android TV / mobile) prefer the plex:// deep link so the Plex app
-  // opens directly to the movie / show / episode. On web, use the app.plex.tv URL
-  // which routes through the Plex web app to the same item.
+const openPlex = (item: MediaItem) => {
   const native = isNativePlatform();
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
@@ -73,7 +70,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const [pageIdx, setPageIdx] = useState(0);
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
+  const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sports = live TV. Plex/TMDB items = deep link into Plex.
+  const handleClick = (item: MediaItem) => {
+    if (item.source === 'sports') {
+      setLiveDialog(item);
+      return;
+    }
+    openPlex(item);
+  };
 
   // Fetch
   useEffect(() => {
