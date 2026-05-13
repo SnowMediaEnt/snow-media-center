@@ -78,17 +78,38 @@ const plexWebLink = (ratingKey?: string) => {
 
 const mapPlexItem = (m: any): Item => {
   const isMovie = m.type === 'movie';
+  const isEpisode = m.type === 'episode';
+  // For episodes, ratingKey already points to the specific S/E — Plex deep links to it directly.
+  const ratingKey = m.ratingKey;
+  let subtitle: string;
+  if (isMovie) subtitle = m.year ? String(m.year) : 'Movie';
+  else if (isEpisode) {
+    const s = m.parentIndex ?? m.seasonNumber;
+    const ep = m.index ?? m.episodeNumber;
+    const se = (s != null && ep != null) ? `S${String(s).padStart(2,'0')}E${String(ep).padStart(2,'0')}` : '';
+    subtitle = [m.grandparentTitle, se].filter(Boolean).join(' · ') || 'Episode';
+  } else subtitle = m.grandparentTitle ?? (m.year ? String(m.year) : 'Series');
   return {
-    id: `plex-${m.ratingKey}`,
+    id: `plex-${ratingKey}`,
     source: 'plex',
-    kind: isMovie ? 'movie' : (m.type === 'episode' ? 'episode' : m.type ?? 'show'),
-    title: m.title ?? 'Untitled',
-    subtitle: isMovie
-      ? (m.year ? String(m.year) : 'Movie')
-      : (m.grandparentTitle ?? (m.year ? String(m.year) : 'Series')),
+    kind: isMovie ? 'movie' : (isEpisode ? 'episode' : m.type ?? 'show'),
+    title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
+    subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
-    deepLink: plexDeepLink(m.ratingKey),
+    deepLink: plexDeepLink(ratingKey),
+    webLink: plexWebLink(ratingKey),
   };
+};
+
+const fetchMachineId = async () => {
+  if (PLEX_MACHINE_ID || !PLEX_URL || !PLEX_TOKEN) return;
+  try {
+    const data = await plexFetch('/identity');
+    const id = data?.MediaContainer?.machineIdentifier;
+    if (id) PLEX_MACHINE_ID = id;
+  } catch (e) {
+    console.warn('[media-bar-feed] machineId fetch failed:', (e as Error).message);
+  }
 };
 
 const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Item[] }> => {
