@@ -75,6 +75,15 @@ const WelcomePopup = () => {
         dismiss();
         return;
       }
+      if (key === 'Enter' || key === ' ' || code === 13 || code === 23 || code === 66) {
+        // Activate the popup button ourselves and stop the event from
+        // reaching the underlying page handler (which would also activate
+        // the focused card behind the popup).
+        e.preventDefault();
+        e.stopPropagation();
+        dismiss();
+        return;
+      }
       if (
         key === 'ArrowUp' || key === 'ArrowDown' ||
         key === 'ArrowLeft' || key === 'ArrowRight' ||
