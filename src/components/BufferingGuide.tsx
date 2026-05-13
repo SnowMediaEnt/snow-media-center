@@ -35,6 +35,7 @@ interface BufferingGuideProps {
   onLaunch: (app: AppData) => void | Promise<void>;
   onDownload: (app: AppData) => void;
   onOpenAppSettings?: (app: AppData) => void | Promise<void>;
+  onNavigateToChat?: () => void;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
@@ -107,6 +108,7 @@ const BufferingGuide = ({
   onLaunch,
   onDownload,
   onOpenAppSettings,
+  onNavigateToChat,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -155,9 +157,12 @@ const BufferingGuide = ({
       if (focusables.length === 0) return;
       const active = document.activeElement as HTMLElement | null;
       const target = e.target as HTMLElement | null;
-      // Allow text inputs/textareas to handle arrows themselves
+      // Allow text inputs/textareas to handle arrows themselves,
+      // EXCEPT ArrowDown / ArrowRight which should jump out of the field
+      // (so D-pad lands on the Save button instead of moving the caret
+      // through each digit).
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        if (key === 'ArrowDown') {
+        if (key === 'ArrowDown' || key === 'ArrowRight') {
           (target as HTMLInputElement).blur();
         } else {
           return;
@@ -441,10 +446,14 @@ const BufferingGuide = ({
       const body = `${supportScript}\n\nSaved: ${ts}`;
       await createTicket(subject, body);
       toast({
-        title: 'Ticket saved',
-        description: 'Find it in Chat & Community → My Tickets.',
+        title: 'Ticket submitted',
+        description: 'Opening Chat & Community → My Tickets.',
       });
       onClose();
+      // Defer nav slightly so the modal unmounts cleanly first
+      setTimeout(() => {
+        onNavigateToChat?.();
+      }, 50);
     } catch (err) {
       console.error('[BufferingGuide] submitAsTicket failed', err);
       toast({
@@ -658,14 +667,18 @@ const BufferingGuide = ({
       {/* Footer */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <Button
-            onClick={() => (stepIndex === 0 ? onClose() : goBack())}
-            variant="outline"
-            data-guide-nav="back"
-            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
+          {stepIndex > 0 ? (
+            <Button
+              onClick={goBack}
+              variant="outline"
+              data-guide-nav="back"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+            </Button>
+          ) : (
+            <span className="w-[88px]" />
+          )}
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
@@ -867,6 +880,13 @@ const Step3 = ({
         inputMode="decimal"
         value={speedInput}
         onChange={(e) => setSpeedInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+            onSaveTyped();
+          }
+        }}
         placeholder="Download speed (Mbps)"
         className="flex-1 px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
@@ -1134,6 +1154,14 @@ const Summary = ({
       <ul className="mt-2 space-y-1 text-sm text-white/90 list-disc list-inside">
         {diagnosis.bullets.map((b, i) => <li key={i}>{b}</li>)}
       </ul>
+    </div>
+
+    {/* Full step-by-step recap of what we just walked through */}
+    <div className="bg-black/30 border border-white/10 rounded-md p-4">
+      <p className="text-sm font-medium text-white mb-2">Steps you completed</p>
+      <pre className="text-xs text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
+{supportScript}
+      </pre>
     </div>
 
     {chosenApp && chosenAppInstalled && chosenAppLabel && (

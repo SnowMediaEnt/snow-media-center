@@ -22,9 +22,10 @@ import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 interface InstallAppsProps {
   onBack: () => void;
+  onNavigateToChat?: () => void;
 }
 
-const InstallApps = ({ onBack }: InstallAppsProps) => {
+const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
   const { toast } = useToast();
   const { apps, loading, error } = useAppData();
 
@@ -54,7 +55,7 @@ const InstallApps = ({ onBack }: InstallAppsProps) => {
     );
   }
 
-  return <InstallAppsContent onBack={onBack} apps={apps} />;
+  return <InstallAppsContent onBack={onBack} apps={apps} onNavigateToChat={onNavigateToChat} />;
 };
 
 // Focus types for navigation
@@ -75,7 +76,7 @@ interface ContextMenuState {
   position: { x: number; y: number };
 }
 
-const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppData[] }) => {
+const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
@@ -961,6 +962,7 @@ const InstallAppsContent = ({ onBack, apps }: { onBack: () => void; apps: AppDat
           onLaunch={handleLaunch}
           onDownload={startDownload}
           onOpenAppSettings={handleOpenAppSettings}
+          onNavigateToChat={onNavigateToChat}
         />
       )}
     </div>
