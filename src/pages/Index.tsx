@@ -109,6 +109,13 @@ const HomeActionCard = memo(({
 
 HomeActionCard.displayName = 'HomeActionCard';
 
+type LaunchableApp = {
+  id?: string;
+  name: string;
+  icon?: string;
+  packageName?: string | null;
+  package_name?: string | null;
+};
 
 const Index = () => {
   const [focusedButton, setFocusedButton] = useState(0); // -3: logo, -2: auth/user, -1: settings, 0-3: main apps
@@ -153,7 +160,7 @@ const Index = () => {
   const { apps } = useAppData();
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
-  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: any } | null>(null);
+  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
@@ -167,7 +174,7 @@ const Index = () => {
   }, [pinApp]);
 
   // Actually launch a pinned app — mirrors InstallApps.handleLaunch
-  const performLaunchPinnedApp = useCallback(async (app: any) => {
+  const performLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) return;
@@ -194,7 +201,7 @@ const Index = () => {
   }, [resolvePackageName, toast]);
 
   // Entry point used by the popup — shows alert popup first if one exists
-  const handleLaunchPinnedApp = useCallback(async (app: any) => {
+  const handleLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
       setPendingAlert({ alert, app });
