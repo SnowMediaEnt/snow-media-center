@@ -180,24 +180,6 @@ const BufferingGuide = ({
         return;
       }
 
-      const focusNextButton = () => {
-        const nextButton = rootRef.current?.querySelector<HTMLElement>('[data-guide-nav="next"]:not([disabled])');
-        if (!nextButton) return false;
-        nextButton.focus();
-        lastFocusedRef.current = nextButton;
-        nextButton.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        return true;
-      };
-
-      if (
-        key === 'ArrowDown' &&
-        activeEl.getAttribute('data-guide-choice') === 'true' &&
-        activeEl.getAttribute('data-guide-choice-active') === 'true' &&
-        focusNextButton()
-      ) {
-        return;
-      }
-
       const cur = activeEl.getBoundingClientRect();
       const curCx = cur.left + cur.width / 2;
       const curCy = cur.top + cur.height / 2;
@@ -340,6 +322,7 @@ const BufferingGuide = ({
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
         if (showSpeedTest) return; // SpeedTest handles its own
         if (stepIndex > 0) setStepIndex((i) => i - 1);
         else onClose();
@@ -427,6 +410,7 @@ const BufferingGuide = ({
   };
 
   const submitAsTicket = async () => {
+    console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
       toast({
         title: 'Sign in required',
@@ -437,14 +421,22 @@ const BufferingGuide = ({
     }
     try {
       setSubmittingTicket(true);
-      await createTicket('Buffering Walkthrough Results', supportScript);
+      const ts = new Date().toLocaleString();
+      const subject = `Buffering Walkthrough Results — ${ts}`;
+      const body = `${supportScript}\n\nSaved: ${ts}`;
+      await createTicket(subject, body);
       toast({
-        title: 'Ticket submitted',
+        title: 'Ticket saved',
         description: 'Find it in Chat & Community → My Tickets.',
       });
       onClose();
     } catch (err) {
-      // toast already handled inside hook
+      console.error('[BufferingGuide] submitAsTicket failed', err);
+      toast({
+        title: 'Could not submit ticket',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setSubmittingTicket(false);
     }
@@ -520,12 +512,27 @@ const BufferingGuide = ({
               chosenApp={chosenApp}
               chosenAppInstalled={chosenAppInstalled}
               onOpenSettings={() => {
-                // Prefer the exact same handler Main Apps uses
-                if (chosenApp && onOpenAppSettings) {
-                  onOpenAppSettings(chosenApp);
+                const label = state.appType ? APP_LABELS[state.appType] : null;
+                // Build a synthetic AppData so the parent's resolvePackageName
+                // can match by display name against the actually-installed app.
+                const synthetic: AppData | null = label
+                  ? ({
+                      ...(chosenApp || {}),
+                      id: chosenApp?.id || `guide-${state.appType}`,
+                      name: label,
+                      packageName:
+                        chosenApp?.packageName ||
+                        (state.appType ? STREAMING_PKG[state.appType] : null) ||
+                        undefined,
+                    } as AppData)
+                  : chosenApp || null;
+                if (synthetic && onOpenAppSettings) {
+                  onOpenAppSettings(synthetic);
                   return;
                 }
-                const pkg = chosenApp?.packageName || (state.appType ? STREAMING_PKG[state.appType] : null);
+                const pkg =
+                  chosenApp?.packageName ||
+                  (state.appType ? STREAMING_PKG[state.appType] : null);
                 if (!pkg) {
                   toast({
                     title: 'Open Android Settings → Apps',
@@ -637,25 +644,28 @@ const BufferingGuide = ({
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <Button
-            onClick={goBack}
-            disabled={stepIndex === 0}
+            onClick={() => (stepIndex === 0 ? onClose() : goBack())}
             variant="outline"
             data-guide-nav="back"
-            className="bg-white/5 border-white/20 text-white hover:bg-white/10 disabled:opacity-40"
+            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
-          <Button
-            onClick={goNext}
-            disabled={!canNext || stepIndex === STEPS.length - 1}
-            data-guide-nav="next"
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
-          >
-            Next <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
+          {step !== 'summary' ? (
+            <Button
+              onClick={goNext}
+              disabled={!canNext}
+              data-guide-nav="next"
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
+            >
+              Next <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <span className="w-[88px]" />
+          )}
         </div>
       </div>
 
@@ -700,10 +710,10 @@ const ChoiceButton = ({
     data-guide-choice="true"
     data-guide-choice-active={active ? 'true' : 'false'}
     variant="outline"
-    className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
+    className={`w-full justify-start text-left h-auto py-3 px-4 font-semibold transition-all duration-200 !text-white whitespace-normal break-words ${
       active
-        ? 'bg-cyan-600/40 border-cyan-300 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-        : 'bg-white/10 border-white/30 text-white hover:bg-white/15'
+        ? '!bg-cyan-600/60 !border-cyan-300 shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
+        : '!bg-white/15 !border-white/40 hover:!bg-white/25'
     } ${className}`}
   >
     {children}
@@ -1127,19 +1137,7 @@ const Summary = ({
       {submittingTicket ? 'Submitting…' : 'Submit Ticket to Chat & Community'}
     </Button>
 
-    <div>
-      <p className="text-sm text-white mb-2">Copy/paste for support:</p>
-      <textarea
-        readOnly
-        value={supportScript}
-        className="w-full h-40 p-3 rounded-md bg-black/40 border border-white/20 text-white/90 text-xs font-mono focus:outline-none focus:border-cyan-400"
-      />
-    </div>
-
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onCopy} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
-        <Copy className="w-4 h-4 mr-2" /> Copy
-      </Button>
       <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
