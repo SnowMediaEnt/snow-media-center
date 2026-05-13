@@ -88,7 +88,7 @@ const HomeActionCard = memo(({
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
-          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(34px, 4.2vw, 68px)',
+          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
           aspectRatio: '1 / 1'
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
