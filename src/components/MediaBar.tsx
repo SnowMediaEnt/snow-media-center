@@ -1,4 +1,5 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
 
@@ -14,6 +15,8 @@ type MediaItem = {
 
 const STORAGE_KEY = 'snow-media-bar-cache-v1';
 const REFRESH_MS = 5 * 60 * 1000;
+const PAGE_SIZE = 8;
+const AUTO_ROTATE_MS = 30 * 1000;
 
 const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
   plex: { label: 'PLEX', color: 'hsl(45 100% 50%)' },
@@ -34,13 +37,10 @@ const writeCache = (items: MediaItem[]) => {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
 };
 
-const handleClick = async (item: MediaItem) => {
+const handleClick = (item: MediaItem) => {
   if (!item.deepLink) return;
   if (isNativePlatform()) {
-    try {
-      // Try native intent — Plex app handles plex:// scheme
-      window.location.href = item.deepLink;
-    } catch (e) { console.warn('[MediaBar] deep link failed', e); }
+    window.location.href = item.deepLink;
   } else {
     window.open(item.deepLink, '_blank');
   }
@@ -49,7 +49,11 @@ const handleClick = async (item: MediaItem) => {
 const MediaBar = memo(() => {
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
+  const [pageIdx, setPageIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Fetch
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -71,73 +75,129 @@ const MediaBar = memo(() => {
     return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
   }, []);
 
-  // Skeleton while empty so the bar is visibly present
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const currentPage = items.slice(pageIdx * PAGE_SIZE, pageIdx * PAGE_SIZE + PAGE_SIZE);
+
+  // Auto-rotate every 30s (paused on hover/focus)
+  useEffect(() => {
+    if (paused || totalPages <= 1) return;
+    const id = window.setInterval(() => {
+      setPageIdx((p) => (p + 1) % totalPages);
+    }, AUTO_ROTATE_MS);
+    return () => clearInterval(id);
+  }, [paused, totalPages]);
+
+  // Reset to first page if items shrink
+  useEffect(() => {
+    if (pageIdx >= totalPages) setPageIdx(0);
+  }, [pageIdx, totalPages]);
+
+  const goPrev = () => setPageIdx((p) => (p - 1 + totalPages) % totalPages);
+  const goNext = () => setPageIdx((p) => (p + 1) % totalPages);
+
   const isEmpty = items.length === 0;
-  const loop = isEmpty ? [] : [...items, ...items];
 
   return (
     <div
-      className="relative z-10 border-y border-primary/30 overflow-hidden"
+      ref={containerRef}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(e) => {
+        if (!containerRef.current?.contains(e.relatedTarget as Node)) setPaused(false);
+      }}
+      className="relative z-10 border-y border-primary/30"
       style={{
         backgroundColor: 'hsl(var(--brand-navy) / 0.95)',
         contain: 'layout paint style',
       }}
     >
-      {isEmpty ? (
-        <div className="flex items-center gap-3 py-2 px-4 h-[68px]">
-          <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/70 text-primary-foreground">
-            NOW STREAMING
-          </span>
-          <span className="text-white/60 text-xs">Loading Plex, trending & live sports…</span>
+      <div className="flex items-stretch gap-2 py-2 px-2">
+        {/* Prev arrow */}
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={isEmpty || totalPages <= 1}
+          aria-label="Previous"
+          className="flex-shrink-0 flex items-center justify-center w-9 rounded-md bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all hover:scale-110 focus-visible:scale-110"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        {/* Page */}
+        <div className="flex-1 grid gap-2 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
+          {isEmpty
+            ? Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                <div key={i} className="h-[64px] rounded-md bg-black/30 animate-pulse" />
+              ))
+            : currentPage.map((item) => {
+                const badge = SOURCE_BADGE[item.source];
+                const clickable = !!item.deepLink;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => clickable && handleClick(item)}
+                    disabled={!clickable}
+                    title={item.title}
+                    className="flex items-center gap-2 bg-black/40 hover:bg-black/70 rounded-md p-1.5 pr-2 text-left min-w-0 transition-all hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:scale-110 focus-visible:shadow-[0_0_18px_hsl(var(--brand-gold)/0.6)] disabled:cursor-default"
+                  >
+                    {item.poster ? (
+                      <img
+                        src={item.poster}
+                        alt=""
+                        loading="lazy"
+                        className="h-12 w-9 object-cover rounded flex-shrink-0 bg-black/60"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+                      />
+                    ) : (
+                      <div className="h-12 w-9 rounded bg-black/60 flex-shrink-0" />
+                    )}
+                    <div className="flex flex-col items-start min-w-0 flex-1">
+                      <span
+                        className="text-[8px] font-bold tracking-wider px-1 py-0.5 rounded"
+                        style={{ backgroundColor: badge.color, color: 'hsl(0 0% 10%)' }}
+                      >
+                        {badge.label}
+                      </span>
+                      <span className="text-white text-[11px] font-semibold leading-tight mt-0.5 line-clamp-1 w-full">
+                        {item.title}
+                      </span>
+                      {item.subtitle && (
+                        <span className="text-white/60 text-[9px] leading-tight line-clamp-1 w-full">
+                          {item.subtitle}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
         </div>
-      ) : (
-      <div className="media-bar-track flex items-center gap-3 py-2 px-4" style={{
-        willChange: 'transform',
-        transform: 'translate3d(0,0,0)',
-      }}>
-        {loop.map((item, idx) => {
-          const badge = SOURCE_BADGE[item.source];
-          const clickable = !!item.deepLink;
-          return (
-            <button
-              key={`${item.id}-${idx}`}
-              type="button"
-              onClick={() => clickable && handleClick(item)}
-              disabled={!clickable}
-              className="media-bar-item flex-shrink-0 flex items-center gap-2 bg-black/40 hover:bg-black/60 rounded-md p-1.5 pr-3 transition-all disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-primary"
-              style={{ width: '260px' }}
-            >
-              {item.poster ? (
-                <img
-                  src={item.poster}
-                  alt=""
-                  loading="lazy"
-                  className="h-14 w-10 object-cover rounded flex-shrink-0 bg-black/60"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
-                />
-              ) : (
-                <div className="h-14 w-10 rounded bg-black/60 flex-shrink-0" />
-              )}
-              <div className="flex flex-col items-start min-w-0 flex-1">
-                <span
-                  className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: badge.color, color: 'hsl(0 0% 10%)' }}
-                >
-                  {badge.label}
-                </span>
-                <span className="text-white text-xs font-semibold leading-tight mt-0.5 line-clamp-1 w-full text-left">
-                  {item.title}
-                </span>
-                {item.subtitle && (
-                  <span className="text-white/60 text-[10px] leading-tight line-clamp-1 w-full text-left">
-                    {item.subtitle}
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+
+        {/* Next arrow */}
+        <button
+          type="button"
+          onClick={goNext}
+          disabled={isEmpty || totalPages <= 1}
+          aria-label="Next"
+          className="flex-shrink-0 flex items-center justify-center w-9 rounded-md bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all hover:scale-110 focus-visible:scale-110"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
       </div>
+
+      {/* Page dots */}
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-1 pb-1.5">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <span
+              key={i}
+              className={`h-1 rounded-full transition-all ${
+                i === pageIdx ? 'w-4 bg-primary' : 'w-1 bg-white/30'
+              }`}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
