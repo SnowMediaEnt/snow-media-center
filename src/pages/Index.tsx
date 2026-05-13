@@ -34,6 +34,8 @@ const AIConversationSystem = lazy(() => import('@/components/AIConversationSyste
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const Games = lazy(() => import('@/components/Games'));
 const WixBlog = lazy(() => import('@/components/WixBlog'));
+const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
+const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
