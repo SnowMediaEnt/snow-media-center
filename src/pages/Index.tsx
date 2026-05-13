@@ -217,6 +217,25 @@ const Index = () => {
     localStorage.setItem('snow-media-layout', newMode);
   };
 
+  // Easter egg — 7 logo clicks (or 7 Enter presses while focused) reveals the image.
+  // Counter resets after 2 seconds of inactivity.
+  const handleLogoActivate = useCallback(() => {
+    setLogoClickCount((prev) => {
+      const next = prev + 1;
+      if (next >= 7) {
+        setShowEasterEgg(true);
+        return 0;
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (logoClickCount === 0) return;
+    const t = setTimeout(() => setLogoClickCount(0), 2000);
+    return () => clearTimeout(t);
+  }, [logoClickCount]);
+
   // Handle keyboard navigation for TV remote
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
