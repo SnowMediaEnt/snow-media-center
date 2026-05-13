@@ -164,7 +164,7 @@ serve(async (req) => {
         user_id: userId,
         user_email: userEmail,
         feature: 'image',
-        model: 'google/gemini-2.5-flash-image',
+        model: usedModel,
         prompt,
         response_preview: imageUrl.slice(0, 200),
         total_tokens: 1500, // approximate per-image budget for threshold accounting
