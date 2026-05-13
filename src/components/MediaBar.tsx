@@ -76,12 +76,26 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
   }
 };
 
+const getPlexAndroidLink = (item: MediaItem): string | undefined => {
+  if (item.androidLink) return item.androidLink;
+
+  const metadataKey = item.deepLink ? new URL(item.deepLink).searchParams.get('metadataKey') : null;
+  const server = item.deepLink ? new URL(item.deepLink).searchParams.get('server') : null;
+  const ratingKey = metadataKey?.match(/\/library\/metadata\/(\d+)/)?.[1];
+  if (server && ratingKey) {
+    return `plex://server://${server}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+  }
+
+  return undefined;
+};
+
 const openPlex = async (item: MediaItem) => {
   const native = isNativePlatform();
   const platform = getPlatform();
 
   if (native && platform === 'android') {
-    const candidates = [item.androidLink, item.deepLink, item.webLink].filter(Boolean) as string[];
+    const androidLink = getPlexAndroidLink(item);
+    const candidates = [androidLink, item.deepLink, item.webLink].filter(Boolean) as string[];
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
       for (const url of candidates) {
@@ -105,8 +119,8 @@ const openPlex = async (item: MediaItem) => {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
-    if (item.androidLink) {
-      window.location.assign(item.androidLink);
+    if (androidLink) {
+      window.location.assign(androidLink);
       return;
     }
 
@@ -123,7 +137,7 @@ const openPlex = async (item: MediaItem) => {
       }
     }
 
-    const fallback = item.androidLink ?? item.deepLink ?? item.webLink;
+    const fallback = androidLink ?? item.deepLink ?? item.webLink;
     if (fallback) {
       window.location.assign(fallback);
       return;
