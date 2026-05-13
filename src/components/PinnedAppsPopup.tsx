@@ -23,6 +23,11 @@ interface PinnedAppsPopupProps {
   onExitFocus: () => void; // Called when user navigates out of popup
 }
 
+type CapacitorListenerHandle = { remove?: () => void };
+
+const isHardwareBackKey = (e: KeyboardEvent) =>
+  e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
+
 const PinnedAppsPopup = ({ 
   pinnedApps, 
   onLaunchApp, 
@@ -73,7 +78,7 @@ const PinnedAppsPopup = ({
         // ring doesn't persist on the slot after we leave the popup.
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
-      } else if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+      } else if (isHardwareBackKey(e)) {
         e.preventDefault();
         e.stopPropagation();
         (document.activeElement as HTMLElement | null)?.blur?.();
@@ -104,7 +109,7 @@ const PinnedAppsPopup = ({
   useEffect(() => {
     if (!isVisible || focusedIndex < 0 || showAppSelector) return;
 
-    let listener: any;
+    let listener: CapacitorListenerHandle | undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -142,7 +147,7 @@ const PinnedAppsPopup = ({
   useEffect(() => {
     if (!showAppSelector) return;
 
-    let listener: any;
+    let listener: CapacitorListenerHandle | undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -156,7 +161,7 @@ const PinnedAppsPopup = ({
     })();
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4) {
+      if (isHardwareBackKey(e)) {
         e.preventDefault();
         e.stopPropagation();
         setShowAppSelector(false);
