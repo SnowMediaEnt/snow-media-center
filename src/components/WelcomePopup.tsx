@@ -144,7 +144,10 @@ const WelcomePopup = () => {
           </>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <p className="text-sm italic text-yellow-300/90 font-quicksand">
+            Stay Streamin — Stay Dreamin
+          </p>
           <Button
             data-welcome-primary="true"
             onClick={dismiss}
