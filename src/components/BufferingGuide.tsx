@@ -667,14 +667,18 @@ const BufferingGuide = ({
       {/* Footer */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <Button
-            onClick={() => (stepIndex === 0 ? onClose() : goBack())}
-            variant="outline"
-            data-guide-nav="back"
-            className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
+          {stepIndex > 0 ? (
+            <Button
+              onClick={goBack}
+              variant="outline"
+              data-guide-nav="back"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back
+            </Button>
+          ) : (
+            <span className="w-[88px]" />
+          )}
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
