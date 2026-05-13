@@ -43,8 +43,40 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const ttsObjectUrlRef = useRef<string | null>(null);
+  const ttsPlaybackIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
+
+  const stopVoicePlayback = useCallback((closeAudioContext = false) => {
+    ttsPlaybackIdRef.current += 1;
+    voiceModeRef.current = false;
+
+    if (ttsSourceRef.current) {
+      try { ttsSourceRef.current.stop(0); } catch {}
+      try { ttsSourceRef.current.disconnect(); } catch {}
+      ttsSourceRef.current = null;
+    }
+
+    if (ttsAudioRef.current) {
+      try { ttsAudioRef.current.pause(); } catch {}
+      try { ttsAudioRef.current.removeAttribute('src'); } catch {}
+      try { ttsAudioRef.current.load(); } catch {}
+    }
+
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current);
+      ttsObjectUrlRef.current = null;
+    }
+
+    if (closeAudioContext && audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      audioUnlockedRef.current = false;
+      void ctx.close().catch(() => {});
+    }
+  }, []);
 
   // Must be called from a user gesture to satisfy autoplay policies
   // (browsers, Fire TV WebView, Android TV WebView).
@@ -78,12 +110,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
   }, []);
 
   const speakReply = useCallback(async (text: string) => {
+    stopVoicePlayback();
+    const playbackId = ++ttsPlaybackIdRef.current;
     try {
       console.log('[TTS] Requesting voice for', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
         body: { text },
       });
       if (error) throw error;
+      if (playbackId !== ttsPlaybackIdRef.current) return;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
         console.warn('[TTS] No audioContent returned');
@@ -115,9 +150,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           // decodeAudioData accepts the ArrayBuffer; clone it because some
           // implementations detach the buffer after decoding.
           const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          if (playbackId !== ttsPlaybackIdRef.current) return;
           const src = ctx.createBufferSource();
           src.buffer = buf;
           src.connect(ctx.destination);
+          ttsSourceRef.current = src;
+          src.onended = () => {
+            if (ttsSourceRef.current === src) ttsSourceRef.current = null;
+          };
           src.start(0);
           console.log('[TTS] Playing via Web Audio,', buf.duration.toFixed(1), 's');
           return;
@@ -128,10 +168,16 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
 
       // Fallback: HTMLAudioElement (works on web/desktop)
       const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+      ttsObjectUrlRef.current = url;
       let audio = ttsAudioRef.current;
       if (!audio) {
         audio = new Audio();
         ttsAudioRef.current = audio;
+      }
+      if (playbackId !== ttsPlaybackIdRef.current) {
+        URL.revokeObjectURL(url);
+        if (ttsObjectUrlRef.current === url) ttsObjectUrlRef.current = null;
+        return;
       }
       audio.pause();
       audio.src = url;
@@ -142,7 +188,11 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     } catch (err) {
       console.error('[TTS] Playback failed:', err);
     }
-  }, []);
+  }, [stopVoicePlayback]);
+
+  useEffect(() => {
+    return () => stopVoicePlayback(true);
+  }, [stopVoicePlayback]);
 
   // Hardware voice-key support: Fire TV / Alexa mic, Android voice remote, Bixby, etc.
   // These remotes typically dispatch keys 231 (CALL), 84 (SEARCH), 79 (HEADSETHOOK), or "MicrophoneToggle"/"AudioVolumeMute"
