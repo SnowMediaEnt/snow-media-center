@@ -106,6 +106,7 @@ const BufferingGuide = ({
   appStatuses,
   onLaunch,
   onDownload,
+  onOpenAppSettings,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
