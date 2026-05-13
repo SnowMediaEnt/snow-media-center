@@ -61,7 +61,7 @@ const HomeActionCard = memo(({
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
     ? { width: 'clamp(170px, 18vw, 400px)', height: 'clamp(125px, 21vh, 290px)' }
-    : { width: 'clamp(150px, 16vw, 300px)', aspectRatio: '1 / 0.85' as const };
+    : { width: 'clamp(170px, 18vw, 340px)', aspectRatio: '1 / 0.92' as const };
 
   return (
     <Card
@@ -88,7 +88,7 @@ const HomeActionCard = memo(({
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
-          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(34px, 4.2vw, 68px)',
+          width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
           aspectRatio: '1 / 1'
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
@@ -593,7 +593,7 @@ const Index = () => {
             <div 
               className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
               style={{ 
-                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(2rem, 3vw, 4rem)',
+                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(2.5rem, 4.5vw, 5.5rem)',
                 maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
               }}
             >
