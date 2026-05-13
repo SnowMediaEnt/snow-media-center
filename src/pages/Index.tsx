@@ -132,6 +132,9 @@ const Index = () => {
       setShowEasterEgg(false);
       return true;
     }
+    if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+      return true;
+    }
     if (isInPopup) {
       setIsInPopup(false);
       setPopupFocusIndex(-1);
@@ -275,6 +278,9 @@ const Index = () => {
             setShowEasterEgg(false);
             return;
           }
+          if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+            return;
+          }
           if (isInPopup) {
             setIsInPopup(false);
             setPopupFocusIndex(-1);
@@ -283,9 +289,6 @@ const Index = () => {
           if (isInMediaBar) {
             setIsInMediaBar(false);
             setFocusedButton(0);
-            return;
-          }
-          if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
             return;
           }
         }
