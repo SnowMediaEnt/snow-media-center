@@ -318,7 +318,20 @@ const BufferingGuide = ({
     } as AppData;
   }, [state.vpnChoice, apps]);
 
-  const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+  // Install state from parent's appStatuses (for apps in the store feed)
+  const vpnInstalledFromStatuses = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+  // Live install check by packageName — covers synthesized fallback entries
+  const [vpnInstalledLive, setVpnInstalledLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    setVpnInstalledLive(null);
+    if (!vpnApp?.packageName) return;
+    let cancelled = false;
+    AppManager.isInstalled({ packageName: vpnApp.packageName })
+      .then((r) => { if (!cancelled) setVpnInstalledLive(!!r.installed); })
+      .catch(() => { if (!cancelled) setVpnInstalledLive(false); });
+    return () => { cancelled = true; };
+  }, [vpnApp?.packageName, state.vpnChoice]);
+  const vpnInstalled = vpnInstalledFromStatuses || vpnInstalledLive === true;
 
   // After choosing a VPN, put D-pad focus directly on the Install/Open action.
   // Without this, spatial navigation can jump to the footer Next button first.
