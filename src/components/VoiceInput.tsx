@@ -39,6 +39,27 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
     try {
       // Notify parent in gesture context (so it can unlock TTS audio playback)
       onRecordingStart?.();
+
+      if (isNativePlatform()) {
+        setIsProcessing(true);
+        try {
+          const result = await AppManager.startVoiceInput({ prompt: 'Ask Snow Media AI' });
+          const text = result.text?.trim();
+          if (text) onTranscription(text);
+          else toast({ title: 'No speech heard', description: 'Press the remote mic button and try again.' });
+        } catch (error) {
+          console.warn('Native voice input failed:', error);
+          toast({
+            title: 'Voice unavailable',
+            description: 'Press the Alexa/mic button on the remote and try again.',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsProcessing(false);
+        }
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
       });
