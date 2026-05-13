@@ -74,15 +74,6 @@ const WelcomePopup = () => {
       aria-modal="true"
     >
       <Card className="w-full max-w-lg bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 relative shadow-2xl">
-        <Button
-          onClick={dismiss}
-          variant="outline"
-          size="sm"
-          tabIndex={-1}
-          className="absolute top-3 right-3 bg-white/5 border-white/20 text-white hover:bg-white/10"
-        >
-          <X className="w-4 h-4" />
-        </Button>
 
         {mode === 'first' ? (
           <>
