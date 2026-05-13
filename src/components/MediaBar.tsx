@@ -32,7 +32,7 @@ type Props = {
   onExitUp?: () => void;
 };
 
-const STORAGE_KEY = 'snow-media-bar-cache-v3';
+const STORAGE_KEY = 'snow-media-bar-cache-v4';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
@@ -97,17 +97,21 @@ const openPlex = async (item: MediaItem) => {
 
   if (native && platform === 'android') {
     const androidLink = getPlexAndroidLink(item);
-    // ORDER MATTERS. Plex Android's HTTPS intent-filter on app.plex.tv is the
-    // ONLY scheme that reliably routes to a specific metadata item once the
-    // app is opened. The plex:// scheme variants open the app but land on the
-    // home screen. So try webLink FIRST (with package pinned), then fall back.
-    const targetedCandidates = [item.webLink, androidLink, item.deepLink].filter(Boolean) as string[];
-    const genericCandidates = [item.webLink, androidLink, item.deepLink].filter(Boolean) as string[];
+    // ORDER MATTERS. We want the PREPLAY screen (the details page with
+    // Play / Resume / info), NOT auto-playback. The `plex://preplay/?...`
+    // URI is Plex's explicit preplay intent and is the most reliable way
+    // to land on the details screen. The HTTPS app.plex.tv "/details" URL
+    // sometimes auto-resumes On Deck items, and the `plex://server://`
+    // form can also kick straight into playback for in-progress items.
+    // So: deepLink (preplay) FIRST, then webLink (details) as fallback,
+    // and avoid the server:// androidLink for the targeted attempt.
+    const targetedCandidates = [item.deepLink, item.webLink].filter(Boolean) as string[];
+    const genericCandidates = [item.deepLink, item.webLink, androidLink].filter(Boolean) as string[];
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
       for (const url of targetedCandidates) {
         try {
-          console.info('[MediaBar] opening Plex URL (targeted)', { url, title: item.title });
+          console.info('[MediaBar] opening Plex preplay (targeted)', { url, title: item.title });
           await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
           return;
         } catch (error) {
