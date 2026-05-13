@@ -109,6 +109,13 @@ const HomeActionCard = memo(({
 
 HomeActionCard.displayName = 'HomeActionCard';
 
+type LaunchableApp = {
+  id?: string;
+  name: string;
+  icon?: string;
+  packageName?: string | null;
+  package_name?: string | null;
+};
 
 const Index = () => {
   const [focusedButton, setFocusedButton] = useState(0); // -3: logo, -2: auth/user, -1: settings, 0-3: main apps
@@ -127,13 +134,33 @@ const Index = () => {
   const { version } = useVersion();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
+  const handleRootBack = useCallback(() => {
+    if (showEasterEgg) {
+      setShowEasterEgg(false);
+      return true;
+    }
+    if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+      return true;
+    }
+    if (isInPopup) {
+      setIsInPopup(false);
+      setPopupFocusIndex(-1);
+      return true;
+    }
+    if (isInMediaBar) {
+      setIsInMediaBar(false);
+      setFocusedButton(0);
+      return true;
+    }
+    return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+  }, [showEasterEgg, isInPopup, isInMediaBar]);
+  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
-  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: any } | null>(null);
+  const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
@@ -147,7 +174,7 @@ const Index = () => {
   }, [pinApp]);
 
   // Actually launch a pinned app — mirrors InstallApps.handleLaunch
-  const performLaunchPinnedApp = useCallback(async (app: any) => {
+  const performLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) return;
@@ -174,7 +201,7 @@ const Index = () => {
   }, [resolvePackageName, toast]);
 
   // Entry point used by the popup — shows alert popup first if one exists
-  const handleLaunchPinnedApp = useCallback(async (app: any) => {
+  const handleLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
       setPendingAlert({ alert, app });
@@ -252,6 +279,26 @@ const Index = () => {
       if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
         event.stopPropagation();
+
+        if (currentView === 'home') {
+          if (showEasterEgg) {
+            setShowEasterEgg(false);
+            return;
+          }
+          if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+            return;
+          }
+          if (isInPopup) {
+            setIsInPopup(false);
+            setPopupFocusIndex(-1);
+            return;
+          }
+          if (isInMediaBar) {
+            setIsInMediaBar(false);
+            setFocusedButton(0);
+            return;
+          }
+        }
         
         if (currentView !== 'home') {
           goBack();

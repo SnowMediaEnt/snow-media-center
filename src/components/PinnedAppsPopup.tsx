@@ -23,6 +23,11 @@ interface PinnedAppsPopupProps {
   onExitFocus: () => void; // Called when user navigates out of popup
 }
 
+type CapacitorListenerHandle = { remove?: () => void };
+
+const isHardwareBackKey = (e: KeyboardEvent) =>
+  e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
+
 const PinnedAppsPopup = ({ 
   pinnedApps, 
   onLaunchApp, 
@@ -73,6 +78,11 @@ const PinnedAppsPopup = ({
         // ring doesn't persist on the slot after we leave the popup.
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
+      } else if (isHardwareBackKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        onExitFocus();
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         e.stopPropagation();
@@ -94,6 +104,31 @@ const PinnedAppsPopup = ({
     }
   }, [showAppSelector]);
 
+  // Hardware Back while focused inside the pinned-app slots should leave the
+  // popup only; it must not bubble to Home's double-back-to-exit handler.
+  useEffect(() => {
+    if (!isVisible || focusedIndex < 0 || showAppSelector) return;
+
+    let listener: CapacitorListenerHandle | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('backButton', () => {
+          (document.activeElement as HTMLElement | null)?.blur?.();
+          onExitFocus();
+        });
+        if (cancelled) listener?.remove?.();
+      } catch {
+        // Capacitor not available (web preview)
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+    };
+  }, [isVisible, focusedIndex, showAppSelector, onExitFocus]);
+
   // Focus the button when focusedIndex changes; blur any pinned button
   // when focus leaves the popup so no stale highlight remains.
   useEffect(() => {
@@ -112,7 +147,7 @@ const PinnedAppsPopup = ({
   useEffect(() => {
     if (!showAppSelector) return;
 
-    let listener: any;
+    let listener: CapacitorListenerHandle | undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -126,7 +161,7 @@ const PinnedAppsPopup = ({
     })();
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4) {
+      if (isHardwareBackKey(e)) {
         e.preventDefault();
         e.stopPropagation();
         setShowAppSelector(false);

@@ -39,6 +39,8 @@ export interface AppManagerPlugin {
   openAccessibilitySettings(): Promise<void>;
   /** Auto-taps Storage → Clear cache for the given package via Accessibility Service. */
   clearAppCache(options: { packageName: string }): Promise<void>;
+  /** Opens a URL with Android ACTION_VIEW, optionally targeting a specific package. */
+  openUrl(options: { url: string; packageName?: string }): Promise<void>;
 }
 
 export const WEB_UNSUPPORTED_MSG =
@@ -59,6 +61,7 @@ const webFallback: AppManagerPlugin = {
   async isAccessibilityEnabled() { return { enabled: false }; },
   async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
 };
 
 export function isWebUnsupportedError(err: unknown): boolean {

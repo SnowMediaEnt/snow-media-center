@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform, getPlatform } from '@/utils/platform';
+import { App as CapApp } from '@capacitor/app';
 import {
   Dialog,
   DialogContent,
@@ -51,8 +52,11 @@ const readCache = (): MediaItem[] | null => {
 };
 
 const writeCache = (items: MediaItem[]) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch { /* ignore unavailable localStorage */ }
 };
+
+const isHardwareBackKey = (e: KeyboardEvent) =>
+  e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
 // Build an Android `intent://` URL that hands the Plex web URL directly to the
 // Plex Android app (com.plexapp.android). The plain `plex://preplay/...` scheme
@@ -71,14 +75,50 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
   }
 };
 
-const openPlex = (item: MediaItem) => {
+const openPlex = async (item: MediaItem) => {
   const native = isNativePlatform();
   const platform = getPlatform();
 
-  if (native && platform === 'android' && item.webLink) {
-    const intentUrl = buildPlexAndroidIntent(item.webLink);
-    if (intentUrl) {
-      window.location.href = intentUrl;
+  if (native && platform === 'android') {
+    const candidates = [item.webLink, item.deepLink].filter(Boolean) as string[];
+    try {
+      const { AppManager } = await import('@/capacitor/AppManager');
+      for (const url of candidates) {
+        try {
+          await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
+          return;
+        } catch (error) {
+          console.warn('[MediaBar] targeted Plex open failed:', error);
+        }
+      }
+      for (const url of candidates) {
+        try {
+          await AppManager.openUrl({ url });
+          return;
+        } catch (error) {
+          console.warn('[MediaBar] generic Plex URL open failed:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('[MediaBar] native AppManager unavailable:', error);
+    }
+
+    if (item.deepLink) {
+      window.location.assign(item.deepLink);
+      return;
+    }
+
+    if (item.webLink) {
+      const intentUrl = buildPlexAndroidIntent(item.webLink);
+      if (intentUrl) {
+        window.location.assign(intentUrl);
+        return;
+      }
+    }
+
+    const fallback = item.deepLink ?? item.webLink;
+    if (fallback) {
+      window.location.assign(fallback);
       return;
     }
   }
@@ -87,7 +127,7 @@ const openPlex = (item: MediaItem) => {
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
   if (native) {
-    window.location.href = target;
+    window.location.assign(target);
   } else {
     window.open(target, '_blank', 'noopener,noreferrer');
   }
@@ -136,11 +176,13 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   // Endless wrap: fill every page to PAGE_SIZE by looping back to the start.
   // Eliminates the empty trailing slots on the last page and makes scrolling feel infinite.
-  const currentPage = items.length === 0
-    ? []
-    : Array.from({ length: Math.min(PAGE_SIZE, items.length) }, (_, i) =>
-        items[(pageIdx * PAGE_SIZE + i) % items.length]
-      );
+  const currentPage = useMemo(() => (
+    items.length === 0
+      ? []
+      : Array.from({ length: Math.min(PAGE_SIZE, items.length) }, (_, i) =>
+          items[(pageIdx * PAGE_SIZE + i) % items.length]
+        )
+  ), [items, pageIdx]);
 
   // Auto-rotate every 30s (paused on hover/focus/active)
   useEffect(() => {
@@ -165,6 +207,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
+      if (liveDialog) {
+        if (isHardwareBackKey(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+          setLiveDialog(null);
+        }
+        return;
+      }
+
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault(); e.stopPropagation();
@@ -206,7 +257,39 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [active, focusIdx, currentPage, totalPages, pageIdx, items, onExitDown, onExitUp]);
+  }, [active, focusIdx, currentPage, totalPages, pageIdx, items, onExitDown, onExitUp, liveDialog]);
+
+  useEffect(() => {
+    if (!liveDialog) return;
+
+    let listener: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('backButton', () => {
+          setLiveDialog(null);
+        });
+        if (cancelled) listener?.remove?.();
+      } catch {
+        // Capacitor not available in web preview.
+      }
+    })();
+
+    const onBackKey = (e: KeyboardEvent) => {
+      if (isHardwareBackKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setLiveDialog(null);
+      }
+    };
+
+    window.addEventListener('keydown', onBackKey, true);
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+      window.removeEventListener('keydown', onBackKey, true);
+    };
+  }, [liveDialog]);
 
   const isEmpty = items.length === 0;
 
