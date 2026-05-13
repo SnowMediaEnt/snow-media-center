@@ -557,8 +557,8 @@ const Index = () => {
                 Your Premium Streaming Experience
               </p>
             </div>
-            {/* News Ticker overlays middle of title */}
-            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 z-20">
+            {/* News Ticker overlays middle of title h1 (above subtitle) */}
+            <div className="absolute left-0 right-0 z-20" style={{ top: '38%', transform: 'translateY(-50%)' }}>
               <NewsTicker />
             </div>
           </div>
