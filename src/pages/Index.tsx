@@ -618,6 +618,17 @@ const Index = () => {
           if (pa) performLaunchPinnedApp(pa.app);
         }}
       />
+
+      {/* First-launch welcome + per-version "What's New" popup */}
+      <Suspense fallback={null}>
+        <WelcomePopup />
+      </Suspense>
+
+      {/* Background auto-update check (native only). On by default; users can
+          disable via localStorage key smc-auto-update-enabled = "false". */}
+      <Suspense fallback={null}>
+        <AutoUpdatePrompt />
+      </Suspense>
     </div>
   );
 };
