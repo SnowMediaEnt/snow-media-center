@@ -145,15 +145,29 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
     shows.push(mapPlexItem(m));
   }
 
-  // De-dup within each list
-  const dedupe = (arr: Item[]) => {
-    const seen = new Set<string>();
-    return arr.filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
-  };
+  // Cross-list de-dup: same id never appears twice across movies/shows/onDeck.
+  // Also collapse multiple episodes from the same series down to ONE entry per series
+  // (the first one we see, which is the most recently added / on deck).
+  const globalIds = new Set<string>();
+  const seenSeries = new Set<string>();
+  const dedupe = (arr: (Item & { _seriesKey?: string })[]) =>
+    arr.filter((i) => {
+      if (globalIds.has(i.id)) return false;
+      if (i.kind === 'episode' && i._seriesKey) {
+        if (seenSeries.has(i._seriesKey)) return false;
+        seenSeries.add(i._seriesKey);
+      }
+      globalIds.add(i.id);
+      return true;
+    }).map(({ _seriesKey, ...rest }) => rest as Item);
+  // Order matters: onDeck wins over recent which wins over popular catalog
+  const onDeckOut = dedupe(onDeck);
+  const moviesOut = dedupe(movies);
+  const showsOut = dedupe(shows);
   return {
-    movies: dedupe(movies).slice(0, 60),
-    shows: dedupe(shows).slice(0, 30),
-    onDeck: dedupe(onDeck).slice(0, 20),
+    movies: moviesOut.slice(0, 60),
+    shows: showsOut.slice(0, 30),
+    onDeck: onDeckOut.slice(0, 20),
   };
 };
 
