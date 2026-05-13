@@ -189,6 +189,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
+      if (liveDialog) {
+        if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+          e.preventDefault();
+          e.stopPropagation();
+          setLiveDialog(null);
+        }
+        return;
+      }
+
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault(); e.stopPropagation();
@@ -230,7 +239,39 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [active, focusIdx, currentPage, totalPages, pageIdx, items, onExitDown, onExitUp]);
+  }, [active, focusIdx, currentPage, totalPages, pageIdx, items, onExitDown, onExitUp, liveDialog]);
+
+  useEffect(() => {
+    if (!liveDialog) return;
+
+    let listener: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('backButton', () => {
+          setLiveDialog(null);
+        });
+        if (cancelled) listener?.remove?.();
+      } catch {
+        // Capacitor not available in web preview.
+      }
+    })();
+
+    const onBackKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        setLiveDialog(null);
+      }
+    };
+
+    window.addEventListener('keydown', onBackKey, true);
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+      window.removeEventListener('keydown', onBackKey, true);
+    };
+  }, [liveDialog]);
 
   const isEmpty = items.length === 0;
 
