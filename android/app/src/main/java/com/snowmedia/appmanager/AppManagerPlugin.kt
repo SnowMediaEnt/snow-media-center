@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import android.text.TextUtils
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -15,6 +16,7 @@ import com.getcapacitor.*
 import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
+import java.util.Locale
 
 @CapacitorPlugin(name = "AppManager")
 class AppManagerPlugin : Plugin() {
@@ -284,6 +286,34 @@ class AppManagerPlugin : Plugin() {
     } catch (e: Exception) {
       Log.e(TAG, "openUrl failed for $url", e)
       call.reject("Could not open URL: ${e.message}")
+    }
+  }
+
+  @PluginMethod
+  fun startVoiceInput(call: PluginCall) {
+    try {
+      val prompt = call.getString("prompt") ?: "Speak now"
+      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+        putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+      }
+      startActivityForResult(call, intent, "voiceInputResult")
+    } catch (e: Exception) {
+      Log.e(TAG, "startVoiceInput failed", e)
+      call.reject("Voice input unavailable: ${e.message}")
+    }
+  }
+
+  @ActivityCallback
+  private fun voiceInputResult(call: PluginCall, result: ActivityResult?) {
+    val matches = result?.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+    val text = matches?.firstOrNull()?.trim().orEmpty()
+    if (text.isNotBlank()) {
+      call.resolve(JSObject().put("text", text))
+    } else {
+      call.reject("No speech recognized")
     }
   }
 
