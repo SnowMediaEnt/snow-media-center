@@ -547,13 +547,13 @@ const Index = () => {
 
           {/* Header - tight container around title with RSS through middle */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
-            <div className="text-center" style={{ opacity: 0.3 }}>
-              <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
+            <div className="text-center">
+              <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
-              <p className="text-brand-ice/90 font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px' }}>
+              <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
                 Your Premium Streaming Experience
               </p>
             </div>
