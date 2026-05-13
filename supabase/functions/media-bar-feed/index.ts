@@ -60,16 +60,19 @@ const plexFetch = async (path: string) => {
 };
 const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
-const plexDeepLink = (ratingKey?: string) => {
+const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
+
+const plexDeepLink = (ratingKey?: string, type?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
+  const metadataType = PLEX_METADATA_TYPE[String(type ?? '').toLowerCase()] ?? 1;
   // Plex iOS deep link format. (Android relies on the HTTPS webLink + an
   // intent:// wrapper built client-side, because plex:// on Android only
   // opens the app and won't navigate to the specific item.)
   if (PLEX_MACHINE_ID) {
-    return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}`;
+    return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
   }
-  return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}`;
+  return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
 };
 
 const plexAndroidLink = (ratingKey?: string) => {
@@ -127,7 +130,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
     androidLink: plexAndroidLink(ratingKey),
-    deepLink: plexDeepLink(ratingKey),
+    deepLink: plexDeepLink(ratingKey, m.type),
     webLink: plexWebLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
     _dedupeKey: dedupeKey.toLowerCase(),

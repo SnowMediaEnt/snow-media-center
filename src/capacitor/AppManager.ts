@@ -41,6 +41,8 @@ export interface AppManagerPlugin {
   clearAppCache(options: { packageName: string }): Promise<void>;
   /** Opens a URL with Android ACTION_VIEW, optionally targeting a specific package. */
   openUrl(options: { url: string; packageName?: string }): Promise<void>;
+  /** Opens native Android speech input and returns the recognized text. */
+  startVoiceInput(options?: { prompt?: string }): Promise<{ text: string }>;
 }
 
 export const WEB_UNSUPPORTED_MSG =
@@ -62,6 +64,7 @@ const webFallback: AppManagerPlugin = {
   async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
+  async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
 };
 
 export function isWebUnsupportedError(err: unknown): boolean {

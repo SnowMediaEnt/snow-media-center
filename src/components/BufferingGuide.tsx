@@ -372,6 +372,7 @@ const BufferingGuide = ({
         e.keyCode === 32 || // Space
         e.keyCode === 66;   // KEYCODE_ENTER (Android)
       if (isSelectKey && !showSpeedTest) {
+        if (document.querySelector('[data-download-progress="true"]')) return;
         const target = e.target as HTMLElement | null;
         // Don't hijack typing in inputs/textareas
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
@@ -388,6 +389,7 @@ const BufferingGuide = ({
         }
       }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+        if (document.querySelector('[data-download-progress="true"]')) return;
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();

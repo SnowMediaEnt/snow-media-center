@@ -285,7 +285,7 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
       : '';
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div data-download-progress="true" className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
       <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600 p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-white">{app.name}</h3>
