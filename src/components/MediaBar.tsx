@@ -1,7 +1,16 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 type MediaItem = {
   id: string;
