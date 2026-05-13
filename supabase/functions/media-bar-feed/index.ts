@@ -180,20 +180,29 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   }
 
   // Cross-list de-dup: same id never appears twice across movies/shows/onDeck.
-  // Also collapse multiple episodes from the same series down to ONE entry per series
-  // (the first one we see, which is the most recently added / on deck).
+  // Also collapse multiple episodes from the same series down to ONE entry per series.
+  // ALSO: collapse Plex 1080p + 4K duplicate libraries into a single 1080p entry
+  // (users can switch to 4K from inside Plex). We prefer non-4K when both exist.
   const globalIds = new Set<string>();
   const seenSeries = new Set<string>();
-  const dedupe = (arr: (Item & { _seriesKey?: string })[]) =>
-    arr.filter((i) => {
+  const seenDedupe = new Set<string>();
+  const dedupe = (arr: (Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean })[]) => {
+    // Stable sort: 1080p (non-4K) first, so when we collapse by title the 1080p wins.
+    const sorted = [...arr].sort((a, b) => Number(!!a._is4k) - Number(!!b._is4k));
+    return sorted.filter((i) => {
       if (globalIds.has(i.id)) return false;
+      if (i._dedupeKey) {
+        if (seenDedupe.has(i._dedupeKey)) return false;
+        seenDedupe.add(i._dedupeKey);
+      }
       if (i.kind === 'episode' && i._seriesKey) {
         if (seenSeries.has(i._seriesKey)) return false;
         seenSeries.add(i._seriesKey);
       }
       globalIds.add(i.id);
       return true;
-    }).map(({ _seriesKey, ...rest }) => rest as Item);
+    }).map(({ _seriesKey, _dedupeKey, _is4k, ...rest }) => rest as Item);
+  };
   // Order matters: onDeck wins over recent which wins over popular catalog
   const onDeckOut = dedupe(onDeck);
   const moviesOut = dedupe(movies);
