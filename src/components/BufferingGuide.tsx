@@ -503,12 +503,27 @@ const BufferingGuide = ({
               chosenApp={chosenApp}
               chosenAppInstalled={chosenAppInstalled}
               onOpenSettings={() => {
-                // Prefer the exact same handler Main Apps uses
-                if (chosenApp && onOpenAppSettings) {
-                  onOpenAppSettings(chosenApp);
+                const label = state.appType ? APP_LABELS[state.appType] : null;
+                // Build a synthetic AppData so the parent's resolvePackageName
+                // can match by display name against the actually-installed app.
+                const synthetic: AppData | null = label
+                  ? ({
+                      ...(chosenApp || {}),
+                      id: chosenApp?.id || `guide-${state.appType}`,
+                      name: label,
+                      packageName:
+                        chosenApp?.packageName ||
+                        (state.appType ? STREAMING_PKG[state.appType] : null) ||
+                        undefined,
+                    } as AppData)
+                  : chosenApp || null;
+                if (synthetic && onOpenAppSettings) {
+                  onOpenAppSettings(synthetic);
                   return;
                 }
-                const pkg = chosenApp?.packageName || (state.appType ? STREAMING_PKG[state.appType] : null);
+                const pkg =
+                  chosenApp?.packageName ||
+                  (state.appType ? STREAMING_PKG[state.appType] : null);
                 if (!pkg) {
                   toast({
                     title: 'Open Android Settings → Apps',
