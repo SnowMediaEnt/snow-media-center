@@ -1,7 +1,16 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 type MediaItem = {
   id: string;
@@ -44,10 +53,7 @@ const writeCache = (items: MediaItem[]) => {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
 };
 
-const handleClick = (item: MediaItem) => {
-  // On native (Android TV / mobile) prefer the plex:// deep link so the Plex app
-  // opens directly to the movie / show / episode. On web, use the app.plex.tv URL
-  // which routes through the Plex web app to the same item.
+const openPlex = (item: MediaItem) => {
   const native = isNativePlatform();
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
@@ -64,7 +70,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const [pageIdx, setPageIdx] = useState(0);
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
+  const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sports = live TV. Plex/TMDB items = deep link into Plex.
+  const handleClick = (item: MediaItem) => {
+    if (item.source === 'sports') {
+      setLiveDialog(item);
+      return;
+    }
+    openPlex(item);
+  };
 
   // Fetch
   useEffect(() => {
@@ -188,7 +204,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
-                const clickable = !!item.deepLink;
+                const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
                 const isFocused = active && idx === focusIdx;
                 return (
                   <button
@@ -263,6 +279,35 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           <span className="text-[10px] text-white/50 ml-2">{pageIdx + 1}/{totalPages}</span>
         </div>
       )}
+
+      <Dialog open={!!liveDialog} onOpenChange={(o) => !o && setLiveDialog(null)}>
+        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[hsl(var(--brand-gold))]">
+              <Tv className="w-5 h-5" />
+              Watch Live TV
+            </DialogTitle>
+            <DialogDescription className="text-white/80 pt-2 space-y-2">
+              <span className="block font-semibold text-white">{liveDialog?.title}</span>
+              {liveDialog?.subtitle && (
+                <span className="block text-sm text-white/60">{liveDialog.subtitle}</span>
+              )}
+              <span className="block pt-3">
+                Live events stream through your IPTV apps. Open <b>Dreamstreams</b> or <b>VibezTV</b> from your installed apps to tune in.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              onClick={() => setLiveDialog(null)}
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

@@ -76,10 +76,9 @@ const plexWebLink = (ratingKey?: string) => {
   return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`;
 };
 
-const mapPlexItem = (m: any): Item => {
+const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
-  // For episodes, ratingKey already points to the specific S/E — Plex deep links to it directly.
   const ratingKey = m.ratingKey;
   let subtitle: string;
   if (isMovie) subtitle = m.year ? String(m.year) : 'Movie';
@@ -98,6 +97,7 @@ const mapPlexItem = (m: any): Item => {
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
     deepLink: plexDeepLink(ratingKey),
     webLink: plexWebLink(ratingKey),
+    _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
   };
 };
 
@@ -145,15 +145,29 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
     shows.push(mapPlexItem(m));
   }
 
-  // De-dup within each list
-  const dedupe = (arr: Item[]) => {
-    const seen = new Set<string>();
-    return arr.filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
-  };
+  // Cross-list de-dup: same id never appears twice across movies/shows/onDeck.
+  // Also collapse multiple episodes from the same series down to ONE entry per series
+  // (the first one we see, which is the most recently added / on deck).
+  const globalIds = new Set<string>();
+  const seenSeries = new Set<string>();
+  const dedupe = (arr: (Item & { _seriesKey?: string })[]) =>
+    arr.filter((i) => {
+      if (globalIds.has(i.id)) return false;
+      if (i.kind === 'episode' && i._seriesKey) {
+        if (seenSeries.has(i._seriesKey)) return false;
+        seenSeries.add(i._seriesKey);
+      }
+      globalIds.add(i.id);
+      return true;
+    }).map(({ _seriesKey, ...rest }) => rest as Item);
+  // Order matters: onDeck wins over recent which wins over popular catalog
+  const onDeckOut = dedupe(onDeck);
+  const moviesOut = dedupe(movies);
+  const showsOut = dedupe(shows);
   return {
-    movies: dedupe(movies).slice(0, 60),
-    shows: dedupe(shows).slice(0, 30),
-    onDeck: dedupe(onDeck).slice(0, 20),
+    movies: moviesOut.slice(0, 60),
+    shows: showsOut.slice(0, 30),
+    onDeck: onDeckOut.slice(0, 20),
   };
 };
 
