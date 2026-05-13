@@ -91,7 +91,7 @@ const plexWebLink = (ratingKey?: string) => {
   return `https://app.plex.tv/desktop/#!/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
-const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
+const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean } => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
   const ratingKey = m.ratingKey;
@@ -103,6 +103,22 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
     const se = (s != null && ep != null) ? `S${String(s).padStart(2,'0')}E${String(ep).padStart(2,'0')}` : '';
     subtitle = [m.grandparentTitle, se].filter(Boolean).join(' · ') || 'Episode';
   } else subtitle = m.grandparentTitle ?? (m.year ? String(m.year) : 'Series');
+
+  // Detect 4K so we can drop duplicate 4K entries when a 1080p version exists.
+  const mediaArr = Array.isArray(m.Media) ? m.Media : [];
+  const resolutions = mediaArr.map((x: any) => String(x?.videoResolution ?? '').toLowerCase());
+  const sectionTitle = String(m.librarySectionTitle ?? '').toLowerCase();
+  const is4k =
+    resolutions.some((r: string) => r === '4k' || r === '2160') ||
+    /\b(4k|uhd|2160)\b/.test(sectionTitle);
+
+  const titleKey = (isEpisode ? m.grandparentTitle : m.title) ?? '';
+  const dedupeKey = isEpisode
+    ? `ep|${titleKey}|${m.parentIndex ?? ''}|${m.index ?? ''}`
+    : isMovie
+      ? `mv|${titleKey}|${m.year ?? ''}`
+      : `sh|${titleKey}`;
+
   return {
     id: `plex-${ratingKey}`,
     source: 'plex',
@@ -114,6 +130,8 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
     deepLink: plexDeepLink(ratingKey),
     webLink: plexWebLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
+    _dedupeKey: dedupeKey.toLowerCase(),
+    _is4k: is4k,
   };
 };
 
