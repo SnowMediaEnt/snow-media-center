@@ -63,6 +63,33 @@ const WelcomePopup = () => {
     return () => clearTimeout(t);
   }, [open]);
 
+  // Trap input: arrows keep focus on button, Back/Escape dismisses
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key;
+      const code = (e as any).keyCode;
+      if (key === 'Escape' || key === 'Backspace' || key === 'GoBack' || code === 4 || code === 27) {
+        e.preventDefault();
+        e.stopPropagation();
+        dismiss();
+        return;
+      }
+      if (
+        key === 'ArrowUp' || key === 'ArrowDown' ||
+        key === 'ArrowLeft' || key === 'ArrowRight' ||
+        key === 'Tab'
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]');
+        btn?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [open]);
+
   const changelog = useMemo(() => CHANGELOG[version] || [], [version]);
 
   if (!open) return null;
