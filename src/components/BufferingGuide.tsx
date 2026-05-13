@@ -994,27 +994,33 @@ const VpnSection = ({
   const info = VPN_INFO[choice];
   return (
     <div className="bg-black/30 border border-white/10 rounded-md p-4 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-medium text-white">{info.label}</p>
-          <p className="text-xs text-white/60 mt-0.5">
-            {vpnInstalled ? 'Installed on this device' : 'Not installed yet'}
-          </p>
-        </div>
-        {vpnInstalled ? (
-          <Button onClick={onLaunchVpn} className="bg-green-600/80 hover:bg-green-600 text-white">
-            <Play className="w-4 h-4 mr-2" /> Open
-          </Button>
-        ) : (
-          <Button onClick={onDownloadVpn} className="bg-cyan-600/80 hover:bg-cyan-600 text-white">
-            <DownloadIcon className="w-4 h-4 mr-2" /> Install
-          </Button>
-        )}
+      <div>
+        <p className="font-medium text-white">{info.label}</p>
+        <p className="text-xs text-white/60 mt-0.5">
+          {vpnInstalled ? 'Installed on this device' : 'Not installed yet — tap Install below'}
+        </p>
       </div>
 
+      {/* Primary action — full width so D-pad lands here first */}
+      {vpnInstalled ? (
+        <Button
+          onClick={onLaunchVpn}
+          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+        >
+          <Play className="w-4 h-4 mr-2" /> Open {info.label}
+        </Button>
+      ) : (
+        <Button
+          onClick={onDownloadVpn}
+          className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
+        >
+          <DownloadIcon className="w-4 h-4 mr-2" /> Install {info.label}
+        </Button>
+      )}
+
       {!vpnInstalled && (
-        <p className="text-xs text-white/70">
-          Or install via the <span className="text-white">Downloader</span> app using code{' '}
+        <p className="text-xs text-white/60">
+          Downloads directly from Snow Media (same source as Main Apps). Optional Downloader code:{' '}
           <span className="text-cyan-300 font-mono">{info.downloaderCode}</span>.
         </p>
       )}
