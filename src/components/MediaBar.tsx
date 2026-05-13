@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform } from '@/utils/platform';
+import { isNativePlatform, getPlatform } from '@/utils/platform';
 import {
   Dialog,
   DialogContent,
