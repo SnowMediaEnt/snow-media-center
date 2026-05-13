@@ -45,11 +45,16 @@ const writeCache = (items: MediaItem[]) => {
 };
 
 const handleClick = (item: MediaItem) => {
-  if (!item.deepLink) return;
-  if (isNativePlatform()) {
-    window.location.href = item.deepLink;
+  // On native (Android TV / mobile) prefer the plex:// deep link so the Plex app
+  // opens directly to the movie / show / episode. On web, use the app.plex.tv URL
+  // which routes through the Plex web app to the same item.
+  const native = isNativePlatform();
+  const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
+  if (!target) return;
+  if (native) {
+    window.location.href = target;
   } else {
-    window.open(item.deepLink, '_blank');
+    window.open(target, '_blank', 'noopener,noreferrer');
   }
 };
 
