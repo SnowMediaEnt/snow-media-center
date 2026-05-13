@@ -583,7 +583,7 @@ const Index = () => {
           <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
             <MediaBar
               active={isInMediaBar}
-              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
               onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
             />
           </div>
