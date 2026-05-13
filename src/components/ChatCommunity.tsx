@@ -54,15 +54,15 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     voiceModeRef.current = false;
 
     if (ttsSourceRef.current) {
-      try { ttsSourceRef.current.stop(0); } catch {}
-      try { ttsSourceRef.current.disconnect(); } catch {}
+      try { ttsSourceRef.current.stop(0); } catch { /* already stopped */ }
+      try { ttsSourceRef.current.disconnect(); } catch { /* already disconnected */ }
       ttsSourceRef.current = null;
     }
 
     if (ttsAudioRef.current) {
-      try { ttsAudioRef.current.pause(); } catch {}
-      try { ttsAudioRef.current.removeAttribute('src'); } catch {}
-      try { ttsAudioRef.current.load(); } catch {}
+      try { ttsAudioRef.current.pause(); } catch { /* already paused */ }
+      try { ttsAudioRef.current.removeAttribute('src'); } catch { /* source already cleared */ }
+      try { ttsAudioRef.current.load(); } catch { /* media element unavailable */ }
     }
 
     if (ttsObjectUrlRef.current) {
@@ -74,7 +74,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       const ctx = audioCtxRef.current;
       audioCtxRef.current = null;
       audioUnlockedRef.current = false;
-      void ctx.close().catch(() => {});
+      void ctx.close().catch(() => undefined);
     }
   }, []);
 
@@ -90,7 +90,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
         'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7097v337/+vrfff/19WI=';
       const a = new Audio(SILENT_MP3);
       a.volume = 0;
-      void a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+      void a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => undefined);
       ttsAudioRef.current = a;
 
       // Also prime an AudioContext as a second activation channel — some
@@ -103,10 +103,10 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
           void ctx.resume().catch(() => {});
           audioCtxRef.current = ctx;
         }
-      } catch {}
+      } catch { /* AudioContext may be unavailable in older WebViews */ }
 
       audioUnlockedRef.current = true;
-    } catch {}
+    } catch { /* autoplay unlock is best-effort */ }
   }, []);
 
   const speakReply = useCallback(async (text: string) => {
@@ -145,7 +145,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       }
 
       if (ctx) {
-        try { await ctx.resume(); } catch {}
+        try { await ctx.resume(); } catch { /* context may already be running */ }
         try {
           // decodeAudioData accepts the ArrayBuffer; clone it because some
           // implementations detach the buffer after decoding.
