@@ -306,10 +306,15 @@ const Index = () => {
               setFocusedButton(focusedButton - 2);
             } else if (focusedButton >= 0) {
               setFocusedButton(-2); // Go to user/auth
+            } else {
+              // Already on top button row → enter MediaBar
+              setIsInMediaBar(true);
             }
           } else { // row mode - go to top controls
             if (focusedButton >= 0) {
               setFocusedButton(-2); // user/auth
+            } else {
+              setIsInMediaBar(true);
             }
           }
           break;
