@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { getLiveHints, type LiveHintKind } from '@/lib/liveCategoryHints';
 
 type MediaItem = {
   id: string;
