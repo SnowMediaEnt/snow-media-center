@@ -111,7 +111,9 @@ HomeActionCard.displayName = 'HomeActionCard';
 
 
 const Index = () => {
-  const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
+  const [focusedButton, setFocusedButton] = useState(0); // -3: logo, -2: auth/user, -1: settings, 0-3: main apps
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
   const [isInPopup, setIsInPopup] = useState(false);
   const [isInMediaBar, setIsInMediaBar] = useState(false);
