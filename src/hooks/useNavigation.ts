@@ -7,7 +7,12 @@ interface NavigationState {
   navigationStack: string[];
 }
 
-export const useNavigation = (initialView: string = 'home') => {
+interface NavigationOptions {
+  onRootBack?: () => boolean;
+}
+
+export const useNavigation = (initialView: string = 'home', options: NavigationOptions = {}) => {
+  const { onRootBack } = options;
   const [navigationState, setNavigationState] = useState<NavigationState>({
     currentView: initialView,
     previousView: null,
@@ -30,6 +35,9 @@ export const useNavigation = (initialView: string = 'home') => {
       if (prev.navigationStack.length <= 1) {
         // We're at the root (home), handle double-press to exit
         if (prev.currentView === 'home') {
+          if (onRootBack?.()) {
+            return prev;
+          }
           const now = Date.now();
           if (now - lastBackPressTime < 1000) {
             // Double press detected within 1 second
@@ -76,7 +84,7 @@ export const useNavigation = (initialView: string = 'home') => {
         navigationStack: newStack
       };
     });
-  }, [lastBackPressTime]);
+  }, [lastBackPressTime, onRootBack]);
 
   const resetNavigation = useCallback(() => {
     setNavigationState({
@@ -102,6 +110,9 @@ export const useNavigation = (initialView: string = 'home') => {
             // If we're not on home, go back one step
             goBack();
           } else {
+            if (onRootBack?.()) {
+              return;
+            }
             // We're on home - implement double-press to exit
             const now = Date.now();
             if (now - lastBackPressTime < 2000 && backPressCount === 1) {
@@ -126,7 +137,7 @@ export const useNavigation = (initialView: string = 'home') => {
         backButtonHandler.remove();
       }
     };
-  }, [navigationState.currentView, lastBackPressTime, backPressCount, goBack]);
+  }, [navigationState.currentView, lastBackPressTime, backPressCount, goBack, onRootBack]);
 
   // Reset back press count after timeout
   useEffect(() => {
