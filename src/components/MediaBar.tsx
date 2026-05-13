@@ -176,11 +176,13 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   // Endless wrap: fill every page to PAGE_SIZE by looping back to the start.
   // Eliminates the empty trailing slots on the last page and makes scrolling feel infinite.
-  const currentPage = items.length === 0
-    ? []
-    : Array.from({ length: Math.min(PAGE_SIZE, items.length) }, (_, i) =>
-        items[(pageIdx * PAGE_SIZE + i) % items.length]
-      );
+  const currentPage = useMemo(() => (
+    items.length === 0
+      ? []
+      : Array.from({ length: Math.min(PAGE_SIZE, items.length) }, (_, i) =>
+          items[(pageIdx * PAGE_SIZE + i) % items.length]
+        )
+  ), [items, pageIdx]);
 
   // Auto-rotate every 30s (paused on hover/focus/active)
   useEffect(() => {
@@ -206,7 +208,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (liveDialog) {
-        if (e.key === 'Escape' || e.key === 'Backspace' || (e as any).keyCode === 4 || (e as any).which === 4) {
+        if (isHardwareBackKey(e)) {
           e.preventDefault();
           e.stopPropagation();
           setLiveDialog(null);
