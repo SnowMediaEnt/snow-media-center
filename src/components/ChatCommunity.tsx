@@ -207,13 +207,14 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       if (!isVoiceKey) return;
       const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
       if (btn) {
+        unlockAudioPlayback();
         e.preventDefault();
         btn.click();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeTab]);
+  }, [activeTab, unlockAudioPlayback]);
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
