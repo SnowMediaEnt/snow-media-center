@@ -71,10 +71,9 @@ const MediaBar = memo(() => {
     return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
   }, []);
 
-  if (items.length === 0) return null;
-
-  // Duplicate for seamless loop
-  const loop = [...items, ...items];
+  // Skeleton while empty so the bar is visibly present
+  const isEmpty = items.length === 0;
+  const loop = isEmpty ? [] : [...items, ...items];
 
   return (
     <div
