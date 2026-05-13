@@ -305,15 +305,20 @@ const Index = () => {
             if (focusedButton === 2 || focusedButton === 3) {
               setFocusedButton(focusedButton - 2);
             } else if (focusedButton >= 0) {
-              setFocusedButton(-2); // Go to user/auth
+              // From top app row → into MediaBar
+              setFocusedButton(-99);
+              setIsInMediaBar(true);
             } else {
-              // Already on top button row → enter MediaBar
+              // From top button row → into MediaBar
+              setFocusedButton(-99);
               setIsInMediaBar(true);
             }
-          } else { // row mode - go to top controls
+          } else { // row mode
             if (focusedButton >= 0) {
-              setFocusedButton(-2); // user/auth
+              setFocusedButton(-99);
+              setIsInMediaBar(true);
             } else {
+              setFocusedButton(-99);
               setIsInMediaBar(true);
             }
           }
@@ -578,7 +583,7 @@ const Index = () => {
           <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
             <MediaBar
               active={isInMediaBar}
-              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
               onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
             />
           </div>
