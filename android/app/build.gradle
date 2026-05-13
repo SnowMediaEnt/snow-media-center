@@ -8,8 +8,8 @@ android {
         applicationId "app.lovable.f44324110df840aea0a1fb97cafa76e7"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.0.3"
+        versionCode 5
+        versionName "1.0.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
         // Include both 32-bit and 64-bit ABIs for FireTV and older devices
