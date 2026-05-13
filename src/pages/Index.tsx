@@ -61,8 +61,8 @@ const HomeActionCard = memo(({
 }) => {
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
-    ? { width: 'clamp(170px, 18vw, 400px)', height: 'clamp(125px, 21vh, 290px)' }
-    : { width: 'clamp(170px, 18vw, 340px)', aspectRatio: '1 / 0.92' as const };
+    ? { width: 'clamp(150px, 16vw, 360px)', height: 'clamp(95px, 16vh, 230px)' }
+    : { width: 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
 
   return (
     <Card
@@ -585,8 +585,8 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Spacer for info bar */}
-          <div className="flex-shrink-0" style={{ height: '8vh' }}></div>
+          {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
+          <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
 
           {/* Header - tight container around title with RSS through middle */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
@@ -659,7 +659,7 @@ const Index = () => {
           </div>
 
           {/* Main Content - Cards positioned at bottom */}
-          <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
+          <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
             <div 
               className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
               style={{ 
