@@ -443,10 +443,14 @@ const BufferingGuide = ({
       const body = `${supportScript}\n\nSaved: ${ts}`;
       await createTicket(subject, body);
       toast({
-        title: 'Ticket saved',
-        description: 'Find it in Chat & Community → My Tickets.',
+        title: 'Ticket submitted',
+        description: 'Opening Chat & Community → My Tickets.',
       });
       onClose();
+      // Defer nav slightly so the modal unmounts cleanly first
+      setTimeout(() => {
+        onNavigateToChat?.();
+      }, 50);
     } catch (err) {
       console.error('[BufferingGuide] submitAsTicket failed', err);
       toast({
