@@ -277,7 +277,7 @@
      exactly on the start of the second copy. The separator is baked into
      the text itself (see NewsTicker.tsx). */
   white-space: nowrap;
-  animation: news-ticker-marquee 60s linear infinite;
+  animation: news-ticker-marquee 78s linear infinite;
 }
 
 .home-focus-surface {
@@ -335,7 +335,7 @@
 /* Keep it always running; reduced-motion only slows it down without stopping. */
 @media (prefers-reduced-motion: reduce) {
   .news-ticker-track {
-    animation-duration: 75s;
+    animation-duration: 97s;
   }
 }
 
@@ -366,7 +366,7 @@
   }
 
   /* Slow the ticker so it's less distracting on a small screen */
-  .news-ticker-track { animation-duration: 90s; }
+  .news-ticker-track { animation-duration: 117s; }
 }
 
 /* Disable fixed background-attachment on phones — Android WebView repaints

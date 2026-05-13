@@ -151,19 +151,17 @@ const NewsTicker = memo(() => {
 
   return (
     <div
-      className="news-ticker relative z-10 border-y border-primary/30 py-3 overflow-hidden"
+      className="news-ticker relative z-10 border-y border-primary/30 overflow-hidden"
       style={{
-        // Solid color (not gradient) → cheap to paint, no resampling on scroll
         backgroundColor: 'hsl(var(--brand-navy))',
-        // Promote to its own GPU layer so animations elsewhere don't repaint it
         contain: 'layout paint style',
       }}
     >
-      <div className="flex items-center h-12">
-        <div className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-bold ml-4 z-10 flex-shrink-0">
+      <div className="flex items-center h-7">
+        <div className="bg-primary text-primary-foreground px-2.5 py-0 rounded-full text-[10px] font-bold ml-3 z-10 flex-shrink-0 leading-tight">
           LIVE
         </div>
-        <div className="flex-1 overflow-hidden ml-4 news-ticker-mask" style={{ contain: 'layout paint' }}>
+        <div className="flex-1 overflow-hidden ml-3 news-ticker-mask" style={{ contain: 'layout paint' }}>
           <div
             className="news-ticker-track"
             style={{
@@ -172,11 +170,11 @@ const NewsTicker = memo(() => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-xl text-white font-medium news-ticker-item">
+            <span className="text-sm text-white font-medium news-ticker-item">
               {tickerText}
             </span>
             <span
-              className="text-xl text-white font-medium news-ticker-item"
+              className="text-sm text-white font-medium news-ticker-item"
               aria-hidden="true"
             >
               {tickerText}
