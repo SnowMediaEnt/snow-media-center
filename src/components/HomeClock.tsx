@@ -25,12 +25,10 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
     <div
       className="absolute z-20"
       style={{
-        // Use safe-area + viewport-aware spacing so Android TV boxes
-        // (X96, T95, etc.) that overscan don't push us off-screen.
         top: 'max(env(safe-area-inset-top, 0px), clamp(0.5rem, 1.5vh, 1rem))',
-        left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
-        // Hard cap so we never bleed into the right-side controls.
-        maxWidth: 'min(60vw, 28rem)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        maxWidth: 'min(80vw, 32rem)',
       }}
     >
       <div className="bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
