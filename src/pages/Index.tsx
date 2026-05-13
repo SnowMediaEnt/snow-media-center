@@ -547,7 +547,7 @@ const Index = () => {
 
           {/* Header - tight container around title with RSS through middle */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
-            <div className="text-center" style={{ opacity: 0.15 }}>
+            <div className="text-center" style={{ opacity: 0.3 }}>
               <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)' }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
