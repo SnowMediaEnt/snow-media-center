@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform, getPlatform } from '@/utils/platform';
+import { App as CapApp } from '@capacitor/app';
 import {
   Dialog,
   DialogContent,
@@ -71,14 +72,37 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
   }
 };
 
-const openPlex = (item: MediaItem) => {
+const openPlex = async (item: MediaItem) => {
   const native = isNativePlatform();
   const platform = getPlatform();
 
-  if (native && platform === 'android' && item.webLink) {
-    const intentUrl = buildPlexAndroidIntent(item.webLink);
-    if (intentUrl) {
-      window.location.href = intentUrl;
+  if (native && platform === 'android') {
+    const candidates = [item.webLink, item.deepLink].filter(Boolean) as string[];
+    try {
+      const { AppManager } = await import('@/capacitor/AppManager');
+      for (const url of candidates) {
+        try {
+          await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
+          return;
+        } catch (error) {
+          console.warn('[MediaBar] targeted Plex open failed:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('[MediaBar] native AppManager unavailable:', error);
+    }
+
+    if (item.webLink) {
+      const intentUrl = buildPlexAndroidIntent(item.webLink);
+      if (intentUrl) {
+        window.location.assign(intentUrl);
+        return;
+      }
+    }
+
+    const fallback = item.deepLink ?? item.webLink;
+    if (fallback) {
+      window.location.assign(fallback);
       return;
     }
   }
@@ -87,7 +111,7 @@ const openPlex = (item: MediaItem) => {
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
   if (native) {
-    window.location.href = target;
+    window.location.assign(target);
   } else {
     window.open(target, '_blank', 'noopener,noreferrer');
   }
