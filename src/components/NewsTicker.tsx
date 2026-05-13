@@ -63,16 +63,30 @@ const NewsTicker = memo(() => {
 
     const fetchRSSFeed = async () => {
       try {
-        // Cache-bust so devices don't get a stale CDN copy of the feed
-        const rssUrl = `https://snowmediaapps.com/smc/newsfeed.xml?ts=${Date.now()}`;
+        // Use edge-function proxy first — bypasses CORS in browser preview AND
+        // gives a single reliable code path on native. Falls back to direct
+        // fetch (via robustFetch) only if the proxy itself fails.
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+        const proxyUrl = `${supabaseUrl}/functions/v1/news-feed-proxy?ts=${Date.now()}`;
 
-        const response = await robustFetch(rssUrl, {
-          timeout: isNative ? 12000 : 8000,
-          retries: isNative ? 1 : 1,
-          useCorsProxy: !isNative,
-        });
+        let xmlText: string | null = null;
+        try {
+          const proxyRes = await robustFetch(proxyUrl, {
+            timeout: isNative ? 12000 : 8000,
+            retries: 1,
+          });
+          xmlText = await proxyRes.text();
+        } catch (proxyErr) {
+          console.warn('[NewsTicker] proxy failed, trying direct:', (proxyErr as Error).message);
+          const rssUrl = `https://snowmediaapps.com/smc/newsfeed.xml?ts=${Date.now()}`;
+          const direct = await robustFetch(rssUrl, {
+            timeout: isNative ? 12000 : 8000,
+            retries: 1,
+            useCorsProxy: !isNative,
+          });
+          xmlText = await direct.text();
+        }
 
-        const xmlText = await response.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
