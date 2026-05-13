@@ -17,8 +17,23 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
+
+  // Stop microphone capture on unmount (e.g. user exits Snow AI chat)
+  useEffect(() => {
+    return () => {
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) { /* ignore */ }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      mediaRecorderRef.current = null;
+    };
+  }, []);
 
   const startRecording = async () => {
     try {
