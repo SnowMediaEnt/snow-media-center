@@ -35,6 +35,7 @@ type Item = {
   title: string;
   subtitle?: string;
   poster?: string;
+  androidLink?: string;
   deepLink?: string;
   webLink?: string;
   startTime?: string;
@@ -71,6 +72,13 @@ const plexDeepLink = (ratingKey?: string) => {
   return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}`;
 };
 
+const plexAndroidLink = (ratingKey?: string) => {
+  if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
+  // Plex Android/Android TV routes selected library items through the server URI
+  // form. The iOS-style preplay URL can open Plex but commonly lands on home.
+  return `plex://server://${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+};
+
 const plexWebLink = (ratingKey?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
@@ -102,6 +110,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string } => {
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    androidLink: plexAndroidLink(ratingKey),
     deepLink: plexDeepLink(ratingKey),
     webLink: plexWebLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
