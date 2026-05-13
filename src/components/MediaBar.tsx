@@ -71,10 +71,9 @@ const MediaBar = memo(() => {
     return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
   }, []);
 
-  if (items.length === 0) return null;
-
-  // Duplicate for seamless loop
-  const loop = [...items, ...items];
+  // Skeleton while empty so the bar is visibly present
+  const isEmpty = items.length === 0;
+  const loop = isEmpty ? [] : [...items, ...items];
 
   return (
     <div
@@ -84,6 +83,14 @@ const MediaBar = memo(() => {
         contain: 'layout paint style',
       }}
     >
+      {isEmpty ? (
+        <div className="flex items-center gap-3 py-2 px-4 h-[68px]">
+          <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/70 text-primary-foreground">
+            NOW STREAMING
+          </span>
+          <span className="text-white/60 text-xs">Loading Plex, trending & live sports…</span>
+        </div>
+      ) : (
       <div className="media-bar-track flex items-center gap-3 py-2 px-4" style={{
         willChange: 'transform',
         transform: 'translate3d(0,0,0)',
@@ -131,6 +138,7 @@ const MediaBar = memo(() => {
           );
         })}
       </div>
+      )}
     </div>
   );
 });

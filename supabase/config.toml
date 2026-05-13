@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.media-bar-feed]
 verify_jwt = false
+
+[functions.news-feed-proxy]
+verify_jwt = false
