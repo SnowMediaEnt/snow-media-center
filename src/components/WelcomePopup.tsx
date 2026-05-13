@@ -105,7 +105,7 @@ const WelcomePopup = () => {
                 <Store className="w-5 h-5 mt-0.5 text-yellow-300 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Store</p>
-                  <p className="text-white/75">Takes you to the store for purchases.</p>
+                  <p className="text-white/75">Takes you to the Snow Media store.</p>
                 </div>
               </li>
               <li className="flex gap-3">
@@ -144,7 +144,10 @@ const WelcomePopup = () => {
           </>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <p className="text-sm italic text-yellow-300/90 font-quicksand">
+            Stay Streamin — Stay Dreamin
+          </p>
           <Button
             data-welcome-primary="true"
             onClick={dismiss}
