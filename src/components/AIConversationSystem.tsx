@@ -122,11 +122,10 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
     await fetchConversationMessages(conversationId);
   };
 
-  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this conversation?')) {
-      await deleteConversation(conversationId);
-    }
+    e.preventDefault();
+    await deleteConversation(conversationId);
   };
 
   if (view === 'create') {
@@ -336,7 +335,14 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
+                  e.stopPropagation();
                   handleViewConversation(conversation.id);
+                  return;
+                }
+                if (e.key === 'Delete') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deleteConversation(conversation.id);
                   return;
                 }
                 const navKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
@@ -365,6 +371,8 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                   <Button
                     variant="ghost"
                     size="sm"
+                    tabIndex={-1}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => handleDeleteConversation(conversation.id, e)}
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/20 ml-2"
                   >
