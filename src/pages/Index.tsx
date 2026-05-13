@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 import HomeClock from '@/components/HomeClock';
+import smeLogo from '@/assets/sme-logo.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -540,6 +541,19 @@ const Index = () => {
               </p>
             </div>
           </div>
+
+          {/* SME logo top-left */}
+          <img
+            src={smeLogo}
+            alt="Snow Media Entertainment"
+            className="absolute z-20 pointer-events-none select-none"
+            style={{
+              top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
+              left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+              height: 'clamp(48px, 7vh, 88px)',
+              width: 'auto',
+            }}
+          />
 
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
