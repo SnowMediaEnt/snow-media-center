@@ -157,9 +157,12 @@ const BufferingGuide = ({
       if (focusables.length === 0) return;
       const active = document.activeElement as HTMLElement | null;
       const target = e.target as HTMLElement | null;
-      // Allow text inputs/textareas to handle arrows themselves
+      // Allow text inputs/textareas to handle arrows themselves,
+      // EXCEPT ArrowDown / ArrowRight which should jump out of the field
+      // (so D-pad lands on the Save button instead of moving the caret
+      // through each digit).
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-        if (key === 'ArrowDown') {
+        if (key === 'ArrowDown' || key === 'ArrowRight') {
           (target as HTMLInputElement).blur();
         } else {
           return;
