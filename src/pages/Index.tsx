@@ -274,6 +274,8 @@ const Index = () => {
               setFocusedButton(focusedButton - 1);
             } else if (focusedButton === -1) { // settings
               setFocusedButton(-2); // user/auth
+            } else if (focusedButton === -2) { // user/auth → logo
+              setFocusedButton(-3);
             }
           } else { // row mode
             if (focusedButton > 0) {
@@ -282,6 +284,8 @@ const Index = () => {
               setFocusedButton(-1); // settings
             } else if (focusedButton === -1) {
               setFocusedButton(-2); // user/auth
+            } else if (focusedButton === -2) {
+              setFocusedButton(-3); // logo (easter egg)
             }
           }
           break;
@@ -292,6 +296,8 @@ const Index = () => {
               setFocusedButton(focusedButton + 1);
             } else if (focusedButton === -2) { // user/auth
               setFocusedButton(-1); // settings
+            } else if (focusedButton === -3) { // logo → user/auth
+              setFocusedButton(-2);
             }
           } else { // row mode
             if (focusedButton < maxButtons) {
@@ -302,6 +308,8 @@ const Index = () => {
               setFocusedButton(-2); // user/auth
             } else if (focusedButton === -2) {
               setFocusedButton(0); // back to first app
+            } else if (focusedButton === -3) {
+              setFocusedButton(-2); // logo → user/auth
             }
           }
           break;
