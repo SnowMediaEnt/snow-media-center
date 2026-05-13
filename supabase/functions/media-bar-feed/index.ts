@@ -7,6 +7,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
+let PLEX_MACHINE_ID = '';
 
 // ESPN public scoreboard endpoints. No API key required.
 // state values: "pre" (scheduled), "in" (LIVE NOW), "post" (final)
@@ -35,6 +36,7 @@ type Item = {
   subtitle?: string;
   poster?: string;
   deepLink?: string;
+  webLink?: string;
   startTime?: string;
   isLive?: boolean;
 };
@@ -57,28 +59,66 @@ const plexFetch = async (path: string) => {
 };
 const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
-const plexDeepLink = (ratingKey?: string) =>
-  ratingKey ? `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${ratingKey}` : undefined;
+const plexDeepLink = (ratingKey?: string) => {
+  if (!ratingKey) return undefined;
+  const metadataKey = `/library/metadata/${ratingKey}`;
+  // Plex mobile/TV app deep link — opens directly to the item's preplay screen.
+  // Including the server machineIdentifier ensures it routes to the correct server
+  // even if the user has multiple servers signed in.
+  if (PLEX_MACHINE_ID) {
+    return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}`;
+  }
+  return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}`;
+};
+
+const plexWebLink = (ratingKey?: string) => {
+  if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
+  return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(`/library/metadata/${ratingKey}`)}`;
+};
 
 const mapPlexItem = (m: any): Item => {
   const isMovie = m.type === 'movie';
+  const isEpisode = m.type === 'episode';
+  // For episodes, ratingKey already points to the specific S/E — Plex deep links to it directly.
+  const ratingKey = m.ratingKey;
+  let subtitle: string;
+  if (isMovie) subtitle = m.year ? String(m.year) : 'Movie';
+  else if (isEpisode) {
+    const s = m.parentIndex ?? m.seasonNumber;
+    const ep = m.index ?? m.episodeNumber;
+    const se = (s != null && ep != null) ? `S${String(s).padStart(2,'0')}E${String(ep).padStart(2,'0')}` : '';
+    subtitle = [m.grandparentTitle, se].filter(Boolean).join(' · ') || 'Episode';
+  } else subtitle = m.grandparentTitle ?? (m.year ? String(m.year) : 'Series');
   return {
-    id: `plex-${m.ratingKey}`,
+    id: `plex-${ratingKey}`,
     source: 'plex',
-    kind: isMovie ? 'movie' : (m.type === 'episode' ? 'episode' : m.type ?? 'show'),
-    title: m.title ?? 'Untitled',
-    subtitle: isMovie
-      ? (m.year ? String(m.year) : 'Movie')
-      : (m.grandparentTitle ?? (m.year ? String(m.year) : 'Series')),
+    kind: isMovie ? 'movie' : (isEpisode ? 'episode' : m.type ?? 'show'),
+    title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
+    subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
-    deepLink: plexDeepLink(m.ratingKey),
+    deepLink: plexDeepLink(ratingKey),
+    webLink: plexWebLink(ratingKey),
   };
+};
+
+const fetchMachineId = async () => {
+  if (PLEX_MACHINE_ID || !PLEX_URL || !PLEX_TOKEN) return;
+  try {
+    const data = await plexFetch('/identity');
+    const id = data?.MediaContainer?.machineIdentifier;
+    if (id) PLEX_MACHINE_ID = id;
+  } catch (e) {
+    console.warn('[media-bar-feed] machineId fetch failed:', (e as Error).message);
+  }
 };
 
 const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Item[] }> => {
   const movies: Item[] = [];
   const shows: Item[] = [];
   const onDeck: Item[] = [];
+
+  // Need machineIdentifier so deep links route to THIS server inside the Plex app
+  await fetchMachineId();
 
   // Pull from MULTIPLE Plex endpoints so the bar always has fresh material
   const [recent, deck, popularMovies, popularShows] = await Promise.all([
