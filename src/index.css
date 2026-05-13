@@ -314,6 +314,24 @@
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
+/* Media bar — opposite direction (left-to-right) */
+.media-bar-track {
+  width: max-content;
+  animation: media-bar-marquee 90s linear infinite;
+  backface-visibility: hidden;
+}
+.media-bar-track:hover { animation-play-state: paused; }
+@keyframes media-bar-marquee {
+  from { transform: translate3d(-50%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-bar-track { animation-duration: 120s; }
+}
+@media (max-width: 767px) and (pointer: coarse) {
+  .media-bar-track { animation-duration: 140s; }
+}
+
 /* Keep it always running; reduced-motion only slows it down without stopping. */
 @media (prefers-reduced-motion: reduce) {
   .news-ticker-track {
