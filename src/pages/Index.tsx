@@ -240,7 +240,12 @@ const Index = () => {
       if (currentView !== 'home') {
         return; // Let individual components handle their own navigation
       }
-      
+
+      // MediaBar owns the keys when active
+      if (isInMediaBar) {
+        return;
+      }
+
       // Prevent default for navigation keys on home screen (only when not typing)
       if (!isTyping && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
