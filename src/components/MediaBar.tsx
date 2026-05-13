@@ -32,7 +32,7 @@ type Props = {
   onExitUp?: () => void;
 };
 
-const STORAGE_KEY = 'snow-media-bar-cache-v1';
+const STORAGE_KEY = 'snow-media-bar-cache-v2';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
