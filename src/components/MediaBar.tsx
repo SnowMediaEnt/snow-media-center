@@ -138,6 +138,7 @@ const MediaBar = memo(() => {
           );
         })}
       </div>
+      )}
     </div>
   );
 });
