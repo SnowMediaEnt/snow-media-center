@@ -204,7 +204,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
-                const clickable = !!item.deepLink;
+                const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
                 const isFocused = active && idx === focusIdx;
                 return (
                   <button
