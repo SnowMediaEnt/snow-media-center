@@ -710,10 +710,10 @@ const ChoiceButton = ({
     data-guide-choice="true"
     data-guide-choice-active={active ? 'true' : 'false'}
     variant="outline"
-    className={`w-full justify-start text-left h-auto py-3 px-4 font-medium transition-all duration-200 ${
+    className={`w-full justify-start text-left h-auto py-3 px-4 font-semibold transition-all duration-200 !text-white whitespace-normal break-words ${
       active
-        ? 'bg-cyan-600/40 border-cyan-300 text-white shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-        : 'bg-white/10 border-white/30 text-white hover:bg-white/15'
+        ? '!bg-cyan-600/60 !border-cyan-300 shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
+        : '!bg-white/15 !border-white/40 hover:!bg-white/25'
     } ${className}`}
   >
     {children}
