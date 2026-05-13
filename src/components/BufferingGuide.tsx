@@ -34,6 +34,7 @@ interface BufferingGuideProps {
   appStatuses: Map<string, { installed: boolean }>;
   onLaunch: (app: AppData) => void | Promise<void>;
   onDownload: (app: AppData) => void;
+  onOpenAppSettings?: (app: AppData) => void | Promise<void>;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
