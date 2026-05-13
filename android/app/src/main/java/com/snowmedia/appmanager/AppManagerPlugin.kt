@@ -269,6 +269,24 @@ class AppManagerPlugin : Plugin() {
     call.resolve()
   }
 
+  @PluginMethod
+  fun openUrl(call: PluginCall) {
+    val url = call.getString("url")
+    val pkg = call.getString("packageName")
+    if (url.isNullOrBlank()) { call.reject("url required"); return }
+    try {
+      val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (!pkg.isNullOrBlank()) setPackage(pkg)
+      }
+      context.startActivity(intent)
+      call.resolve()
+    } catch (e: Exception) {
+      Log.e(TAG, "openUrl failed for $url", e)
+      call.reject("Could not open URL: ${e.message}")
+    }
+  }
+
   /**
    * Uninstall flow:
    *   1. If the device is rooted AND `su` accepts our command, run
