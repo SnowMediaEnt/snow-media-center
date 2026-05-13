@@ -55,7 +55,7 @@ const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
     );
   }
 
-  return <InstallAppsContent onBack={onBack} apps={apps} />;
+  return <InstallAppsContent onBack={onBack} apps={apps} onNavigateToChat={onNavigateToChat} />;
 };
 
 // Focus types for navigation
