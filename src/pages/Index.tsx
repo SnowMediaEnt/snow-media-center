@@ -113,6 +113,7 @@ const Index = () => {
   const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
   const [isInPopup, setIsInPopup] = useState(false);
+  const [isInMediaBar, setIsInMediaBar] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'row'>(() => {
     const saved = localStorage.getItem('snow-media-layout');
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
@@ -239,7 +240,12 @@ const Index = () => {
       if (currentView !== 'home') {
         return; // Let individual components handle their own navigation
       }
-      
+
+      // MediaBar owns the keys when active
+      if (isInMediaBar) {
+        return;
+      }
+
       // Prevent default for navigation keys on home screen (only when not typing)
       if (!isTyping && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
@@ -300,10 +306,15 @@ const Index = () => {
               setFocusedButton(focusedButton - 2);
             } else if (focusedButton >= 0) {
               setFocusedButton(-2); // Go to user/auth
+            } else {
+              // Already on top button row → enter MediaBar
+              setIsInMediaBar(true);
             }
           } else { // row mode - go to top controls
             if (focusedButton >= 0) {
               setFocusedButton(-2); // user/auth
+            } else {
+              setIsInMediaBar(true);
             }
           }
           break;
@@ -356,7 +367,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup]);
+  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar]);
 
   const buttons = useMemo(() => [
     {
@@ -561,7 +572,11 @@ const Index = () => {
 
           {/* News Ticker */}
           <NewsTicker />
-          <MediaBar />
+          <MediaBar
+            active={isInMediaBar}
+            onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+            onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+          />
 
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
