@@ -52,33 +52,29 @@ const plexImage = (key?: string) =>
 const plexDeepLink = (ratingKey?: string) =>
   ratingKey ? `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${ratingKey}` : undefined;
 
-const fetchPlex = async (): Promise<Item[]> => {
-  const items: Item[] = [];
-  const recent = await safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=20'), 'plex recent');
+const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[] }> => {
+  const movies: Item[] = [];
+  const shows: Item[] = [];
+  // Pull a larger window so we have enough of each type to balance
+  const recent = await safe(plexFetch('/library/recentlyAdded?X-Plex-Container-Size=60'), 'plex recent');
   for (const m of recent?.MediaContainer?.Metadata ?? []) {
-    items.push({
+    const isMovie = m.type === 'movie';
+    const item: Item = {
       id: `plex-${m.ratingKey}`,
       source: 'plex',
-      kind: m.type === 'episode' ? 'episode' : m.type ?? 'movie',
+      kind: isMovie ? 'movie' : (m.type === 'episode' ? 'episode' : m.type ?? 'show'),
       title: m.title ?? 'Untitled',
-      subtitle: m.grandparentTitle ?? (m.year ? String(m.year) : 'Recently Added'),
+      subtitle: isMovie
+        ? (m.year ? String(m.year) : 'Movie')
+        : (m.grandparentTitle ?? (m.year ? String(m.year) : 'Series')),
       poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
       deepLink: plexDeepLink(m.ratingKey),
-    });
+    };
+    if (isMovie) movies.push(item);
+    else shows.push(item);
   }
-  const onDeck = await safe(plexFetch('/library/onDeck?X-Plex-Container-Size=10'), 'plex onDeck');
-  for (const m of onDeck?.MediaContainer?.Metadata ?? []) {
-    items.push({
-      id: `plex-deck-${m.ratingKey}`,
-      source: 'plex',
-      kind: m.type ?? 'episode',
-      title: m.grandparentTitle ?? m.title ?? 'Continue Watching',
-      subtitle: m.grandparentTitle ? `S${m.parentIndex}·E${m.index} ${m.title ?? ''}`.trim() : 'Continue Watching',
-      poster: plexImage(m.grandparentThumb ?? m.thumb ?? m.parentThumb),
-      deepLink: plexDeepLink(m.ratingKey),
-    });
-  }
-  return items;
+  // Cap shows so they don't drown out movies/sports
+  return { movies: movies.slice(0, 12), shows: shows.slice(0, 6) };
 };
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -106,13 +102,12 @@ const mapEvent = (e: any, leagueLabel: string): Item => {
 };
 
 const fetchLeague = async (leagueId: string, label: string): Promise<Item[]> => {
-  // "next 15 events" — covers today + upcoming
   const url = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}/eventsnextleague.php?id=${leagueId}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`league ${leagueId} ${res.status}`);
   const data = await res.json();
   return (data.events ?? [])
-    .filter((e: any) => isWithinDays(e.dateEvent, 4))
+    .filter((e: any) => isWithinDays(e.dateEvent, 7))
     .slice(0, 4)
     .map((e: any) => mapEvent(e, label));
 };
@@ -122,7 +117,6 @@ const fetchSports = async (): Promise<Item[]> => {
     LEAGUES.map((l) => safe(fetchLeague(l.id, l.label), `league ${l.label}`)),
   );
   const all = results.flatMap((r) => r ?? []);
-  // Sort: live (today) first, then by date
   all.sort((a, b) => {
     if (!!b.isLive !== !!a.isLive) return b.isLive ? 1 : -1;
     return (a.startTime ?? '').localeCompare(b.startTime ?? '');
@@ -130,15 +124,21 @@ const fetchSports = async (): Promise<Item[]> => {
   return all.slice(0, 24);
 };
 
-// Interleave plex and sports so the bar feels mixed
-const interleave = (a: Item[], b: Item[]): Item[] => {
+// Round-robin merge: movie, sport, show, sport, movie, sport, ...
+// Ensures every category is visible and shows never dominate.
+const weave = (movies: Item[], sports: Item[], shows: Item[]): Item[] => {
   const out: Item[] = [];
-  const max = Math.max(a.length, b.length);
-  for (let i = 0; i < max; i++) {
-    if (i < a.length) out.push(a[i]);
-    if (i < b.length) out.push(b[i]);
+  const queues = [movies.slice(), sports.slice(), shows.slice(), sports.slice()];
+  // Use sports twice in the rotation so live events appear ~2x as often
+  while (queues.some((q) => q.length > 0)) {
+    for (const q of queues) {
+      const next = q.shift();
+      if (next) out.push(next);
+    }
   }
-  return out;
+  // De-dup sports by id (since sports queue is referenced twice via .slice copies)
+  const seen = new Set<string>();
+  return out.filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
 };
 
 Deno.serve(async (req) => {
