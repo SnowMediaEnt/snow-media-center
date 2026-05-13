@@ -21,6 +21,7 @@ type MediaItem = {
   title: string;
   subtitle?: string;
   poster?: string;
+  androidLink?: string;
   deepLink?: string;
   webLink?: string;
 };
@@ -58,10 +59,7 @@ const writeCache = (items: MediaItem[]) => {
 const isHardwareBackKey = (e: KeyboardEvent) =>
   e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
-// Build an Android `intent://` URL that hands the Plex web URL directly to the
-// Plex Android app (com.plexapp.android). The plain `plex://preplay/...` scheme
-// only opens the app, it does NOT route to the specific item — Plex's own
-// intent-filter on its HTTPS URLs is what actually navigates to the title.
+// Last-resort Android web intent fallback if the native Plex URI cannot be used.
 const buildPlexAndroidIntent = (webUrl: string): string | null => {
   try {
     const u = new URL(webUrl);
@@ -75,16 +73,36 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
   }
 };
 
+const getPlexAndroidLink = (item: MediaItem): string | undefined => {
+  if (item.androidLink) return item.androidLink;
+
+  try {
+    const parsed = item.deepLink ? new URL(item.deepLink) : null;
+    const metadataKey = parsed?.searchParams.get('metadataKey');
+    const server = parsed?.searchParams.get('server');
+    const ratingKey = metadataKey?.match(/\/library\/metadata\/(\d+)/)?.[1];
+    if (server && ratingKey) {
+      return `plex://server://${server}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+    }
+  } catch {
+    // Ignore malformed cached links and continue to other fallbacks.
+  }
+
+  return undefined;
+};
+
 const openPlex = async (item: MediaItem) => {
   const native = isNativePlatform();
   const platform = getPlatform();
 
   if (native && platform === 'android') {
-    const candidates = [item.webLink, item.deepLink].filter(Boolean) as string[];
+    const androidLink = getPlexAndroidLink(item);
+    const candidates = [androidLink, item.deepLink, item.webLink].filter(Boolean) as string[];
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
       for (const url of candidates) {
         try {
+          console.info('[MediaBar] opening Plex URL', { url, title: item.title });
           await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
           return;
         } catch (error) {
@@ -103,6 +121,11 @@ const openPlex = async (item: MediaItem) => {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
+    if (androidLink) {
+      window.location.assign(androidLink);
+      return;
+    }
+
     if (item.deepLink) {
       window.location.assign(item.deepLink);
       return;
@@ -116,7 +139,7 @@ const openPlex = async (item: MediaItem) => {
       }
     }
 
-    const fallback = item.deepLink ?? item.webLink;
+    const fallback = androidLink ?? item.deepLink ?? item.webLink;
     if (fallback) {
       window.location.assign(fallback);
       return;
