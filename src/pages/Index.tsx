@@ -561,6 +561,7 @@ const Index = () => {
 
           {/* News Ticker */}
           <NewsTicker />
+          <MediaBar />
 
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 flex flex-col justify-end" style={{ paddingBottom: '5vh', paddingLeft: '3vw', paddingRight: '3vw' }}>
