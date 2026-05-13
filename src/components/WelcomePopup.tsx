@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Smartphone, Store, Video, MessageCircle, Sparkles, X } from 'lucide-react';
+import { Smartphone, Store, Video, MessageCircle, Sparkles } from 'lucide-react';
 import { useVersion } from '@/hooks/useVersion';
 
 /**
