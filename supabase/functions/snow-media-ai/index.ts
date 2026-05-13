@@ -180,20 +180,52 @@ serve(async (req) => {
 
     let knowledgeContext = '';
 
+    // ---- LIVE READ FROM knowledge-base STORAGE BUCKET ----
+    // Lists every text file in the bucket and downloads its content on each request.
+    // This means uploading/editing a file in Supabase Storage updates the AI instantly.
     try {
-      const { data: docs, error } = await supabaseAdmin
-        .from('knowledge_documents')
-        .select('title, description, content_preview, category')
-        .eq('is_active', true)
-        .limit(10);
-      
-      if (!error && docs) {
-        knowledgeContext = docs.map(doc => 
-          `Title: ${doc.title}\nCategory: ${doc.category}\nDescription: ${doc.description || 'N/A'}\nContent: ${doc.content_preview || 'See full document'}\n---`
-        ).join('\n\n');
+      const { data: files, error: listErr } = await supabaseAdmin
+        .storage
+        .from('knowledge-base')
+        .list('', { limit: 100, sortBy: { column: 'name', order: 'asc' } });
+
+      if (listErr) {
+        console.log('[knowledge-base] list error:', listErr);
+      } else if (files && files.length) {
+        const textFiles = files.filter(f => {
+          const name = (f.name || '').toLowerCase();
+          if (name.startsWith('.')) return false;
+          // Only ingest text-like files we can decode safely
+          return /\.(txt|md|markdown|json|csv|html?|xml|yaml|yml)$/i.test(name);
+        });
+
+        const MAX_PER_FILE = 12000; // chars per file (keep prompt size sane)
+        const downloads = await Promise.all(
+          textFiles.map(async (f) => {
+            try {
+              const { data: blob, error: dlErr } = await supabaseAdmin
+                .storage
+                .from('knowledge-base')
+                .download(f.name);
+              if (dlErr || !blob) {
+                console.log('[knowledge-base] download error', f.name, dlErr);
+                return null;
+              }
+              let text = await blob.text();
+              if (text.length > MAX_PER_FILE) text = text.slice(0, MAX_PER_FILE) + '\n…[truncated]';
+              return `=== FILE: ${f.name} ===\n${text}`;
+            } catch (e) {
+              console.log('[knowledge-base] read fail', f.name, e);
+              return null;
+            }
+          })
+        );
+
+        knowledgeContext = downloads.filter(Boolean).join('\n\n');
+        console.log('[knowledge-base] loaded', downloads.filter(Boolean).length, 'files, total chars:', knowledgeContext.length);
       }
     } catch (error) {
-      console.log('Could not fetch knowledge documents:', error);
+      console.log('Could not fetch knowledge bucket files:', error);
     }
 
     // ---- LIVE WEB SEARCH (Perplexity) for time-sensitive queries ----
