@@ -106,7 +106,13 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const currentPage = items.slice(pageIdx * PAGE_SIZE, pageIdx * PAGE_SIZE + PAGE_SIZE);
+  // Endless wrap: fill every page to PAGE_SIZE by looping back to the start.
+  // Eliminates the empty trailing slots on the last page and makes scrolling feel infinite.
+  const currentPage = items.length === 0
+    ? []
+    : Array.from({ length: Math.min(PAGE_SIZE, items.length) }, (_, i) =>
+        items[(pageIdx * PAGE_SIZE + i) % items.length]
+      );
 
   // Auto-rotate every 30s (paused on hover/focus/active)
   useEffect(() => {
@@ -140,7 +146,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
             const newPage = (pageIdx - 1 + totalPages) % totalPages;
             setPageIdx(newPage);
             // focus last item of new page
-            const newPageLen = items.slice(newPage * PAGE_SIZE, newPage * PAGE_SIZE + PAGE_SIZE).length;
+            const newPageLen = Math.min(PAGE_SIZE, items.length);
             setTimeout(() => setFocusIdx(Math.max(0, newPageLen - 1)), 0);
           }
           break;
