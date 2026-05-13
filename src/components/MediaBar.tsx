@@ -146,7 +146,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
             const newPage = (pageIdx - 1 + totalPages) % totalPages;
             setPageIdx(newPage);
             // focus last item of new page
-            const newPageLen = items.slice(newPage * PAGE_SIZE, newPage * PAGE_SIZE + PAGE_SIZE).length;
+            const newPageLen = Math.min(PAGE_SIZE, items.length);
             setTimeout(() => setFocusIdx(Math.max(0, newPageLen - 1)), 0);
           }
           break;
