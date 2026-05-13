@@ -243,21 +243,6 @@ const BufferingGuide = ({
     return () => clearTimeout(t);
   }, [stepIndex, showSpeedTest]);
 
-  // After choosing a VPN, put D-pad focus directly on the Install/Open action.
-  // Without this, spatial navigation can jump to the footer Next button first.
-  useEffect(() => {
-    if (showSpeedTest || step !== 'step4' || !state.vpnChoice) return;
-    const t = setTimeout(() => {
-      const target = rootRef.current?.querySelector<HTMLElement>('[data-vpn-primary-action="true"]');
-      if (target) {
-        target.focus();
-        lastFocusedRef.current = target;
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    }, 80);
-    return () => clearTimeout(t);
-  }, [showSpeedTest, step, state.vpnChoice, vpnInstalled]);
-
   // Track last-focused element inside the modal so D-pad can resume after focus loss
   useEffect(() => {
     const root = rootRef.current;
@@ -294,6 +279,21 @@ const BufferingGuide = ({
   }, [state.vpnChoice, apps]);
 
   const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+
+  // After choosing a VPN, put D-pad focus directly on the Install/Open action.
+  // Without this, spatial navigation can jump to the footer Next button first.
+  useEffect(() => {
+    if (showSpeedTest || step !== 'step4' || !state.vpnChoice) return;
+    const t = setTimeout(() => {
+      const target = rootRef.current?.querySelector<HTMLElement>('[data-vpn-primary-action="true"]');
+      if (target) {
+        target.focus();
+        lastFocusedRef.current = target;
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [showSpeedTest, step, state.vpnChoice, vpnInstalled]);
 
   const canNext = (() => {
     switch (step) {
