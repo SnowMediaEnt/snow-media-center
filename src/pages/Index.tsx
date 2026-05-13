@@ -252,6 +252,26 @@ const Index = () => {
       if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
         event.stopPropagation();
+
+        if (currentView === 'home') {
+          if (showEasterEgg) {
+            setShowEasterEgg(false);
+            return;
+          }
+          if (isInPopup) {
+            setIsInPopup(false);
+            setPopupFocusIndex(-1);
+            return;
+          }
+          if (isInMediaBar) {
+            setIsInMediaBar(false);
+            setFocusedButton(0);
+            return;
+          }
+          if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+            return;
+          }
+        }
         
         if (currentView !== 'home') {
           goBack();
