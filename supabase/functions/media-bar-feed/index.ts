@@ -36,6 +36,7 @@ type Item = {
   subtitle?: string;
   poster?: string;
   deepLink?: string;
+  webLink?: string;
   startTime?: string;
   isLive?: boolean;
 };
