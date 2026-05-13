@@ -386,7 +386,7 @@ const Index = () => {
     <div className="min-h-screen">
       {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
       <Suspense fallback={<RouteFallback />}>
-        {currentView === 'apps' && <InstallApps onBack={() => goBack()} />}
+        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('chat')} />}
         {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
         {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
         {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
