@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
       safe(fetchPlex(), 'plex'),
       safe(fetchSports(), 'sports'),
     ]);
-    const items = interleave(plex ?? [], sports ?? []);
+    const items = weave(plex?.movies ?? [], sports ?? [], plex?.shows ?? []);
     return new Response(
       JSON.stringify({ items, fetchedAt: Date.now() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } },
