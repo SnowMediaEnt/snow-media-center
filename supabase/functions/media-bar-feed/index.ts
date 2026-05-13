@@ -7,6 +7,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
+let PLEX_MACHINE_ID = '';
 
 // ESPN public scoreboard endpoints. No API key required.
 // state values: "pre" (scheduled), "in" (LIVE NOW), "post" (final)
