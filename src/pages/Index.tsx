@@ -127,7 +127,24 @@ const Index = () => {
   const { version } = useVersion();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home');
+  const handleRootBack = useCallback(() => {
+    if (showEasterEgg) {
+      setShowEasterEgg(false);
+      return true;
+    }
+    if (isInPopup) {
+      setIsInPopup(false);
+      setPopupFocusIndex(-1);
+      return true;
+    }
+    if (isInMediaBar) {
+      setIsInMediaBar(false);
+      setFocusedButton(0);
+      return true;
+    }
+    return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+  }, [showEasterEgg, isInPopup, isInMediaBar]);
+  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
