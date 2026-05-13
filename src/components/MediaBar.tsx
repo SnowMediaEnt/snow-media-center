@@ -52,8 +52,11 @@ const readCache = (): MediaItem[] | null => {
 };
 
 const writeCache = (items: MediaItem[]) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now() })); } catch { /* ignore unavailable localStorage */ }
 };
+
+const isHardwareBackKey = (e: KeyboardEvent) =>
+  e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
 // Build an Android `intent://` URL that hands the Plex web URL directly to the
 // Plex Android app (com.plexapp.android). The plain `plex://preplay/...` scheme
