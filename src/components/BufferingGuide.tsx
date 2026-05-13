@@ -295,7 +295,27 @@ const BufferingGuide = ({
   const vpnApp: AppData | undefined = useMemo(() => {
     if (!state.vpnChoice) return undefined;
     const info = VPN_INFO[state.vpnChoice];
-    return findApp([...info.matchKeys], info.pkg);
+    const found = findApp([...info.matchKeys], info.pkg);
+    if (found) {
+      // Ensure packageName is correct so install detection works
+      return found.packageName ? found : { ...found, packageName: info.pkg };
+    }
+    // Synthesize a download entry so the install action always works,
+    // matching the Main Apps download flow (uses snowmediaapps.com).
+    console.warn(`[BufferingGuide] ${info.label} not in apps feed — using fallback download URL`);
+    return {
+      id: state.vpnChoice,
+      name: info.label,
+      version: '1.0',
+      size: '50MB',
+      description: `${info.label} VPN`,
+      icon: info.icon,
+      apk: info.fallbackDownloadUrl,
+      downloadUrl: info.fallbackDownloadUrl,
+      packageName: info.pkg,
+      featured: true,
+      category: 'support',
+    } as AppData;
   }, [state.vpnChoice, apps]);
 
   const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
