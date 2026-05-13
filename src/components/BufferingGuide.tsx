@@ -410,6 +410,7 @@ const BufferingGuide = ({
   };
 
   const submitAsTicket = async () => {
+    console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
       toast({
         title: 'Sign in required',
@@ -420,14 +421,22 @@ const BufferingGuide = ({
     }
     try {
       setSubmittingTicket(true);
-      await createTicket('Buffering Walkthrough Results', supportScript);
+      const ts = new Date().toLocaleString();
+      const subject = `Buffering Walkthrough Results — ${ts}`;
+      const body = `${supportScript}\n\nSaved: ${ts}`;
+      await createTicket(subject, body);
       toast({
-        title: 'Ticket submitted',
+        title: 'Ticket saved',
         description: 'Find it in Chat & Community → My Tickets.',
       });
       onClose();
     } catch (err) {
-      // toast already handled inside hook
+      console.error('[BufferingGuide] submitAsTicket failed', err);
+      toast({
+        title: 'Could not submit ticket',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setSubmittingTicket(false);
     }
