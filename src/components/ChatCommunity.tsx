@@ -341,6 +341,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
     switch (name) {
       case 'navigate_to_section':
         if (onNavigate) {
+          stopVoicePlayback();
           const sectionMap: Record<string, string> = {
             'install-apps': 'apps',
             'support': 'videos',
@@ -359,6 +360,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'find_support_video':
         if (onNavigate) {
+          stopVoicePlayback();
           onNavigate('videos');
           toast({
             title: "Support Videos",
@@ -369,6 +371,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'change_background':
         if (args.action === 'open_settings' && onNavigate) {
+          stopVoicePlayback();
           onNavigate('settings');
           toast({
             title: "Background Settings",
@@ -386,6 +389,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'open_store_section':
         if (onNavigate) {
+          stopVoicePlayback();
           if (args.section === 'credits') {
             onNavigate('credits');
           } else if (args.section === 'media') {
@@ -402,6 +406,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'help_with_installation':
         if (onNavigate) {
+          stopVoicePlayback();
           onNavigate('apps');
           toast({
             title: "App Installation",
@@ -412,6 +417,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       
       case 'show_credits_info':
         if (args.action === 'purchase' && onNavigate) {
+          stopVoicePlayback();
           onNavigate('credits');
         }
         toast({
@@ -427,7 +433,7 @@ const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
       default:
         console.log('Unknown function:', name, args);
     }
-  }, [onNavigate, profile, toast]);
+  }, [onNavigate, profile, stopVoicePlayback, toast]);
 
   const sendAdminMessage = async () => {
     if (!adminMessage.trim() || !adminSubject.trim()) {
