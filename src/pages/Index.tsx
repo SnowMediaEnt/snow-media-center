@@ -575,7 +575,7 @@ const Index = () => {
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
 
           {/* New Content Bar - pulled up so pinned apps don't block it */}
-          <div style={{ marginTop: 'clamp(-2rem, -4vh, -1rem)' }}>
+          <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
             <MediaBar
               active={isInMediaBar}
               onExitDown={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
