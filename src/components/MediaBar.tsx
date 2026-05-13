@@ -88,8 +88,21 @@ const openPlex = async (item: MediaItem) => {
           console.warn('[MediaBar] targeted Plex open failed:', error);
         }
       }
+      for (const url of candidates) {
+        try {
+          await AppManager.openUrl({ url });
+          return;
+        } catch (error) {
+          console.warn('[MediaBar] generic Plex URL open failed:', error);
+        }
+      }
     } catch (error) {
       console.warn('[MediaBar] native AppManager unavailable:', error);
+    }
+
+    if (item.deepLink) {
+      window.location.assign(item.deepLink);
+      return;
     }
 
     if (item.webLink) {
