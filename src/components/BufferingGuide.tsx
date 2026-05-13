@@ -91,6 +91,8 @@ const VPN_INFO = {
     downloaderCode: '805133',
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
+    icon: 'https://snowmediaapps.com/icons/ipvanish.png',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=IPVanishTV.apk',
   },
   surfshark: {
     label: 'Surfshark',
@@ -98,6 +100,8 @@ const VPN_INFO = {
     downloaderCode: '3829522',
     signupUrl: 'https://surfshark.com',
     matchKeys: ['surfshark'],
+    icon: 'https://snowmediaapps.com/icons/surfsharkvpn.png',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=Surfshark.apk',
   },
 } as const;
 
@@ -291,10 +295,43 @@ const BufferingGuide = ({
   const vpnApp: AppData | undefined = useMemo(() => {
     if (!state.vpnChoice) return undefined;
     const info = VPN_INFO[state.vpnChoice];
-    return findApp([...info.matchKeys], info.pkg);
+    const found = findApp([...info.matchKeys], info.pkg);
+    if (found) {
+      // Ensure packageName is correct so install detection works
+      return found.packageName ? found : { ...found, packageName: info.pkg };
+    }
+    // Synthesize a download entry so the install action always works,
+    // matching the Main Apps download flow (uses snowmediaapps.com).
+    console.warn(`[BufferingGuide] ${info.label} not in apps feed — using fallback download URL`);
+    return {
+      id: state.vpnChoice,
+      name: info.label,
+      version: '1.0',
+      size: '50MB',
+      description: `${info.label} VPN`,
+      icon: info.icon,
+      apk: info.fallbackDownloadUrl,
+      downloadUrl: info.fallbackDownloadUrl,
+      packageName: info.pkg,
+      featured: true,
+      category: 'support',
+    } as AppData;
   }, [state.vpnChoice, apps]);
 
-  const vpnInstalled = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+  // Install state from parent's appStatuses (for apps in the store feed)
+  const vpnInstalledFromStatuses = vpnApp ? !!appStatuses.get(vpnApp.id)?.installed : false;
+  // Live install check by packageName — covers synthesized fallback entries
+  const [vpnInstalledLive, setVpnInstalledLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    setVpnInstalledLive(null);
+    if (!vpnApp?.packageName) return;
+    let cancelled = false;
+    AppManager.isInstalled({ packageName: vpnApp.packageName })
+      .then((r) => { if (!cancelled) setVpnInstalledLive(!!r.installed); })
+      .catch(() => { if (!cancelled) setVpnInstalledLive(false); });
+    return () => { cancelled = true; };
+  }, [vpnApp?.packageName, state.vpnChoice]);
+  const vpnInstalled = vpnInstalledFromStatuses || vpnInstalledLive === true;
 
   // After choosing a VPN, put D-pad focus directly on the Install/Open action.
   // Without this, spatial navigation can jump to the footer Next button first.
