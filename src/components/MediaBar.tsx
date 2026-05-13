@@ -279,6 +279,35 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           <span className="text-[10px] text-white/50 ml-2">{pageIdx + 1}/{totalPages}</span>
         </div>
       )}
+
+      <Dialog open={!!liveDialog} onOpenChange={(o) => !o && setLiveDialog(null)}>
+        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[hsl(var(--brand-gold))]">
+              <Tv className="w-5 h-5" />
+              Watch Live TV
+            </DialogTitle>
+            <DialogDescription className="text-white/80 pt-2 space-y-2">
+              <span className="block font-semibold text-white">{liveDialog?.title}</span>
+              {liveDialog?.subtitle && (
+                <span className="block text-sm text-white/60">{liveDialog.subtitle}</span>
+              )}
+              <span className="block pt-3">
+                Live events stream through your IPTV apps. Open <b>Dreamstreams</b> or <b>VibezTV</b> from your installed apps to tune in.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              onClick={() => setLiveDialog(null)}
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
