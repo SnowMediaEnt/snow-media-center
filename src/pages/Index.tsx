@@ -585,8 +585,8 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Spacer for info bar */}
-          <div className="flex-shrink-0" style={{ height: '8vh' }}></div>
+          {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
+          <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
 
           {/* Header - tight container around title with RSS through middle */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
