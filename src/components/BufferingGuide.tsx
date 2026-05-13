@@ -1156,6 +1156,14 @@ const Summary = ({
       </ul>
     </div>
 
+    {/* Full step-by-step recap of what we just walked through */}
+    <div className="bg-black/30 border border-white/10 rounded-md p-4">
+      <p className="text-sm font-medium text-white mb-2">Steps you completed</p>
+      <pre className="text-xs text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
+{supportScript}
+      </pre>
+    </div>
+
     {chosenApp && chosenAppInstalled && chosenAppLabel && (
       <Button
         onClick={onLaunchApp}
