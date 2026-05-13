@@ -113,6 +113,7 @@ const Index = () => {
   const [focusedButton, setFocusedButton] = useState(0); // -2: auth/user, -1: settings, 0-3: main apps
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
   const [isInPopup, setIsInPopup] = useState(false);
+  const [isInMediaBar, setIsInMediaBar] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'row'>(() => {
     const saved = localStorage.getItem('snow-media-layout');
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
