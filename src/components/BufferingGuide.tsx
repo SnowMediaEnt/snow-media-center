@@ -217,6 +217,17 @@ const BufferingGuide = ({
           } else {
             score = Math.abs(dx) + Math.abs(dy) * 2;
           }
+          // Footer bias: when descending into the footer row, prefer the
+          // primary "Next" action over the secondary "Back" action so the
+          // D-pad lands on Next first (Back is still reachable via ArrowLeft).
+          if (key === 'ArrowDown') {
+            const nav = el.getAttribute('data-guide-nav');
+            if (nav === 'next' && !(el as HTMLButtonElement).disabled) {
+              score -= 1000;
+            } else if (nav === 'back') {
+              score += 1000;
+            }
+          }
           return { el, score };
         })
         .sort((a, b) => a.score - b.score);
