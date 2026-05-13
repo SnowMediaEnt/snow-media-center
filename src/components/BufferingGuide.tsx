@@ -108,6 +108,7 @@ const BufferingGuide = ({
   onLaunch,
   onDownload,
   onOpenAppSettings,
+  onNavigateToChat,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
