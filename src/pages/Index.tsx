@@ -34,6 +34,8 @@ const AIConversationSystem = lazy(() => import('@/components/AIConversationSyste
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const Games = lazy(() => import('@/components/Games'));
 const WixBlog = lazy(() => import('@/components/WixBlog'));
+const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
+const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -616,6 +618,17 @@ const Index = () => {
           if (pa) performLaunchPinnedApp(pa.app);
         }}
       />
+
+      {/* First-launch welcome + per-version "What's New" popup */}
+      <Suspense fallback={null}>
+        <WelcomePopup />
+      </Suspense>
+
+      {/* Background auto-update check (native only). On by default; users can
+          disable via localStorage key smc-auto-update-enabled = "false". */}
+      <Suspense fallback={null}>
+        <AutoUpdatePrompt />
+      </Suspense>
     </div>
   );
 };
