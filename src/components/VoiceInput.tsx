@@ -42,6 +42,7 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
       });
+      streamRef.current = stream;
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -55,8 +56,9 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await processAudio(audioBlob);
         stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        if (audioBlob.size > 0) await processAudio(audioBlob);
       };
 
       mediaRecorderRef.current = mediaRecorder;
