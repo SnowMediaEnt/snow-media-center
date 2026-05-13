@@ -22,9 +22,10 @@ import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 interface InstallAppsProps {
   onBack: () => void;
+  onNavigateToChat?: () => void;
 }
 
-const InstallApps = ({ onBack }: InstallAppsProps) => {
+const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
   const { toast } = useToast();
   const { apps, loading, error } = useAppData();
 
