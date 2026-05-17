@@ -29,6 +29,7 @@ type SettingsFocus =
 
 const Settings = ({ onBack }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
+  const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const [activeTab, setActiveTab] = useState('media');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
