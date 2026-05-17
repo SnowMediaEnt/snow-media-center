@@ -3,7 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
-import MediaBar from '@/components/MediaBar';
+// MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
+const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo.png';
 import easterEggImg from '@/assets/easter-egg.png';
