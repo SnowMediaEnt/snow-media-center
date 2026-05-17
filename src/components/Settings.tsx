@@ -259,6 +259,27 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6 space-y-4">
+            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Content Bar</h3>
+                    <p className="text-sm text-white/70 mt-1">
+                      Shows trending Plex titles and live sports on the home screen.
+                      Turn off on slower devices for a smoother experience.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={mediaBarEnabled}
+                  onCheckedChange={setMediaBarEnabledState}
+                  aria-label="Toggle home screen content bar"
+                  className="mt-1"
+                />
+              </div>
+            </Card>
+
             <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
               <AppUpdater />
             </Card>
