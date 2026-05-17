@@ -691,15 +691,16 @@ const Index = () => {
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
 
-          {/* New Content Bar - pulled up so pinned apps don't block it */}
-          <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
-            <MediaBar
-              active={isInMediaBar}
-              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
-              onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
-            />
-          </div>
-
+          {/* New Content Bar - pulled up so pinned apps don't block it. Toggleable in Settings for slower devices. */}
+          {mediaBarEnabled && (
+            <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
+              <MediaBar
+                active={isInMediaBar}
+                onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
+                onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+              />
+            </div>
+          )}
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
             <div 
