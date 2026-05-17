@@ -393,20 +393,13 @@ const Index = () => {
           if (layoutMode === 'grid') {
             if (focusedButton === 2 || focusedButton === 3) {
               setFocusedButton(focusedButton - 2);
-            } else if (focusedButton >= 0) {
-              // From top app row → into MediaBar
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            } else {
-              // From top button row → into MediaBar
+            } else if (mediaBarEnabled) {
+              // Into MediaBar (only if enabled)
               setFocusedButton(-99);
               setIsInMediaBar(true);
             }
           } else { // row mode
-            if (focusedButton >= 0) {
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            } else {
+            if (focusedButton >= 0 && mediaBarEnabled) {
               setFocusedButton(-99);
               setIsInMediaBar(true);
             }
