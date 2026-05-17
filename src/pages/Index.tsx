@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDynamicBackground } from '@/hooks/useDynamicBackground';
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
+import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { InstalledApp } from '@/data/installedApps';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
