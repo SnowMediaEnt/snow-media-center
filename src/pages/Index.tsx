@@ -695,11 +695,13 @@ const Index = () => {
           {/* New Content Bar - pulled up so pinned apps don't block it. Toggleable in Settings for slower devices. */}
           {mediaBarEnabled && (
             <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
-              <MediaBar
-                active={isInMediaBar}
-                onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
-                onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
-              />
+              <Suspense fallback={<div className="h-[180px]" />}>
+                <MediaBar
+                  active={isInMediaBar}
+                  onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
+                  onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+                />
+              </Suspense>
             </div>
           )}
           {/* Main Content - Cards positioned at bottom */}
