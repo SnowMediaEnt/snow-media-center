@@ -357,10 +357,10 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
-                    className={`flex flex-col bg-black/40 hover:bg-black/70 rounded-md overflow-hidden text-left min-w-0 transition-all ${
+                    className={`flex flex-col bg-black/40 rounded-md overflow-hidden text-left min-w-0 transition-transform duration-150 ${
                       isFocused
-                        ? 'scale-110 shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))]'
-                        : 'hover:scale-105'
+                        ? 'scale-110 shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))] will-change-transform'
+                        : ''
                     }`}
                   >
                     <div className="relative w-full aspect-[2/3] bg-black/60 flex-shrink-0">

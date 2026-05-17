@@ -3,7 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
-import MediaBar from '@/components/MediaBar';
+// MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
+const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo.png';
 import easterEggImg from '@/assets/easter-egg.png';
@@ -21,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDynamicBackground } from '@/hooks/useDynamicBackground';
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
+import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { InstalledApp } from '@/data/installedApps';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
@@ -158,6 +160,7 @@ const Index = () => {
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
+  const [mediaBarEnabled] = useMediaBarEnabled();
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
@@ -391,20 +394,13 @@ const Index = () => {
           if (layoutMode === 'grid') {
             if (focusedButton === 2 || focusedButton === 3) {
               setFocusedButton(focusedButton - 2);
-            } else if (focusedButton >= 0) {
-              // From top app row → into MediaBar
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            } else {
-              // From top button row → into MediaBar
+            } else if (mediaBarEnabled) {
+              // Into MediaBar (only if enabled)
               setFocusedButton(-99);
               setIsInMediaBar(true);
             }
           } else { // row mode
-            if (focusedButton >= 0) {
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            } else {
+            if (focusedButton >= 0 && mediaBarEnabled) {
               setFocusedButton(-99);
               setIsInMediaBar(true);
             }
@@ -462,7 +458,7 @@ const Index = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar, showEasterEgg, handleLogoActivate]);
+  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar, showEasterEgg, handleLogoActivate, mediaBarEnabled]);
 
   const buttons = useMemo(() => [
     {
@@ -696,15 +692,18 @@ const Index = () => {
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
           <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
 
-          {/* New Content Bar - pulled up so pinned apps don't block it */}
-          <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
-            <MediaBar
-              active={isInMediaBar}
-              onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
-              onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
-            />
-          </div>
-
+          {/* New Content Bar - pulled up so pinned apps don't block it. Toggleable in Settings for slower devices. */}
+          {mediaBarEnabled && (
+            <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
+              <Suspense fallback={<div className="h-[180px]" />}>
+                <MediaBar
+                  active={isInMediaBar}
+                  onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
+                  onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+                />
+              </Suspense>
+            </div>
+          )}
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
             <div 
