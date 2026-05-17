@@ -159,6 +159,7 @@ const Index = () => {
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
+  const [mediaBarEnabled] = useMediaBarEnabled();
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
