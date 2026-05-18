@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform, getPlatform } from '@/utils/platform';
+import { isNativePlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -104,33 +104,17 @@ const buildPlexPlayLink = (item: MediaItem): string | undefined => {
 /**
  * openPlexItemFromBeginning
  *
- * Open the official Plex Android/Fire TV app and start playback of THIS exact
- * item from 0:00. We do NOT target the details/preplay screen anymore.
- *
- * IMPORTANT LIMITATION: Plex does not publicly document a guaranteed
- * "ignore my account resume position" deep-link parameter for the Android
- * client. We always pass viewOffset=0, offset=0, and t=0 — Plex Web honors
- * these, and many Plex Android builds do too, but if the user's account has
- * a saved resume position the native client may still resume. The only fully
- * reliable override would require Plex Companion / PMS playback control
- * (POST /player/playback/playMedia with offset=0 against a discovered client),
- * which is out of scope here.
- *
- * Fallback order:
- *   1. plex://play (with + without server)
- *   2. intent:// wrapping https://app.plex.tv/.../playMedia, targeted at Plex
- *   3. https://app.plex.tv/.../playMedia targeted at Plex package
- *   4. plex://server/{id}/.../metadata/{ratingKey}
- *   5. Last resort: launch Plex Home + friendly toast.
+ * Keep this intentionally simple. Android TV Plex has been crashing on the
+ * web/intent/playMedia routes, so clicks use only Plex's native plex://play
+ * route and fall back to opening Plex Home only if Android cannot resolve it.
  */
 const openPlexItemFromBeginning = async (item: MediaItem) => {
   const native = isNativePlatform();
-  const platform = getPlatform();
   const ratingKey = getRatingKey(item);
   const metadataKey = getMetadataKey(item);
   const machineIdentifier = getMachineIdentifier(item);
   const metadataType = getMetadataType(item);
-  const candidates = buildPlexPlayCandidates(item);
+  const playLink = buildPlexPlayLink(item);
 
   const logPayload = {
     title: item.title,
@@ -143,50 +127,24 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     metadataType,
     duration: item.duration,
     serverViewOffset: item.viewOffset, // what Plex thinks; we override to 0
+    generatedPlaybackLink: playLink,
     startsAtZero: true,
-    candidateCount: candidates.length,
+    fallbackUsed: false,
     native,
-    platform,
   };
   console.info('[MediaBar] openPlexItemFromBeginning', logPayload);
 
-  if (!ratingKey || !machineIdentifier) {
-    console.warn('[MediaBar] Missing ratingKey or machineIdentifier — cannot deep-link', logPayload);
+  if (!ratingKey || !playLink) {
+    console.warn('[MediaBar] Missing ratingKey or playLink — cannot deep-link', logPayload);
     toast({ title: "Can't open this item in Plex", description: 'Missing Plex item info.' });
     return;
   }
 
-  // Web preview: open the Web playMedia URL in a new tab.
   if (!native) {
-    const web = candidates.find(c => c.label.startsWith('https'))?.url
-      ?? item.webLink
-      ?? item.webDetailsLink;
-    if (web) window.open(web, '_blank', 'noopener,noreferrer');
+    window.open(item.webLink ?? item.webDetailsLink ?? playLink, '_blank', 'noopener,noreferrer');
     return;
   }
 
-  if (platform !== 'android') {
-    // iOS path — try plex:// schemes via native opener (no WebView errors).
-    try {
-      const { AppManager } = await import('@/capacitor/AppManager');
-      for (const candidate of candidates) {
-        try {
-          console.info('[MediaBar] iOS Plex play attempt', { candidate: candidate.label, url: candidate.url });
-          await AppManager.openUrl({ url: candidate.url });
-          return;
-        } catch (err) {
-          console.warn('[MediaBar] iOS candidate failed', { candidate: candidate.label, err });
-        }
-      }
-    } catch (err) {
-      console.warn('[MediaBar] iOS AppManager unavailable:', err);
-    }
-    return;
-  }
-
-  // Android / Fire TV path. Deep links commonly launch Plex Home on Android TV,
-  // so the reliable path is: launch Plex, wait for it to register as a Plex
-  // client, then tell Plex Media Server to play this exact ratingKey at offset 0.
   toast({ title: 'Playing in Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
@@ -197,48 +155,17 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
       return;
     }
 
-    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
-    await wait(2200);
-
-    try {
-      const result = await commandPlexServerPlayback(item, ratingKey);
-      console.info('[MediaBar] Plex server playback command sent', {
-        ...logPayload,
-        generatedPlaybackLink: `/player/playback/playMedia?key=/library/metadata/${ratingKey}&offset=0`,
-        generatedIntent: 'Plex launched first, then PMS playMedia command sent to visible Plex client',
-        fallbackUsed: false,
-        playbackClient: result.client,
-        playQueueID: result.playQueueID,
-      });
-      return;
-    } catch (commandErr) {
-      console.warn('[MediaBar] Plex server playback command failed — trying legacy deep links', {
-        ...logPayload,
-        commandErr,
-        fallbackUsed: true,
-      });
-    }
-
-    for (const candidate of candidates) {
-      try {
-        console.info('[MediaBar] Plex play attempt', {
-          candidate: candidate.label,
-          url: candidate.url,
-          startsAtZero: true,
-        });
-        await AppManager.openUrl({ url: candidate.url, packageName: PLEX_ANDROID_PACKAGE });
-        console.info('[MediaBar] Plex play launched', { candidate: candidate.label, title: item.title });
-        return;
-      } catch (err) {
-        console.warn('[MediaBar] Plex play candidate failed', { candidate: candidate.label, err });
-      }
-    }
-
-    console.warn('[MediaBar] All playback candidates failed — falling back to Plex Home', logPayload);
-    toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
-    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+    console.info('[MediaBar] Plex native play attempt', { ...logPayload, generatedIntent: playLink });
+    await AppManager.openUrl({ url: playLink, packageName: PLEX_ANDROID_PACKAGE });
   } catch (err) {
-    console.warn('[MediaBar] AppManager unavailable for Plex play:', err);
+    console.warn('[MediaBar] Plex native play failed — opening Plex Home', { ...logPayload, err, fallbackUsed: true });
+    toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
+    try {
+      const { AppManager } = await import('@/capacitor/AppManager');
+      await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+    } catch (launchErr) {
+      console.warn('[MediaBar] Plex Home fallback failed:', launchErr);
+    }
   }
 };
 
