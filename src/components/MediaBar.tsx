@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform, getPlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
+import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,11 @@ type MediaItem = {
   title: string;
   subtitle?: string;
   poster?: string;
+  ratingKey?: string;
+  key?: string;
+  guid?: string;
+  machineIdentifier?: string;
+  librarySectionID?: string | number;
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
