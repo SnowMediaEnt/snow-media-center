@@ -52,6 +52,35 @@ const Settings = ({ onBack }: SettingsProps) => {
         return;
       }
 
+      if (focusedElement === 'updates-content-bar-toggle') {
+        if (event.key === 'ArrowUp') {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('updates-content');
+          setTimeout(() => {
+            const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
+            btn?.focus();
+            btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }, 30);
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); event.stopPropagation();
+          setMediaBarEnabledState(!mediaBarEnabled);
+          return;
+        }
+        if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
+        return;
+      }
+
       if (focusedElement === 'updates-content') {
         if (event.key === 'ArrowUp') {
           const active = document.activeElement as HTMLElement | null;
@@ -59,7 +88,12 @@ const Settings = ({ onBack }: SettingsProps) => {
               active?.matches('[data-app-updater-btn="download"]')) {
             event.preventDefault();
             event.stopPropagation();
-            setFocusedElement('tab-updates');
+            (active as HTMLElement).blur();
+            setFocusedElement('updates-content-bar-toggle');
+            setTimeout(() => {
+              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
+              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 30);
           }
           return;
         }
