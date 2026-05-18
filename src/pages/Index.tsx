@@ -731,6 +731,7 @@ const Index = () => {
                     isFocused={isFocused}
                     layoutMode={layoutMode}
                     onActivate={activateCard}
+                    boostSize={!mediaBarEnabled}
                   />
                 );
 
