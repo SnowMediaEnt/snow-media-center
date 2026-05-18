@@ -144,8 +144,10 @@ const openPlexItem = async (item: MediaItem) => {
   const machineIdentifier = getMachineIdentifier(item);
   const metadataType = PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
   const webDetailsUrl = buildPlexWebDetailsUrl(item);
+  const nonHashDetailsUrl = buildPlexNonHashDetailsUrl(item);
   const androidLink = getPlexAndroidLink(item);
   const intentUrl = webDetailsUrl ? buildPlexAndroidIntent(webDetailsUrl) : null;
+  const nonHashIntentUrl = nonHashDetailsUrl ? buildPlexAndroidIntent(nonHashDetailsUrl) : null;
   const logPayload = {
     title: item.title,
     type: item.kind,
@@ -159,7 +161,9 @@ const openPlexItem = async (item: MediaItem) => {
     androidLink,
     deepLink: item.deepLink,
     webLink: webDetailsUrl ?? item.webLink,
+    nonHashDetailsUrl,
     intentUrl,
+    nonHashIntentUrl,
     native,
     platform,
   };
@@ -183,7 +187,9 @@ const openPlexItem = async (item: MediaItem) => {
       // external item-detail deep links for all builds, so each miss falls back.
       const candidates = [
         { label: 'web details targeted', url: webDetailsUrl, packageName: PLEX_ANDROID_PACKAGE },
+        { label: 'non-hash web details targeted', url: nonHashDetailsUrl, packageName: PLEX_ANDROID_PACKAGE },
         { label: 'intent details targeted', url: intentUrl, packageName: PLEX_ANDROID_PACKAGE },
+        { label: 'non-hash intent details targeted', url: nonHashIntentUrl, packageName: PLEX_ANDROID_PACKAGE },
         { label: 'plex preplay scheme', url: item.deepLink, packageName: PLEX_ANDROID_PACKAGE },
         { label: 'plex server metadata scheme', url: androidLink, packageName: PLEX_ANDROID_PACKAGE },
       ].filter((c): c is { label: string; url: string; packageName: string } => !!c.url);
