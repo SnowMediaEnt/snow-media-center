@@ -95,7 +95,7 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       if (noMicHardware) {
         toast({
           title: 'No microphone available',
-          description: 'No microphone was detected on this device. If using a Fire TV / Android TV remote with a mic, press and hold the mic key while speaking.',
+          description: 'No microphone was detected on this device.',
           variant: 'destructive',
         });
       } else if (isPermissionError && isNativePlatform()) {
