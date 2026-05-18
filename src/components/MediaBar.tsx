@@ -101,6 +101,16 @@ const buildPlexWebDetailsUrl = (item: MediaItem): string | undefined => {
     : `https://app.plex.tv/desktop#!/details?key=${encodedKey}`;
 };
 
+const buildPlexNonHashDetailsUrl = (item: MediaItem): string | undefined => {
+  const metadataKey = getMetadataKey(item);
+  if (!metadataKey) return undefined;
+  const machineId = getMachineIdentifier(item);
+  const encodedKey = encodeURIComponent(metadataKey);
+  return machineId
+    ? `https://app.plex.tv/details?key=${encodedKey}&server=${machineId}`
+    : `https://app.plex.tv/details?key=${encodedKey}`;
+};
+
 // Android intent wrapper for Plex Web details. This avoids autoplay; if the
 // installed Plex build honors the route, it lands on the preplay/details page.
 // Plex does not publicly guarantee Android TV/Fire TV item routing for every
