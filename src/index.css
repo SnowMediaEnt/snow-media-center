@@ -277,9 +277,7 @@
   transform: translateZ(0);
   will-change: transform;
   contain: layout paint style;
-  /* Explicit height matches the thicker RSS row so larger text is not clipped. */
-  height: 3.25rem;
-  min-height: 3.25rem;
+  /* Height is controlled inline by the component (compact vs thick). */
 }
 
 .news-ticker-track {
