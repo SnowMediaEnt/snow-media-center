@@ -46,12 +46,12 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
           const result = await AppManager.startVoiceInput({ prompt: 'Ask Snow Media AI' });
           const text = result.text?.trim();
           if (text) onTranscription(text);
-          else toast({ title: 'No speech heard', description: 'Press the remote mic button and try again.' });
+          else toast({ title: 'No speech heard', description: 'Tap Voice and speak again.' });
         } catch (error) {
           console.warn('Native voice input failed:', error);
           toast({
             title: 'Voice unavailable',
-            description: 'Press the Alexa/mic button on the remote and try again.',
+            description: 'Could not start listening on this device. Try again.',
             variant: 'destructive',
           });
         } finally {
