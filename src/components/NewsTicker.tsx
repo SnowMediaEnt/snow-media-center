@@ -163,11 +163,11 @@ const NewsTicker = memo(() => {
           className="absolute inset-0 overflow-hidden"
           style={{
             contain: 'layout paint',
-            paddingLeft: '90px',
+            paddingLeft: '128px',
             WebkitMaskImage:
-              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
             maskImage:
-              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
           }}
         >
           <div
