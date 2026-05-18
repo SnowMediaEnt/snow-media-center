@@ -645,11 +645,20 @@ const Index = () => {
                 Your Premium Streaming Experience
               </p>
             </div>
-            {/* News Ticker overlays middle of title h1 (above subtitle) */}
-            <div className="absolute left-0 right-0 z-20" style={{ top: '38%', transform: 'translateY(-50%)' }}>
+            {/* News Ticker — overlays title only when the content bar is on
+                (compact layout). When the content bar is disabled, it sits in
+                its original standalone spot below the title. */}
+            {mediaBarEnabled && (
+              <div className="absolute left-0 right-0 z-20" style={{ top: '38%', transform: 'translateY(-50%)' }}>
+                <NewsTicker />
+              </div>
+            )}
+          </div>
+          {!mediaBarEnabled && (
+            <div className="relative z-10 flex-shrink-0 mt-2">
               <NewsTicker />
             </div>
-          </div>
+          )}
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <button
