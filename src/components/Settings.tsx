@@ -183,7 +183,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, setMediaBarEnabledState]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
