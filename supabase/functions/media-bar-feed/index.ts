@@ -66,9 +66,7 @@ const plexDeepLink = (ratingKey?: string, type?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
   const metadataType = PLEX_METADATA_TYPE[String(type ?? '').toLowerCase()] ?? 1;
-  // Plex iOS deep link format. (Android relies on the HTTPS webLink + an
-  // intent:// wrapper built client-side, because plex:// on Android only
-  // opens the app and won't navigate to the specific item.)
+  // Plex iOS deep link format (also accepted by some Android builds).
   if (PLEX_MACHINE_ID) {
     return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
   }
@@ -77,9 +75,21 @@ const plexDeepLink = (ratingKey?: string, type?: string) => {
 
 const plexAndroidLink = (ratingKey?: string) => {
   if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
-  // Plex Android/Android TV routes selected library items through the server URI
-  // form. The iOS-style preplay URL can open Plex but commonly lands on home.
-  return `plex://server://${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+  // Single slash after `server` (not `server://`) — this is the canonical
+  // Plex Android URI form.
+  return `plex://server/${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+};
+
+const plexWebLink = (ratingKey?: string) => {
+  if (!ratingKey) return undefined;
+  const metadataKey = `/library/metadata/${ratingKey}`;
+  // NON-hash URL: Plex Android's intent filter cannot see the `#!/...`
+  // fragment, so the old desktop URL always landed on Home. Plex's
+  // /details path is parsed by the Android app and routes to preplay.
+  if (PLEX_MACHINE_ID) {
+    return `https://app.plex.tv/details?key=${encodeURIComponent(metadataKey)}&server=${PLEX_MACHINE_ID}`;
+  }
+  return `https://app.plex.tv/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
 const plexWebLink = (ratingKey?: string) => {
