@@ -140,6 +140,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
       ? `mv|${titleKey}|${m.year ?? ''}`
       : `sh|${titleKey}`;
 
+  const metadataType = PLEX_METADATA_TYPE[String(m.type ?? '').toLowerCase()] ?? 1;
   return {
     id: `plex-${ratingKey}`,
     source: 'plex',
@@ -152,9 +153,14 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     guid: m.guid,
     machineIdentifier: PLEX_MACHINE_ID || undefined,
     librarySectionID: m.librarySectionID,
+    metadataType,
+    duration: typeof m.duration === 'number' ? m.duration : undefined,
+    viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
+    // Playback-first deep links — always start at 0.
     androidLink: plexAndroidLink(ratingKey),
-    deepLink: plexDeepLink(ratingKey, m.type),
-    webLink: plexWebLink(ratingKey),
+    deepLink: plexPlayScheme(ratingKey, m.type),
+    webLink: plexWebPlayLink(ratingKey),
+    webDetailsLink: plexWebDetailsLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
     _dedupeKey: dedupeKey.toLowerCase(),
     _is4k: is4k,
