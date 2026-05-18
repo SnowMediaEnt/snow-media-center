@@ -157,17 +157,17 @@ const NewsTicker = memo(() => {
         contain: 'layout paint style',
       }}
     >
-      <div className="relative flex items-center h-12">
+      <div className="relative flex items-center h-[3.25rem] py-1">
         {/* Full-width scrolling track sits behind the LIVE badge */}
         <div
           className="absolute inset-0 overflow-hidden"
           style={{
             contain: 'layout paint',
-            paddingLeft: '90px',
+            paddingLeft: '128px',
             WebkitMaskImage:
-              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
             maskImage:
-              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
           }}
         >
           <div
@@ -178,11 +178,11 @@ const NewsTicker = memo(() => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-xl text-white font-semibold news-ticker-item">
+            <span className="text-xl leading-none text-white font-semibold news-ticker-item">
               {tickerText}
             </span>
             <span
-              className="text-xl text-white font-semibold news-ticker-item"
+              className="text-xl leading-none text-white font-semibold news-ticker-item"
               aria-hidden="true"
             >
               {tickerText}

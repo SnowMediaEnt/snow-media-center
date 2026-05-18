@@ -276,9 +276,10 @@
      from leaking in or out of this subtree. */
   transform: translateZ(0);
   will-change: transform;
-  contain: strict;
-  /* Explicit height matches the inner h-7 (1.75rem) so `contain: size` works. */
-  height: 1.75rem;
+  contain: layout paint style;
+  /* Explicit height matches the thicker RSS row so larger text is not clipped. */
+  height: 3.25rem;
+  min-height: 3.25rem;
 }
 
 .news-ticker-track {
