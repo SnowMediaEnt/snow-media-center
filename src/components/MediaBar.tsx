@@ -148,7 +148,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  toast({ title: 'Playing in Plex…', description: item.title });
+  toast({ title: 'Opening in Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
     const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
