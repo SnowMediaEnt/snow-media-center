@@ -11,11 +11,6 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
-  '1.0.6': [
-    'Snow Media Center now stays running in the background — switching to Plex or another app and coming back no longer restarts SMC',
-    'Plex deep-link improved: tapping a movie/show in the Content Bar now opens that title’s preplay screen (with Play/Resume/info) more reliably instead of landing on the Plex Home or Movies category',
-    'More memory headroom on Fire TV and older Android TV boxes (largeHeap) — fewer surprise app shutdowns',
-  ],
   '1.0.5': [
     'Content Bar can now be turned off in Settings → Updates — great for older or slower devices',
     'Smoother home screen — news ticker no longer stutters when moving across the bottom buttons',

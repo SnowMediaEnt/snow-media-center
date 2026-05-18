@@ -237,7 +237,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       setLiveDialog(item);
       return;
     }
-    openPlex(item);
+    openPlexItem(item);
   };
 
   // Fetch
