@@ -137,6 +137,27 @@ const buildPlexPlayCandidates = (item: MediaItem): { label: string; url: string 
   return out;
 };
 
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const commandPlexServerPlayback = async (item: MediaItem, ratingKey: string) => {
+  const { data, error } = await supabase.functions.invoke('media-bar-feed', {
+    body: {
+      action: 'play-plex-item',
+      title: item.title,
+      type: item.kind,
+      ratingKey,
+      machineIdentifier: item.machineIdentifier,
+      plexKey: `/library/metadata/${ratingKey}`,
+      guid: item.guid,
+      viewOffset: item.viewOffset,
+      startsAtZero: true,
+    },
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Plex playback command failed');
+  return data;
+};
+
 /**
  * openPlexItemFromBeginning
  *
@@ -220,7 +241,9 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  // Android / Fire TV path.
+  // Android / Fire TV path. Deep links commonly launch Plex Home on Android TV,
+  // so the reliable path is: launch Plex, wait for it to register as a Plex
+  // client, then tell Plex Media Server to play this exact ratingKey at offset 0.
   toast({ title: 'Playing in Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
@@ -229,6 +252,28 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     if (!installed) {
       toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
       return;
+    }
+
+    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+    await wait(2200);
+
+    try {
+      const result = await commandPlexServerPlayback(item, ratingKey);
+      console.info('[MediaBar] Plex server playback command sent', {
+        ...logPayload,
+        generatedPlaybackLink: `/player/playback/playMedia?key=/library/metadata/${ratingKey}&offset=0`,
+        generatedIntent: 'Plex launched first, then PMS playMedia command sent to visible Plex client',
+        fallbackUsed: false,
+        playbackClient: result.client,
+        playQueueID: result.playQueueID,
+      });
+      return;
+    } catch (commandErr) {
+      console.warn('[MediaBar] Plex server playback command failed — trying legacy deep links', {
+        ...logPayload,
+        commandErr,
+        fallbackUsed: true,
+      });
     }
 
     for (const candidate of candidates) {
