@@ -162,11 +162,10 @@ const Settings = ({ onBack }: SettingsProps) => {
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
-            setFocusedElement('updates-content');
+            setFocusedElement('updates-content-bar-toggle');
             setTimeout(() => {
-              const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
-              btn?.focus();
-              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
+              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
