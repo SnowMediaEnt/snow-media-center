@@ -657,7 +657,7 @@ const Index = () => {
             tabIndex={0}
             data-focused={focusedButton === -3 ? 'true' : 'false'}
             aria-label="Snow Media Entertainment"
-            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110 data-[focused=true]:drop-shadow-[0_0_18px_hsl(var(--brand-gold)/0.7)]"
+            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
             style={{
               top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
               left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
