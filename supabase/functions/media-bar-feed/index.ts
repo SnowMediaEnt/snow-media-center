@@ -46,7 +46,6 @@ type Item = {
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
-  webDetailsLink?: string;
   startTime?: string;
   isLive?: boolean;
 };
