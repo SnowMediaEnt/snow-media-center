@@ -33,7 +33,6 @@ type MediaItem = {
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
-  webDetailsLink?: string;
 };
 
 type Props = {
@@ -141,7 +140,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
   }
 
   if (!native) {
-    window.open(item.webLink ?? item.webDetailsLink ?? playLink, '_blank', 'noopener,noreferrer');
+    window.open(item.webLink ?? playLink, '_blank', 'noopener,noreferrer');
     return;
   }
 
