@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.0.5': [
+    'Content Bar can now be turned off in Settings → Updates — great for older or slower devices',
+    'Smoother home screen — news ticker no longer stutters when moving across the bottom buttons',
+    'Plex now opens the movie/show details page (with Play, Resume, info, cast) instead of jumping straight into playback',
+    'Fewer "Webpage could not be loaded" popups when launching Plex on Android',
+    'D-pad now reaches the new Content Bar toggle directly from the Updates tab',
+  ],
   '1.0.4': [
     'Plex deep-linking fixed — tapping a movie or show on the Content Bar now opens that exact item in Plex',
     'Content Bar duplicates removed — 1080p and 4K versions are merged so each title only appears once (switch to 4K from inside Plex)',
