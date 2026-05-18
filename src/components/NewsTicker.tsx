@@ -46,7 +46,11 @@ const writeCachedNews = (items: string[]) => {
   }
 };
 
-const NewsTicker = memo(() => {
+interface NewsTickerProps {
+  compact?: boolean;
+}
+
+const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
