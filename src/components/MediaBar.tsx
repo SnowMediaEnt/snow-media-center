@@ -71,9 +71,6 @@ const isHardwareBackKey = (e: KeyboardEvent) =>
 
 const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
-// Force-start-at-zero query string. Plex Web's playMedia route honors these,
-// and Plex's plex:// scheme has historically accepted viewOffset for offset
-// control. We pile them on every candidate.
 const OFFSET_QS = 'viewOffset=0&offset=0&t=0';
 
 const getRatingKey = (item: MediaItem): string | undefined => {
@@ -93,69 +90,15 @@ const getMachineIdentifier = (item: MediaItem): string | undefined => item.machi
 const getMetadataType = (item: MediaItem): number =>
   item.metadataType ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
 
-// Build the playback-from-beginning candidates. Order = most likely to honor
-// "start at 0" first. Every URL targets com.plexapp.android in openUrl().
-const buildPlexPlayCandidates = (item: MediaItem): { label: string; url: string }[] => {
-  const ratingKey = getRatingKey(item);
+const buildPlexPlayLink = (item: MediaItem): string | undefined => {
   const metadataKey = getMetadataKey(item);
-  const machineId = getMachineIdentifier(item);
+  if (!metadataKey) return undefined;
+
+  const machineId = item.machineIdentifier;
   const metadataType = getMetadataType(item);
-  if (!ratingKey || !metadataKey) return [];
   const encodedKey = encodeURIComponent(metadataKey);
-
-  const out: { label: string; url: string }[] = [];
-
-  // 1) plex://play — official "play this metadata now" scheme.
-  if (machineId) {
-    out.push({
-      label: 'plex://play with server',
-      url: `plex://play/?server=${machineId}&metadataKey=${encodedKey}&metadataType=${metadataType}&${OFFSET_QS}`,
-    });
-  }
-  out.push({
-    label: 'plex://play no server',
-    url: `plex://play/?metadataKey=${encodedKey}&metadataType=${metadataType}&${OFFSET_QS}`,
-  });
-
-  // 2) Plex Web playMedia route wrapped in an Android intent → Plex package.
-  if (machineId) {
-    const webPlay = `https://app.plex.tv/desktop#!/server/${machineId}/playMedia?key=${encodedKey}&${OFFSET_QS}`;
-    const fallback = encodeURIComponent(webPlay);
-    const intent = `intent://app.plex.tv/desktop/playMedia?key=${encodedKey}&${OFFSET_QS}#Intent;scheme=https;package=${PLEX_ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`;
-    out.push({ label: 'intent:// playMedia targeted', url: intent });
-    out.push({ label: 'https playMedia targeted', url: webPlay });
-  }
-
-  // 3) plex://server/{id}/.../metadata/{ratingKey} legacy form with offsets.
-  if (machineId) {
-    out.push({
-      label: 'plex://server metadata with offsets',
-      url: `plex://server/${machineId}/com.plexapp.plugins.library/library/metadata/${ratingKey}?${OFFSET_QS}`,
-    });
-  }
-
-  return out;
-};
-
-const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-const commandPlexServerPlayback = async (item: MediaItem, ratingKey: string) => {
-  const { data, error } = await supabase.functions.invoke('media-bar-feed', {
-    body: {
-      action: 'play-plex-item',
-      title: item.title,
-      type: item.kind,
-      ratingKey,
-      machineIdentifier: item.machineIdentifier,
-      plexKey: `/library/metadata/${ratingKey}`,
-      guid: item.guid,
-      viewOffset: item.viewOffset,
-      startsAtZero: true,
-    },
-  });
-  if (error) throw error;
-  if (!data?.ok) throw new Error(data?.error ?? 'Plex playback command failed');
-  return data;
+  const serverParam = machineId ? `server=${encodeURIComponent(machineId)}&` : '';
+  return `plex://play/?${serverParam}metadataKey=${encodedKey}&metadataType=${metadataType}&${OFFSET_QS}`;
 };
 
 /**
