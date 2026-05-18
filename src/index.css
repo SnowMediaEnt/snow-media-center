@@ -269,6 +269,16 @@
    ============================================================ */
 .news-ticker {
   isolation: isolate;
+  /* Permanently promote the ticker to its own compositor layer so neighbor
+     repaints (focus shadows on bottom cards/buttons) cannot interrupt the
+     marquee animation. On Android WebView this is the single biggest stutter
+     fix. `contain: strict` blocks layout, paint, size, and style invalidation
+     from leaking in or out of this subtree. */
+  transform: translateZ(0);
+  will-change: transform;
+  contain: strict;
+  /* Explicit height matches the inner h-7 (1.75rem) so `contain: size` works. */
+  height: 1.75rem;
 }
 
 .news-ticker-track {
@@ -281,19 +291,26 @@
 }
 
 .home-focus-surface {
-  /* Keep a stable compositor layer per card — but don't promote unless focused,
-     otherwise Android WebView allocates a layer per card and they all repaint
-     together when one focuses. */
+  /* Always-on compositor promotion — toggling will-change on/off via the
+     [data-focused] selector causes Android WebView to create/destroy a GPU
+     layer on every D-pad move, which forces a root-level repaint and stalls
+     the news ticker animation. Keeping these flags constant pins each card
+     to its own layer permanently for zero layer thrash. */
   contain: paint style;
-  transition-property: transform, box-shadow;
+  transform: translateZ(0);
+  will-change: transform;
+  transition-property: transform;
   transition-duration: 130ms;
   transition-timing-function: ease-out;
 }
 
 .home-focus-surface[data-focused="true"] {
-  will-change: transform;
   transform: translateZ(0) scale(1.05);
-  box-shadow: 0 0 0 4px hsl(var(--brand-ice) / 0.7), 0 12px 24px -8px hsl(var(--brand-navy) / 0.55);
+  /* `outline` is cheaper than `box-shadow` on weak GPUs — it paints into the
+     element's existing layer instead of expanding the paint area, so the
+     surrounding compositor (and the ticker layer) isn't disturbed. */
+  outline: 4px solid hsl(var(--brand-ice) / 0.7);
+  outline-offset: 0;
 }
 
 /* On low-power devices that prefer reduced motion, skip the transform/shadow
@@ -362,7 +379,7 @@
   /* Heavy focus scale on home cards causes paint on touch — keep subtle */
   .home-focus-surface[data-focused="true"] {
     transform: translateZ(0) scale(1.02);
-    box-shadow: 0 0 0 2px hsl(var(--brand-ice) / 0.6);
+    outline: 2px solid hsl(var(--brand-ice) / 0.6);
   }
 
   /* Slow the ticker so it's less distracting on a small screen */
