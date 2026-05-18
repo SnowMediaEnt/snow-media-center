@@ -65,7 +65,46 @@ const writeCache = (items: MediaItem[]) => {
 const isHardwareBackKey = (e: KeyboardEvent) =>
   e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
-// Last-resort Android web intent fallback if the native Plex URI cannot be used.
+const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
+const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
+
+const getRatingKey = (item: MediaItem): string | undefined => {
+  if (item.ratingKey) return String(item.ratingKey);
+  const keyMatch = item.key?.match(/\/library\/metadata\/(\d+)/);
+  if (keyMatch?.[1]) return keyMatch[1];
+  const deepMatch = item.deepLink?.match(/%2Flibrary%2Fmetadata%2F(\d+)|\/library\/metadata\/(\d+)/i);
+  if (deepMatch?.[1] || deepMatch?.[2]) return deepMatch[1] ?? deepMatch[2];
+  return item.id?.match(/^plex-(\d+)$/)?.[1];
+};
+
+const getMetadataKey = (item: MediaItem): string | undefined => {
+  const ratingKey = getRatingKey(item);
+  return ratingKey ? `/library/metadata/${ratingKey}` : item.key;
+};
+
+const getMachineIdentifier = (item: MediaItem): string | undefined => {
+  if (item.machineIdentifier) return item.machineIdentifier;
+  try {
+    return item.deepLink ? new URL(item.deepLink).searchParams.get('server') ?? undefined : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildPlexWebDetailsUrl = (item: MediaItem): string | undefined => {
+  const metadataKey = getMetadataKey(item);
+  if (!metadataKey) return item.webLink;
+  const machineId = getMachineIdentifier(item);
+  const encodedKey = encodeURIComponent(metadataKey);
+  return machineId
+    ? `https://app.plex.tv/desktop#!/server/${machineId}/details?key=${encodedKey}`
+    : `https://app.plex.tv/desktop#!/details?key=${encodedKey}`;
+};
+
+// Android intent wrapper for Plex Web details. This avoids autoplay; if the
+// installed Plex build honors the route, it lands on the preplay/details page.
+// Plex does not publicly guarantee Android TV/Fire TV item routing for every
+// media type, so callers must keep a safe Plex-home fallback.
 const buildPlexAndroidIntent = (webUrl: string): string | null => {
   try {
     const u = new URL(webUrl);
@@ -73,7 +112,7 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
     const path = `${u.host}${u.pathname}${u.search}${u.hash}`;
     // S.browser_fallback_url makes Android open the web URL if Plex isn't installed.
     const fallback = encodeURIComponent(webUrl);
-    return `intent://${path}#Intent;scheme=https;package=com.plexapp.android;S.browser_fallback_url=${fallback};end`;
+    return `intent://${path}#Intent;scheme=https;package=${PLEX_ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`;
   } catch {
     return null;
   }
@@ -81,19 +120,9 @@ const buildPlexAndroidIntent = (webUrl: string): string | null => {
 
 const getPlexAndroidLink = (item: MediaItem): string | undefined => {
   if (item.androidLink) return item.androidLink;
-
-  try {
-    const parsed = item.deepLink ? new URL(item.deepLink) : null;
-    const metadataKey = parsed?.searchParams.get('metadataKey');
-    const server = parsed?.searchParams.get('server');
-    const ratingKey = metadataKey?.match(/\/library\/metadata\/(\d+)/)?.[1];
-    if (server && ratingKey) {
-      return `plex://server://${server}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
-    }
-  } catch {
-    // Ignore malformed cached links and continue to other fallbacks.
-  }
-
+  const server = getMachineIdentifier(item);
+  const ratingKey = getRatingKey(item);
+  if (server && ratingKey) return `plex://server/${server}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
   return undefined;
 };
 
