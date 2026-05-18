@@ -24,6 +24,7 @@ type SettingsFocus =
   | 'tab-updates'
   | 'tab-alerts'
   | 'media-content'
+  | 'updates-content-bar-toggle'
   | 'updates-content'
   | 'alerts-content';
 
