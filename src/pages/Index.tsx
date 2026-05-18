@@ -777,6 +777,8 @@ const Index = () => {
                 return <div key={index}>{cardContent}</div>;
               })}
             </div>
+              );
+            })()}
           </div>
         </div>
       )}
