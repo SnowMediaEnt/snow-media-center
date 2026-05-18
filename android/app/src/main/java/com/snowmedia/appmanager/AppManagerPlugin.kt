@@ -277,10 +277,15 @@ class AppManagerPlugin : Plugin() {
     val pkg = call.getString("packageName")
     if (url.isNullOrBlank()) { call.reject("url required"); return }
     try {
-      val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+      val intent = if (url.startsWith("intent://", ignoreCase = true)) {
+        Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+      } else {
+        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+      }.apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!pkg.isNullOrBlank()) setPackage(pkg)
       }
+      Log.d(TAG, "openUrl launching url=$url package=${pkg ?: intent.getPackage() ?: "auto"} action=${intent.action}")
       context.startActivity(intent)
       call.resolve()
     } catch (e: Exception) {
