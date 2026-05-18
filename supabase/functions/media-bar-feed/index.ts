@@ -67,36 +67,48 @@ const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
 
-const plexDeepLink = (ratingKey?: string, type?: string) => {
+// ---- PLAYBACK-FIRST DEEP LINKS ----
+// Goal: click in SMC → Plex opens and immediately plays the exact item from
+// the beginning. We always append viewOffset=0&offset=0&t=0 so any Plex build
+// that respects deep-link offset hints starts at 0:00. Note: the Plex Android
+// client may still apply server-side account resume state and ignore these
+// hints — there is no public external API to override that without acting as
+// a Plex Companion controller (out of scope here).
+const OFFSET_QS = 'viewOffset=0&offset=0&t=0';
+
+const plexPlayScheme = (ratingKey?: string, type?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
   const metadataType = PLEX_METADATA_TYPE[String(type ?? '').toLowerCase()] ?? 1;
-  // Plex iOS deep link format (also accepted by some Android builds).
-  if (PLEX_MACHINE_ID) {
-    return `plex://preplay/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
-  }
-  return `plex://preplay/?metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
+  const base = PLEX_MACHINE_ID
+    ? `plex://play/?server=${PLEX_MACHINE_ID}&metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`
+    : `plex://play/?metadataKey=${encodeURIComponent(metadataKey)}&metadataType=${metadataType}`;
+  return `${base}&${OFFSET_QS}`;
 };
 
 const plexAndroidLink = (ratingKey?: string) => {
   if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
-  // Single slash after `server` (not `server://`) — this is the canonical
-  // Plex Android URI form.
-  return `plex://server/${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+  return `plex://server/${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}?${OFFSET_QS}`;
 };
 
-const plexWebLink = (ratingKey?: string) => {
+const plexWebPlayLink = (ratingKey?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
-  // Canonical Plex Web detail/preplay URL. Public Plex integrations use this
-  // route for item details: /desktop#!/server/{machineId}/details?key=...
-  // Android/Fire TV Plex deep-link support is not fully documented or stable,
-  // so the client will try this first with the Plex package targeted, then
-  // fall back through Android intent/web/plex:// candidates without autoplay.
+  // Plex Web "playMedia" route — kicks off playback rather than landing on
+  // the details/preplay screen.
   if (PLEX_MACHINE_ID) {
-    return `https://app.plex.tv/desktop#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`;
+    return `https://app.plex.tv/desktop#!/server/${PLEX_MACHINE_ID}/playMedia?key=${encodeURIComponent(metadataKey)}&${OFFSET_QS}`;
   }
-  return `https://app.plex.tv/desktop#!/details?key=${encodeURIComponent(metadataKey)}`;
+  return `https://app.plex.tv/desktop#!/playMedia?key=${encodeURIComponent(metadataKey)}&${OFFSET_QS}`;
+};
+
+// Kept only as a last-ditch fallback for the client to log; not preferred.
+const plexWebDetailsLink = (ratingKey?: string) => {
+  if (!ratingKey) return undefined;
+  const metadataKey = `/library/metadata/${ratingKey}`;
+  return PLEX_MACHINE_ID
+    ? `https://app.plex.tv/desktop#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`
+    : `https://app.plex.tv/desktop#!/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
 
