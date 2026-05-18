@@ -40,9 +40,13 @@ type Item = {
   guid?: string;
   machineIdentifier?: string;
   librarySectionID?: string | number;
+  metadataType?: number;
+  duration?: number;
+  viewOffset?: number;
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
+  webDetailsLink?: string;
   startTime?: string;
   isLive?: boolean;
 };
