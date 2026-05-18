@@ -51,6 +51,18 @@ type Item = {
   isLive?: boolean;
 };
 
+type PlexClient = {
+  name?: string;
+  product?: string;
+  platform?: string;
+  deviceClass?: string;
+  machineIdentifier?: string;
+  protocolCapabilities?: string;
+  address?: string;
+  host?: string;
+  port?: string | number;
+};
+
 const safe = async <T>(p: Promise<T>, label: string): Promise<T | null> => {
   try { return await p; } catch (e) {
     console.warn(`[media-bar-feed] ${label} failed:`, (e as Error).message);
@@ -62,11 +74,42 @@ const safe = async <T>(p: Promise<T>, label: string): Promise<T | null> => {
 const plexFetch = async (path: string) => {
   if (!PLEX_URL || !PLEX_TOKEN) return null;
   const sep = path.includes('?') ? '&' : '?';
-  const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${PLEX_TOKEN}`;
+  const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
   const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Plex ${res.status}`);
   return await res.json();
 };
+
+const plexFetchText = async (path: string, init: RequestInit = {}, timeout = 10000) => {
+  if (!PLEX_URL || !PLEX_TOKEN) throw new Error('Plex is not configured');
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
+  const headers = {
+    Accept: 'application/json, application/xml;q=0.9, */*;q=0.8',
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  const res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(timeout) });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Plex ${res.status}: ${text.slice(0, 180)}`);
+  return text;
+};
+
+const xmlUnescape = (value: string) => value
+  .replace(/&quot;/g, '"')
+  .replace(/&amp;/g, '&')
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&#39;/g, "'");
+
+const attrsFromXmlTag = (tag: string): Record<string, string> => {
+  const attrs: Record<string, string> = {};
+  for (const match of tag.matchAll(/([A-Za-z0-9_:-]+)="([^"]*)"/g)) attrs[match[1]] = xmlUnescape(match[2]);
+  return attrs;
+};
+
+const asArray = <T>(value: T | T[] | undefined | null): T[] => (
+  Array.isArray(value) ? value : value ? [value] : []
+);
 const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
@@ -180,6 +223,74 @@ const fetchMachineId = async () => {
   } catch (e) {
     console.warn('[media-bar-feed] machineId fetch failed:', (e as Error).message);
   }
+};
+
+const plexClients = async (): Promise<PlexClient[]> => {
+  const text = await plexFetchText('/clients');
+  try {
+    const json = JSON.parse(text);
+    const c = json?.MediaContainer ?? json;
+    return [...asArray(c?.Server), ...asArray(c?.Player), ...asArray(c?.Client), ...asArray(c?.Device)];
+  } catch {
+    return [...text.matchAll(/<(?:Server|Player|Client|Device)\b[^>]*>/g)].map((m) => attrsFromXmlTag(m[0]));
+  }
+};
+
+const pickPlaybackClient = (clients: PlexClient[], preferred?: string): PlexClient | undefined => {
+  if (preferred) {
+    const exact = clients.find((c) => c.machineIdentifier === preferred);
+    if (exact) return exact;
+  }
+  return [...clients].sort((a, b) => scorePlexClient(b) - scorePlexClient(a))[0];
+};
+
+const scorePlexClient = (c: PlexClient) => {
+  const haystack = `${c.name ?? ''} ${c.product ?? ''} ${c.platform ?? ''} ${c.deviceClass ?? ''} ${c.protocolCapabilities ?? ''}`.toLowerCase();
+  let score = 0;
+  if (haystack.includes('plex')) score += 8;
+  if (haystack.includes('android')) score += 6;
+  if (haystack.includes('tv') || haystack.includes('fire')) score += 4;
+  if (haystack.includes('playback')) score += 10;
+  return score;
+};
+
+const createPlayQueue = async (ratingKey: string) => {
+  await fetchMachineId();
+  if (!PLEX_MACHINE_ID) throw new Error('Missing Plex machineIdentifier');
+  const uri = `server://${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}`;
+  const text = await plexFetchText(`/playQueues?type=video&uri=${encodeURIComponent(uri)}&continuous=0&includeChapters=1&includeRelated=0`, { method: 'POST' });
+  try {
+    const json = JSON.parse(text);
+    return json?.MediaContainer?.playQueueID ?? json?.playQueueID;
+  } catch {
+    return text.match(/playQueueID="(\d+)"/)?.[1];
+  }
+};
+
+const commandPlexPlayback = async (ratingKey: string, preferredClientId?: string) => {
+  await fetchMachineId();
+  if (!PLEX_MACHINE_ID) throw new Error('Missing Plex machineIdentifier');
+  const clients = await plexClients();
+  const client = pickPlaybackClient(clients, preferredClientId);
+  if (!client?.machineIdentifier) throw new Error(`No Plex playback client found (${clients.length} clients visible)`);
+  const u = new URL(PLEX_URL);
+  const playQueueID = await safe(createPlayQueue(ratingKey), 'plex playQueue');
+  const params = new URLSearchParams({
+    key: `/library/metadata/${ratingKey}`,
+    machineIdentifier: PLEX_MACHINE_ID,
+    providerIdentifier: 'com.plexapp.plugins.library',
+    protocol: u.protocol.replace(':', ''),
+    address: u.hostname,
+    port: u.port || (u.protocol === 'https:' ? '443' : '32400'),
+    offset: '0',
+    type: 'video',
+    commandID: String(Date.now() % 1000000),
+  });
+  if (playQueueID) params.set('containerKey', `/playQueues/${playQueueID}?window=100&own=1`);
+  await plexFetchText(`/player/playback/playMedia?${params.toString()}`, {
+    headers: { 'X-Plex-Target-Client-Identifier': client.machineIdentifier },
+  }, 12000);
+  return { client, playQueueID };
 };
 
 const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Item[] }> => {
@@ -346,6 +457,37 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      if (body?.action === 'play-plex-item') {
+        const ratingKey = String(body?.ratingKey ?? '').trim();
+        if (!/^\d+$/.test(ratingKey)) throw new Error('ratingKey required');
+        console.info('[media-bar-feed] play-plex-item', {
+          title: body?.title,
+          type: body?.type,
+          ratingKey,
+          machineIdentifier: PLEX_MACHINE_ID,
+          plexKey: `/library/metadata/${ratingKey}`,
+          guid: body?.guid,
+          viewOffset: body?.viewOffset,
+          startsAtZero: true,
+        });
+        const result = await commandPlexPlayback(ratingKey, body?.preferredClientId);
+        return new Response(JSON.stringify({
+          ok: true,
+          fallbackUsed: false,
+          startsAtZero: true,
+          client: {
+            name: result.client.name,
+            product: result.client.product,
+            platform: result.client.platform,
+            machineIdentifier: result.client.machineIdentifier,
+          },
+          playQueueID: result.playQueueID,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     const [plex, sports] = await Promise.all([
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
