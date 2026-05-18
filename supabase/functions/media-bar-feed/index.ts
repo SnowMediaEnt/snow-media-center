@@ -91,11 +91,6 @@ const plexPlayScheme = (ratingKey?: string, type?: string) => {
   return `${base}&${OFFSET_QS}`;
 };
 
-const plexAndroidLink = (ratingKey?: string) => {
-  if (!ratingKey || !PLEX_MACHINE_ID) return undefined;
-  return `plex://server/${PLEX_MACHINE_ID}/com.plexapp.plugins.library/library/metadata/${ratingKey}?${OFFSET_QS}`;
-};
-
 const plexWebPlayLink = (ratingKey?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
@@ -108,15 +103,6 @@ const plexWebPlayLink = (ratingKey?: string) => {
 };
 
 // Kept only as a last-ditch fallback for the client to log; not preferred.
-const plexWebDetailsLink = (ratingKey?: string) => {
-  if (!ratingKey) return undefined;
-  const metadataKey = `/library/metadata/${ratingKey}`;
-  return PLEX_MACHINE_ID
-    ? `https://app.plex.tv/desktop#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`
-    : `https://app.plex.tv/desktop#!/details?key=${encodeURIComponent(metadataKey)}`;
-};
-
-
 const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean } => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
@@ -161,11 +147,10 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     metadataType,
     duration: typeof m.duration === 'number' ? m.duration : undefined,
     viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
-    // Playback-first deep links — always start at 0.
-    androidLink: plexAndroidLink(ratingKey),
+    // Playback-first native deep link — keep Android path on plex://play only.
+    androidLink: plexPlayScheme(ratingKey, m.type),
     deepLink: plexPlayScheme(ratingKey, m.type),
     webLink: plexWebPlayLink(ratingKey),
-    webDetailsLink: plexWebDetailsLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
     _dedupeKey: dedupeKey.toLowerCase(),
     _is4k: is4k,
