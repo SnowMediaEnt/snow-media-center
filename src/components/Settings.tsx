@@ -293,7 +293,14 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6 space-y-4">
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+            <Card
+              data-settings-focus="updates-content-bar-toggle"
+              className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-transform duration-150 ${
+                focusedElement === 'updates-content-bar-toggle'
+                  ? 'scale-[1.02] shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))]'
+                  : ''
+              }`}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
