@@ -633,7 +633,9 @@ const Index = () => {
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
 
-          {/* Header - tight container around title with RSS through middle */}
+          {/* Header - tight container around title. When the content menu is ON,
+              the thin RSS ticker overlays through the middle of the title.
+              When OFF, a thicker standalone RSS row sits below the title. */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
             <div className="text-center">
               <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
@@ -645,12 +647,20 @@ const Index = () => {
                 Your Premium Streaming Experience
               </p>
             </div>
+            {mediaBarEnabled && (
+              <div
+                className="absolute left-0 right-0 z-20"
+                style={{ top: '38%', transform: 'translateY(-50%)' }}
+              >
+                <NewsTicker compact />
+              </div>
+            )}
           </div>
-          {/* News Ticker — standalone row below the title so the thicker bar
-              isn't clipped by the title overlay. */}
-          <div className="relative z-10 flex-shrink-0 mt-2">
-            <NewsTicker />
-          </div>
+          {!mediaBarEnabled && (
+            <div className="relative z-10 flex-shrink-0 mt-2">
+              <NewsTicker />
+            </div>
+          )}
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <button
