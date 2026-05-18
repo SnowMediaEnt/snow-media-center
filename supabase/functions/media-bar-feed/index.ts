@@ -92,17 +92,6 @@ const plexWebLink = (ratingKey?: string) => {
   return `https://app.plex.tv/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
-const plexWebLink = (ratingKey?: string) => {
-  if (!ratingKey) return undefined;
-  const metadataKey = `/library/metadata/${ratingKey}`;
-  // Plex's intent-filter on app.plex.tv URLs is what actually navigates the
-  // Android app to a specific item. Always emit a webLink (even without
-  // machineId) so the client always has something to wrap in an intent://.
-  if (PLEX_MACHINE_ID) {
-    return `https://app.plex.tv/desktop/#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`;
-  }
-  return `https://app.plex.tv/desktop/#!/details?key=${encodeURIComponent(metadataKey)}`;
-};
 
 const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean } => {
   const isMovie = m.type === 'movie';
