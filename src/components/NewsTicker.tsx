@@ -153,6 +153,13 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
   // identical to every other join (no fused/missing items at the seam).
   const tickerText = useMemo(() => `${newsItems.join('   •   ')}   •   `, [newsItems]);
 
+  const trackHeight = compact ? 'h-7' : 'h-[3.25rem] py-1';
+  const textSize = compact ? 'text-sm' : 'text-xl';
+  const padLeft = compact ? '80px' : '128px';
+  const maskStart = compact ? '60px' : '110px';
+  const maskEnd = compact ? '80px' : '128px';
+  const badgeMargin = compact ? 'ml-2' : 'ml-3';
+
   return (
     <div
       className="news-ticker relative z-10 border-y border-primary/30 overflow-hidden"
@@ -161,17 +168,17 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
         contain: 'layout paint style',
       }}
     >
-      <div className="relative flex items-center h-[3.25rem] py-1">
+      <div className={`relative flex items-center ${trackHeight}`}>
         {/* Full-width scrolling track sits behind the LIVE badge */}
         <div
           className="absolute inset-0 overflow-hidden"
           style={{
             contain: 'layout paint',
-            paddingLeft: '128px',
+            paddingLeft: padLeft,
             WebkitMaskImage:
-              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
+              `linear-gradient(to right, transparent 0, transparent ${maskStart}, black ${maskEnd}, black 100%)`,
             maskImage:
-              'linear-gradient(to right, transparent 0, transparent 110px, black 128px, black 100%)',
+              `linear-gradient(to right, transparent 0, transparent ${maskStart}, black ${maskEnd}, black 100%)`,
           }}
         >
           <div
@@ -182,11 +189,11 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-xl leading-none text-white font-semibold news-ticker-item">
+            <span className={`${textSize} leading-none text-white font-semibold news-ticker-item`}>
               {tickerText}
             </span>
             <span
-              className="text-xl leading-none text-white font-semibold news-ticker-item"
+              className={`${textSize} leading-none text-white font-semibold news-ticker-item`}
               aria-hidden="true"
             >
               {tickerText}
@@ -194,7 +201,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
           </div>
         </div>
         {/* LIVE badge overlays on top */}
-        <div className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold ml-3 z-10 flex-shrink-0 leading-tight relative">
+        <div className={`bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold ${badgeMargin} z-10 flex-shrink-0 leading-tight relative`}>
           LIVE
         </div>
       </div>
