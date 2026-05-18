@@ -599,12 +599,12 @@ const Index = () => {
                   ''
                 }`}
               >
-                <LogIn className={`mr-2 ${
+                <LogIn className={`mr-2 text-gray-400 ${
                   screenHeight >= 2160 ? 'w-6 h-6' :
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                Sign In
+                <span className="text-gray-400">Sign In</span>
               </Button>
             )}
             <Button
