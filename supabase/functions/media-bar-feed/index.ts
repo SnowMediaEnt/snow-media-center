@@ -35,6 +35,11 @@ type Item = {
   title: string;
   subtitle?: string;
   poster?: string;
+  ratingKey?: string;
+  key?: string;
+  guid?: string;
+  machineIdentifier?: string;
+  librarySectionID?: string | number;
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
@@ -83,13 +88,15 @@ const plexAndroidLink = (ratingKey?: string) => {
 const plexWebLink = (ratingKey?: string) => {
   if (!ratingKey) return undefined;
   const metadataKey = `/library/metadata/${ratingKey}`;
-  // NON-hash URL: Plex Android's intent filter cannot see the `#!/...`
-  // fragment, so the old desktop URL always landed on Home. Plex's
-  // /details path is parsed by the Android app and routes to preplay.
+  // Canonical Plex Web detail/preplay URL. Public Plex integrations use this
+  // route for item details: /desktop#!/server/{machineId}/details?key=...
+  // Android/Fire TV Plex deep-link support is not fully documented or stable,
+  // so the client will try this first with the Plex package targeted, then
+  // fall back through Android intent/web/plex:// candidates without autoplay.
   if (PLEX_MACHINE_ID) {
-    return `https://app.plex.tv/details?key=${encodeURIComponent(metadataKey)}&server=${PLEX_MACHINE_ID}`;
+    return `https://app.plex.tv/desktop#!/server/${PLEX_MACHINE_ID}/details?key=${encodeURIComponent(metadataKey)}`;
   }
-  return `https://app.plex.tv/details?key=${encodeURIComponent(metadataKey)}`;
+  return `https://app.plex.tv/desktop#!/details?key=${encodeURIComponent(metadataKey)}`;
 };
 
 
@@ -128,6 +135,11 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    ratingKey,
+    key: m.key,
+    guid: m.guid,
+    machineIdentifier: PLEX_MACHINE_ID || undefined,
+    librarySectionID: m.librarySectionID,
     androidLink: plexAndroidLink(ratingKey),
     deepLink: plexDeepLink(ratingKey, m.type),
     webLink: plexWebLink(ratingKey),
