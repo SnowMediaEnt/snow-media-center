@@ -54,17 +54,19 @@ const HomeActionCard = memo(({
   isFocused,
   layoutMode,
   onActivate,
+  boostSize = false,
 }: {
   button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
   index: number;
   isFocused: boolean;
   layoutMode: 'grid' | 'row';
   onActivate: () => void;
+  boostSize?: boolean;
 }) => {
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
-    ? { width: 'clamp(150px, 16vw, 360px)', height: 'clamp(95px, 16vh, 230px)' }
-    : { width: 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
+    ? { width: boostSize ? 'clamp(190px, 21vw, 460px)' : 'clamp(150px, 16vw, 360px)', height: boostSize ? 'clamp(120px, 21vh, 300px)' : 'clamp(95px, 16vh, 230px)' }
+    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
 
   return (
     <Card
