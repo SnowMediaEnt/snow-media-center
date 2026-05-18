@@ -145,23 +145,6 @@ const openPlex = async (item: MediaItem) => {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
-    // Final fallback: assign intent:// directly via window.location
-    if (item.webLink) {
-      const intentUrl = buildPlexAndroidIntent(item.webLink);
-      if (intentUrl) {
-        window.location.assign(intentUrl);
-        return;
-      }
-      window.location.assign(item.webLink);
-      return;
-    }
-    const fallback = androidLink ?? item.deepLink;
-    if (fallback) {
-      window.location.assign(fallback);
-      return;
-    }
-  }
-
     // If we get here on Android, all native open attempts failed. Do NOT call
     // window.location.assign() with intent://, plex://, or even https:// — the
     // Android WebView will show a "Webpage not available / could not be loaded"
