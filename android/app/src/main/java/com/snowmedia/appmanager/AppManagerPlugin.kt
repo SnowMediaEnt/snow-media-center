@@ -285,7 +285,7 @@ class AppManagerPlugin : Plugin() {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!pkg.isNullOrBlank()) setPackage(pkg)
       }
-      Log.d(TAG, "openUrl launching url=$url package=${pkg ?: intent.`package` ?: "auto"} action=${intent.action}")
+      Log.d(TAG, "openUrl launching url=$url package=${pkg ?: intent.getPackage() ?: "auto"} action=${intent.action}")
       context.startActivity(intent)
       call.resolve()
     } catch (e: Exception) {
