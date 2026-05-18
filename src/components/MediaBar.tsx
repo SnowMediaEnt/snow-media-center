@@ -97,51 +97,65 @@ const openPlex = async (item: MediaItem) => {
 
   if (native && platform === 'android') {
     const androidLink = getPlexAndroidLink(item);
-    // ORDER MATTERS. We want the PREPLAY screen (the details page with
-    // Play / Resume / info), NOT auto-playback. The `plex://preplay/?...`
-    // URI is Plex's explicit preplay intent and is the most reliable way
-    // to land on the details screen. The HTTPS app.plex.tv "/details" URL
-    // sometimes auto-resumes On Deck items, and the `plex://server://`
-    // form can also kick straight into playback for in-progress items.
-    // So: deepLink (preplay) FIRST, then webLink (details) as fallback,
-    // and avoid the server:// androidLink for the targeted attempt.
-    const targetedCandidates = [item.deepLink, item.webLink].filter(Boolean) as string[];
-    const genericCandidates = [item.deepLink, item.webLink, androidLink].filter(Boolean) as string[];
+    // ORDER MATTERS (per Plex Deep Link memory):
+    // On Android, `plex://` URIs only open the Plex app — they do NOT route
+    // to a specific item, so we land on Home. The only reliable way to land
+    // on the PREPLAY screen (title/info/Play/Resume) is an intent:// wrapper
+    // around the HTTPS app.plex.tv /details URL, targeting com.plexapp.android.
+    // We therefore try: intent://(webLink) → webLink HTTPS → plex:// schemes
+    // as last resort.
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
-      for (const url of targetedCandidates) {
+
+      // 1) Intent:// wrapping HTTPS — this is what actually navigates to the item
+      if (item.webLink) {
+        const intentUrl = buildPlexAndroidIntent(item.webLink);
+        if (intentUrl) {
+          try {
+            console.info('[MediaBar] opening Plex preplay (intent://)', { title: item.title });
+            await AppManager.openUrl({ url: intentUrl, packageName: 'com.plexapp.android' });
+            return;
+          } catch (error) {
+            console.warn('[MediaBar] intent:// open failed:', error);
+          }
+        }
+      }
+
+      // 2) Plain HTTPS app.plex.tv URL pinned to Plex package
+      if (item.webLink) {
         try {
-          console.info('[MediaBar] opening Plex preplay (targeted)', { url, title: item.title });
+          await AppManager.openUrl({ url: item.webLink, packageName: 'com.plexapp.android' });
+          return;
+        } catch (error) {
+          console.warn('[MediaBar] webLink targeted open failed:', error);
+        }
+      }
+
+      // 3) plex:// schemes as last resort (may land on Home)
+      const plexSchemeCandidates = [item.deepLink, androidLink].filter(Boolean) as string[];
+      for (const url of plexSchemeCandidates) {
+        try {
           await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
           return;
         } catch (error) {
-          console.warn('[MediaBar] targeted Plex open failed:', error);
-        }
-      }
-      for (const url of genericCandidates) {
-        try {
-          await AppManager.openUrl({ url });
-          return;
-        } catch (error) {
-          console.warn('[MediaBar] generic Plex URL open failed:', error);
+          console.warn('[MediaBar] plex:// scheme open failed:', error);
         }
       }
     } catch (error) {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
-    // Last-resort: build an Android intent:// wrapper around the HTTPS web URL
-    // pinned to com.plexapp.android. This is the most aggressive way to force
-    // Plex to handle the deep link instead of a browser.
+    // Final fallback: assign intent:// directly via window.location
     if (item.webLink) {
       const intentUrl = buildPlexAndroidIntent(item.webLink);
       if (intentUrl) {
         window.location.assign(intentUrl);
         return;
       }
+      window.location.assign(item.webLink);
+      return;
     }
-
-    const fallback = item.webLink ?? androidLink ?? item.deepLink;
+    const fallback = androidLink ?? item.deepLink;
     if (fallback) {
       window.location.assign(fallback);
       return;
