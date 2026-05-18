@@ -145,28 +145,26 @@ const openPlex = async (item: MediaItem) => {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
 
-    // Final fallback: assign intent:// directly via window.location
-    if (item.webLink) {
-      const intentUrl = buildPlexAndroidIntent(item.webLink);
-      if (intentUrl) {
-        window.location.assign(intentUrl);
-        return;
-      }
-      window.location.assign(item.webLink);
-      return;
-    }
-    const fallback = androidLink ?? item.deepLink;
-    if (fallback) {
-      window.location.assign(fallback);
-      return;
-    }
+    // If we get here on Android, all native open attempts failed. Do NOT call
+    // window.location.assign() with intent://, plex://, or even https:// — the
+    // Android WebView will show a "Webpage not available / could not be loaded"
+    // error dialog. Just log and bail out.
+    console.warn('[MediaBar] all Android Plex open attempts failed for', item.title);
+    return;
   }
 
   // iOS / fallback: try the plex:// scheme first on native, otherwise web URL
   const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
   if (!target) return;
   if (native) {
-    window.location.assign(target);
+    // On iOS, route through native opener; avoid window.location.assign which
+    // can surface a WebView error for unknown schemes.
+    try {
+      const { AppManager } = await import('@/capacitor/AppManager');
+      await AppManager.openUrl({ url: target });
+    } catch (e) {
+      console.warn('[MediaBar] iOS Plex open failed:', e);
+    }
   } else {
     window.open(target, '_blank', 'noopener,noreferrer');
   }

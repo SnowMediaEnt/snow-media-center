@@ -24,6 +24,7 @@ type SettingsFocus =
   | 'tab-updates'
   | 'tab-alerts'
   | 'media-content'
+  | 'updates-content-bar-toggle'
   | 'updates-content'
   | 'alerts-content';
 
@@ -51,6 +52,35 @@ const Settings = ({ onBack }: SettingsProps) => {
         return;
       }
 
+      if (focusedElement === 'updates-content-bar-toggle') {
+        if (event.key === 'ArrowUp') {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('updates-content');
+          setTimeout(() => {
+            const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
+            btn?.focus();
+            btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }, 30);
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault(); event.stopPropagation();
+          setMediaBarEnabledState(!mediaBarEnabled);
+          return;
+        }
+        if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault(); event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
+        return;
+      }
+
       if (focusedElement === 'updates-content') {
         if (event.key === 'ArrowUp') {
           const active = document.activeElement as HTMLElement | null;
@@ -58,7 +88,12 @@ const Settings = ({ onBack }: SettingsProps) => {
               active?.matches('[data-app-updater-btn="download"]')) {
             event.preventDefault();
             event.stopPropagation();
-            setFocusedElement('tab-updates');
+            (active as HTMLElement).blur();
+            setFocusedElement('updates-content-bar-toggle');
+            setTimeout(() => {
+              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
+              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 30);
           }
           return;
         }
@@ -127,11 +162,10 @@ const Settings = ({ onBack }: SettingsProps) => {
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
-            setFocusedElement('updates-content');
+            setFocusedElement('updates-content-bar-toggle');
             setTimeout(() => {
-              const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
-              btn?.focus();
-              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
+              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
@@ -149,7 +183,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, setMediaBarEnabledState]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -259,7 +293,14 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6 space-y-4">
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+            <Card
+              data-settings-focus="updates-content-bar-toggle"
+              className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-transform duration-150 ${
+                focusedElement === 'updates-content-bar-toggle'
+                  ? 'scale-[1.02] shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))]'
+                  : ''
+              }`}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
