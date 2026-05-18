@@ -51,18 +51,6 @@ type Item = {
   isLive?: boolean;
 };
 
-type PlexClient = {
-  name?: string;
-  product?: string;
-  platform?: string;
-  deviceClass?: string;
-  machineIdentifier?: string;
-  protocolCapabilities?: string;
-  address?: string;
-  host?: string;
-  port?: string | number;
-};
-
 const safe = async <T>(p: Promise<T>, label: string): Promise<T | null> => {
   try { return await p; } catch (e) {
     console.warn(`[media-bar-feed] ${label} failed:`, (e as Error).message);
@@ -80,36 +68,6 @@ const plexFetch = async (path: string) => {
   return await res.json();
 };
 
-const plexFetchText = async (path: string, init: RequestInit = {}, timeout = 10000) => {
-  if (!PLEX_URL || !PLEX_TOKEN) throw new Error('Plex is not configured');
-  const sep = path.includes('?') ? '&' : '?';
-  const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
-  const headers = {
-    Accept: 'application/json, application/xml;q=0.9, */*;q=0.8',
-    ...(init.headers as Record<string, string> | undefined),
-  };
-  const res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(timeout) });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Plex ${res.status}: ${text.slice(0, 180)}`);
-  return text;
-};
-
-const xmlUnescape = (value: string) => value
-  .replace(/&quot;/g, '"')
-  .replace(/&amp;/g, '&')
-  .replace(/&lt;/g, '<')
-  .replace(/&gt;/g, '>')
-  .replace(/&#39;/g, "'");
-
-const attrsFromXmlTag = (tag: string): Record<string, string> => {
-  const attrs: Record<string, string> = {};
-  for (const match of tag.matchAll(/([A-Za-z0-9_:-]+)="([^"]*)"/g)) attrs[match[1]] = xmlUnescape(match[2]);
-  return attrs;
-};
-
-const asArray = <T>(value: T | T[] | undefined | null): T[] => (
-  Array.isArray(value) ? value : value ? [value] : []
-);
 const plexImage = (key?: string) =>
   key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
