@@ -157,17 +157,17 @@ const NewsTicker = memo(() => {
         contain: 'layout paint style',
       }}
     >
-      <div className="relative flex items-center h-7">
+      <div className="relative flex items-center h-12">
         {/* Full-width scrolling track sits behind the LIVE badge */}
         <div
           className="absolute inset-0 overflow-hidden"
           style={{
             contain: 'layout paint',
-            paddingLeft: '70px',
+            paddingLeft: '90px',
             WebkitMaskImage:
-              'linear-gradient(to right, transparent 0, transparent 60px, black 78px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
             maskImage:
-              'linear-gradient(to right, transparent 0, transparent 60px, black 78px, black 100%)',
+              'linear-gradient(to right, transparent 0, transparent 80px, black 100px, black 100%)',
           }}
         >
           <div
@@ -178,11 +178,11 @@ const NewsTicker = memo(() => {
               backfaceVisibility: 'hidden',
             }}
           >
-            <span className="text-base text-white font-medium news-ticker-item">
+            <span className="text-xl text-white font-semibold news-ticker-item">
               {tickerText}
             </span>
             <span
-              className="text-base text-white font-medium news-ticker-item"
+              className="text-xl text-white font-semibold news-ticker-item"
               aria-hidden="true"
             >
               {tickerText}
@@ -190,7 +190,7 @@ const NewsTicker = memo(() => {
           </div>
         </div>
         {/* LIVE badge overlays on top */}
-        <div className="bg-primary text-primary-foreground px-2.5 py-0 rounded-full text-[10px] font-bold ml-3 z-10 flex-shrink-0 leading-tight relative">
+        <div className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold ml-3 z-10 flex-shrink-0 leading-tight relative">
           LIVE
         </div>
       </div>
