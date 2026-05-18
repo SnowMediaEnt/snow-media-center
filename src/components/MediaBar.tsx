@@ -70,7 +70,6 @@ const isHardwareBackKey = (e: KeyboardEvent) =>
 
 const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
-const OFFSET_QS = 'viewOffset=0&offset=0&t=0';
 
 const getRatingKey = (item: MediaItem): string | undefined => {
   if (item.ratingKey) return String(item.ratingKey);
@@ -89,15 +88,20 @@ const getMachineIdentifier = (item: MediaItem): string | undefined => item.machi
 const getMetadataType = (item: MediaItem): number =>
   item.metadataType ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
 
+/**
+ * Build a Plex preplay deep link — opens the item's detail page in the Plex
+ * Android app exactly as if the user clicked the poster inside Plex itself.
+ * From there the user presses Play. This is the most reliable route on
+ * Android TV / Fire TV and avoids the crashes the auto-play routes triggered.
+ */
 const buildPlexPlayLink = (item: MediaItem): string | undefined => {
   const metadataKey = getMetadataKey(item);
   if (!metadataKey) return undefined;
-
   const machineId = item.machineIdentifier;
   const metadataType = getMetadataType(item);
   const encodedKey = encodeURIComponent(metadataKey);
   const serverParam = machineId ? `server=${encodeURIComponent(machineId)}&` : '';
-  return `plex://play/?${serverParam}metadataKey=${encodedKey}&metadataType=${metadataType}&${OFFSET_QS}`;
+  return `plex://preplay/?${serverParam}metadataKey=${encodedKey}&metadataType=${metadataType}`;
 };
 
 /**
@@ -144,7 +148,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  toast({ title: 'Playing in Plex…', description: item.title });
+  toast({ title: 'Opening in Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
     const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });

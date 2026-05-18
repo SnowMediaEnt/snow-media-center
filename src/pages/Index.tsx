@@ -54,17 +54,19 @@ const HomeActionCard = memo(({
   isFocused,
   layoutMode,
   onActivate,
+  boostSize = false,
 }: {
   button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
   index: number;
   isFocused: boolean;
   layoutMode: 'grid' | 'row';
   onActivate: () => void;
+  boostSize?: boolean;
 }) => {
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
-    ? { width: 'clamp(150px, 16vw, 360px)', height: 'clamp(95px, 16vh, 230px)' }
-    : { width: 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
+    ? { width: boostSize ? 'clamp(190px, 21vw, 460px)' : 'clamp(150px, 16vw, 360px)', height: boostSize ? 'clamp(120px, 21vh, 300px)' : 'clamp(95px, 16vh, 230px)' }
+    : { width: boostSize ? 'clamp(190px, 21vw, 420px)' : 'clamp(150px, 16vw, 320px)', aspectRatio: '1 / 0.88' as const };
 
   return (
     <Card
@@ -599,12 +601,12 @@ const Index = () => {
                   ''
                 }`}
               >
-                <LogIn className={`mr-2 ${
+                <LogIn className={`mr-2 text-gray-400 ${
                   screenHeight >= 2160 ? 'w-6 h-6' :
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                Sign In
+                <span className="text-gray-400">Sign In</span>
               </Button>
             )}
             <Button
@@ -643,11 +645,20 @@ const Index = () => {
                 Your Premium Streaming Experience
               </p>
             </div>
-            {/* News Ticker overlays middle of title h1 (above subtitle) */}
-            <div className="absolute left-0 right-0 z-20" style={{ top: '38%', transform: 'translateY(-50%)' }}>
+            {/* News Ticker — overlays title only when the content bar is on
+                (compact layout). When the content bar is disabled, it sits in
+                its original standalone spot below the title. */}
+            {mediaBarEnabled && (
+              <div className="absolute left-0 right-0 z-20" style={{ top: '38%', transform: 'translateY(-50%)' }}>
+                <NewsTicker />
+              </div>
+            )}
+          </div>
+          {!mediaBarEnabled && (
+            <div className="relative z-10 flex-shrink-0 mt-2">
               <NewsTicker />
             </div>
-          </div>
+          )}
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <button
@@ -729,6 +740,7 @@ const Index = () => {
                     isFocused={isFocused}
                     layoutMode={layoutMode}
                     onActivate={activateCard}
+                    boostSize={!mediaBarEnabled}
                   />
                 );
 
