@@ -22,6 +22,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true"
+        android:largeHeap="true"
         android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- Splash Activity - This is now the launcher -->
@@ -30,6 +31,7 @@
             android:exported="true"
             android:theme="@style/SplashTheme"
             android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:banner="@mipmap/ic_launcher">
 
             <intent-filter>
@@ -44,6 +46,7 @@
         <activity
             android:exported="true"
             android:launchMode="singleTask"
+            android:alwaysRetainTaskState="true"
             android:label="@string/app_name"
             android:name="com.snowmedia.MainActivity"
             android:theme="@style/AppTheme.NoActionBar">
