@@ -332,37 +332,6 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    if (req.method === 'POST') {
-      const body = await req.json().catch(() => ({}));
-      if (body?.action === 'play-plex-item') {
-        const ratingKey = String(body?.ratingKey ?? '').trim();
-        if (!/^\d+$/.test(ratingKey)) throw new Error('ratingKey required');
-        console.info('[media-bar-feed] play-plex-item', {
-          title: body?.title,
-          type: body?.type,
-          ratingKey,
-          machineIdentifier: PLEX_MACHINE_ID,
-          plexKey: `/library/metadata/${ratingKey}`,
-          guid: body?.guid,
-          viewOffset: body?.viewOffset,
-          startsAtZero: true,
-        });
-        const result = await commandPlexPlayback(ratingKey, body?.preferredClientId);
-        return new Response(JSON.stringify({
-          ok: true,
-          fallbackUsed: false,
-          startsAtZero: true,
-          client: {
-            name: result.client.name,
-            product: result.client.product,
-            platform: result.client.platform,
-            machineIdentifier: result.client.machineIdentifier,
-          },
-          playQueueID: result.playQueueID,
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-    }
-
     const [plex, sports] = await Promise.all([
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
