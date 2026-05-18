@@ -379,7 +379,7 @@
   /* Heavy focus scale on home cards causes paint on touch — keep subtle */
   .home-focus-surface[data-focused="true"] {
     transform: translateZ(0) scale(1.02);
-    box-shadow: 0 0 0 2px hsl(var(--brand-ice) / 0.6);
+    outline: 2px solid hsl(var(--brand-ice) / 0.6);
   }
 
   /* Slow the ticker so it's less distracting on a small screen */
