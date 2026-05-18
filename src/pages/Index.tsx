@@ -717,11 +717,16 @@ const Index = () => {
           )}
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
+            {(() => {
+              // When the content bar is on, force a single row of 4 so the
+              // home stays compact. When it's off, honor the user's setting.
+              const effectiveLayout: 'grid' | 'row' = mediaBarEnabled ? 'row' : layoutMode;
+              return (
             <div 
-              className={`justify-center w-full mx-auto ${layoutMode === 'grid' ? 'grid grid-cols-2' : 'flex flex-wrap'}`} 
+              className={`justify-center w-full mx-auto ${effectiveLayout === 'grid' ? 'grid grid-cols-2' : 'flex flex-nowrap'}`} 
               style={{ 
-                gap: layoutMode === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(2.5rem, 4.5vw, 5.5rem)',
-                maxWidth: layoutMode === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
+                gap: effectiveLayout === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1rem, 2.5vw, 3rem)',
+                maxWidth: effectiveLayout === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
               }}
             >
               {buttons.map((button, index) => {
@@ -738,7 +743,7 @@ const Index = () => {
                     button={button}
                     index={index}
                     isFocused={isFocused}
-                    layoutMode={layoutMode}
+                    layoutMode={effectiveLayout}
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
                   />
