@@ -126,56 +126,73 @@ const getPlexAndroidLink = (item: MediaItem): string | undefined => {
   return undefined;
 };
 
-const openPlex = async (item: MediaItem) => {
+const openPlexItem = async (item: MediaItem) => {
   const native = isNativePlatform();
   const platform = getPlatform();
+  const ratingKey = getRatingKey(item);
+  const metadataKey = getMetadataKey(item);
+  const machineIdentifier = getMachineIdentifier(item);
+  const metadataType = PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
+  const webDetailsUrl = buildPlexWebDetailsUrl(item);
+  const androidLink = getPlexAndroidLink(item);
+  const intentUrl = webDetailsUrl ? buildPlexAndroidIntent(webDetailsUrl) : null;
+  const logPayload = {
+    title: item.title,
+    type: item.kind,
+    ratingKey,
+    key: item.key,
+    guid: item.guid,
+    librarySectionID: item.librarySectionID,
+    machineIdentifier,
+    metadataKey,
+    metadataType,
+    androidLink,
+    deepLink: item.deepLink,
+    webLink: webDetailsUrl ?? item.webLink,
+    intentUrl,
+    native,
+    platform,
+  };
+
+  console.info('[MediaBar] Plex item clicked', logPayload);
 
   if (native && platform === 'android') {
-    const androidLink = getPlexAndroidLink(item);
-    // ORDER MATTERS (per Plex Deep Link memory):
-    // On Android, `plex://` URIs only open the Plex app — they do NOT route
-    // to a specific item, so we land on Home. The only reliable way to land
-    // on the PREPLAY screen (title/info/Play/Resume) is an intent:// wrapper
-    // around the HTTPS app.plex.tv /details URL, targeting com.plexapp.android.
-    // We therefore try: intent://(webLink) → webLink HTTPS → plex:// schemes
-    // as last resort.
+    toast({ title: 'Opening in Plex…', description: item.title });
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
-
-      // 1) Intent:// wrapping HTTPS — this is what actually navigates to the item
-      if (item.webLink) {
-        const intentUrl = buildPlexAndroidIntent(item.webLink);
-        if (intentUrl) {
-          try {
-            console.info('[MediaBar] opening Plex preplay (intent://)', { title: item.title });
-            await AppManager.openUrl({ url: intentUrl, packageName: 'com.plexapp.android' });
-            return;
-          } catch (error) {
-            console.warn('[MediaBar] intent:// open failed:', error);
-          }
-        }
+      const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
+      console.info('[MediaBar] Plex installed check', { installed, packageName: PLEX_ANDROID_PACKAGE });
+      if (!installed) {
+        console.warn('[MediaBar] Plex is not installed; falling back to web details if available');
+        if (webDetailsUrl) await AppManager.openUrl({ url: webDetailsUrl });
+        return;
       }
 
-      // 2) Plain HTTPS app.plex.tv URL pinned to Plex package
-      if (item.webLink) {
+      // Try detail/preplay candidates only. None include Plex play queues or
+      // autoplay commands. Plex Android/Fire TV does not officially guarantee
+      // external item-detail deep links for all builds, so each miss falls back.
+      const candidates = [
+        { label: 'web details targeted', url: webDetailsUrl, packageName: PLEX_ANDROID_PACKAGE },
+        { label: 'intent details targeted', url: intentUrl, packageName: PLEX_ANDROID_PACKAGE },
+        { label: 'plex preplay scheme', url: item.deepLink, packageName: PLEX_ANDROID_PACKAGE },
+        { label: 'plex server metadata scheme', url: androidLink, packageName: PLEX_ANDROID_PACKAGE },
+      ].filter((c): c is { label: string; url: string; packageName: string } => !!c.url);
+
+      for (const candidate of candidates) {
         try {
-          await AppManager.openUrl({ url: item.webLink, packageName: 'com.plexapp.android' });
+          console.info('[MediaBar] Attempting Plex open', { ...logPayload, candidate: candidate.label, url: candidate.url });
+          await AppManager.openUrl({ url: candidate.url, packageName: candidate.packageName });
+          console.info('[MediaBar] Plex launch succeeded', { candidate: candidate.label, title: item.title });
           return;
         } catch (error) {
-          console.warn('[MediaBar] webLink targeted open failed:', error);
+          console.warn('[MediaBar] Plex candidate failed', { candidate: candidate.label, url: candidate.url, error });
         }
       }
 
-      // 3) plex:// schemes as last resort (may land on Home)
-      const plexSchemeCandidates = [item.deepLink, androidLink].filter(Boolean) as string[];
-      for (const url of plexSchemeCandidates) {
-        try {
-          await AppManager.openUrl({ url, packageName: 'com.plexapp.android' });
-          return;
-        } catch (error) {
-          console.warn('[MediaBar] plex:// scheme open failed:', error);
-        }
-      }
+      console.warn('[MediaBar] Unable to open exact Plex item; opening Plex home fallback', logPayload);
+      toast({ title: 'Unable to open exact title', description: 'Opening Plex instead.' });
+      await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+      return;
     } catch (error) {
       console.warn('[MediaBar] native AppManager unavailable:', error);
     }
@@ -184,12 +201,12 @@ const openPlex = async (item: MediaItem) => {
     // window.location.assign() with intent://, plex://, or even https:// — the
     // Android WebView will show a "Webpage not available / could not be loaded"
     // error dialog. Just log and bail out.
-    console.warn('[MediaBar] all Android Plex open attempts failed for', item.title);
+    console.warn('[MediaBar] all Android Plex open attempts failed for', logPayload);
     return;
   }
 
   // iOS / fallback: try the plex:// scheme first on native, otherwise web URL
-  const target = native ? (item.deepLink ?? item.webLink) : (item.webLink ?? item.deepLink);
+  const target = native ? (item.deepLink ?? webDetailsUrl ?? item.webLink) : (webDetailsUrl ?? item.webLink ?? item.deepLink);
   if (!target) return;
   if (native) {
     // On iOS, route through native opener; avoid window.location.assign which
