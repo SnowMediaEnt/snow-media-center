@@ -919,73 +919,77 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   }, [activeTab]);
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe">
-      <div className="max-w-6xl mx-auto pb-16">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center w-full justify-start">
-            <Button 
-              onClick={() => {
-                stopVoicePlayback(true);
-                onBack();
-              }}
-              variant="gold" 
-              size="lg"
-              data-focus-id="back"
-              className={`transition-all duration-200 ${focusRing('back')}`}
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
-          </div>
-          <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Chat & Community</h1>
-            <p className="text-xl text-blue-200">Connect with admin and community</p>
-          </div>
-        </div>
+    <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
+      <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
+        {!embedded && (
+          <>
+            {/* Header */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="flex items-center w-full justify-start">
+                <Button
+                  onClick={() => {
+                    stopVoicePlayback(true);
+                    onBack();
+                  }}
+                  variant="gold"
+                  size="lg"
+                  data-focus-id="back"
+                  className={`transition-all duration-200 ${focusRing('back')}`}
+                >
+                  <ArrowLeft className="w-5 h-5 mr-2" />
+                  Back to Home
+                </Button>
+              </div>
+              <div className="text-center mt-4">
+                <h1 className="text-4xl font-bold text-white mb-2">Chat & Community</h1>
+                <p className="text-xl text-blue-200">Connect with admin and community</p>
+              </div>
+            </div>
 
-        {/* Tab Navigation */}
-        <div className="flex mb-6 gap-4">
-          <Button
-            onClick={() => setActiveTab('admin')}
-            variant={activeTab === 'admin' ? 'default' : 'outline'}
-            data-focus-id="tab-admin"
-            className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-admin')} ${
-              activeTab === 'admin' 
-                ? 'bg-brand-gold hover:bg-brand-gold/80' 
-                : 'bg-transparent border-brand-gold text-brand-gold hover:bg-brand-gold'
-            }`}
-          >
-            <User className="w-5 h-5 mr-2" />
-            User Support
-          </Button>
-          <Button
-            onClick={() => setActiveTab('community')}
-            variant={activeTab === 'community' ? 'default' : 'outline'}
-            data-focus-id="tab-community"
-            className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-community')} ${
-              activeTab === 'community' 
-                ? 'bg-green-600 hover:bg-green-700' 
-                : 'bg-transparent border-green-500 text-green-400 hover:bg-green-600'
-            }`}
-          >
-            <MessageSquare className="w-5 h-5 mr-2" />
-            Community
-          </Button>
-          <Button
-            onClick={() => setActiveTab('ai')}
-            variant={activeTab === 'ai' ? 'default' : 'outline'}
-            data-focus-id="tab-ai"
-            className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-ai')} ${
-              activeTab === 'ai' 
-                ? 'bg-purple-600 hover:bg-purple-700' 
-                : 'bg-transparent border-purple-500 text-purple-400 hover:bg-purple-600'
-            }`}
-          >
-            <Brain className="w-5 h-5 mr-2" />
-            Snow Media AI
-          </Button>
-        </div>
+            {/* Tab Navigation */}
+            <div className="flex mb-6 gap-4">
+              <Button
+                onClick={() => setActiveTab('admin')}
+                variant={activeTab === 'admin' ? 'default' : 'outline'}
+                data-focus-id="tab-admin"
+                className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-admin')} ${
+                  activeTab === 'admin'
+                    ? 'bg-brand-gold hover:bg-brand-gold/80'
+                    : 'bg-transparent border-brand-gold text-brand-gold hover:bg-brand-gold'
+                }`}
+              >
+                <User className="w-5 h-5 mr-2" />
+                User Support
+              </Button>
+              <Button
+                onClick={() => setActiveTab('community')}
+                variant={activeTab === 'community' ? 'default' : 'outline'}
+                data-focus-id="tab-community"
+                className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-community')} ${
+                  activeTab === 'community'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-transparent border-green-500 text-green-400 hover:bg-green-600'
+                }`}
+              >
+                <MessageSquare className="w-5 h-5 mr-2" />
+                Community
+              </Button>
+              <Button
+                onClick={() => setActiveTab('ai')}
+                variant={activeTab === 'ai' ? 'default' : 'outline'}
+                data-focus-id="tab-ai"
+                className={`text-lg px-6 py-3 transition-all duration-200 ${focusRing('tab-ai')} ${
+                  activeTab === 'ai'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-transparent border-purple-500 text-purple-400 hover:bg-purple-600'
+                }`}
+              >
+                <Brain className="w-5 h-5 mr-2" />
+                Snow Media AI
+              </Button>
+            </div>
+          </>
+        )}
 
         {/* User Support Tab Content */}
         {activeTab === 'admin' && (
