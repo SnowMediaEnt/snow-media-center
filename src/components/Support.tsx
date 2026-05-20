@@ -139,6 +139,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
     const tabIds: Tab[] = ['help', 'ai', 'community'];
     const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
+    const supportOwnedIds = new Set(['support-back', ...helpIds, ...tabIds.map((id) => `tab-${id}`)]);
 
     const focusEl = (id: string) => {
       const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
@@ -159,8 +160,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const onTab = currentId?.startsWith('tab-');
       const onHelp = !!currentId && helpIds.includes(currentId);
 
-      // Left/Right ALWAYS cycles tabs (highest priority on Support page).
+      // Left/Right cycles the Support tabs only while focus is on Support's
+      // own chrome. Embedded screens (AI chat, community, tickets) keep their
+      // own horizontal D-pad controls.
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (!currentId || !supportOwnedIds.has(currentId)) return;
         e.preventDefault();
         e.stopPropagation();
         const idx = Math.max(0, tabIds.indexOf(tab));
@@ -173,6 +177,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
 
       if (e.key === 'ArrowDown') {
+        if (currentId === 'support-back') {
+          e.preventDefault();
+          focusEl(`tab-${tab}`);
+          return;
+        }
         if (onTab && tab === 'help') {
           e.preventDefault();
           focusEl(helpIds[0]);
@@ -187,6 +196,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
 
       if (e.key === 'ArrowUp') {
+        if (onTab) {
+          e.preventDefault();
+          focusEl('support-back');
+          return;
+        }
         if (onHelp) {
           e.preventDefault();
           const idx = helpIds.indexOf(currentId!);
