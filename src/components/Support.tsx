@@ -239,7 +239,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               onClick={onBack}
               variant="gold"
               size="lg"
+              data-focus-id="support-back"
               tabIndex={0}
+              className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:ring-offset-0 focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -258,7 +260,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="help"
               data-focus-id="tab-help"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_0_22px_rgba(255,200,60,0.65)] focus-visible:ring-4 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-0 focus:scale-[1.02]"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
@@ -266,7 +268,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="ai"
               data-focus-id="tab-ai"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[0_0_22px_rgba(168,85,247,0.7)] focus-visible:ring-4 focus-visible:ring-purple-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:ring-offset-0 focus:scale-[1.02]"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
@@ -274,7 +276,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="community"
               data-focus-id="tab-community"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[0_0_22px_rgba(34,197,94,0.7)] focus-visible:ring-4 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-0 focus:scale-[1.02]"
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
