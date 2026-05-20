@@ -545,6 +545,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline"
               size="sm"
               data-support-focus
+              data-support-id="ai-chat-back"
               className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -595,6 +596,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
                   data-support-focus
+                  data-support-id="ai-chat-input"
                   className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
@@ -602,6 +604,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
                   data-support-focus
+                  data-support-id="ai-chat-send"
                   className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Send className="h-4 w-4" />
