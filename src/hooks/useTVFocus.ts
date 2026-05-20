@@ -154,9 +154,13 @@ export const useTVFocus = ({
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
+      const isLooseTarget = (el: HTMLElement | null) =>
+        !el || el === document.body || el === document.documentElement || el === containerRef.current;
       const managedTarget = findManagedElement(target)
         ?? findManagedElement(active)
-        ?? getAllElements().find((el) => getId(el) === currentIdRef.current)
+        ?? (isLooseTarget(target) && isLooseTarget(active)
+          ? getAllElements().find((el) => getId(el) === currentIdRef.current)
+          : null)
         ?? null;
       if (!managedTarget) return;
 
