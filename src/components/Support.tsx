@@ -108,6 +108,79 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
+  // D-pad navigation: ArrowLeft/Right cycles tabs, ArrowUp/Down moves through
+  // Help buttons when on the Help tab. Embedded sub-components (AI Chat,
+  // Community) handle their own focus.
+  useEffect(() => {
+    if (showSpeedTest || showGuide) return;
+    if (tab === 'help' && helpView !== 'menu') return;
+
+    const tabIds: Tab[] = ['help', 'ai', 'community'];
+    const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
+
+    const focusEl = (id: string) => {
+      const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+
+    // Initial focus on first tab
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || !active.getAttribute('data-focus-id')) {
+      focusEl(`tab-${tab}`);
+    }
+
+    const handler = (e: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      // Don't hijack typing fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const currentId = target.getAttribute?.('data-focus-id');
+      const onTab = currentId?.startsWith('tab-');
+      const onHelp = currentId && helpIds.includes(currentId);
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (onTab || !currentId) {
+          e.preventDefault();
+          const idx = Math.max(0, tabIds.indexOf(tab));
+          const next = e.key === 'ArrowRight'
+            ? Math.min(tabIds.length - 1, idx + 1)
+            : Math.max(0, idx - 1);
+          setTab(tabIds[next]);
+          requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (onTab) {
+          if (tab === 'help') focusEl(helpIds[0]);
+          return;
+        }
+        if (onHelp) {
+          const idx = helpIds.indexOf(currentId!);
+          if (idx < helpIds.length - 1) focusEl(helpIds[idx + 1]);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (onHelp) {
+          const idx = helpIds.indexOf(currentId!);
+          if (idx > 0) focusEl(helpIds[idx - 1]);
+          else focusEl(`tab-${tab}`);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [tab, helpView, showSpeedTest, showGuide]);
+
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
     return (
@@ -148,24 +221,27 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border-slate-600">
+          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-auto">
             <TabsTrigger
               value="help"
-              className="text-white data-[state=active]:bg-brand-gold text-center text-lg py-3"
+              data-focus-id="tab-help"
+              className="text-white data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-brand-gold"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
             </TabsTrigger>
             <TabsTrigger
               value="ai"
-              className="text-white data-[state=active]:bg-purple-600 text-center text-lg py-3"
+              data-focus-id="tab-ai"
+              className="text-white data-[state=active]:bg-purple-600 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-purple-400"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
             </TabsTrigger>
             <TabsTrigger
               value="community"
-              className="text-white data-[state=active]:bg-green-600 text-center text-lg py-3"
+              data-focus-id="tab-community"
+              className="text-white data-[state=active]:bg-green-600 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-green-400"
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
@@ -179,11 +255,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                className="bg-cyan-600/20 border-cyan-500/50 text-cyan-100 hover:bg-cyan-600/30 justify-start text-xl py-8"
+                data-focus-id="help-speedtest"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 justify-start text-xl py-8 shadow-md"
               >
                 <Gauge className="w-7 h-7 mr-4" />
                 Speedtest
-                <span className="ml-auto text-sm text-cyan-200/70">
+                <span className="ml-auto text-sm text-cyan-100">
                   Test your internet speed
                 </span>
               </Button>
@@ -192,11 +269,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                className="bg-purple-600/20 border-purple-500/50 text-purple-100 hover:bg-purple-600/30 justify-start text-xl py-8"
+                data-focus-id="help-guide"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 justify-start text-xl py-8 shadow-md"
               >
                 <LifeBuoy className="w-7 h-7 mr-4" />
                 Buffering Guide
-                <span className="ml-auto text-sm text-purple-200/70">
+                <span className="ml-auto text-sm text-purple-100">
                   Step-by-step buffering fixes
                 </span>
               </Button>
@@ -205,11 +283,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                className="bg-blue-600/20 border-blue-500/50 text-blue-100 hover:bg-blue-600/30 justify-start text-xl py-8"
+                data-focus-id="help-videos"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 justify-start text-xl py-8 shadow-md"
               >
                 <Video className="w-7 h-7 mr-4" />
                 Support Videos
-                <span className="ml-auto text-sm text-blue-200/70">
+                <span className="ml-auto text-sm text-blue-100">
                   Tutorials and walkthroughs
                 </span>
               </Button>
@@ -218,11 +297,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                className="bg-orange-600/20 border-orange-500/50 text-orange-100 hover:bg-orange-600/30 justify-start text-xl py-8"
+                data-focus-id="help-tickets"
+                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 justify-start text-xl py-8 shadow-md"
               >
                 <MessageCircle className="w-7 h-7 mr-4" />
                 Submit a Ticket
-                <span className="ml-auto text-sm text-orange-200/70">
+                <span className="ml-auto text-sm text-orange-100">
                   Contact Snow Media Support
                 </span>
               </Button>
@@ -242,7 +322,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
           <TabsContent value="community" className="mt-0">
             <Suspense fallback={null}>
-              <CommunityChat onBack={onBack} />
+              <CommunityChat onBack={onBack} embedded />
             </Suspense>
           </TabsContent>
         </Tabs>

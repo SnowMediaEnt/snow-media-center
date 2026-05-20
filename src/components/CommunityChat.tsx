@@ -22,9 +22,10 @@ interface CommunityMessage {
 
 interface CommunityChatProps {
   onBack: () => void;
+  embedded?: boolean;
 }
 
-const CommunityChat = ({ onBack }: CommunityChatProps) => {
+const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
@@ -252,9 +253,10 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 shadow-[0_0_20px_rgba(161,213,220,0.5)] brightness-110 z-10' : '';
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white h-dvh overflow-y-auto overscroll-contain">
-      <div className="max-w-6xl mx-auto pb-16">
-        {/* Header */}
+    <div ref={containerRef} className={embedded ? "w-full" : "tv-scroll-container tv-safe bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white h-dvh overflow-y-auto overscroll-contain"}>
+      <div className={embedded ? "w-full" : "max-w-6xl mx-auto pb-16"}>
+        {/* Header — hidden when embedded inside Support */}
+        {!embedded && (
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <Button 
@@ -277,6 +279,7 @@ const CommunityChat = ({ onBack }: CommunityChatProps) => {
             <span className="text-blue-400 text-sm">Community</span>
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Room Selector */}
