@@ -230,7 +230,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     };
 
     const focusTimer = window.setTimeout(() => {
-      if (!containerRef.current?.contains(document.activeElement)) focusElement(getElements()[0]);
+      if (!containerRef.current?.contains(document.activeElement)) {
+        const elements = getElements();
+        focusElement(elements.find((el) => el.dataset.supportId === 'create-subject') ?? elements[0], 'start');
+      }
     }, 80);
     window.addEventListener('keydown', handleDpad, true);
     return () => {
