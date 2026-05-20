@@ -119,13 +119,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   }, []);
 
   const restoreAiVoiceFocus = useCallback(() => {
-    const idx = getFocusableElements().findIndex((element) => element.id === 'ai-voice');
-    if (idx !== -1) setFocusIndex(idx);
+    setFocusIndex(embedded ? 1 : 5);
     requestAnimationFrame(() => {
       const voiceButton = containerRef.current?.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
       voiceButton?.focus({ preventScroll: true });
     });
-  }, [getFocusableElements]);
+  }, [embedded]);
 
   const speakReply = useCallback(async (text: string) => {
     stopVoicePlayback();
