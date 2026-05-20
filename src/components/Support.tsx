@@ -1,6 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ArrowLeft,
@@ -14,6 +13,10 @@ import {
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
+import { useAppData } from '@/hooks/useAppData';
+import { useToast } from '@/hooks/use-toast';
+import { generatePackageName } from '@/utils/downloadApk';
+import type { AppData } from '@/hooks/useApps';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -23,6 +26,7 @@ const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
 interface SupportProps {
   onBack: () => void;
   onNavigate?: (section: string) => void;
+  onOpenMainApps?: () => void;
 }
 
 type Tab = 'help' | 'ai' | 'community';
