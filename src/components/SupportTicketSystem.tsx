@@ -212,10 +212,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       let nextIndex = currentIndex;
       if (event.key === 'ArrowDown') {
         if (currentRole === 'list-back') nextIndex = Math.min(2, elements.length - 1);
+        else if (currentRole === 'ticket-back') nextIndex = Math.max(elements.findIndex((el) => el.dataset.supportId === 'ticket-reply'), currentIndex);
         else nextIndex = Math.min(currentIndex + 1, elements.length - 1);
       }
       if (event.key === 'ArrowUp') {
-        if (currentIndex === 2) nextIndex = 0;
+        if (currentIndex === 2 || currentRole === 'ticket-reply') nextIndex = 0;
         else nextIndex = Math.max(currentIndex - 1, 0);
       }
       if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
