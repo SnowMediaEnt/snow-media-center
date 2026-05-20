@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -172,17 +173,22 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
     ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
 
-    const focusElement = (el?: HTMLElement) => {
+    const focusElement = (el?: HTMLElement, block: ScrollLogicalPosition = 'center') => {
       if (!el) return;
       el.focus();
-      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
     };
 
     const handleDpad = (event: KeyboardEvent) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (isTyping && event.key === 'Enter') return;
+      if (isTyping && event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
+        return;
+      }
       if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
 
       const elements = getElements();
@@ -196,8 +202,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         event.stopPropagation();
         const el = elements[currentIndex];
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-          el.focus();
-          (el as HTMLInputElement | HTMLTextAreaElement).click();
+          void focusTextInputForDpad(el as HTMLInputElement | HTMLTextAreaElement);
         } else {
           el.click();
         }
@@ -208,16 +213,27 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       event.stopPropagation();
       if (isTyping) target.blur();
 
+      const currentRole = elements[currentIndex]?.dataset.supportId;
       let nextIndex = currentIndex;
-      if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+      if (event.key === 'ArrowDown') {
+        if (currentRole === 'list-back') nextIndex = Math.min(2, elements.length - 1);
+        else if (currentRole === 'ticket-back') nextIndex = Math.max(elements.findIndex((el) => el.dataset.supportId === 'ticket-reply'), currentIndex);
+        else nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      }
+      if (event.key === 'ArrowUp') {
+        if (currentIndex === 2 || currentRole === 'ticket-reply') nextIndex = 0;
+        else nextIndex = Math.max(currentIndex - 1, 0);
+      }
       if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
       if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
-      focusElement(elements[nextIndex]);
+      focusElement(elements[nextIndex], nextIndex === 0 ? 'start' : 'center');
     };
 
     const focusTimer = window.setTimeout(() => {
-      if (!containerRef.current?.contains(document.activeElement)) focusElement(getElements()[0]);
+      if (!containerRef.current?.contains(document.activeElement)) {
+        const elements = getElements();
+        focusElement(elements.find((el) => el.dataset.supportId === 'create-subject') ?? elements[0], 'start');
+      }
     }, 80);
     window.addEventListener('keydown', handleDpad, true);
     return () => {
@@ -324,6 +340,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-support-focus
+              data-support-id="create-back"
               className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -353,6 +370,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
                   data-support-focus
+                  data-support-id="create-subject"
                   className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
@@ -368,6 +386,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   rows={8}
                   enterKeyHint="done"
                   data-support-focus
+                  data-support-id="create-message"
                   className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
@@ -377,6 +396,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
                   data-support-focus
+                  data-support-id="create-submit"
                   className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   {loading ? "Creating..." : "Create Ticket"}
@@ -385,6 +405,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={() => setView('list')}
                   variant="outline"
                   data-support-focus
+                  data-support-id="create-cancel"
                   className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   Cancel
@@ -409,6 +430,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 variant="outline" 
                 size="sm"
                 data-support-focus
+                data-support-id="ticket-back"
                 className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -428,6 +450,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleCloseTicket}
                   variant="outline"
                   data-support-focus
+                  data-support-id="ticket-close"
                   className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -444,6 +467,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 }}
                 variant="outline"
                 data-support-focus
+                data-support-id="ticket-delete"
                 className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -492,12 +516,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     placeholder="Type your reply..."
                     rows={4}
                     data-support-focus
+                    data-support-id="ticket-reply"
                     className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
                     data-support-focus
+                    data-support-id="ticket-send"
                     className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                   >
                     <Send className="h-4 w-4 mr-2" />
@@ -522,6 +548,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline"
               size="sm"
               data-support-focus
+              data-support-id="ai-chat-back"
               className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -572,6 +599,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
                   data-support-focus
+                  data-support-id="ai-chat-input"
                   className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
@@ -579,6 +607,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
                   data-support-focus
+                  data-support-id="ai-chat-send"
                   className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Send className="h-4 w-4" />
@@ -601,6 +630,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-support-focus
+              data-support-id="list-back"
               className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -621,6 +651,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               setView('create');
             }}
             data-support-focus
+            data-support-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -743,6 +774,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
                   data-support-focus
+                  data-support-id="ai-new-input"
                   className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
@@ -750,6 +782,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
                   data-support-focus
+                  data-support-id="ai-new-send"
                   className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Plus className="h-4 w-4 mr-2" />

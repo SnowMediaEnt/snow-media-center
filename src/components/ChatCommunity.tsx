@@ -14,6 +14,7 @@ import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
 
 interface ChatCommunityProps {
   onBack: () => void;
@@ -662,6 +663,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
+      if (embedded && !containerRef.current?.contains(target)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       // Handle back button - hierarchical exit from nested containers
@@ -692,6 +694,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       // Allow backspace when typing
       if (event.key === 'Backspace' && isTyping) {
+        return;
+      }
+
+      if ((event.key === 'Enter' || event.key === ' ') && isTyping) {
+        event.preventDefault();
+        event.stopPropagation();
+        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
         return;
       }
 
@@ -760,6 +769,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
+          if (embedded && focusIndex === 0) {
+            const parentTab = document.querySelector<HTMLElement>('[data-focus-id="tab-ai"]');
+            parentTab?.focus();
+            parentTab?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            return;
+          }
           if (currentFocusId.startsWith('ai-history-')) {
             const inputIndex = elements.findIndex(e => e.id === 'ai-input');
             if (inputIndex !== -1) {
@@ -863,12 +878,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input' || currentFocusId === 'ai-input') {
             // Focus the actual input/textarea element for typing
             const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
-            if (el) {
-              el.focus();
-              el.click();
-              const len = el.value?.length || 0;
-              el.setSelectionRange(len, len);
-            }
+            void focusTextInputForDpad(el);
           } else if (currentFocusId === 'submit-ticket') {
             handleCreateTicket();
           } else if (currentFocusId === 'cancel-ticket') {
