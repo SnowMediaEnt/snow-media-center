@@ -676,15 +676,14 @@ const Index = () => {
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
             {(() => {
-              // When the content bar is on, force a single row of 4 so the
-              // home stays compact. When it's off, honor the user's setting.
-              const effectiveLayout: 'grid' | 'row' = mediaBarEnabled ? 'row' : layoutMode;
+              // 3 cards now — always lay out in a single row for clean spacing.
+              const effectiveLayout: 'grid' | 'row' = 'row';
               return (
             <div 
-              className={`justify-center w-full mx-auto ${effectiveLayout === 'grid' ? 'grid grid-cols-2' : 'flex flex-nowrap'}`} 
+              className="justify-center w-full mx-auto flex flex-nowrap"
               style={{ 
-                gap: effectiveLayout === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1rem, 2.5vw, 3rem)',
-                maxWidth: effectiveLayout === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
+                gap: 'clamp(1rem, 2.5vw, 3rem)',
+                maxWidth: '95vw'
               }}
             >
               {buttons.map((button, index) => {
@@ -693,7 +692,6 @@ const Index = () => {
                   if (index === 0) navigateTo('apps');
                   else if (index === 1) navigateTo('store');
                   else if (index === 2) navigateTo('support');
-                  else if (index === 3) navigateTo('chat');
                 };
 
                 const cardContent = (
