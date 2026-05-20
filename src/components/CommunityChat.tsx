@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
 
 interface CommunityMessage {
   id: string;
@@ -65,7 +66,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     if (direction === 'down') {
       if (currentId === 'back') {
         // Go to first room
-        return 1;
+          return embedded ? 0 : 1;
       } else if (currentId.startsWith('room-')) {
         const roomIndex = focusableIds.indexOf(currentId);
         const nextRoomIndex = roomIndex + 1;
@@ -113,6 +114,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
+      if (embedded && !containerRef.current?.contains(target)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       // Handle back button (always)
@@ -125,6 +127,13 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
 
       // Allow backspace when typing
       if (event.key === 'Backspace' && isTyping) {
+        return;
+      }
+
+      if ((event.key === 'Enter' || event.key === ' ') && isTyping) {
+        event.preventDefault();
+        event.stopPropagation();
+        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
         return;
       }
 
@@ -160,7 +169,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
           } else if (currentId.startsWith('room-')) {
             setSelectedRoom(currentId.replace('room-', ''));
           } else if (currentId === 'input') {
-            inputRef.current?.focus();
+            void focusTextInputForDpad(inputRef.current);
           } else if (currentId === 'send') {
             sendMessageRef.current();
           }
