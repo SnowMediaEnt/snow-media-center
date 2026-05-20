@@ -123,7 +123,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const emptyActionId = user ? 'empty-create-ticket' : 'empty-sign-in';
   const firstTicketId = tickets.length > 0 ? 'ticket-0' : emptyActionId;
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
-  const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : 'ai-new-input';
+  const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : emptyActionId;
 
   const handleSystemBack = () => {
     if (view === 'ticket') {
