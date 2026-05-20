@@ -16,7 +16,7 @@ import BufferingGuide from '@/components/BufferingGuide';
 import { useAppData } from '@/hooks/useAppData';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
-import type { AppData } from '@/hooks/useApps';
+import type { AppData } from '@/hooks/useAppData';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
