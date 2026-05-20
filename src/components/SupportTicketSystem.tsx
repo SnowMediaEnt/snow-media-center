@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
+import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -121,126 +122,81 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   }, [aiConversationMessages.length, selectedAIConversationId, view, aiLoading]);
 
-  // Hierarchical back button handling
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      
-      // Allow Backspace when typing
-      if (event.key === 'Backspace' && isTyping) {
-        return;
-      }
-      
-      // Handle back button - hierarchical exit from nested containers
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        // If viewing a ticket, go back to list first
-        if (view === 'ticket') {
-          setView('list');
-          setSelectedTicketId(null);
-          return;
-        }
-        
-        // If viewing an AI chat, go back to list
-        if (view === 'ai-chat') {
-          setView('list');
-          setSelectedAIConversationId(null);
-          return;
-        }
-        
-        // If in create form, go back to list
-        if (view === 'create') {
-          setView('list');
-          return;
-        }
-        
-        // Otherwise exit to previous page
-        onBack();
-        return;
-      }
+  const firstTicketId = tickets.length > 0 ? 'ticket-0' : 'ai-new-input';
+  const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
+  const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : 'ai-new-input';
+
+  const handleSystemBack = () => {
+    if (view === 'ticket') {
+      setView('list');
+      setSelectedTicketId(null);
+      return;
+    }
+    if (view === 'ai-chat') {
+      setView('list');
+      setSelectedAIConversationId(null);
+      return;
+    }
+    if (view === 'create') {
+      setView('list');
+      return;
+    }
+    onBack();
+  };
+
+  const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
+    if (view === 'create') {
+      return {
+        'create-back': { down: 'create-subject' },
+        'create-subject': { up: 'create-back', down: 'create-message' },
+        'create-message': { up: 'create-subject', down: 'create-submit' },
+        'create-submit': { up: 'create-message', right: 'create-cancel' },
+        'create-cancel': { up: 'create-message', left: 'create-submit' },
+      };
+    }
+    if (view === 'ticket') {
+      return {
+        'ticket-back': { right: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-delete', down: 'ticket-reply' },
+        'ticket-close': { left: 'ticket-back', right: 'ticket-delete', down: 'ticket-reply' },
+        'ticket-delete': { left: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-back', down: 'ticket-reply' },
+        'ticket-reply': { up: 'ticket-back', down: 'ticket-send' },
+        'ticket-send': { up: 'ticket-reply' },
+      };
+    }
+    if (view === 'ai-chat') {
+      return {
+        'ai-chat-back': { down: 'ai-chat-input' },
+        'ai-chat-input': { up: 'ai-chat-back', right: 'ai-chat-send' },
+        'ai-chat-send': { up: 'ai-chat-back', left: 'ai-chat-input' },
+      };
+    }
+    const map: TVFocusNavigationMap = {
+      'list-back': { right: 'new-ticket', down: firstTicketId },
+      'new-ticket': { left: 'list-back', down: 'ai-new-input' },
+      'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
+      'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
     };
+    tickets.forEach((_, index) => {
+      map[`ticket-${index}`] = {
+        up: index === 0 ? 'list-back' : `ticket-${index - 1}`,
+        down: index === tickets.length - 1 ? 'ai-new-input' : `ticket-${index + 1}`,
+        right: index === 0 ? 'new-ticket' : undefined,
+      };
+    });
+    aiConversations.forEach((_, index) => {
+      map[`ai-history-${index}`] = {
+        up: index === 0 ? 'ai-new-input' : `ai-history-${index - 1}`,
+        down: index === aiConversations.length - 1 ? `ai-history-${index}` : `ai-history-${index + 1}`,
+      };
+    });
+    return map;
+  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, view]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, onBack]);
-
-  useEffect(() => {
-    const selector = '[data-support-focus]:not([disabled])';
-    const getElements = () => Array.from(
-      containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
-    ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
-
-    const focusElement = (el?: HTMLElement, block: ScrollLogicalPosition = 'center') => {
-      if (!el) return;
-      el.focus();
-      el.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
-    };
-
-    const handleDpad = (event: KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
-      const target = event.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (isTyping && event.key === 'Enter') {
-        event.preventDefault();
-        event.stopPropagation();
-        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
-        return;
-      }
-      if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-
-      const elements = getElements();
-      if (!elements.length) return;
-      const active = document.activeElement as HTMLElement | null;
-      const currentIndex = Math.max(0, elements.findIndex((el) => el === active || el.contains(active)));
-
-      if (event.key === 'Enter' || event.key === ' ') {
-        if (isTyping) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const el = elements[currentIndex];
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-          void focusTextInputForDpad(el as HTMLInputElement | HTMLTextAreaElement);
-        } else {
-          el.click();
-        }
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      if (isTyping) target.blur();
-
-      const currentRole = elements[currentIndex]?.dataset.supportId;
-      let nextIndex = currentIndex;
-      if (event.key === 'ArrowDown') {
-        if (currentRole === 'list-back') nextIndex = Math.min(2, elements.length - 1);
-        else if (currentRole === 'ticket-back') nextIndex = Math.max(elements.findIndex((el) => el.dataset.supportId === 'ticket-reply'), currentIndex);
-        else nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      }
-      if (event.key === 'ArrowUp') {
-        if (currentIndex === 2 || currentRole === 'ticket-reply') nextIndex = 0;
-        else nextIndex = Math.max(currentIndex - 1, 0);
-      }
-      if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
-      focusElement(elements[nextIndex], nextIndex === 0 ? 'start' : 'center');
-    };
-
-    const focusTimer = window.setTimeout(() => {
-      if (!containerRef.current?.contains(document.activeElement)) {
-        const elements = getElements();
-        focusElement(elements.find((el) => el.dataset.supportId === 'create-subject') ?? elements[0], 'start');
-      }
-    }, 80);
-    window.addEventListener('keydown', handleDpad, true);
-    return () => {
-      window.clearTimeout(focusTimer);
-      window.removeEventListener('keydown', handleDpad, true);
-    };
-  }, [view, selectedTicketId, selectedAIConversationId, tickets.length, aiConversations.length, loading, aiLoading]);
+  const tvFocus = useTVFocus({
+    initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    navigation: tvNavigation,
+    onBack: handleSystemBack,
+  });
 
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
