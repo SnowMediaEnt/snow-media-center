@@ -656,7 +656,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const isFocused = (id: string) => currentFocusId === id;
   const focusRing = (id: string) =>
     isFocused(id)
-      ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
+      ? 'ring-4 ring-brand-ice shadow-[0_0_18px_rgba(161,213,220,0.45)] brightness-110 z-10'
       : '';
 
   // D-pad Navigation Handler
