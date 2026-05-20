@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -32,6 +32,7 @@ const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const CreditStore = lazy(() => import('@/components/CreditStore'));
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
+const Support = lazy(() => import('@/components/Support'));
 const Settings = lazy(() => import('@/components/Settings'));
 const UserDashboard = lazy(() => import('@/components/UserDashboard'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -336,93 +337,55 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = 3; // apps, store, support, chat
-      
+      const maxButtons = 2; // apps (0), store (1), support (2)
+
       switch (event.key) {
         case 'ArrowLeft':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 1 || focusedButton === 3) {
-              setFocusedButton(focusedButton - 1);
-            } else if (focusedButton === -1) { // settings
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) { // user/auth → logo
-              setFocusedButton(-3);
-            }
-          } else { // row mode
-            if (focusedButton > 0) {
-              setFocusedButton(focusedButton - 1);
-            } else if (focusedButton === 0) {
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -1) {
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) {
-              setFocusedButton(-3); // logo (easter egg)
-            }
+          if (focusedButton > 0) {
+            setFocusedButton(focusedButton - 1);
+          } else if (focusedButton === 0) {
+            setFocusedButton(-1); // settings
+          } else if (focusedButton === -1) {
+            setFocusedButton(-2); // user/auth
+          } else if (focusedButton === -2) {
+            setFocusedButton(-3); // logo (easter egg)
           }
           break;
-          
+
         case 'ArrowRight':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 0 || focusedButton === 2) {
-              setFocusedButton(focusedButton + 1);
-            } else if (focusedButton === -2) { // user/auth
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -3) { // logo → user/auth
-              setFocusedButton(-2);
-            }
-          } else { // row mode
-            if (focusedButton < maxButtons) {
-              setFocusedButton(focusedButton + 1);
-            } else if (focusedButton === maxButtons) {
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -1) {
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) {
-              setFocusedButton(0); // back to first app
-            } else if (focusedButton === -3) {
-              setFocusedButton(-2); // logo → user/auth
-            }
+          if (focusedButton >= 0 && focusedButton < maxButtons) {
+            setFocusedButton(focusedButton + 1);
+          } else if (focusedButton === maxButtons) {
+            setFocusedButton(-1); // settings
+          } else if (focusedButton === -1) {
+            setFocusedButton(-2); // user/auth
+          } else if (focusedButton === -2) {
+            setFocusedButton(0); // wrap to first app
+          } else if (focusedButton === -3) {
+            setFocusedButton(-2); // logo → user/auth
           }
           break;
-          
+
         case 'ArrowUp':
-          // If on Main Apps (button 0), go into the popup
+          // If on Main Apps (button 0), go into the pinned apps popup
           if (focusedButton === 0 && !isInPopup) {
             setIsInPopup(true);
             setPopupFocusIndex(0);
             return;
           }
-          
-          if (layoutMode === 'grid') {
-            if (focusedButton === 2 || focusedButton === 3) {
-              setFocusedButton(focusedButton - 2);
-            } else if (mediaBarEnabled) {
-              // Into MediaBar (only if enabled)
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            }
-          } else { // row mode
-            if (focusedButton >= 0 && mediaBarEnabled) {
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            }
+
+          if (focusedButton >= 0 && mediaBarEnabled) {
+            setFocusedButton(-99);
+            setIsInMediaBar(true);
           }
           break;
-          
+
         case 'ArrowDown':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 0 || focusedButton === 1) {
-              setFocusedButton(focusedButton + 2);
-            } else if (focusedButton < 0) {
-              setFocusedButton(0); // Go to first app
-            }
-          } else { // row mode - go to apps
-            if (focusedButton < 0) {
-              setFocusedButton(0); // Go to first app
-            }
+          if (focusedButton < 0) {
+            setFocusedButton(0); // Go to first app
           }
           break;
-          
+
         case 'Enter':
         case ' ':
           if (focusedButton === -3) {
@@ -444,8 +407,6 @@ const Index = () => {
             navigateTo('store');
           } else if (focusedButton === 2) {
             navigateTo('support');
-          } else if (focusedButton === 3) {
-            navigateTo('chat');
           }
           break;
           
@@ -476,16 +437,10 @@ const Index = () => {
       variant: 'purple' as const
     },
     {
-      icon: Video,
-      title: 'Support Videos',
-      description: 'Help & Tutorial Videos',
+      icon: LifeBuoy,
+      title: 'Support',
+      description: 'Help, AI Chat & Community',
       variant: 'gold' as const
-    },
-    {
-      icon: MessageCircle,
-      title: 'Chat & Community',
-      description: 'Connect with Admin & Users',
-      variant: 'navy' as const
     }
   ], []);
 
@@ -494,9 +449,10 @@ const Index = () => {
     <div className="min-h-screen">
       {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
       <Suspense fallback={<RouteFallback />}>
-        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('chat')} />}
+        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('support')} />}
         {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
-        {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
+        {currentView === 'support' && <Support onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
+        {currentView === 'support-videos' && <SupportVideos onBack={() => goBack()} />}
         {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
         {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
         {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
@@ -720,15 +676,14 @@ const Index = () => {
           {/* Main Content - Cards positioned at bottom */}
           <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
             {(() => {
-              // When the content bar is on, force a single row of 4 so the
-              // home stays compact. When it's off, honor the user's setting.
-              const effectiveLayout: 'grid' | 'row' = mediaBarEnabled ? 'row' : layoutMode;
+              // 3 cards now — always lay out in a single row for clean spacing.
+              const effectiveLayout: 'grid' | 'row' = 'row';
               return (
             <div 
-              className={`justify-center w-full mx-auto ${effectiveLayout === 'grid' ? 'grid grid-cols-2' : 'flex flex-nowrap'}`} 
+              className="justify-center w-full mx-auto flex flex-nowrap"
               style={{ 
-                gap: effectiveLayout === 'grid' ? 'clamp(1.5rem, 3vw, 4rem)' : 'clamp(1rem, 2.5vw, 3rem)',
-                maxWidth: effectiveLayout === 'grid' ? 'clamp(500px, 55vw, 1200px)' : '95vw'
+                gap: 'clamp(1rem, 2.5vw, 3rem)',
+                maxWidth: '95vw'
               }}
             >
               {buttons.map((button, index) => {
@@ -737,7 +692,6 @@ const Index = () => {
                   if (index === 0) navigateTo('apps');
                   else if (index === 1) navigateTo('store');
                   else if (index === 2) navigateTo('support');
-                  else if (index === 3) navigateTo('chat');
                 };
 
                 const cardContent = (
