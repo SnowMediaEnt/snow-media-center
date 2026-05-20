@@ -40,6 +40,9 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
       // Notify parent in gesture context (so it can unlock TTS audio playback)
       onRecordingStart?.();
 
+      // On native, try Android's built-in RecognizerIntent first (fast, no upload).
+      // Many TV boxes / STBs don't ship a speech recognizer — silently fall back
+      // to MediaRecorder + ElevenLabs STT if it isn't available.
       if (isNativePlatform()) {
         setIsProcessing(true);
         try {
@@ -47,18 +50,15 @@ export const VoiceInput = ({ onTranscription, onRecordingStart, className = '' }
           const text = result.text?.trim();
           if (text) onTranscription(text);
           else toast({ title: 'No speech heard', description: 'Tap Voice and speak again.' });
-        } catch (error) {
-          console.warn('Native voice input failed:', error);
-          toast({
-            title: 'Voice unavailable',
-            description: 'Could not start listening on this device. Try again.',
-            variant: 'destructive',
-          });
-        } finally {
           setIsProcessing(false);
+          return;
+        } catch (error) {
+          console.warn('Native voice input unavailable, falling back to mic capture:', error);
+          setIsProcessing(false);
+          // Fall through to the MediaRecorder path below.
         }
-        return;
       }
+
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
