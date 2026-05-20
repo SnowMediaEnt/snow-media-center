@@ -53,9 +53,6 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     };
     rooms.forEach((room, index) => {
       map[`room-${room.id}`] = {
-        up: index === 0 ? (embedded ? null : 'back') : `room-${rooms[index - 1].id}`,
-    rooms.forEach((room, index) => {
-      map[`room-${room.id}`] = {
         up: index === 0
           ? (embedded
               ? () => { window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'community' } })); return null; }
@@ -64,6 +61,12 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
         down: index === rooms.length - 1 ? 'input' : `room-${rooms[index + 1].id}`,
       };
     });
+    return map;
+  }, [embedded, rooms]);
+
+  const tvFocus = useTVFocus({
+    initialFocusId: embedded ? 'room-general' : 'back',
+    navigation: tvNavigation,
     onBack,
   });
 
