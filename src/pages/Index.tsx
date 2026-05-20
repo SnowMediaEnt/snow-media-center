@@ -477,16 +477,10 @@ const Index = () => {
       variant: 'purple' as const
     },
     {
-      icon: Video,
-      title: 'Support Videos',
-      description: 'Help & Tutorial Videos',
+      icon: LifeBuoy,
+      title: 'Support',
+      description: 'Help, AI Chat & Community',
       variant: 'gold' as const
-    },
-    {
-      icon: MessageCircle,
-      title: 'Chat & Community',
-      description: 'Connect with Admin & Users',
-      variant: 'navy' as const
     }
   ], []);
 
