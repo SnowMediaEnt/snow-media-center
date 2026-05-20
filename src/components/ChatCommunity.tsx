@@ -1507,7 +1507,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 />
               </div>
               <Button 
-                onClick={sendAiMessage}
+                onClick={() => sendAiMessage()}
                 disabled={aiLoading || !aiMessage.trim() || !user}
                 data-focus-id="ai-send"
                 className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 transition-all duration-200 ${focusRing('ai-send')}`}
