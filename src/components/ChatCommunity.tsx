@@ -728,6 +728,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
+          if (['ai-input', 'ai-voice', 'ai-send'].includes(currentFocusId)) {
+            const historyIndex = elements.findIndex(e => e.id === 'ai-history-0');
+            if (historyIndex !== -1) {
+              setFocusIndex(historyIndex);
+              return;
+            }
+          }
           // If focused on message-scroll, scroll down instead of changing focus
           if (currentFocusId === 'message-scroll') {
             scrollMessages('down');
@@ -752,6 +759,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
+          if (currentFocusId.startsWith('ai-history-')) {
+            const inputIndex = elements.findIndex(e => e.id === 'ai-input');
+            if (inputIndex !== -1) {
+              setFocusIndex(inputIndex);
+              return;
+            }
+          }
           // If focused on message-scroll, scroll up instead of changing focus
           if (currentFocusId === 'message-scroll') {
             scrollMessages('up');
@@ -851,6 +865,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
               if (el) {
                 el.focus();
+                el.click();
                 // Move cursor to end
                 const len = el.value?.length || 0;
                 el.setSelectionRange(len, len);
