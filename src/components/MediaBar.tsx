@@ -544,7 +544,44 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!debugItem} onOpenChange={(o) => !o && setDebugItem(null)}>
+        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[hsl(var(--brand-gold))]">Plex item debug</DialogTitle>
+          </DialogHeader>
+          {debugItem && (() => {
+            const v = validatePlexLaunchItem(debugItem);
+            const candidates = v ? buildPlexLaunchCandidates(v) : null;
+            return (
+              <pre className="text-[11px] leading-snug whitespace-pre-wrap break-all bg-black/40 p-3 rounded max-h-[60vh] overflow-auto">
+{JSON.stringify({
+  title: debugItem.title,
+  type: debugItem.kind,
+  ratingKey: v?.ratingKey ?? null,
+  key: debugItem.key ?? null,
+  metadataKey: v?.metadataKey ?? null,
+  machineIdentifier: v?.machineIdentifier ?? null,
+  guid: debugItem.guid ?? null,
+  librarySectionID: debugItem.librarySectionID ?? null,
+  candidates,
+}, null, 2)}
+              </pre>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              onClick={() => setDebugItem(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 });
 
