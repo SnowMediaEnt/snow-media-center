@@ -22,9 +22,10 @@ interface CommunityMessage {
 
 interface CommunityChatProps {
   onBack: () => void;
+  embedded?: boolean;
 }
 
-const CommunityChat = ({ onBack }: CommunityChatProps) => {
+const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
