@@ -947,6 +947,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     setFocusIndex(tabIndex);
   }, [activeTab, embedded]);
 
+  useEffect(() => {
+    if (!embedded || activeTab !== 'ai') return;
+    const handler = () => setFocusIndex(0);
+    window.addEventListener('chat-community:focus-ai-input', handler);
+    return () => window.removeEventListener('chat-community:focus-ai-input', handler);
+  }, [activeTab, embedded]);
+
   return (
     <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
       <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
