@@ -17,10 +17,16 @@ export type VoiceState =
   | 'error'
   | 'cancelled';
 
+export interface VoiceLifecycleControls {
+  setVoiceState: (state: VoiceState) => void;
+  restoreFocus: () => void;
+  cleanupAudio: () => void;
+}
+
 type VoiceErrorSource = 'native' | 'fallback' | 'browser';
 
 interface VoiceInputProps {
-  onTranscription: (text: string) => void | Promise<void>;
+  onTranscription: (text: string, controls: VoiceLifecycleControls) => void | Promise<void>;
   onRecordingStart?: () => void;
   onVoiceStateChange?: (state: VoiceState) => void;
   onRestoreFocus?: () => void;
@@ -75,6 +81,12 @@ export const VoiceInput = ({
   const { toast } = useToast();
 
   const currentVoiceState = localVoiceState;
+
+  const lifecycleControls: VoiceLifecycleControls = {
+    setVoiceState: (state) => transitionVoiceState(state),
+    restoreFocus: () => onRestoreFocus?.(),
+    cleanupAudio: () => cleanupAudioSession(),
+  };
 
   const transitionVoiceState = (next: VoiceState) => {
     const previous = voiceStateRef.current;
@@ -233,7 +245,8 @@ export const VoiceInput = ({
         return;
       }
 
-      await onTranscription(text);
+      cleanupAudioSession();
+      await onTranscription(text, lifecycleControls);
       if (voiceStateRef.current === 'processing_transcription') {
         transitionVoiceState('idle');
         onRestoreFocus?.();
@@ -425,7 +438,6 @@ export const VoiceInput = ({
     if (state === 'sending_to_ai' || state === 'speaking') return;
 
     onRecordingStart?.();
-    stopFallbackRecording;
     transitionVoiceState('requesting_permission');
 
     if (isNativePlatform()) {
