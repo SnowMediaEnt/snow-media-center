@@ -140,7 +140,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (playbackId !== ttsPlaybackIdRef.current) return;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
-        console.warn('[TTS] No audioContent returned');
+        console.warn('VOICE_ERROR: TTS_NO_AUDIO/no audioContent returned/tts');
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
         return;
       }
 
@@ -1496,13 +1498,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   }}
                   onTranscription={(text) => {
                     voiceModeRef.current = true;
+                    voiceControlsRef.current = arguments[1] as VoiceLifecycleControls;
                     setAiMessage(text);
-                    // auto-send after transcription
-                    setTimeout(() => {
-                      const btn = document.querySelector('[data-focus-id="ai-send"]') as HTMLButtonElement | null;
-                      btn?.click();
-                    }, 100);
+                    sendAiMessage(text);
                   }}
+                  onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
+                  onRestoreFocus={restoreAiVoiceFocus}
+                  disabled={aiLoading || !user}
                   className=""
                 />
               </div>
