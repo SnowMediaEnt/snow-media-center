@@ -1,60 +1,23 @@
-## Goal
+# Settings tabs + Home menu order
 
-When the user clicks a live event in the content bar, the popup should show a tailored, ordered list of category suggestions inside Dreamstreams / VibezTV based on the league, the teams playing, and their home cities.
+## 1. Settings: gold bar follows the cursor
 
-## How the suggestions are picked
+In `src/components/Settings.tsx`, the gold pill is the Tabs "active" state, but Left/Right currently only moves the focus ring — the user has to press Enter to switch the active tab. Make the active tab follow the focused tab so the whole gold bar slides with the cursor as you move between Media Manager → Updates → (App Alerts).
 
-For every live event we already know:
-- The **league** (NFL, NBA, NHL, MLB, MLS, NCAAF, NCAAB, WNBA, EPL, UCL, F1, NASCAR, PGA, UFC)
-- The **two team names** (e.g. "Dodgers", "Yankees")
+- In the `ArrowLeft` / `ArrowRight` handlers (≈ lines 148–155), after setting the new focused tab, also call `setActiveTab` with the matching value (`media` / `updates` / `alerts`).
+- No change needed to the visual styling — `data-[state=active]:bg-brand-gold` already provides the sliding bar; we're just driving it from focus.
 
-From that, we build an ordered list (most specific → most general):
+## 2. Home: reorder main menu to Main Apps · Support · Store
 
-1. **{League} Zone** — always (e.g. "MLB Zone", "NFL Zone", "UFC PPV / Fight Night Zone").
-2. **{League} Teams → {Team Name}** — one row per team in the matchup (e.g. "Dodgers", "Yankees").
-3. **US Sports → Spectrum** — only for **Dodgers** and **Lakers** games. Plus a generic note: "If the game is on ESPN / Fox Sports / TNT / ABC, also check US Sports."
-4. **Locals → {City}** — for each US team, derived from a built-in team→city map (Dodgers → Los Angeles, Yankees → New York, Cowboys → Dallas, etc.). For international leagues (EPL, UCL, F1) this row is skipped.
+In `src/pages/Index.tsx`:
 
-Soccer / racing / golf get just rows 1–2 (no Locals, no Spectrum row).
+- `buttons` array (≈ lines 427–446): keep Main Apps at index 0, put Support at index 1, Store at index 2.
+- Enter handler (≈ lines 405–411): `1 → support`, `2 → store`.
+- Card click handler (≈ lines 693–695): `1 → support`, `2 → store`.
 
-## Where the logic lives
+Index 0 (Main Apps) stays put, so the pinned-apps popup logic at lines 371/710 is unaffected. No other code paths reference indices 1 or 2.
 
-- **`src/lib/liveCategoryHints.ts`** (new) — pure function `getLiveHints(item)` that returns the ordered list of `{ label, sublabel }` rows. Holds:
-  - `TEAM_TO_CITY` map for the four big US leagues (NFL, NBA, MLB, NHL) — ~120 teams.
-  - `SPECTRUM_TEAMS = new Set(['Dodgers','Lakers'])`.
-  - League → Zone-name map (mostly `"{League} Zone"`, with UFC special-cased to "PPV / Fight Night").
-  - Helpers to pull the league + team short names from the existing `MediaItem` (league lives in `subtitle` as `"NBA · 3rd 12:34 · 88-72"`, teams live in `title` as `"Lakers @ Warriors"`).
+## Out of scope
 
-- **`src/components/MediaBar.tsx`** — replace the current generic dialog body with a structured list rendered from `getLiveHints(liveDialog)`. Keep the same dialog shell, gold accent, and "Got it" button. Each row shows a colored chip ("Zone", "Team", "Locals", "Spectrum") plus the suggested category path, so it reads at a glance from across the room.
-
-No edge-function or backend changes — everything we need is already in the `MediaItem` returned by `media-bar-feed`.
-
-## Example outputs
-
-**Dodgers @ Yankees (MLB)**
-- MLB Zone
-- MLB Teams → Dodgers
-- MLB Teams → Yankees
-- US Sports → Spectrum (Dodgers)
-- Los Angeles Locals
-- New York Locals
-- Tip: also check US Sports if it's on ESPN / Fox / TNT / ABC.
-
-**Cowboys @ Eagles (NFL)**
-- NFL Zone
-- NFL Teams → Cowboys
-- NFL Teams → Eagles
-- Dallas Locals
-- Philadelphia Locals
-
-**Arsenal vs Real Madrid (UCL)**
-- UCL Zone
-- Soccer Teams → Arsenal
-- Soccer Teams → Real Madrid
-
-**UFC 312: Adesanya vs Strickland**
-- UFC PPV / Fight Night Zone
-
-## Open assumption
-
-Category names ("MLB Zone", "MLB Teams", "Locals", "US Sports") match what's actually inside Dreamstreams / VibezTV. If a name is slightly different in either app, swap the string in `liveCategoryHints.ts` and the popup updates everywhere — no other files to touch.
+- No styling, animation, or focus-color changes.
+- No changes to the dashboard / settings / logo header row.
