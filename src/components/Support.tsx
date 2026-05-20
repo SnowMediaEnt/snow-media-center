@@ -122,6 +122,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const focusTab = () => {
       const el = document.querySelector<HTMLElement>(`[data-focus-id="tab-${tab}"]`);
       if (el) {
+        setFocusedId(`tab-${tab}`);
         el.focus();
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
