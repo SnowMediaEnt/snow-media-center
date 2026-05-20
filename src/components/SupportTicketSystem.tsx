@@ -384,7 +384,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={() => setView('list')} 
                 variant="outline" 
                 size="sm"
-                  data-tv-focus-id="ticket-back"
+                data-tv-focus-id="ticket-back"
                 className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -403,7 +403,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
-                      data-tv-focus-id="ticket-close"
+                  data-tv-focus-id="ticket-close"
                   className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white "
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -419,7 +419,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   setView('list');
                 }}
                 variant="outline"
-                  data-tv-focus-id="ticket-delete"
+                data-tv-focus-id="ticket-delete"
                 className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -467,13 +467,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onChange={(e) => setReplyMessage(e.target.value)}
                     placeholder="Type your reply..."
                     rows={4}
-                          data-tv-focus-id="ticket-reply"
+                    data-tv-focus-id="ticket-reply"
                     className="bg-slate-700 border-slate-600 text-white "
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
-                          data-tv-focus-id="ticket-send"
+                    data-tv-focus-id="ticket-send"
                     className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Send className="h-4 w-4 mr-2" />
