@@ -205,6 +205,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
   const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
+  const [debugItem, setDebugItem] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sports = live TV. Plex/TMDB items = deep link into Plex.
@@ -215,6 +216,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     }
     openPlexItemFromBeginning(item);
   };
+
 
   // Fetch
   useEffect(() => {
