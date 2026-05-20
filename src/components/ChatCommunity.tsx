@@ -910,31 +910,44 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded]);
 
-  // Auto-focus input/textarea when navigating to them with D-pad
+  // Move D-pad highlight WITHOUT focusing native text inputs (which would
+  // auto-open the on-screen keyboard). Keyboard only opens when user presses OK/Enter.
   useEffect(() => {
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
-    
-    // Use scrollIntoView for reliable cross-browser scrolling
+
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+    const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
+
+    // If a text input is currently focused but we're moving away, blur it and
+    // hide the keyboard so it doesn't linger / re-open.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active !== el) {
+      active.blur();
+      if (Capacitor.isNativePlatform()) {
+        import('@capacitor/keyboard').then(({ Keyboard }) => Keyboard.hide().catch(() => {})).catch(() => {});
+      }
+    }
+
+    if (isTextInputFocus) {
+      // Keep focus on the container so arrow keys still navigate and the
+      // native keyboard does NOT auto-pop. User presses OK to start typing.
+      if (containerRef.current) {
+        if (containerRef.current.tabIndex < 0) containerRef.current.tabIndex = 0;
+        containerRef.current.focus({ preventScroll: true });
+      }
+      return;
+    }
+
     const isDisabled = (el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement).disabled;
     const focusTarget = isDisabled ? containerRef.current : el;
     if (focusTarget) {
       if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
       focusTarget.focus({ preventScroll: true });
     }
-
-    // Auto-focus input/textarea elements when navigated to so key events stay in this focus system.
-    // OK/Enter still explicitly opens the native keyboard through focusTextInputForDpad.
-    if (['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId)) {
-      setTimeout(() => {
-        const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
-        inputEl.focus();
-        const len = inputEl.value?.length || 0;
-        inputEl.setSelectionRange(len, len);
-      }, 100);
-    }
   }, [currentFocusId]);
+
 
   // Reset focus when tab changes
   useEffect(() => {
