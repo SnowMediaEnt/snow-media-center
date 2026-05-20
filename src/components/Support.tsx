@@ -150,12 +150,19 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     'help-tickets': { up: 'help-videos' },
   }), [tab, focusIntoChild]);
 
+  // When a sub-view (videos / tickets) or overlay (speedtest / guide) is open,
+  // the child component owns D-pad + Back. Disabling the parent focus manager
+  // here prevents its Back handler from firing first and exiting Support
+  // straight to the Home screen.
+  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu';
   const supportFocus = useTVFocus({
     initialFocusId: `tab-${tab}`,
     focusableSelector: '[data-support-tv-focus-id]',
     navigation: supportNavigation,
     onBack,
+    enabled: supportFocusActive,
   });
+
 
   useEffect(() => {
     if (showSpeedTest || showGuide || helpView !== 'menu') return;
