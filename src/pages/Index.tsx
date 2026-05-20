@@ -32,6 +32,7 @@ const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const CreditStore = lazy(() => import('@/components/CreditStore'));
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
+const Support = lazy(() => import('@/components/Support'));
 const Settings = lazy(() => import('@/components/Settings'));
 const UserDashboard = lazy(() => import('@/components/UserDashboard'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
