@@ -37,6 +37,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [focusedId, setFocusedId] = useState('tab-help');
   const { apps } = useAppData();
   const { toast } = useToast();
 
@@ -144,6 +145,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const focusEl = (id: string) => {
       const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
       if (el) {
+        setFocusedId(id);
         el.focus();
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
