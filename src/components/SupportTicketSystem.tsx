@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -172,10 +173,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
     ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
 
-    const focusElement = (el?: HTMLElement) => {
+    const focusElement = (el?: HTMLElement, block: ScrollLogicalPosition = 'center') => {
       if (!el) return;
       el.focus();
-      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
     };
 
     const handleDpad = (event: KeyboardEvent) => {
@@ -196,8 +197,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         event.stopPropagation();
         const el = elements[currentIndex];
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-          el.focus();
-          (el as HTMLInputElement | HTMLTextAreaElement).click();
+          void focusTextInputForDpad(el as HTMLInputElement | HTMLTextAreaElement);
         } else {
           el.click();
         }
@@ -208,12 +208,19 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       event.stopPropagation();
       if (isTyping) target.blur();
 
+      const currentRole = elements[currentIndex]?.dataset.supportId;
       let nextIndex = currentIndex;
-      if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+      if (event.key === 'ArrowDown') {
+        if (currentRole === 'list-back') nextIndex = Math.min(2, elements.length - 1);
+        else nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      }
+      if (event.key === 'ArrowUp') {
+        if (currentIndex === 2) nextIndex = 0;
+        else nextIndex = Math.max(currentIndex - 1, 0);
+      }
       if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
       if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
-      focusElement(elements[nextIndex]);
+      focusElement(elements[nextIndex], event.key === 'ArrowUp' ? 'center' : 'center');
     };
 
     const focusTimer = window.setTimeout(() => {
