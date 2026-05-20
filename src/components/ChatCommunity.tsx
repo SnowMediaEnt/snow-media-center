@@ -663,7 +663,11 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (embedded && !containerRef.current?.contains(target)) return;
+      const active = document.activeElement as HTMLElement | null;
+      const targetInside = !!containerRef.current?.contains(target);
+      const activeInside = !!(active && containerRef.current?.contains(active));
+      const hasCurrentChildFocus = !!containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
+      if (embedded && !targetInside && !activeInside && !(target === document.body && hasCurrentChildFocus)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       // Handle back button - hierarchical exit from nested containers
@@ -913,8 +917,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     
     // Use scrollIntoView for reliable cross-browser scrolling
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-    
-    // Auto-focus input/textarea elements when navigated to
+    const isDisabled = (el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement).disabled;
+    const focusTarget = isDisabled ? containerRef.current : el;
+    if (focusTarget) {
+      if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
+      focusTarget.focus({ preventScroll: true });
+    }
+
+    // Auto-focus input/textarea elements when navigated to so key events stay in this focus system.
+    // OK/Enter still explicitly opens the native keyboard through focusTextInputForDpad.
     if (['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId)) {
       setTimeout(() => {
         const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
@@ -922,13 +933,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         const len = inputEl.value?.length || 0;
         inputEl.setSelectionRange(len, len);
       }, 100);
-    } else {
-      // Navigating away from any input — blur it so the global :focus-visible
-      // glow doesn't double up with the new focus target's ring.
-      const active = document.activeElement as HTMLElement | null;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-        active.blur();
-      }
     }
   }, [currentFocusId]);
 
@@ -941,6 +945,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
     const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
     setFocusIndex(tabIndex);
+  }, [activeTab, embedded]);
+
+  useEffect(() => {
+    if (!embedded || activeTab !== 'ai') return;
+    const handler = () => setFocusIndex(0);
+    window.addEventListener('chat-community:focus-ai-input', handler);
+    return () => window.removeEventListener('chat-community:focus-ai-input', handler);
   }, [activeTab, embedded]);
 
   return (

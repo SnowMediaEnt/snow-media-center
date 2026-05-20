@@ -115,6 +115,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const focusIntoChild = useCallback((childTab: Tab) => {
     if (childTab === 'ai') {
       const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
+      window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
       if (input) {
         input.focus({ preventScroll: true });
         input.scrollIntoView({ behavior: 'smooth', block: 'center' });

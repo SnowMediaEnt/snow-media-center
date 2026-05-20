@@ -44,6 +44,12 @@ export const useTVFocus = ({
     return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector)).filter(isVisible);
   }, [focusableSelector]);
 
+  const getAllElements = useCallback(() => {
+    const root = containerRef.current;
+    if (!root) return [] as HTMLElement[];
+    return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector));
+  }, [focusableSelector]);
+
   const getId = useCallback((el: HTMLElement) => {
     if (el.dataset.tvFocusId) return el.dataset.tvFocusId;
     const attrMatch = focusableSelector.match(/\[([^\]=]+)/)?.[1];
@@ -71,8 +77,8 @@ export const useTVFocus = ({
 
   const findManagedElement = useCallback((target: HTMLElement | null) => {
     if (!target) return null;
-    return getElements().find((el) => el === target || el.contains(target)) ?? null;
-  }, [getElements]);
+    return getAllElements().find((el) => el === target || el.contains(target)) ?? null;
+  }, [getAllElements]);
 
   const findSpatial = useCallback((direction: Direction) => {
     const elements = getElements();
@@ -148,7 +154,14 @@ export const useTVFocus = ({
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
-      const managedTarget = findManagedElement(target) ?? findManagedElement(active);
+      const isLooseTarget = (el: HTMLElement | null) =>
+        !el || el === document.body || el === document.documentElement || el === containerRef.current;
+      const managedTarget = findManagedElement(target)
+        ?? findManagedElement(active)
+        ?? (isLooseTarget(target) && isLooseTarget(active)
+          ? getAllElements().find((el) => getId(el) === currentIdRef.current)
+          : null)
+        ?? null;
       if (!managedTarget) return;
 
       const typing = isTextInput(target) || isTextInput(active) || !!target?.isContentEditable;
@@ -176,7 +189,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, move, onBack]);
+  }, [activate, enabled, findManagedElement, getAllElements, getId, move, onBack]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
