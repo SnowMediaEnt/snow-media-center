@@ -862,16 +862,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             handleCloseTicket();
           } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input' || currentFocusId === 'ai-input') {
             // Focus the actual input/textarea element for typing
-            setTimeout(() => {
-              const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
-              if (el) {
-                el.focus();
-                el.click();
-                // Move cursor to end
-                const len = el.value?.length || 0;
-                el.setSelectionRange(len, len);
-              }
-            }, 0);
+            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
+            if (el) {
+              el.focus();
+              el.click();
+              const len = el.value?.length || 0;
+              el.setSelectionRange(len, len);
+            }
           } else if (currentFocusId === 'submit-ticket') {
             handleCreateTicket();
           } else if (currentFocusId === 'cancel-ticket') {
