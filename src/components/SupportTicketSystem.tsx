@@ -25,7 +25,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 
 interface SupportTicketSystemProps {
@@ -41,7 +40,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -197,6 +195,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     navigation: tvNavigation,
     onBack: handleSystemBack,
   });
+
+  useEffect(() => {
+    const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
+    return () => window.clearTimeout(timer);
+  }, [selectedAIConversationId, selectedTicketId, tvFocus, view]);
 
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
