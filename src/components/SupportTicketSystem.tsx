@@ -514,14 +514,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ai-chat' && selectedAIConversation) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button
               onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
               variant="outline"
               size="sm"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white"
+              data-support-focus
+              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -570,13 +571,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
-                  className="bg-slate-700 border-purple-600/50 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
                 <Button
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  data-support-focus
+                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
