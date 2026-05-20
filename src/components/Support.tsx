@@ -193,7 +193,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         if (onTab && tab === 'ai') {
           e.preventDefault();
           e.stopPropagation();
+          setFocusedId('');
           focusEl('ai-input');
+          return;
+        }
+        if (onTab && tab === 'community') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFocusedId('');
+          focusEl('room-general');
           return;
         }
         if (onHelp) {
