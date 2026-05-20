@@ -592,7 +592,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -600,7 +600,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               onClick={onBack} 
               variant="outline" 
               size="sm"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+              data-support-focus
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -619,7 +620,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               }
               setView('create');
             }}
-            className="bg-blue-600 hover:bg-blue-700"
+            data-support-focus
+            className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -634,6 +636,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 key={ticket.id}
                 tabIndex={0}
                 role="button"
+                data-support-focus
                 onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
                 className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none focus:ring-4 focus:ring-brand-ice focus:scale-105 ${
