@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2 } from 'lucide-react';
-import VoiceInput from '@/components/VoiceInput';
+import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
@@ -56,6 +56,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const ttsPlaybackIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
+  const voiceControlsRef = useRef<VoiceLifecycleControls | null>(null);
 
   const stopVoicePlayback = useCallback((closeAudioContext = false) => {
     ttsPlaybackIdRef.current += 1;
@@ -117,11 +118,21 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     } catch { /* autoplay unlock is best-effort */ }
   }, []);
 
+  const restoreAiVoiceFocus = useCallback(() => {
+    setFocusIndex(embedded ? 1 : 5);
+    requestAnimationFrame(() => {
+      const voiceButton = containerRef.current?.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+      voiceButton?.focus({ preventScroll: true });
+    });
+  }, [embedded]);
+
   const speakReply = useCallback(async (text: string) => {
     stopVoicePlayback();
+    voiceControlsRef.current?.cleanupAudio();
+    voiceControlsRef.current?.setVoiceState('speaking');
     const playbackId = ++ttsPlaybackIdRef.current;
     try {
-      console.log('[TTS] Requesting voice for', text.length, 'chars');
+      console.log('VOICE_TTS_START:', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
         body: { text },
       });
@@ -129,7 +140,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (playbackId !== ttsPlaybackIdRef.current) return;
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
-        console.warn('[TTS] No audioContent returned');
+        console.warn('VOICE_ERROR: TTS_NO_AUDIO/no audioContent returned/tts');
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
         return;
       }
 
@@ -165,9 +178,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           ttsSourceRef.current = src;
           src.onended = () => {
             if (ttsSourceRef.current === src) ttsSourceRef.current = null;
+            console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio ended');
+            voiceControlsRef.current?.setVoiceState('idle');
+            restoreAiVoiceFocus();
           };
           src.start(0);
-          console.log('[TTS] Playing via Web Audio,', buf.duration.toFixed(1), 's');
+          console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio', buf.duration.toFixed(1), 's');
+          console.log('VOICE_TTS_END');
           return;
         } catch (decodeErr) {
           console.warn('[TTS] Web Audio decode failed, falling back to <audio>:', decodeErr);
@@ -191,12 +208,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       audio.src = url;
       audio.volume = 1;
       audio.currentTime = 0;
+      audio.onended = () => {
+        console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio ended');
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
+      };
       await audio.play();
-      console.log('[TTS] Playing via <audio> fallback');
+      console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio');
+      console.log('VOICE_TTS_END');
     } catch (err) {
-      console.error('[TTS] Playback failed:', err);
+      console.error('VOICE_ERROR: TTS_PLAYBACK_FAILED/audio playback failed/tts', err);
+      voiceControlsRef.current?.setVoiceState('idle');
+      restoreAiVoiceFocus();
     }
-  }, [stopVoicePlayback]);
+  }, [restoreAiVoiceFocus, stopVoicePlayback]);
 
   useEffect(() => {
     return () => stopVoicePlayback(true);
@@ -495,8 +520,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
   };
 
-  const sendAiMessage = async () => {
-    if (!aiMessage.trim()) return;
+  const sendAiMessage = async (messageOverride?: string) => {
+    const messageToSend = typeof messageOverride === 'string' ? messageOverride : aiMessage;
+    if (!messageToSend.trim()) return;
     
     if (!user) {
       toast({
@@ -518,9 +544,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       return;
     }
 
-    const userMessage = aiMessage;
+    const userMessage = messageToSend;
     setAiMessage('');
     setAiLoading(true);
+    if (voiceModeRef.current) voiceControlsRef.current?.setVoiceState('sending_to_ai');
 
     setAiChat(prev => [...prev, {
       role: 'user',
@@ -559,7 +586,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       if (voiceModeRef.current && responseText) {
         voiceModeRef.current = false;
-        speakReply(responseText);
+        await speakReply(responseText);
+      } else if (voiceControlsRef.current) {
+        voiceControlsRef.current.setVoiceState('idle');
+        voiceControlsRef.current.restoreFocus();
       }
 
       if (data.functionCall) {
@@ -568,6 +598,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     } catch (error) {
       console.error('AI Error:', error);
+      voiceControlsRef.current?.setVoiceState('idle');
+      voiceControlsRef.current?.restoreFocus();
       toast({
         title: "AI Error",
         description: "Failed to get AI response. Please try again.",
@@ -1464,20 +1496,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     voiceModeRef.current = true;
                     unlockAudioPlayback();
                   }}
-                  onTranscription={(text) => {
+                  onTranscription={(text, controls) => {
                     voiceModeRef.current = true;
+                    voiceControlsRef.current = controls;
                     setAiMessage(text);
-                    // auto-send after transcription
-                    setTimeout(() => {
-                      const btn = document.querySelector('[data-focus-id="ai-send"]') as HTMLButtonElement | null;
-                      btn?.click();
-                    }, 100);
+                    sendAiMessage(text);
                   }}
+                  onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
+                  onRestoreFocus={restoreAiVoiceFocus}
+                  disabled={aiLoading || !user}
                   className=""
                 />
               </div>
               <Button 
-                onClick={sendAiMessage}
+                onClick={() => sendAiMessage()}
                 disabled={aiLoading || !aiMessage.trim() || !user}
                 data-focus-id="ai-send"
                 className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 transition-all duration-200 ${focusRing('ai-send')}`}
