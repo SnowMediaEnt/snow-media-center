@@ -356,15 +356,16 @@ const Index = () => {
           if (focusedButton >= 0 && focusedButton < maxButtons) {
             setFocusedButton(focusedButton + 1);
           } else if (focusedButton === maxButtons) {
-            setFocusedButton(-1); // settings
-          } else if (focusedButton === -1) {
-            setFocusedButton(-2); // user/auth
-          } else if (focusedButton === -2) {
-            setFocusedButton(0); // wrap to first app
+            setFocusedButton(-3); // wrap from last app → logo
           } else if (focusedButton === -3) {
-            setFocusedButton(-2); // logo → user/auth
+            setFocusedButton(-2); // logo → dashboard/user
+          } else if (focusedButton === -2) {
+            setFocusedButton(-1); // dashboard → settings
+          } else if (focusedButton === -1) {
+            setFocusedButton(0); // settings → first app
           }
           break;
+
 
         case 'ArrowUp':
           // If on Main Apps (button 0), go into the pinned apps popup
