@@ -337,93 +337,55 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = 3; // apps, store, support, chat
-      
+      const maxButtons = 2; // apps (0), store (1), support (2)
+
       switch (event.key) {
         case 'ArrowLeft':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 1 || focusedButton === 3) {
-              setFocusedButton(focusedButton - 1);
-            } else if (focusedButton === -1) { // settings
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) { // user/auth → logo
-              setFocusedButton(-3);
-            }
-          } else { // row mode
-            if (focusedButton > 0) {
-              setFocusedButton(focusedButton - 1);
-            } else if (focusedButton === 0) {
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -1) {
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) {
-              setFocusedButton(-3); // logo (easter egg)
-            }
+          if (focusedButton > 0) {
+            setFocusedButton(focusedButton - 1);
+          } else if (focusedButton === 0) {
+            setFocusedButton(-1); // settings
+          } else if (focusedButton === -1) {
+            setFocusedButton(-2); // user/auth
+          } else if (focusedButton === -2) {
+            setFocusedButton(-3); // logo (easter egg)
           }
           break;
-          
+
         case 'ArrowRight':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 0 || focusedButton === 2) {
-              setFocusedButton(focusedButton + 1);
-            } else if (focusedButton === -2) { // user/auth
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -3) { // logo → user/auth
-              setFocusedButton(-2);
-            }
-          } else { // row mode
-            if (focusedButton < maxButtons) {
-              setFocusedButton(focusedButton + 1);
-            } else if (focusedButton === maxButtons) {
-              setFocusedButton(-1); // settings
-            } else if (focusedButton === -1) {
-              setFocusedButton(-2); // user/auth
-            } else if (focusedButton === -2) {
-              setFocusedButton(0); // back to first app
-            } else if (focusedButton === -3) {
-              setFocusedButton(-2); // logo → user/auth
-            }
+          if (focusedButton >= 0 && focusedButton < maxButtons) {
+            setFocusedButton(focusedButton + 1);
+          } else if (focusedButton === maxButtons) {
+            setFocusedButton(-1); // settings
+          } else if (focusedButton === -1) {
+            setFocusedButton(-2); // user/auth
+          } else if (focusedButton === -2) {
+            setFocusedButton(0); // wrap to first app
+          } else if (focusedButton === -3) {
+            setFocusedButton(-2); // logo → user/auth
           }
           break;
-          
+
         case 'ArrowUp':
-          // If on Main Apps (button 0), go into the popup
+          // If on Main Apps (button 0), go into the pinned apps popup
           if (focusedButton === 0 && !isInPopup) {
             setIsInPopup(true);
             setPopupFocusIndex(0);
             return;
           }
-          
-          if (layoutMode === 'grid') {
-            if (focusedButton === 2 || focusedButton === 3) {
-              setFocusedButton(focusedButton - 2);
-            } else if (mediaBarEnabled) {
-              // Into MediaBar (only if enabled)
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            }
-          } else { // row mode
-            if (focusedButton >= 0 && mediaBarEnabled) {
-              setFocusedButton(-99);
-              setIsInMediaBar(true);
-            }
+
+          if (focusedButton >= 0 && mediaBarEnabled) {
+            setFocusedButton(-99);
+            setIsInMediaBar(true);
           }
           break;
-          
+
         case 'ArrowDown':
-          if (layoutMode === 'grid') {
-            if (focusedButton === 0 || focusedButton === 1) {
-              setFocusedButton(focusedButton + 2);
-            } else if (focusedButton < 0) {
-              setFocusedButton(0); // Go to first app
-            }
-          } else { // row mode - go to apps
-            if (focusedButton < 0) {
-              setFocusedButton(0); // Go to first app
-            }
+          if (focusedButton < 0) {
+            setFocusedButton(0); // Go to first app
           }
           break;
-          
+
         case 'Enter':
         case ' ':
           if (focusedButton === -3) {
@@ -445,8 +407,6 @@ const Index = () => {
             navigateTo('store');
           } else if (focusedButton === 2) {
             navigateTo('support');
-          } else if (focusedButton === 3) {
-            navigateTo('chat');
           }
           break;
           
