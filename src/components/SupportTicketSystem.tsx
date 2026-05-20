@@ -627,7 +627,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-support-focus
-                data-support-id="list-back"
+              data-support-id="list-back"
               className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -648,7 +648,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               setView('create');
             }}
             data-support-focus
-              data-support-id="new-ticket"
+            data-support-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
           >
             <Plus className="h-4 w-4 mr-2" />
