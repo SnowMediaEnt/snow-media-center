@@ -547,14 +547,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
-                      data-tv-focus-id="ai-chat-input"
+                  data-tv-focus-id="ai-chat-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
                 <Button
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
-                      data-tv-focus-id="ai-chat-send"
+                  data-tv-focus-id="ai-chat-send"
                   className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Send className="h-4 w-4" />
@@ -582,7 +582,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <h1 className="text-3xl font-bold">User Support</h1>
+            <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
           <Button 
             onClick={() => {
@@ -596,7 +596,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               }
               setView('create');
             }}
-            data-support-focus
             data-tv-focus-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 "
           >
