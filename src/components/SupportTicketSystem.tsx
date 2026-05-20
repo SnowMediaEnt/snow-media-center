@@ -288,16 +288,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
               onClick={() => setView('list')} 
               variant="outline" 
               size="sm"
-              data-support-focus
-              data-support-id="create-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="create-back"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -325,9 +324,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   }}
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
-                  data-support-focus
-                  data-support-id="create-subject"
-                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                      data-tv-focus-id="create-subject"
+                  className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
               
@@ -341,9 +339,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
-                  data-support-focus
-                  data-support-id="create-message"
-                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                      data-tv-focus-id="create-message"
+                  className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
 
@@ -351,18 +348,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
-                  data-support-focus
-                  data-support-id="create-submit"
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      data-tv-focus-id="create-submit"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
-                  data-support-focus
-                  data-support-id="create-cancel"
-                  className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      data-tv-focus-id="create-cancel"
+                  className=""
                 >
                   Cancel
                 </Button>
@@ -377,7 +372,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -385,9 +380,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={() => setView('list')} 
                 variant="outline" 
                 size="sm"
-                data-support-focus
-                data-support-id="ticket-back"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="ticket-back"
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -405,9 +399,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
-                  data-support-focus
-                  data-support-id="ticket-close"
-                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      data-tv-focus-id="ticket-close"
+                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white "
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Close Ticket
@@ -422,9 +415,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   setView('list');
                 }}
                 variant="outline"
-                data-support-focus
-                data-support-id="ticket-delete"
-                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="ticket-delete"
+                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Ticket
@@ -471,16 +463,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onChange={(e) => setReplyMessage(e.target.value)}
                     placeholder="Type your reply..."
                     rows={4}
-                    data-support-focus
-                    data-support-id="ticket-reply"
-                    className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                          data-tv-focus-id="ticket-reply"
+                    className="bg-slate-700 border-slate-600 text-white "
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
-                    data-support-focus
-                    data-support-id="ticket-send"
-                    className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                          data-tv-focus-id="ticket-send"
+                    className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
@@ -496,16 +486,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ai-chat' && selectedAIConversation) {
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button
               onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
               variant="outline"
               size="sm"
-              data-support-focus
-              data-support-id="ai-chat-back"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="ai-chat-back"
+              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -554,17 +543,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
-                  data-support-focus
-                  data-support-id="ai-chat-input"
-                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                      data-tv-focus-id="ai-chat-input"
+                  className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
                 <Button
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
-                  data-support-focus
-                  data-support-id="ai-chat-send"
-                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      data-tv-focus-id="ai-chat-send"
+                  className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -577,7 +564,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -585,9 +572,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               onClick={onBack} 
               variant="outline" 
               size="sm"
-              data-support-focus
-              data-support-id="list-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="list-back"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -607,8 +593,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               setView('create');
             }}
             data-support-focus
-            data-support-id="new-ticket"
-            className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+            data-tv-focus-id="new-ticket"
+            className="bg-blue-600 hover:bg-blue-700 "
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -623,10 +609,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 key={ticket.id}
                 tabIndex={0}
                 role="button"
-                data-support-focus
-                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
-                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none focus:ring-4 focus:ring-brand-ice focus:scale-105 ${
+                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none  ${
                   ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
                 }`}
                 onClick={() => handleViewTicket(ticket.id)}
@@ -687,8 +672,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {user ? (
                 <Button 
                   onClick={() => setView('create')}
-                  data-support-focus
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Ticket
@@ -696,8 +680,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               ) : (
                 <Button 
                   onClick={() => navigate('/auth')}
-                  data-support-focus
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
@@ -729,17 +712,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiNewMessage(e.target.value)}
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
-                  data-support-focus
-                  data-support-id="ai-new-input"
-                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                      data-tv-focus-id="ai-new-input"
+                  className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
-                  data-support-focus
-                  data-support-id="ai-new-send"
-                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                      data-tv-focus-id="ai-new-send"
+                  className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Chat
@@ -757,12 +738,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     <div
                       key={c.id}
                       tabIndex={0}
-                      data-support-focus
-                      role="button"
+                              role="button"
                       onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}
                       onClick={() => handleOpenAIChat(c.id)}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none focus:ring-4 focus:ring-purple-400 focus:scale-105"
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none "
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
