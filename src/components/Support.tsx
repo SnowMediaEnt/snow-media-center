@@ -109,16 +109,45 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
+  // Bridge into child components (AI Chat / Community) when pressing Down
+  // from those tabs. The child components use different focus systems so
+  // we can't express this in the navigation map directly.
+  const focusIntoChild = useCallback((childTab: Tab) => {
+    if (childTab === 'ai') {
+      const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
+      if (input) {
+        input.focus({ preventScroll: true });
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+      }
+    }
+    if (childTab === 'community') {
+      const room = document.querySelector<HTMLElement>('[data-tv-focus-id="room-general"]');
+      if (room) {
+        room.focus({ preventScroll: true });
+        room.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
   const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
     'support-back': { down: `tab-${tab}` },
     'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-speedtest' },
-    'tab-ai': { up: 'support-back', right: 'tab-community', left: 'tab-help', down: null },
-    'tab-community': { up: 'support-back', right: 'tab-help', left: 'tab-ai', down: null },
+    'tab-ai': {
+      up: 'support-back', right: 'tab-community', left: 'tab-help',
+      down: () => { focusIntoChild('ai'); return null; },
+    },
+    'tab-community': {
+      up: 'support-back', right: 'tab-help', left: 'tab-ai',
+      down: () => { focusIntoChild('community'); return null; },
+    },
     'help-speedtest': { up: 'tab-help', down: 'help-guide' },
     'help-guide': { up: 'help-speedtest', down: 'help-videos' },
     'help-videos': { up: 'help-guide', down: 'help-tickets' },
     'help-tickets': { up: 'help-videos' },
-  }), [tab]);
+  }), [tab, focusIntoChild]);
 
   const supportFocus = useTVFocus({
     initialFocusId: `tab-${tab}`,
@@ -132,6 +161,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
     return () => window.clearTimeout(timer);
   }, [helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
+
+  // Listen for "escape up" requests from embedded child components so they
+  // can hand focus back to the Support tab row via the D-pad.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
+      supportFocus.focusById(`tab-${target}`);
+    };
+    window.addEventListener('support:focus-tab', handler as EventListener);
+    return () => window.removeEventListener('support:focus-tab', handler as EventListener);
+  }, [supportFocus, tab]);
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
