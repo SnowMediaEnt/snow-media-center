@@ -310,6 +310,12 @@ class AppManagerPlugin : Plugin() {
     call.resolve(JSObject().put("available", available))
   }
 
+  // ----- Direct SpeechRecognizer (avoids Alexa hijack on Fire TV) -----
+  private var speechRecognizer: SpeechRecognizer? = null
+  private var voiceResolved = false
+  private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+  private var voiceTimeoutRunnable: Runnable? = null
+
   @PluginMethod
   fun startVoiceInput(call: PluginCall) {
     if (voiceListening || pendingVoiceCall != null) {
@@ -323,80 +329,176 @@ class AppManagerPlugin : Plugin() {
       return
     }
 
-    try {
-      val prompt = call.getString("prompt") ?: "Speak now"
-      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-      }
+    // Permission check — RECORD_AUDIO is declared but must be granted at runtime
+    val hasMic = androidx.core.content.ContextCompat.checkSelfPermission(
+      context, android.Manifest.permission.RECORD_AUDIO
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    if (!hasMic) {
+      Log.w(TAG, "RECORD_AUDIO permission not granted, requesting")
       pendingVoiceCall = call
-      voiceListening = true
-      startActivityForResult(call, intent, "voiceInputResult")
-    } catch (e: ActivityNotFoundException) {
-      Log.e(TAG, "startVoiceInput activity not found", e)
-      resetVoiceInputSession()
-      call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
-    } catch (e: SecurityException) {
-      Log.e(TAG, "startVoiceInput security failure", e)
-      resetVoiceInputSession()
-      call.reject("MIC_PERMISSION_DENIED", "MIC_PERMISSION_DENIED")
-    } catch (e: Exception) {
-      Log.e(TAG, "startVoiceInput failed", e)
-      resetVoiceInputSession()
-      val message = e.message ?: "Native voice input unavailable"
-      val code = if (message.contains("busy", ignoreCase = true)) "VOICE_RECOGNIZER_BUSY" else "NATIVE_VOICE_UNAVAILABLE"
-      call.reject(message, code)
-    }
-  }
-
-  @ActivityCallback
-  private fun voiceInputResult(call: PluginCall, result: ActivityResult?) {
-    if (pendingVoiceCall == null || pendingVoiceCall !== call) {
-      Log.d(TAG, "Ignoring stale voice input callback")
+      saveCall(call)
+      androidx.core.app.ActivityCompat.requestPermissions(
+        activity, arrayOf(android.Manifest.permission.RECORD_AUDIO), VOICE_PERM_REQ
+      )
       return
     }
 
-    try {
-      if (result?.resultCode == Activity.RESULT_CANCELED) {
-        call.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
-        return
-      }
+    startSpeechRecognizerSession(call)
+  }
 
-      if (result?.resultCode != Activity.RESULT_OK) {
-        call.reject("NATIVE_VOICE_UNAVAILABLE", "NATIVE_VOICE_UNAVAILABLE")
-        return
-      }
+  private fun startSpeechRecognizerSession(call: PluginCall) {
+    pendingVoiceCall = call
+    voiceListening = true
+    voiceResolved = false
 
-      val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-      val text = matches?.firstOrNull()?.trim().orEmpty()
-      Log.d(TAG, "native result text=$text")
-      if (text.isNotBlank()) {
-        call.resolve(JSObject().put("text", text))
-      } else {
-        call.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+    mainHandler.post {
+      try {
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+        speechRecognizer = recognizer
+        recognizer.setRecognitionListener(object : android.speech.RecognitionListener {
+          override fun onReadyForSpeech(params: android.os.Bundle?) {
+            Log.d(TAG, "recognizer ready for speech")
+          }
+          override fun onBeginningOfSpeech() { Log.d(TAG, "recognizer beginning of speech") }
+          override fun onRmsChanged(rmsdB: Float) {}
+          override fun onBufferReceived(buffer: ByteArray?) {}
+          override fun onEndOfSpeech() { Log.d(TAG, "recognizer end of speech") }
+          override fun onError(error: Int) {
+            Log.w(TAG, "recognizer error $error")
+            if (voiceResolved) return
+            voiceResolved = true
+            val code = when (error) {
+              SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "MIC_PERMISSION_DENIED"
+              SpeechRecognizer.ERROR_NO_MATCH,
+              SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "EMPTY_SPEECH"
+              SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "VOICE_RECOGNIZER_BUSY"
+              SpeechRecognizer.ERROR_AUDIO,
+              SpeechRecognizer.ERROR_CLIENT,
+              SpeechRecognizer.ERROR_NETWORK,
+              SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+              SpeechRecognizer.ERROR_SERVER -> "NATIVE_VOICE_UNAVAILABLE"
+              else -> "NATIVE_VOICE_UNAVAILABLE"
+            }
+            finishVoiceSession()
+            pendingVoiceCall?.reject(code, code)
+            pendingVoiceCall = null
+          }
+          override fun onResults(results: android.os.Bundle?) {
+            if (voiceResolved) return
+            voiceResolved = true
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            val text = matches?.firstOrNull()?.trim().orEmpty()
+            Log.d(TAG, "recognizer results text=$text")
+            finishVoiceSession()
+            if (text.isNotBlank()) {
+              pendingVoiceCall?.resolve(JSObject().put("text", text))
+            } else {
+              pendingVoiceCall?.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+            }
+            pendingVoiceCall = null
+          }
+          override fun onPartialResults(partialResults: android.os.Bundle?) {}
+          override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
+        })
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+          putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+          putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toString())
+          putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+          putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+          putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+          // Give the user a generous window to start speaking on TV remotes
+          putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+          putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+          putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
+        }
+        recognizer.startListening(intent)
+
+        // Hard timeout — never let the session hang forever
+        voiceTimeoutRunnable = Runnable {
+          if (voiceResolved) return@Runnable
+          voiceResolved = true
+          Log.w(TAG, "recognizer hard timeout")
+          finishVoiceSession()
+          pendingVoiceCall?.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+          pendingVoiceCall = null
+        }
+        mainHandler.postDelayed(voiceTimeoutRunnable!!, 15000)
+      } catch (e: SecurityException) {
+        Log.e(TAG, "SpeechRecognizer security failure", e)
+        finishVoiceSession()
+        pendingVoiceCall?.reject("MIC_PERMISSION_DENIED", "MIC_PERMISSION_DENIED")
+        pendingVoiceCall = null
+      } catch (e: Exception) {
+        Log.e(TAG, "SpeechRecognizer start failed", e)
+        finishVoiceSession()
+        pendingVoiceCall?.reject("NATIVE_VOICE_UNAVAILABLE", "NATIVE_VOICE_UNAVAILABLE")
+        pendingVoiceCall = null
       }
-    } catch (e: Exception) {
-      Log.e(TAG, "voiceInputResult failed", e)
-      call.reject("NATIVE_VOICE_UNAVAILABLE", "NATIVE_VOICE_UNAVAILABLE")
-    } finally {
-      resetVoiceInputSession()
     }
+  }
+
+  override fun handleRequestPermissionsResult(
+    requestCode: Int,
+    permissions: Array<out String>,
+    grantResults: IntArray
+  ) {
+    if (requestCode == VOICE_PERM_REQ) {
+      val call = pendingVoiceCall
+      if (call == null) return
+      val granted = grantResults.isNotEmpty() &&
+        grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+      if (!granted) {
+        pendingVoiceCall = null
+        voiceListening = false
+        call.reject("MIC_PERMISSION_DENIED", "MIC_PERMISSION_DENIED")
+        return
+      }
+      // Reset and start the session now that we have the permission
+      pendingVoiceCall = null
+      voiceListening = false
+      startSpeechRecognizerSession(call)
+      return
+    }
+    super.handleRequestPermissionsResult(requestCode, permissions, grantResults)
   }
 
   @PluginMethod
   fun cancelVoiceInput(call: PluginCall) {
     val pending = pendingVoiceCall
-    resetVoiceInputSession()
+    voiceResolved = true
+    finishVoiceSession()
+    pendingVoiceCall = null
     pending?.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
     call.resolve()
+  }
+
+  private fun finishVoiceSession() {
+    voiceListening = false
+    voiceTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+    voiceTimeoutRunnable = null
+    val rec = speechRecognizer
+    speechRecognizer = null
+    if (rec != null) {
+      mainHandler.post {
+        try { rec.stopListening() } catch (_: Exception) {}
+        try { rec.cancel() } catch (_: Exception) {}
+        try { rec.destroy() } catch (_: Exception) {}
+      }
+    }
   }
 
   private fun resetVoiceInputSession() {
     pendingVoiceCall = null
     voiceListening = false
+    voiceResolved = true
+    finishVoiceSession()
   }
+
+  companion object {
+    private const val VOICE_PERM_REQ = 9871
+  }
+
 
   /**
    * Uninstall flow:
