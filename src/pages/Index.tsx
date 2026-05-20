@@ -449,9 +449,10 @@ const Index = () => {
     <div className="min-h-screen">
       {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
       <Suspense fallback={<RouteFallback />}>
-        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('chat')} />}
+        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('support')} />}
         {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
-        {currentView === 'support' && <SupportVideos onBack={() => goBack()} />}
+        {currentView === 'support' && <Support onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
+        {currentView === 'support-videos' && <SupportVideos onBack={() => goBack()} />}
         {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
         {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
         {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
