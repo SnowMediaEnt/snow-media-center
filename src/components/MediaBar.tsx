@@ -71,106 +71,132 @@ const isHardwareBackKey = (e: KeyboardEvent) =>
 const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
 
-const getRatingKey = (item: MediaItem): string | undefined => {
-  if (item.ratingKey) return String(item.ratingKey);
-  const keyMatch = item.key?.match(/\/library\/metadata\/(\d+)/);
-  if (keyMatch?.[1]) return keyMatch[1];
-  return item.id?.match(/^plex-(\d+)$/)?.[1];
+const extractRatingKey = (key?: string): string | undefined => {
+  if (!key) return undefined;
+  const m = String(key).match(/\/library\/metadata\/(\d+)/);
+  return m?.[1];
 };
 
-const getMetadataKey = (item: MediaItem): string | undefined => {
-  const ratingKey = getRatingKey(item);
-  return ratingKey ? `/library/metadata/${ratingKey}` : item.key;
-};
-
-const getMachineIdentifier = (item: MediaItem): string | undefined => item.machineIdentifier;
-
-const getMetadataType = (item: MediaItem): number =>
-  item.metadataType ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
-
-/**
- * Build a Plex preplay deep link — opens the item's detail page in the Plex
- * Android app exactly as if the user clicked the poster inside Plex itself.
- * From there the user presses Play. This is the most reliable route on
- * Android TV / Fire TV and avoids the crashes the auto-play routes triggered.
- */
-const buildPlexPlayLink = (item: MediaItem): string | undefined => {
-  const metadataKey = getMetadataKey(item);
-  if (!metadataKey) return undefined;
-  const machineId = item.machineIdentifier;
-  const metadataType = getMetadataType(item);
-  const encodedKey = encodeURIComponent(metadataKey);
-  const serverParam = machineId ? `server=${encodeURIComponent(machineId)}&` : '';
-  return `plex://preplay/?${serverParam}metadataKey=${encodedKey}&metadataType=${metadataType}`;
+type ValidatedPlexItem = MediaItem & {
+  ratingKey: string;
+  metadataKey: string;
+  machineIdentifier: string;
+  metadataType: number;
 };
 
 /**
- * openPlexItemFromBeginning
- *
- * Keep this intentionally simple. Android TV Plex has been crashing on the
- * web/intent/playMedia routes, so clicks use only Plex's native plex://play
- * route and fall back to opening Plex Home only if Android cannot resolve it.
+ * Ensure the clicked card carries the Plex metadata required to deep-link
+ * back into the user's own Plex server. The content bar receives these
+ * fields straight from media-bar-feed (which talks to PLEX_SERVER_URL using
+ * PLEX_TOKEN) — we never search/guess by title.
  */
+const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
+  const ratingKey = item.ratingKey ? String(item.ratingKey)
+    : (extractRatingKey(item.key) ?? item.id?.match(/^plex-(\d+)$/)?.[1]);
+  const metadataKey = item.key
+    || (ratingKey ? `/library/metadata/${ratingKey}` : undefined);
+  const machineIdentifier = item.machineIdentifier;
+  const metadataType = item.metadataType
+    ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()]
+    ?? 1;
+
+  if (!ratingKey || !metadataKey || !machineIdentifier) {
+    console.error('PLEX ITEM MISSING LAUNCH METADATA', {
+      title: item.title,
+      ratingKey,
+      key: item.key,
+      metadataKey,
+      machineIdentifier,
+      item,
+    });
+    return null;
+  }
+
+  return { ...item, ratingKey, metadataKey, machineIdentifier, metadataType };
+};
+
+/**
+ * Ordered list of deep-link candidates. Preferred: Plex preplay (details
+ * page in the native Plex app). Fallback: Plex autoplay. Final fallback:
+ * launch the Plex app cold. Web URLs are used only when SMC is running on
+ * the web (no Android intent resolver available).
+ */
+const buildPlexLaunchCandidates = (item: ValidatedPlexItem) => {
+  const { ratingKey, metadataKey, machineIdentifier, metadataType } = item;
+  const encKey = encodeURIComponent(metadataKey);
+  const encMid = encodeURIComponent(machineIdentifier);
+
+  return {
+    native: [
+      // 1. Preplay/details — opens the item's details page in Plex Android.
+      `plex://preplay/?server=${encMid}&metadataKey=${encKey}&metadataType=${metadataType}`,
+      // 2. Autoplay fallback.
+      `plex://play/?server=${encMid}&metadataKey=${encKey}&metadataType=${metadataType}&viewOffset=0&offset=0&t=0`,
+    ],
+    web: [
+      `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${encKey}`,
+      `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/playMedia?key=${encKey}&viewOffset=0&offset=0&t=0`,
+    ],
+  };
+};
+
 const openPlexItemFromBeginning = async (item: MediaItem) => {
   const native = isNativePlatform();
-  const ratingKey = getRatingKey(item);
-  const metadataKey = getMetadataKey(item);
-  const machineIdentifier = getMachineIdentifier(item);
-  const metadataType = getMetadataType(item);
-  const playLink = buildPlexPlayLink(item);
+  const validated = validatePlexLaunchItem(item);
 
-  const logPayload = {
+  console.info('PLEX_CONTENT_ITEM_CLICKED', {
     title: item.title,
     type: item.kind,
-    ratingKey,
-    metadataKey,
+    ratingKey: validated?.ratingKey,
+    key: item.key,
+    metadataKey: validated?.metadataKey,
+    machineIdentifier: validated?.machineIdentifier,
     guid: item.guid,
     librarySectionID: item.librarySectionID,
-    machineIdentifier,
-    metadataType,
-    duration: item.duration,
-    serverViewOffset: item.viewOffset, // what Plex thinks; we override to 0
-    generatedPlaybackLink: playLink,
-    startsAtZero: true,
-    fallbackUsed: false,
-    native,
-  };
-  console.info('[MediaBar] openPlexItemFromBeginning', logPayload);
+  });
 
-  if (!ratingKey || !playLink) {
-    console.warn('[MediaBar] Missing ratingKey or playLink — cannot deep-link', logPayload);
+  if (!validated) {
     toast({ title: "Can't open this item in Plex", description: 'Missing Plex item info.' });
     return;
   }
 
+  const candidates = buildPlexLaunchCandidates(validated);
+
   if (!native) {
-    window.open(item.webLink ?? playLink, '_blank', 'noopener,noreferrer');
+    window.open(candidates.web[0], '_blank', 'noopener,noreferrer');
     return;
   }
 
   toast({ title: 'Opening in Plex…', description: item.title });
+
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
     const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
-    console.info('[MediaBar] Plex installed check', { installed });
     if (!installed) {
       toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
       return;
     }
 
-    console.info('[MediaBar] Plex native play attempt', { ...logPayload, generatedIntent: playLink });
-    await AppManager.openUrl({ url: playLink, packageName: PLEX_ANDROID_PACKAGE });
-  } catch (err) {
-    console.warn('[MediaBar] Plex native play failed — opening Plex Home', { ...logPayload, err, fallbackUsed: true });
-    toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
-    try {
-      const { AppManager } = await import('@/capacitor/AppManager');
-      await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
-    } catch (launchErr) {
-      console.warn('[MediaBar] Plex Home fallback failed:', launchErr);
+    for (const url of candidates.native) {
+      try {
+        console.info('PLEX_OPEN_ATTEMPT', { attemptedUrl: url, packageTarget: PLEX_ANDROID_PACKAGE });
+        await AppManager.openUrl({ url, packageName: PLEX_ANDROID_PACKAGE });
+        console.info('PLEX_OPEN_ATTEMPT', { attemptedUrl: url, success: true });
+        return;
+      } catch (err) {
+        console.warn('PLEX_OPEN_ATTEMPT failed', { attemptedUrl: url, error: (err as Error)?.message });
+      }
     }
+
+    // Final fallback — just open Plex.
+    console.warn('PLEX_OPEN_ATTEMPT all deep links failed — launching Plex home');
+    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+  } catch (err) {
+    console.error('[MediaBar] Plex launch unrecoverable error', err);
+    toast({ title: "Couldn't open Plex", description: (err as Error)?.message ?? 'Unknown error' });
   }
 };
+
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const cached = useMemo(readCache, []);
