@@ -770,9 +770,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         case 'ArrowUp':
           if (embedded && focusIndex === 0) {
-            const parentTab = document.querySelector<HTMLElement>('[data-focus-id="tab-ai"]');
-            parentTab?.focus();
-            parentTab?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             return;
           }
           if (currentFocusId.startsWith('ai-history-')) {
