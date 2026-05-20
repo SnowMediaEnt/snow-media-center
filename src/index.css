@@ -305,12 +305,13 @@
 
 .home-focus-surface[data-focused="true"] {
   transform: translateZ(0) scale(1.05);
-  /* `outline` is cheaper than `box-shadow` on weak GPUs — it paints into the
-     element's existing layer instead of expanding the paint area, so the
-     surrounding compositor (and the ticker layer) isn't disturbed. */
-  outline: 4px solid hsl(var(--brand-ice) / 0.7);
+  /* Bright gold matches the pinned-apps focus glow used elsewhere and is far
+     more visible than the icy blue on top of the dynamic background. */
+  outline: 4px solid hsl(var(--brand-gold) / 0.95);
   outline-offset: 0;
+  box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
 }
+
 
 /* On low-power devices that prefer reduced motion, skip the transform/shadow
    transition entirely so D-pad movement never has to wait on a paint. */
