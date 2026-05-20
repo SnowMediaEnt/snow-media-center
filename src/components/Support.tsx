@@ -190,6 +190,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           focusEl(helpIds[0]);
           return;
         }
+        if (onTab && tab === 'ai') {
+          e.preventDefault();
+          e.stopPropagation();
+          focusEl('ai-input');
+          return;
+        }
         if (onHelp) {
           e.preventDefault();
           const idx = helpIds.indexOf(currentId!);
