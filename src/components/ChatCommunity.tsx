@@ -742,13 +742,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             return;
           }
           setFocusIndex(prev => {
-            // From back button (index 0), go to the current active tab
-            if (prev === 0) {
+            // From back button (index 0), go to the current active tab in standalone mode
+            if (!embedded && prev === 0) {
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
             // From tabs (indices 1, 2, 3), go to first content item
-            if (prev >= 1 && prev <= 3) {
+            if (!embedded && prev >= 1 && prev <= 3) {
               return Math.min(contentStartIndex, maxIndex);
             }
             // Move down through content items
