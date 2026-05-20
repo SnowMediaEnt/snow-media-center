@@ -682,7 +682,7 @@ const Index = () => {
             <div 
               className="justify-center w-full mx-auto flex flex-nowrap"
               style={{ 
-                gap: 'clamp(1rem, 2.5vw, 3rem)',
+                gap: 'clamp(2rem, 5vw, 6rem)',
                 maxWidth: '95vw'
               }}
             >
