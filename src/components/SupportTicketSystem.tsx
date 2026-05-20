@@ -605,15 +605,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tickets.map((ticket) => {
+          {tickets.map((ticket, index) => {
             const ticketActive = isTicketActive(ticket);
             return (
               <Card 
                 key={ticket.id}
-                tabIndex={0}
                 role="button"
-                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
+                data-tv-focus-id={`ticket-${index}`}
                 className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none  ${
                   ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
                 }`}
@@ -631,6 +629,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        tabIndex={-1}
+                        data-tv-disabled="true"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (confirm('Delete this ticket? This cannot be undone.')) {
@@ -675,7 +675,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {user ? (
                 <Button 
                   onClick={() => setView('create')}
-                      className="bg-blue-600 hover:bg-blue-700 "
+                  data-tv-focus-id="empty-create-ticket"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Ticket
@@ -683,7 +684,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               ) : (
                 <Button 
                   onClick={() => navigate('/auth')}
-                      className="bg-blue-600 hover:bg-blue-700 "
+                  data-tv-focus-id="empty-sign-in"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
