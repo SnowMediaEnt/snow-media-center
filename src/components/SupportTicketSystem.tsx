@@ -717,14 +717,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiNewMessage(e.target.value)}
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
-                      data-tv-focus-id="ai-new-input"
+                  data-tv-focus-id="ai-new-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
-                      data-tv-focus-id="ai-new-send"
+                  data-tv-focus-id="ai-new-send"
                   className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -739,13 +739,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </p>
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
-                  {aiConversations.map((c) => (
+                  {aiConversations.map((c, index) => (
                     <div
                       key={c.id}
-                      tabIndex={0}
-                              role="button"
-                      onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}
+                      role="button"
+                      data-tv-focus-id={`ai-history-${index}`}
                       onClick={() => handleOpenAIChat(c.id)}
                       className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none "
                     >
@@ -758,6 +756,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        tabIndex={-1}
+                        data-tv-disabled="true"
                         onClick={(e) => handleDeleteAIChat(c.id, e)}
                         className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
                       >
