@@ -393,7 +393,7 @@ export const VoiceInput = ({
 
       cleanupAudioSession();
       transitionVoiceState('processing_transcription');
-      await onTranscription(text);
+      await onTranscription(text, lifecycleControls);
       if (voiceStateRef.current === 'processing_transcription') {
         transitionVoiceState('idle');
         onRestoreFocus?.();
