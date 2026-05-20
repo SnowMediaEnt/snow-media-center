@@ -37,6 +37,46 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const { apps } = useAppData();
+  const { toast } = useToast();
+
+  // Minimal launch / download handlers for the buffering guide. Full
+  // install + progress UX still lives in Main Apps — we route downloads
+  // back there so the user sees the standard download dialog.
+  const launchApp = useCallback(async (app: AppData) => {
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) {
+        toast({ title: 'Launch unavailable', description: 'App launching only works on Android.' });
+        return;
+      }
+      const { AppManager } = await import('@/capacitor/AppManager');
+      const packageName = app.packageName || generatePackageName(app.name);
+      await AppManager.launch({ packageName });
+    } catch (err) {
+      console.error('[Support] launch failed:', err);
+      toast({ title: 'Launch failed', description: `Could not launch ${app.name}.`, variant: 'destructive' });
+    }
+  }, [toast]);
+
+  const openAppSettings = useCallback(async (app: AppData) => {
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      const { AppManager } = await import('@/capacitor/AppManager');
+      const packageName = app.packageName || generatePackageName(app.name);
+      await AppManager.openAppSettings({ packageName });
+    } catch (err) {
+      console.error('[Support] openAppSettings failed:', err);
+    }
+  }, []);
+
+  const downloadApp = useCallback(() => {
+    setShowGuide(false);
+    toast({ title: 'Open Main Apps', description: 'Install the app from the Main Apps screen.' });
+    onNavigate?.('apps');
+  }, [onNavigate, toast]);
+
 
   // Hierarchical back: speedtest/guide overlays handled by their own onClose;
   // sub-views in Help tab pop back to the menu before exiting Support.
