@@ -389,16 +389,26 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
-                const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
+                const clickable =
+                  item.source === 'sports' ||
+                  !!item.ratingKey ||
+                  !!item.deepLink ||
+                  !!item.webLink;
                 const isFocused = active && idx === focusIdx;
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => clickable && handleClick(item)}
+                    onContextMenu={(e) => {
+                      if (item.source === 'sports') return;
+                      e.preventDefault();
+                      setDebugItem(item);
+                    }}
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
+
                     className={`flex flex-col bg-black/40 rounded-md overflow-hidden text-left min-w-0 transition-transform duration-150 ${
                       isFocused
                         ? 'scale-110 shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))] will-change-transform'
