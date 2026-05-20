@@ -118,11 +118,22 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     } catch { /* autoplay unlock is best-effort */ }
   }, []);
 
+  const restoreAiVoiceFocus = useCallback(() => {
+    const idx = getFocusableElements().findIndex((element) => element.id === 'ai-voice');
+    if (idx !== -1) setFocusIndex(idx);
+    requestAnimationFrame(() => {
+      const voiceButton = containerRef.current?.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
+      voiceButton?.focus({ preventScroll: true });
+    });
+  }, [getFocusableElements]);
+
   const speakReply = useCallback(async (text: string) => {
     stopVoicePlayback();
+    voiceControlsRef.current?.cleanupAudio();
+    voiceControlsRef.current?.setVoiceState('speaking');
     const playbackId = ++ttsPlaybackIdRef.current;
     try {
-      console.log('[TTS] Requesting voice for', text.length, 'chars');
+      console.log('VOICE_TTS_START:', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
         body: { text },
       });
@@ -166,9 +177,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           ttsSourceRef.current = src;
           src.onended = () => {
             if (ttsSourceRef.current === src) ttsSourceRef.current = null;
+            console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio ended');
+            voiceControlsRef.current?.setVoiceState('idle');
+            restoreAiVoiceFocus();
           };
           src.start(0);
-          console.log('[TTS] Playing via Web Audio,', buf.duration.toFixed(1), 's');
+          console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio', buf.duration.toFixed(1), 's');
+          console.log('VOICE_TTS_END');
           return;
         } catch (decodeErr) {
           console.warn('[TTS] Web Audio decode failed, falling back to <audio>:', decodeErr);
@@ -192,12 +207,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       audio.src = url;
       audio.volume = 1;
       audio.currentTime = 0;
+      audio.onended = () => {
+        console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio ended');
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
+      };
       await audio.play();
-      console.log('[TTS] Playing via <audio> fallback');
+      console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio');
+      console.log('VOICE_TTS_END');
     } catch (err) {
-      console.error('[TTS] Playback failed:', err);
+      console.error('VOICE_ERROR: TTS_PLAYBACK_FAILED/audio playback failed/tts', err);
+      voiceControlsRef.current?.setVoiceState('idle');
+      restoreAiVoiceFocus();
     }
-  }, [stopVoicePlayback]);
+  }, [restoreAiVoiceFocus, stopVoicePlayback]);
 
   useEffect(() => {
     return () => stopVoicePlayback(true);
