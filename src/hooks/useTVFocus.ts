@@ -114,6 +114,7 @@ export const useTVFocus = ({
     const currentId = currentEl ? getId(currentEl) : currentIdRef.current;
     const rule = currentId ? navigation[currentId]?.[direction] : undefined;
     const ruledTarget = typeof rule === 'function' ? rule() : rule;
+    if (ruledTarget === null) return true;
     const nextId = ruledTarget !== undefined ? ruledTarget : findSpatial(direction);
     return focusById(nextId ?? currentId);
   }, [findManagedElement, findSpatial, focusById, getId, navigation]);
