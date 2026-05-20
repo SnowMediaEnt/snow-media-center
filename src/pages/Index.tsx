@@ -432,16 +432,16 @@ const Index = () => {
       variant: 'blue' as const
     },
     {
-      icon: Store,
-      title: 'Snow Media Store',
-      description: 'Visit Official Store',
-      variant: 'purple' as const
-    },
-    {
       icon: LifeBuoy,
       title: 'Support',
       description: 'Help, AI Chat & Community',
       variant: 'gold' as const
+    },
+    {
+      icon: Store,
+      title: 'Snow Media Store',
+      description: 'Visit Official Store',
+      variant: 'purple' as const
     }
   ], []);
 
