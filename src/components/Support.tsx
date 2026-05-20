@@ -322,7 +322,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
           <TabsContent value="community" className="mt-0">
             <Suspense fallback={null}>
-              <CommunityChat onBack={onBack} />
+              <CommunityChat onBack={onBack} embedded />
             </Suspense>
           </TabsContent>
         </Tabs>
