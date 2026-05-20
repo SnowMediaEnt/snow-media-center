@@ -375,11 +375,13 @@
   :focus-visible {
     box-shadow: 0 0 0 2px hsl(var(--brand-gold) / 0.7) !important;
   }
-
   /* Heavy focus scale on home cards causes paint on touch — keep subtle */
   .home-focus-surface[data-focused="true"] {
     transform: translateZ(0) scale(1.02);
-    outline: 2px solid hsl(var(--brand-ice) / 0.6);
+    outline: 2px solid hsl(var(--brand-gold) / 0.85);
+    box-shadow: none;
+  }
+
   }
 
   /* Slow the ticker so it's less distracting on a small screen */
