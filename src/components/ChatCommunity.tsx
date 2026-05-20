@@ -518,8 +518,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
   };
 
-  const sendAiMessage = async () => {
-    if (!aiMessage.trim()) return;
+  const sendAiMessage = async (messageOverride?: string) => {
+    const messageToSend = typeof messageOverride === 'string' ? messageOverride : aiMessage;
+    if (!messageToSend.trim()) return;
     
     if (!user) {
       toast({
@@ -541,9 +542,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       return;
     }
 
-    const userMessage = aiMessage;
+    const userMessage = messageToSend;
     setAiMessage('');
     setAiLoading(true);
+    if (voiceModeRef.current) voiceControlsRef.current?.setVoiceState('sending_to_ai');
 
     setAiChat(prev => [...prev, {
       role: 'user',
@@ -582,7 +584,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       if (voiceModeRef.current && responseText) {
         voiceModeRef.current = false;
-        speakReply(responseText);
+        await speakReply(responseText);
+      } else if (voiceControlsRef.current) {
+        voiceControlsRef.current.setVoiceState('idle');
+        voiceControlsRef.current.restoreFocus();
       }
 
       if (data.functionCall) {
@@ -591,6 +596,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     } catch (error) {
       console.error('AI Error:', error);
+      voiceControlsRef.current?.setVoiceState('idle');
+      voiceControlsRef.current?.restoreFocus();
       toast({
         title: "AI Error",
         description: "Failed to get AI response. Please try again.",
