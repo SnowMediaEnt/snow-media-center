@@ -189,7 +189,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, move, onBack]);
+  }, [activate, enabled, findManagedElement, getAllElements, getId, move, onBack]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
