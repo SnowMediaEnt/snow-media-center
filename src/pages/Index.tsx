@@ -606,7 +606,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                <span className="text-gray-400">Sign In</span>
+                <span style={{ color: '#333333' }}>Sign In</span>
               </Button>
             )}
             <Button
