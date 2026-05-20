@@ -663,6 +663,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
+      if (embedded && !containerRef.current?.contains(target)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       // Handle back button - hierarchical exit from nested containers
