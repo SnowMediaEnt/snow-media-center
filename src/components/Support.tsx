@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -17,6 +17,7 @@ import { useAppData } from '@/hooks/useAppData';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
+import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -37,7 +38,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [focusedId, setFocusedId] = useState('tab-help');
   const { apps } = useAppData();
   const { toast } = useToast();
 
@@ -109,127 +109,29 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
-  // Focus the currently-selected tab trigger whenever `tab` changes.
-  // Embedded sub-components (ChatCommunity / CommunityChat) auto-focus their
-  // own internals on mount, which previously stole focus and left the user
-  // with no visible cursor. We re-grab focus on the tab trigger across a few
-  // animation frames to outrun that, so the glow stays visible and ArrowLeft/
-  // Right keeps cycling tabs.
+  const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
+    'support-back': { down: `tab-${tab}` },
+    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-speedtest' },
+    'tab-ai': { up: 'support-back', right: 'tab-community', left: 'tab-help', down: null },
+    'tab-community': { up: 'support-back', right: 'tab-help', left: 'tab-ai', down: null },
+    'help-speedtest': { up: 'tab-help', down: 'help-guide' },
+    'help-guide': { up: 'help-speedtest', down: 'help-videos' },
+    'help-videos': { up: 'help-guide', down: 'help-tickets' },
+    'help-tickets': { up: 'help-videos' },
+  }), [tab]);
+
+  const supportFocus = useTVFocus({
+    initialFocusId: `tab-${tab}`,
+    focusableSelector: '[data-support-tv-focus-id]',
+    navigation: supportNavigation,
+    onBack,
+  });
+
   useEffect(() => {
-    if (showSpeedTest || showGuide) return;
-    if (tab === 'help' && helpView !== 'menu') return;
-
-    const focusTab = () => {
-      const el = document.querySelector<HTMLElement>(`[data-focus-id="tab-${tab}"]`);
-      if (el) {
-        setFocusedId(`tab-${tab}`);
-        el.focus();
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
-    focusTab();
-    const t1 = window.setTimeout(focusTab, 50);
-    const t2 = window.setTimeout(focusTab, 200);
-    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
-  }, [tab, helpView, showSpeedTest, showGuide]);
-
-  // D-pad navigation: ArrowLeft/Right cycles tabs from anywhere inside
-  // Support; ArrowUp/Down moves through Help buttons when on the Help tab.
-  useEffect(() => {
-    if (showSpeedTest || showGuide) return;
-    if (tab === 'help' && helpView !== 'menu') return;
-
-    const tabIds: Tab[] = ['help', 'ai', 'community'];
-    const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
-    const supportOwnedIds = new Set(['support-back', ...helpIds, ...tabIds.map((id) => `tab-${id}`)]);
-
-    const focusEl = (id: string) => {
-      const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
-      if (el) {
-        setFocusedId(id);
-        el.focus();
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
-
-    const handler = (e: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-      const target = e.target as HTMLElement;
-      const tag = target.tagName;
-      // Never hijack typing fields
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
-
-      const currentId = target.getAttribute?.('data-focus-id');
-      const onTab = currentId?.startsWith('tab-');
-      const onHelp = !!currentId && helpIds.includes(currentId);
-
-      // Left/Right cycles the Support tabs only while focus is on Support's
-      // own chrome. Embedded screens (AI chat, community, tickets) keep their
-      // own horizontal D-pad controls.
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (!currentId || !supportOwnedIds.has(currentId)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = Math.max(0, tabIds.indexOf(tab));
-        const next = e.key === 'ArrowRight'
-          ? (idx + 1) % tabIds.length
-          : (idx - 1 + tabIds.length) % tabIds.length;
-        setTab(tabIds[next]);
-        requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
-        if (currentId === 'support-back') {
-          e.preventDefault();
-          focusEl(`tab-${tab}`);
-          return;
-        }
-        if (onTab && tab === 'help') {
-          e.preventDefault();
-          focusEl(helpIds[0]);
-          return;
-        }
-        if (onTab && tab === 'ai') {
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedId('');
-          focusEl('ai-input');
-          return;
-        }
-        if (onTab && tab === 'community') {
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedId('');
-          focusEl('room-general');
-          return;
-        }
-        if (onHelp) {
-          e.preventDefault();
-          const idx = helpIds.indexOf(currentId!);
-          if (idx < helpIds.length - 1) focusEl(helpIds[idx + 1]);
-        }
-        return;
-      }
-
-      if (e.key === 'ArrowUp') {
-        if (onTab) {
-          e.preventDefault();
-          focusEl('support-back');
-          return;
-        }
-        if (onHelp) {
-          e.preventDefault();
-          const idx = helpIds.indexOf(currentId!);
-          if (idx > 0) focusEl(helpIds[idx - 1]);
-          else focusEl(`tab-${tab}`);
-        }
-      }
-    };
-    // Capture phase so we intercept before embedded components handle it
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [tab, helpView, showSpeedTest, showGuide]);
+    if (showSpeedTest || showGuide || helpView !== 'menu') return;
+    const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
+    return () => window.clearTimeout(timer);
+  }, [helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
