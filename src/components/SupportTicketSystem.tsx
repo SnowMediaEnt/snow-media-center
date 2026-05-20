@@ -337,6 +337,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-support-focus
+              data-support-id="create-back"
               className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -366,6 +367,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
                   data-support-focus
+                  data-support-id="create-subject"
                   className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
@@ -381,6 +383,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   rows={8}
                   enterKeyHint="done"
                   data-support-focus
+                  data-support-id="create-message"
                   className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
@@ -390,6 +393,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
                   data-support-focus
+                  data-support-id="create-submit"
                   className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   {loading ? "Creating..." : "Create Ticket"}
@@ -398,6 +402,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={() => setView('list')}
                   variant="outline"
                   data-support-focus
+                  data-support-id="create-cancel"
                   className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   Cancel
