@@ -183,7 +183,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (isTyping && event.key === 'Enter') return;
+      if (isTyping && event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
+        return;
+      }
       if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
 
       const elements = getElements();
