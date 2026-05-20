@@ -316,14 +316,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
               onClick={() => setView('list')} 
               variant="outline" 
               size="sm"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+              data-support-focus
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -351,7 +352,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   }}
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
-                  className="bg-slate-700 border-slate-600 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
               
@@ -365,7 +367,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
 
@@ -373,13 +376,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
+                  data-support-focus
+                  className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   Cancel
                 </Button>
