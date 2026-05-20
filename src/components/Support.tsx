@@ -108,9 +108,31 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
-  // D-pad navigation: ArrowLeft/Right cycles tabs, ArrowUp/Down moves through
-  // Help buttons when on the Help tab. Embedded sub-components (AI Chat,
-  // Community) handle their own focus.
+  // Focus the currently-selected tab trigger whenever `tab` changes.
+  // Embedded sub-components (ChatCommunity / CommunityChat) auto-focus their
+  // own internals on mount, which previously stole focus and left the user
+  // with no visible cursor. We re-grab focus on the tab trigger across a few
+  // animation frames to outrun that, so the glow stays visible and ArrowLeft/
+  // Right keeps cycling tabs.
+  useEffect(() => {
+    if (showSpeedTest || showGuide) return;
+    if (tab === 'help' && helpView !== 'menu') return;
+
+    const focusTab = () => {
+      const el = document.querySelector<HTMLElement>(`[data-focus-id="tab-${tab}"]`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    focusTab();
+    const t1 = window.setTimeout(focusTab, 50);
+    const t2 = window.setTimeout(focusTab, 200);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, [tab, helpView, showSpeedTest, showGuide]);
+
+  // D-pad navigation: ArrowLeft/Right cycles tabs from anywhere inside
+  // Support; ArrowUp/Down moves through Help buttons when on the Help tab.
   useEffect(() => {
     if (showSpeedTest || showGuide) return;
     if (tab === 'help' && helpView !== 'menu') return;
@@ -126,42 +148,38 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
     };
 
-    // Initial focus on first tab
-    const active = document.activeElement as HTMLElement | null;
-    if (!active || !active.getAttribute('data-focus-id')) {
-      focusEl(`tab-${tab}`);
-    }
-
     const handler = (e: KeyboardEvent) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-      // Don't hijack typing fields
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      const tag = target.tagName;
+      // Never hijack typing fields
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
 
       const currentId = target.getAttribute?.('data-focus-id');
       const onTab = currentId?.startsWith('tab-');
-      const onHelp = currentId && helpIds.includes(currentId);
+      const onHelp = !!currentId && helpIds.includes(currentId);
 
+      // Left/Right ALWAYS cycles tabs (highest priority on Support page).
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (onTab || !currentId) {
-          e.preventDefault();
-          const idx = Math.max(0, tabIds.indexOf(tab));
-          const next = e.key === 'ArrowRight'
-            ? Math.min(tabIds.length - 1, idx + 1)
-            : Math.max(0, idx - 1);
-          setTab(tabIds[next]);
-          requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
-        }
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = Math.max(0, tabIds.indexOf(tab));
+        const next = e.key === 'ArrowRight'
+          ? (idx + 1) % tabIds.length
+          : (idx - 1 + tabIds.length) % tabIds.length;
+        setTab(tabIds[next]);
+        requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
         return;
       }
 
       if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (onTab) {
-          if (tab === 'help') focusEl(helpIds[0]);
+        if (onTab && tab === 'help') {
+          e.preventDefault();
+          focusEl(helpIds[0]);
           return;
         }
         if (onHelp) {
+          e.preventDefault();
           const idx = helpIds.indexOf(currentId!);
           if (idx < helpIds.length - 1) focusEl(helpIds[idx + 1]);
         }
@@ -169,16 +187,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
 
       if (e.key === 'ArrowUp') {
-        e.preventDefault();
         if (onHelp) {
+          e.preventDefault();
           const idx = helpIds.indexOf(currentId!);
           if (idx > 0) focusEl(helpIds[idx - 1]);
           else focusEl(`tab-${tab}`);
         }
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    // Capture phase so we intercept before embedded components handle it
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [tab, helpView, showSpeedTest, showGuide]);
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
@@ -225,7 +244,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="help"
               data-focus-id="tab-help"
-              className="text-white data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-brand-gold"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_0_22px_rgba(255,200,60,0.65)] focus-visible:ring-4 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
@@ -233,7 +252,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="ai"
               data-focus-id="tab-ai"
-              className="text-white data-[state=active]:bg-purple-600 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-purple-400"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[0_0_22px_rgba(168,85,247,0.7)] focus-visible:ring-4 focus-visible:ring-purple-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
@@ -241,12 +260,13 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="community"
               data-focus-id="tab-community"
-              className="text-white data-[state=active]:bg-green-600 text-center text-lg py-3 min-w-0 focus-visible:ring-2 focus-visible:ring-green-400"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[0_0_22px_rgba(34,197,94,0.7)] focus-visible:ring-4 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
             </TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="help" className="mt-0">
             <div className="flex flex-col gap-4 max-w-2xl mx-auto">
