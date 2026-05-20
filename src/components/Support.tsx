@@ -108,6 +108,79 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
+  // D-pad navigation: ArrowLeft/Right cycles tabs, ArrowUp/Down moves through
+  // Help buttons when on the Help tab. Embedded sub-components (AI Chat,
+  // Community) handle their own focus.
+  useEffect(() => {
+    if (showSpeedTest || showGuide) return;
+    if (tab === 'help' && helpView !== 'menu') return;
+
+    const tabIds: Tab[] = ['help', 'ai', 'community'];
+    const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
+
+    const focusEl = (id: string) => {
+      const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+
+    // Initial focus on first tab
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || !active.getAttribute('data-focus-id')) {
+      focusEl(`tab-${tab}`);
+    }
+
+    const handler = (e: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      // Don't hijack typing fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const currentId = target.getAttribute?.('data-focus-id');
+      const onTab = currentId?.startsWith('tab-');
+      const onHelp = currentId && helpIds.includes(currentId);
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (onTab || !currentId) {
+          e.preventDefault();
+          const idx = Math.max(0, tabIds.indexOf(tab));
+          const next = e.key === 'ArrowRight'
+            ? Math.min(tabIds.length - 1, idx + 1)
+            : Math.max(0, idx - 1);
+          setTab(tabIds[next]);
+          requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (onTab) {
+          if (tab === 'help') focusEl(helpIds[0]);
+          return;
+        }
+        if (onHelp) {
+          const idx = helpIds.indexOf(currentId!);
+          if (idx < helpIds.length - 1) focusEl(helpIds[idx + 1]);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (onHelp) {
+          const idx = helpIds.indexOf(currentId!);
+          if (idx > 0) focusEl(helpIds[idx - 1]);
+          else focusEl(`tab-${tab}`);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [tab, helpView, showSpeedTest, showGuide]);
+
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
     return (
