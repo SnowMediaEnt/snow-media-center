@@ -769,6 +769,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
+          if (embedded && focusIndex === 0) {
+            const parentTab = document.querySelector<HTMLElement>('[data-focus-id="tab-ai"]');
+            parentTab?.focus();
+            parentTab?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            return;
+          }
           if (currentFocusId.startsWith('ai-history-')) {
             const inputIndex = elements.findIndex(e => e.id === 'ai-input');
             if (inputIndex !== -1) {
