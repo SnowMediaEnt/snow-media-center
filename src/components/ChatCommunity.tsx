@@ -18,6 +18,11 @@ import { format } from 'date-fns';
 interface ChatCommunityProps {
   onBack: () => void;
   onNavigate?: (section: string) => void;
+  /** When true, hides the standalone page chrome (back button, title, tab bar)
+   *  so this component can be embedded inside another page (e.g. Support). */
+  embedded?: boolean;
+  /** When set, forces the active tab and prevents tab switching. */
+  lockedTab?: 'admin' | 'community' | 'ai';
 }
 
 type AIFunctionCall = {
@@ -25,8 +30,8 @@ type AIFunctionCall = {
   arguments: Record<string, string | undefined>;
 };
 
-const ChatCommunity = ({ onBack, onNavigate }: ChatCommunityProps) => {
-  const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>('admin');
+const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: ChatCommunityProps) => {
+  const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>(lockedTab ?? 'admin');
   const [adminMessage, setAdminMessage] = useState('');
   const [adminSubject, setAdminSubject] = useState('');
   const [aiMessage, setAiMessage] = useState('');
