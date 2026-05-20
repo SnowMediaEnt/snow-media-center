@@ -120,7 +120,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   }, [aiConversationMessages.length, selectedAIConversationId, view, aiLoading]);
 
-  const firstTicketId = tickets.length > 0 ? 'ticket-0' : 'ai-new-input';
+  const emptyActionId = user ? 'empty-create-ticket' : 'empty-sign-in';
+  const firstTicketId = tickets.length > 0 ? 'ticket-0' : emptyActionId;
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
   const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : 'ai-new-input';
 
@@ -171,6 +172,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     const map: TVFocusNavigationMap = {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
+      'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+      'empty-sign-in': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
       'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
       'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
     };
@@ -188,7 +191,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       };
     });
     return map;
-  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, view]);
+  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
 
   const tvFocus = useTVFocus({
     initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
@@ -200,7 +203,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
-  }, [selectedAIConversationId, selectedTicketId, tvFocus, view]);
+  }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
 
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
