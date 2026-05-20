@@ -169,10 +169,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       switch (event.key) {
         case 'ArrowLeft':
-          if (focusedElement === 'speedtest') setFocusedElement('back');
-          else if (focusedElement === 'guide') setFocusedElement('speedtest');
-          else if (focusedElement === 'refresh') setFocusedElement('guide');
-          
+          if (focusedElement === 'refresh') setFocusedElement('back');
+
           else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
           else if (focusedElement === 'tab-0') setFocusedElement('back');
           else if (currentApp && isInstalled) {
@@ -192,9 +190,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           break;
           
         case 'ArrowRight':
-          if (focusedElement === 'back') setFocusedElement('speedtest');
-          else if (focusedElement === 'speedtest') setFocusedElement('guide');
-          else if (focusedElement === 'guide') setFocusedElement('refresh');
+          if (focusedElement === 'back') setFocusedElement('refresh');
           
           else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
           else if (currentApp) {
