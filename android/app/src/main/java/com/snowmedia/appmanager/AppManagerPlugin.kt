@@ -353,6 +353,11 @@ class AppManagerPlugin : Plugin() {
 
   @ActivityCallback
   private fun voiceInputResult(call: PluginCall, result: ActivityResult?) {
+    if (pendingVoiceCall == null || pendingVoiceCall !== call) {
+      Log.d(TAG, "Ignoring stale voice input callback")
+      return
+    }
+
     try {
       if (result?.resultCode == Activity.RESULT_CANCELED) {
         call.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
