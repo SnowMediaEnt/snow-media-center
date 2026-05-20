@@ -226,7 +226,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       }
       if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
       if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
-      focusElement(elements[nextIndex], event.key === 'ArrowUp' ? 'center' : 'center');
+      focusElement(elements[nextIndex], nextIndex === 0 ? 'start' : 'center');
     };
 
     const focusTimer = window.setTimeout(() => {
