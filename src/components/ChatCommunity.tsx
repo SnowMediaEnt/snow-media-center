@@ -1496,9 +1496,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     voiceModeRef.current = true;
                     unlockAudioPlayback();
                   }}
-                  onTranscription={(text) => {
+                  onTranscription={(text, controls) => {
                     voiceModeRef.current = true;
-                    voiceControlsRef.current = arguments[1] as VoiceLifecycleControls;
+                    voiceControlsRef.current = controls;
                     setAiMessage(text);
                     sendAiMessage(text);
                   }}
