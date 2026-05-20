@@ -405,9 +405,9 @@ const Index = () => {
           } else if (focusedButton === 0) {
             navigateTo('apps');
           } else if (focusedButton === 1) {
-            navigateTo('store');
-          } else if (focusedButton === 2) {
             navigateTo('support');
+          } else if (focusedButton === 2) {
+            navigateTo('store');
           }
           break;
           
