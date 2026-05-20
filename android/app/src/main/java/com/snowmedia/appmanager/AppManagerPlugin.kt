@@ -299,7 +299,30 @@ class AppManagerPlugin : Plugin() {
   }
 
   @PluginMethod
+  fun isSpeechRecognitionAvailable(call: PluginCall) {
+    val available = try {
+      SpeechRecognizer.isRecognitionAvailable(context)
+    } catch (e: Exception) {
+      Log.w(TAG, "Speech recognizer availability check failed", e)
+      false
+    }
+    Log.d(TAG, "native recognizer available $available")
+    call.resolve(JSObject().put("available", available))
+  }
+
+  @PluginMethod
   fun startVoiceInput(call: PluginCall) {
+    if (voiceListening || pendingVoiceCall != null) {
+      call.reject("VOICE_RECOGNIZER_BUSY", "VOICE_RECOGNIZER_BUSY")
+      return
+    }
+
+    if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+      Log.w(TAG, "No native speech recognizer available")
+      call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
+      return
+    }
+
     try {
       val prompt = call.getString("prompt") ?: "Speak now"
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -308,22 +331,66 @@ class AppManagerPlugin : Plugin() {
         putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
       }
+      pendingVoiceCall = call
+      voiceListening = true
       startActivityForResult(call, intent, "voiceInputResult")
+    } catch (e: ActivityNotFoundException) {
+      Log.e(TAG, "startVoiceInput activity not found", e)
+      resetVoiceInputSession()
+      call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
+    } catch (e: SecurityException) {
+      Log.e(TAG, "startVoiceInput security failure", e)
+      resetVoiceInputSession()
+      call.reject("MIC_PERMISSION_DENIED", "MIC_PERMISSION_DENIED")
     } catch (e: Exception) {
       Log.e(TAG, "startVoiceInput failed", e)
-      call.reject("Voice input unavailable: ${e.message}")
+      resetVoiceInputSession()
+      val message = e.message ?: "Native voice input unavailable"
+      val code = if (message.contains("busy", ignoreCase = true)) "VOICE_RECOGNIZER_BUSY" else "NATIVE_VOICE_UNAVAILABLE"
+      call.reject(message, code)
     }
   }
 
   @ActivityCallback
   private fun voiceInputResult(call: PluginCall, result: ActivityResult?) {
-    val matches = result?.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-    val text = matches?.firstOrNull()?.trim().orEmpty()
-    if (text.isNotBlank()) {
-      call.resolve(JSObject().put("text", text))
-    } else {
-      call.reject("No speech recognized")
+    try {
+      if (result?.resultCode == Activity.RESULT_CANCELED) {
+        call.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
+        return
+      }
+
+      if (result?.resultCode != Activity.RESULT_OK) {
+        call.reject("NATIVE_VOICE_UNAVAILABLE", "NATIVE_VOICE_UNAVAILABLE")
+        return
+      }
+
+      val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+      val text = matches?.firstOrNull()?.trim().orEmpty()
+      Log.d(TAG, "native result text=$text")
+      if (text.isNotBlank()) {
+        call.resolve(JSObject().put("text", text))
+      } else {
+        call.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "voiceInputResult failed", e)
+      call.reject("NATIVE_VOICE_UNAVAILABLE", "NATIVE_VOICE_UNAVAILABLE")
+    } finally {
+      resetVoiceInputSession()
     }
+  }
+
+  @PluginMethod
+  fun cancelVoiceInput(call: PluginCall) {
+    val pending = pendingVoiceCall
+    resetVoiceInputSession()
+    pending?.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
+    call.resolve()
+  }
+
+  private fun resetVoiceInputSession() {
+    pendingVoiceCall = null
+    voiceListening = false
   }
 
   /**
