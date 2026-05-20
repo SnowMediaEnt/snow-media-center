@@ -149,11 +149,11 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <Button 
-              data-focus-id="back"
+              data-tv-focus-id="back"
               onClick={onBack}
               variant="gold" 
               size="lg"
-              className={`mr-6 transition-all duration-200 ${focusRing('back')}`}
+              className="mr-6 transition-all duration-200"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -181,10 +181,10 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                 {rooms.map((room) => (
                   <Button
                     key={room.id}
-                    data-focus-id={`room-${room.id}`}
+                    data-tv-focus-id={`room-${room.id}`}
                     onClick={() => setSelectedRoom(room.id)}
                     variant={selectedRoom === room.id ? "default" : "outline"}
-                    className={`w-full min-h-16 justify-start px-4 py-3 transition-all duration-200 ${focusRing(`room-${room.id}`)} ${
+                    className={`w-full min-h-16 justify-start px-4 py-3 transition-all duration-200 ${
                       selectedRoom === room.id 
                         ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-950/40' 
                         : 'bg-slate-800 border-slate-500 text-white hover:bg-slate-700 hover:border-blue-400'
@@ -265,20 +265,19 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
                 {user ? (
                   <div className="flex gap-2">
                     <Input
-                      ref={inputRef}
-                      data-focus-id="input"
+                      data-tv-focus-id="input"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder={`Message #${rooms.find(r => r.id === selectedRoom)?.name}...`}
-                      className={`flex-1 min-h-12 bg-slate-800 border-blue-300/70 text-white placeholder:text-blue-100 transition-all duration-200 ${focusRing('input')}`}
+                      className="flex-1 min-h-12 bg-slate-800 border-blue-300/70 text-white placeholder:text-blue-100 transition-all duration-200"
                       onKeyPress={(e) => e.key === 'Enter' && sendMessageRef.current()}
                       disabled={sending}
                     />
                     <Button
-                      data-focus-id="send"
+                      data-tv-focus-id="send"
                       onClick={() => sendMessageRef.current()}
                       disabled={!newMessage.trim() || sending}
-                      className={`min-h-12 min-w-14 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-300 transition-all duration-200 ${focusRing('send')}`}
+                      className="min-h-12 min-w-14 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-700 disabled:text-slate-300 transition-all duration-200"
                     >
                       <Send className="w-4 h-4" />
                     </Button>
