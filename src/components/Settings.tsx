@@ -144,13 +144,28 @@ const Settings = ({ onBack }: SettingsProps) => {
         : ['tab-media', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
+      const tabValueFor = (f: SettingsFocus): string | null => {
+        if (f === 'tab-media') return 'media';
+        if (f === 'tab-updates') return 'updates';
+        if (f === 'tab-alerts') return 'alerts';
+        return null;
+      };
+
       switch (event.key) {
         case 'ArrowLeft':
-          if (currentTabIdx > 0) setFocusedElement(tabs[currentTabIdx - 1]);
+          if (currentTabIdx > 0) {
+            const next = tabs[currentTabIdx - 1];
+            setFocusedElement(next);
+            const v = tabValueFor(next);
+            if (v) setActiveTab(v);
+          }
           break;
         case 'ArrowRight':
           if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
-            setFocusedElement(tabs[currentTabIdx + 1]);
+            const next = tabs[currentTabIdx + 1];
+            setFocusedElement(next);
+            const v = tabValueFor(next);
+            if (v) setActiveTab(v);
           }
           break;
         case 'ArrowUp':
