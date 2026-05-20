@@ -39,6 +39,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -164,6 +165,66 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, onBack]);
+
+  useEffect(() => {
+    const selector = '[data-support-focus]:not([disabled])';
+    const getElements = () => Array.from(
+      containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
+    ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
+
+    const focusElement = (el?: HTMLElement) => {
+      if (!el) return;
+      el.focus();
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    };
+
+    const handleDpad = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      if (isTyping && event.key === 'Enter') return;
+      if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+
+      const elements = getElements();
+      if (!elements.length) return;
+      const active = document.activeElement as HTMLElement | null;
+      const currentIndex = Math.max(0, elements.findIndex((el) => el === active || el.contains(active)));
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (isTyping) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const el = elements[currentIndex];
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          el.focus();
+          (el as HTMLInputElement | HTMLTextAreaElement).click();
+        } else {
+          el.click();
+        }
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (isTyping) target.blur();
+
+      let nextIndex = currentIndex;
+      if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+      if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
+      focusElement(elements[nextIndex]);
+    };
+
+    const focusTimer = window.setTimeout(() => {
+      if (!containerRef.current?.contains(document.activeElement)) focusElement(getElements()[0]);
+    }, 80);
+    window.addEventListener('keydown', handleDpad, true);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleDpad, true);
+    };
+  }, [view, selectedTicketId, selectedAIConversationId, tickets.length, aiConversations.length, loading, aiLoading]);
 
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
