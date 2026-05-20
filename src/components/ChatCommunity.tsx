@@ -581,7 +581,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Community tab (4+): visit-forum, join-groups
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
-    const header = [
+    const header = embedded ? [] : [
       { id: 'back', type: 'button' },
       { id: 'tab-admin', type: 'tab' },
       { id: 'tab-community', type: 'tab' },
@@ -645,7 +645,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -714,6 +714,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       const elements = getFocusableElements();
       const maxIndex = elements.length - 1;
+      const contentStartIndex = embedded ? 0 : 4;
 
       // Handle message scrolling when focused on the scroll element
       const scrollMessages = (direction: 'up' | 'down') => {
@@ -746,9 +747,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
-            // From tabs (indices 1, 2, 3), go to first content item (index 4)
+            // From tabs (indices 1, 2, 3), go to first content item
             if (prev >= 1 && prev <= 3) {
-              return Math.min(4, maxIndex);
+              return Math.min(contentStartIndex, maxIndex);
             }
             // Move down through content items
             if (prev < maxIndex) {
@@ -772,13 +773,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             return;
           }
           setFocusIndex(prev => {
-            // From first content item (index 4), go to active tab
-            if (prev === 4) {
+            // From first content item, go to active tab in standalone mode
+            if (!embedded && prev === contentStartIndex) {
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
             // From other content items, go up one
-            if (prev > 4) {
+            if (prev > contentStartIndex) {
               return prev - 1;
             }
             // From any tab, go to back button
@@ -898,7 +899,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded]);
 
   // Auto-focus input/textarea when navigating to them with D-pad
   useEffect(() => {
@@ -929,9 +930,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Reset focus when tab changes
   useEffect(() => {
     // Keep focus at tab level when switching tabs
+    if (embedded) {
+      setFocusIndex(0);
+      return;
+    }
     const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
     setFocusIndex(tabIndex);
-  }, [activeTab]);
+  }, [activeTab, embedded]);
 
   return (
     <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
