@@ -382,7 +382,7 @@
     box-shadow: none;
   }
 
-  }
+
 
   /* Slow the ticker so it's less distracting on a small screen */
   .news-ticker-track { animation-duration: 117s; }
