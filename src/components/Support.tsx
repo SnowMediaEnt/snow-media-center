@@ -292,7 +292,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-speedtest"
-                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 justify-start text-xl py-8 shadow-md"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:bg-cyan-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md"
               >
                 <Gauge className="w-7 h-7 mr-4" />
                 Speedtest
@@ -306,7 +306,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-guide"
-                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 justify-start text-xl py-8 shadow-md"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:bg-purple-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md"
               >
                 <LifeBuoy className="w-7 h-7 mr-4" />
                 Buffering Guide
@@ -320,7 +320,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-videos"
-                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 justify-start text-xl py-8 shadow-md"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:bg-blue-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md"
               >
                 <Video className="w-7 h-7 mr-4" />
                 Support Videos
@@ -334,7 +334,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-tickets"
-                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 justify-start text-xl py-8 shadow-md"
+                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:bg-orange-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md"
               >
                 <MessageCircle className="w-7 h-7 mr-4" />
                 Submit a Ticket
