@@ -209,9 +209,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-speedtest"
-                onFocus={() => setFocusedId('help-speedtest')}
-                className={`bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:bg-cyan-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-speedtest' ? 'ring-2 ring-cyan-300 bg-cyan-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-speedtest"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <Gauge className="w-7 h-7 mr-4" />
                 Speedtest
@@ -224,9 +223,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-guide"
-                onFocus={() => setFocusedId('help-guide')}
-                className={`bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:bg-purple-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-guide' ? 'ring-2 ring-purple-300 bg-purple-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-guide"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <LifeBuoy className="w-7 h-7 mr-4" />
                 Buffering Guide
@@ -239,9 +237,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-videos"
-                onFocus={() => setFocusedId('help-videos')}
-                className={`bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:bg-blue-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-videos' ? 'ring-2 ring-blue-300 bg-blue-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-videos"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <Video className="w-7 h-7 mr-4" />
                 Support Videos
@@ -254,9 +251,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-tickets"
-                onFocus={() => setFocusedId('help-tickets')}
-                className={`bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:bg-orange-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-tickets' ? 'ring-2 ring-orange-300 bg-orange-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-tickets"
+                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <MessageCircle className="w-7 h-7 mr-4" />
                 Submit a Ticket
