@@ -249,7 +249,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       </div>
 
       {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
-      {showGuide && <BufferingGuide onClose={() => setShowGuide(false)} />}
+      {showGuide && (
+        <BufferingGuide
+          onClose={() => setShowGuide(false)}
+          apps={apps}
+          appStatuses={new Map()}
+          onLaunch={launchApp}
+          onDownload={downloadApp}
+          onOpenAppSettings={openAppSettings}
+          onNavigateToChat={() => setTab('ai')}
+        />
+      )}
     </div>
   );
 };
