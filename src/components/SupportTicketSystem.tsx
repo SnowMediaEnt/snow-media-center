@@ -700,7 +700,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {user ? (
                 <Button 
                   onClick={() => setView('create')}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Ticket
@@ -708,7 +709,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               ) : (
                 <Button 
                   onClick={() => navigate('/auth')}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
@@ -740,13 +742,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiNewMessage(e.target.value)}
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
-                  className="bg-slate-700 border-purple-600/50 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  data-support-focus
+                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Chat
@@ -764,6 +768,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     <div
                       key={c.id}
                       tabIndex={0}
+                      data-support-focus
                       role="button"
                       onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}
