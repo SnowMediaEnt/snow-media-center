@@ -400,7 +400,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -408,7 +408,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={() => setView('list')} 
                 variant="outline" 
                 size="sm"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+                data-support-focus
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -426,7 +427,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
-                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white"
+                  data-support-focus
+                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Close Ticket
@@ -441,7 +443,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   setView('list');
                 }}
                 variant="outline"
-                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white"
+                data-support-focus
+                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Ticket
@@ -488,12 +491,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onChange={(e) => setReplyMessage(e.target.value)}
                     placeholder="Type your reply..."
                     rows={4}
-                    className="bg-slate-700 border-slate-600 text-white"
+                    data-support-focus
+                    className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    data-support-focus
+                    className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
