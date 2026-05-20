@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2 } from 'lucide-react';
-import VoiceInput from '@/components/VoiceInput';
+import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
@@ -56,6 +56,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const ttsPlaybackIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
+  const voiceControlsRef = useRef<VoiceLifecycleControls | null>(null);
 
   const stopVoicePlayback = useCallback((closeAudioContext = false) => {
     ttsPlaybackIdRef.current += 1;
