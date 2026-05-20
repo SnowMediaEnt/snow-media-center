@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
+import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -40,7 +40,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -121,126 +120,90 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   }, [aiConversationMessages.length, selectedAIConversationId, view, aiLoading]);
 
-  // Hierarchical back button handling
+  const emptyActionId = user ? 'empty-create-ticket' : 'empty-sign-in';
+  const firstTicketId = tickets.length > 0 ? 'ticket-0' : emptyActionId;
+  const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
+  const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : emptyActionId;
+
+  const handleSystemBack = () => {
+    if (view === 'ticket') {
+      setView('list');
+      setSelectedTicketId(null);
+      return;
+    }
+    if (view === 'ai-chat') {
+      setView('list');
+      setSelectedAIConversationId(null);
+      return;
+    }
+    if (view === 'create') {
+      setView('list');
+      return;
+    }
+    onBack();
+  };
+
+  const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
+    if (view === 'create') {
+      return {
+        'create-back': { down: 'create-subject' },
+        'create-subject': { up: 'create-back', down: 'create-message' },
+        'create-message': { up: 'create-subject', down: 'create-submit' },
+        'create-submit': { up: 'create-message', right: 'create-cancel' },
+        'create-cancel': { up: 'create-message', left: 'create-submit' },
+      };
+    }
+    if (view === 'ticket') {
+      return {
+        'ticket-back': { right: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-delete', down: 'ticket-reply' },
+        'ticket-close': { left: 'ticket-back', right: 'ticket-delete', down: 'ticket-reply' },
+        'ticket-delete': { left: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-back', down: 'ticket-reply' },
+        'ticket-reply': { up: 'ticket-back', down: 'ticket-send' },
+        'ticket-send': { up: 'ticket-reply' },
+      };
+    }
+    if (view === 'ai-chat') {
+      return {
+        'ai-chat-back': { down: 'ai-chat-input' },
+        'ai-chat-input': { up: 'ai-chat-back', right: 'ai-chat-send' },
+        'ai-chat-send': { up: 'ai-chat-back', left: 'ai-chat-input' },
+      };
+    }
+    const map: TVFocusNavigationMap = {
+      'list-back': { right: 'new-ticket', down: firstTicketId },
+      'new-ticket': { left: 'list-back', down: 'ai-new-input' },
+      'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+      'empty-sign-in': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+      'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
+      'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
+    };
+    tickets.forEach((_, index) => {
+      map[`ticket-${index}`] = {
+        up: index === 0 ? 'list-back' : `ticket-${index - 1}`,
+        down: index === tickets.length - 1 ? 'ai-new-input' : `ticket-${index + 1}`,
+        right: index === 0 ? 'new-ticket' : undefined,
+      };
+    });
+    aiConversations.forEach((_, index) => {
+      map[`ai-history-${index}`] = {
+        up: index === 0 ? 'ai-new-input' : `ai-history-${index - 1}`,
+        down: index === aiConversations.length - 1 ? `ai-history-${index}` : `ai-history-${index + 1}`,
+      };
+    });
+    return map;
+  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
+
+  const tvFocus = useTVFocus({
+    initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    navigation: tvNavigation,
+    onBack: handleSystemBack,
+  });
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      
-      // Allow Backspace when typing
-      if (event.key === 'Backspace' && isTyping) {
-        return;
-      }
-      
-      // Handle back button - hierarchical exit from nested containers
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        // If viewing a ticket, go back to list first
-        if (view === 'ticket') {
-          setView('list');
-          setSelectedTicketId(null);
-          return;
-        }
-        
-        // If viewing an AI chat, go back to list
-        if (view === 'ai-chat') {
-          setView('list');
-          setSelectedAIConversationId(null);
-          return;
-        }
-        
-        // If in create form, go back to list
-        if (view === 'create') {
-          setView('list');
-          return;
-        }
-        
-        // Otherwise exit to previous page
-        onBack();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, onBack]);
-
-  useEffect(() => {
-    const selector = '[data-support-focus]:not([disabled])';
-    const getElements = () => Array.from(
-      containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
-    ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
-
-    const focusElement = (el?: HTMLElement, block: ScrollLogicalPosition = 'center') => {
-      if (!el) return;
-      el.focus();
-      el.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
-    };
-
-    const handleDpad = (event: KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
-      const target = event.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (isTyping && event.key === 'Enter') {
-        event.preventDefault();
-        event.stopPropagation();
-        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
-        return;
-      }
-      if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-
-      const elements = getElements();
-      if (!elements.length) return;
-      const active = document.activeElement as HTMLElement | null;
-      const currentIndex = Math.max(0, elements.findIndex((el) => el === active || el.contains(active)));
-
-      if (event.key === 'Enter' || event.key === ' ') {
-        if (isTyping) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const el = elements[currentIndex];
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-          void focusTextInputForDpad(el as HTMLInputElement | HTMLTextAreaElement);
-        } else {
-          el.click();
-        }
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      if (isTyping) target.blur();
-
-      const currentRole = elements[currentIndex]?.dataset.supportId;
-      let nextIndex = currentIndex;
-      if (event.key === 'ArrowDown') {
-        if (currentRole === 'list-back') nextIndex = Math.min(2, elements.length - 1);
-        else if (currentRole === 'ticket-back') nextIndex = Math.max(elements.findIndex((el) => el.dataset.supportId === 'ticket-reply'), currentIndex);
-        else nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      }
-      if (event.key === 'ArrowUp') {
-        if (currentIndex === 2 || currentRole === 'ticket-reply') nextIndex = 0;
-        else nextIndex = Math.max(currentIndex - 1, 0);
-      }
-      if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
-      if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
-      focusElement(elements[nextIndex], nextIndex === 0 ? 'start' : 'center');
-    };
-
-    const focusTimer = window.setTimeout(() => {
-      if (!containerRef.current?.contains(document.activeElement)) {
-        const elements = getElements();
-        focusElement(elements.find((el) => el.dataset.supportId === 'create-subject') ?? elements[0], 'start');
-      }
-    }, 80);
-    window.addEventListener('keydown', handleDpad, true);
-    return () => {
-      window.clearTimeout(focusTimer);
-      window.removeEventListener('keydown', handleDpad, true);
-    };
-  }, [view, selectedTicketId, selectedAIConversationId, tickets.length, aiConversations.length, loading, aiLoading]);
+    const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
+    return () => window.clearTimeout(timer);
+  }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
 
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
@@ -332,16 +295,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
               onClick={() => setView('list')} 
               variant="outline" 
               size="sm"
-              data-support-focus
-              data-support-id="create-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="create-back"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -369,9 +331,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   }}
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
-                  data-support-focus
-                  data-support-id="create-subject"
-                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                  data-tv-focus-id="create-subject"
+                  className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
               
@@ -385,9 +346,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
-                  data-support-focus
-                  data-support-id="create-message"
-                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                  data-tv-focus-id="create-message"
+                  className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
 
@@ -395,18 +355,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
-                  data-support-focus
-                  data-support-id="create-submit"
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="create-submit"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
-                  data-support-focus
-                  data-support-id="create-cancel"
-                  className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="create-cancel"
+                  className=""
                 >
                   Cancel
                 </Button>
@@ -421,7 +379,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -429,9 +387,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={() => setView('list')} 
                 variant="outline" 
                 size="sm"
-                data-support-focus
-                data-support-id="ticket-back"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                data-tv-focus-id="ticket-back"
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -449,9 +406,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
-                  data-support-focus
-                  data-support-id="ticket-close"
-                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="ticket-close"
+                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white "
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Close Ticket
@@ -466,9 +422,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   setView('list');
                 }}
                 variant="outline"
-                data-support-focus
-                data-support-id="ticket-delete"
-                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                data-tv-focus-id="ticket-delete"
+                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white "
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Ticket
@@ -515,16 +470,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onChange={(e) => setReplyMessage(e.target.value)}
                     placeholder="Type your reply..."
                     rows={4}
-                    data-support-focus
-                    data-support-id="ticket-reply"
-                    className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                    data-tv-focus-id="ticket-reply"
+                    className="bg-slate-700 border-slate-600 text-white "
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
-                    data-support-focus
-                    data-support-id="ticket-send"
-                    className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                    data-tv-focus-id="ticket-send"
+                    className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
@@ -540,16 +493,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ai-chat' && selectedAIConversation) {
     return (
-      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button
               onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
               variant="outline"
               size="sm"
-              data-support-focus
-              data-support-id="ai-chat-back"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="ai-chat-back"
+              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -598,17 +550,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
-                  data-support-focus
-                  data-support-id="ai-chat-input"
-                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                  data-tv-focus-id="ai-chat-input"
+                  className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
                 <Button
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
-                  data-support-focus
-                  data-support-id="ai-chat-send"
-                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="ai-chat-send"
+                  className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -621,7 +571,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -629,14 +579,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               onClick={onBack} 
               variant="outline" 
               size="sm"
-              data-support-focus
-              data-support-id="list-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+              data-tv-focus-id="list-back"
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <h1 className="text-3xl font-bold">User Support</h1>
+            <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
           <Button 
             onClick={() => {
@@ -650,9 +599,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               }
               setView('create');
             }}
-            data-support-focus
-            data-support-id="new-ticket"
-            className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+            data-tv-focus-id="new-ticket"
+            className="bg-blue-600 hover:bg-blue-700 "
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -660,17 +608,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tickets.map((ticket) => {
+          {tickets.map((ticket, index) => {
             const ticketActive = isTicketActive(ticket);
             return (
               <Card 
                 key={ticket.id}
-                tabIndex={0}
                 role="button"
-                data-support-focus
-                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
-                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none focus:ring-4 focus:ring-brand-ice focus:scale-105 ${
+                data-tv-focus-id={`ticket-${index}`}
+                className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none  ${
                   ticket.user_has_unread ? 'ring-2 ring-blue-500' : ''
                 }`}
                 onClick={() => handleViewTicket(ticket.id)}
@@ -687,6 +632,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        tabIndex={-1}
+                        data-tv-disabled="true"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (confirm('Delete this ticket? This cannot be undone.')) {
@@ -731,8 +678,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {user ? (
                 <Button 
                   onClick={() => setView('create')}
-                  data-support-focus
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="empty-create-ticket"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Ticket
@@ -740,8 +687,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               ) : (
                 <Button 
                   onClick={() => navigate('/auth')}
-                  data-support-focus
-                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="empty-sign-in"
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
@@ -773,17 +720,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiNewMessage(e.target.value)}
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
-                  data-support-focus
-                  data-support-id="ai-new-input"
-                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
+                  data-tv-focus-id="ai-new-input"
+                  className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
-                  data-support-focus
-                  data-support-id="ai-new-send"
-                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
+                  data-tv-focus-id="ai-new-send"
+                  className="bg-purple-600 hover:bg-purple-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Chat
@@ -797,16 +742,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </p>
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
-                  {aiConversations.map((c) => (
+                  {aiConversations.map((c, index) => (
                     <div
                       key={c.id}
-                      tabIndex={0}
-                      data-support-focus
                       role="button"
-                      onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}
+                      data-tv-focus-id={`ai-history-${index}`}
                       onClick={() => handleOpenAIChat(c.id)}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none focus:ring-4 focus:ring-purple-400 focus:scale-105"
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-900/30 border border-purple-700/40 hover:bg-purple-800/40 cursor-pointer transition-all focus:outline-none "
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white line-clamp-1">{c.title}</p>
@@ -817,6 +759,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        tabIndex={-1}
+                        data-tv-disabled="true"
                         onClick={(e) => handleDeleteAIChat(c.id, e)}
                         className="text-red-400 hover:text-red-300 hover:bg-red-900/20 shrink-0"
                       >

@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -17,6 +17,7 @@ import { useAppData } from '@/hooks/useAppData';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
+import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -37,7 +38,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [focusedId, setFocusedId] = useState('tab-help');
   const { apps } = useAppData();
   const { toast } = useToast();
 
@@ -109,127 +109,29 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [tab, helpView, showSpeedTest, showGuide]);
 
-  // Focus the currently-selected tab trigger whenever `tab` changes.
-  // Embedded sub-components (ChatCommunity / CommunityChat) auto-focus their
-  // own internals on mount, which previously stole focus and left the user
-  // with no visible cursor. We re-grab focus on the tab trigger across a few
-  // animation frames to outrun that, so the glow stays visible and ArrowLeft/
-  // Right keeps cycling tabs.
+  const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
+    'support-back': { down: `tab-${tab}` },
+    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-speedtest' },
+    'tab-ai': { up: 'support-back', right: 'tab-community', left: 'tab-help', down: null },
+    'tab-community': { up: 'support-back', right: 'tab-help', left: 'tab-ai', down: null },
+    'help-speedtest': { up: 'tab-help', down: 'help-guide' },
+    'help-guide': { up: 'help-speedtest', down: 'help-videos' },
+    'help-videos': { up: 'help-guide', down: 'help-tickets' },
+    'help-tickets': { up: 'help-videos' },
+  }), [tab]);
+
+  const supportFocus = useTVFocus({
+    initialFocusId: `tab-${tab}`,
+    focusableSelector: '[data-support-tv-focus-id]',
+    navigation: supportNavigation,
+    onBack,
+  });
+
   useEffect(() => {
-    if (showSpeedTest || showGuide) return;
-    if (tab === 'help' && helpView !== 'menu') return;
-
-    const focusTab = () => {
-      const el = document.querySelector<HTMLElement>(`[data-focus-id="tab-${tab}"]`);
-      if (el) {
-        setFocusedId(`tab-${tab}`);
-        el.focus();
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
-    focusTab();
-    const t1 = window.setTimeout(focusTab, 50);
-    const t2 = window.setTimeout(focusTab, 200);
-    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
-  }, [tab, helpView, showSpeedTest, showGuide]);
-
-  // D-pad navigation: ArrowLeft/Right cycles tabs from anywhere inside
-  // Support; ArrowUp/Down moves through Help buttons when on the Help tab.
-  useEffect(() => {
-    if (showSpeedTest || showGuide) return;
-    if (tab === 'help' && helpView !== 'menu') return;
-
-    const tabIds: Tab[] = ['help', 'ai', 'community'];
-    const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
-    const supportOwnedIds = new Set(['support-back', ...helpIds, ...tabIds.map((id) => `tab-${id}`)]);
-
-    const focusEl = (id: string) => {
-      const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
-      if (el) {
-        setFocusedId(id);
-        el.focus();
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
-
-    const handler = (e: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-      const target = e.target as HTMLElement;
-      const tag = target.tagName;
-      // Never hijack typing fields
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
-
-      const currentId = target.getAttribute?.('data-focus-id');
-      const onTab = currentId?.startsWith('tab-');
-      const onHelp = !!currentId && helpIds.includes(currentId);
-
-      // Left/Right cycles the Support tabs only while focus is on Support's
-      // own chrome. Embedded screens (AI chat, community, tickets) keep their
-      // own horizontal D-pad controls.
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        if (!currentId || !supportOwnedIds.has(currentId)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = Math.max(0, tabIds.indexOf(tab));
-        const next = e.key === 'ArrowRight'
-          ? (idx + 1) % tabIds.length
-          : (idx - 1 + tabIds.length) % tabIds.length;
-        setTab(tabIds[next]);
-        requestAnimationFrame(() => focusEl(`tab-${tabIds[next]}`));
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
-        if (currentId === 'support-back') {
-          e.preventDefault();
-          focusEl(`tab-${tab}`);
-          return;
-        }
-        if (onTab && tab === 'help') {
-          e.preventDefault();
-          focusEl(helpIds[0]);
-          return;
-        }
-        if (onTab && tab === 'ai') {
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedId('');
-          focusEl('ai-input');
-          return;
-        }
-        if (onTab && tab === 'community') {
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedId('');
-          focusEl('room-general');
-          return;
-        }
-        if (onHelp) {
-          e.preventDefault();
-          const idx = helpIds.indexOf(currentId!);
-          if (idx < helpIds.length - 1) focusEl(helpIds[idx + 1]);
-        }
-        return;
-      }
-
-      if (e.key === 'ArrowUp') {
-        if (onTab) {
-          e.preventDefault();
-          focusEl('support-back');
-          return;
-        }
-        if (onHelp) {
-          e.preventDefault();
-          const idx = helpIds.indexOf(currentId!);
-          if (idx > 0) focusEl(helpIds[idx - 1]);
-          else focusEl(`tab-${tab}`);
-        }
-      }
-    };
-    // Capture phase so we intercept before embedded components handle it
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [tab, helpView, showSpeedTest, showGuide]);
+    if (showSpeedTest || showGuide || helpView !== 'menu') return;
+    const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
+    return () => window.clearTimeout(timer);
+  }, [helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
@@ -248,7 +150,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe">
+    <div ref={supportFocus.containerRef} className="tv-scroll-container tv-safe">
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center w-full justify-start">
@@ -256,10 +158,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               onClick={onBack}
               variant="gold"
               size="lg"
-              data-focus-id="support-back"
-              tabIndex={0}
-              onFocus={() => setFocusedId('support-back')}
-              className={`focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:ring-offset-0 focus-visible:scale-[1.03] ${focusedId === 'support-back' ? 'ring-2 ring-brand-ice scale-[1.03]' : ''}`}
+              data-support-tv-focus-id="support-back"
+              className="transition-all duration-200"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -277,27 +177,24 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-auto">
             <TabsTrigger
               value="help"
-              data-focus-id="tab-help"
-              onFocus={() => setFocusedId('tab-help')}
-              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-help' ? 'ring-2 ring-brand-gold scale-[1.02]' : ''}`}
+              data-support-tv-focus-id="tab-help"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
             </TabsTrigger>
             <TabsTrigger
               value="ai"
-              data-focus-id="tab-ai"
-              onFocus={() => setFocusedId('tab-ai')}
-              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-ai' ? 'ring-2 ring-purple-300 scale-[1.02]' : ''}`}
+              data-support-tv-focus-id="tab-ai"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
             </TabsTrigger>
             <TabsTrigger
               value="community"
-              data-focus-id="tab-community"
-              onFocus={() => setFocusedId('tab-community')}
-              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-community' ? 'ring-2 ring-green-300 scale-[1.02]' : ''}`}
+              data-support-tv-focus-id="tab-community"
+              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
@@ -312,9 +209,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-speedtest"
-                onFocus={() => setFocusedId('help-speedtest')}
-                className={`bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:bg-cyan-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-speedtest' ? 'ring-2 ring-cyan-300 bg-cyan-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-speedtest"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <Gauge className="w-7 h-7 mr-4" />
                 Speedtest
@@ -327,9 +223,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-guide"
-                onFocus={() => setFocusedId('help-guide')}
-                className={`bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:bg-purple-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-guide' ? 'ring-2 ring-purple-300 bg-purple-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-guide"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <LifeBuoy className="w-7 h-7 mr-4" />
                 Buffering Guide
@@ -342,9 +237,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-videos"
-                onFocus={() => setFocusedId('help-videos')}
-                className={`bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:bg-blue-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-videos' ? 'ring-2 ring-blue-300 bg-blue-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-videos"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <Video className="w-7 h-7 mr-4" />
                 Support Videos
@@ -357,9 +251,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 variant="outline"
                 size="lg"
                 tabIndex={0}
-                data-focus-id="help-tickets"
-                onFocus={() => setFocusedId('help-tickets')}
-                className={`bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:bg-orange-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-tickets' ? 'ring-2 ring-orange-300 bg-orange-600/80 scale-[1.02]' : ''}`}
+                data-support-tv-focus-id="help-tickets"
+                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 justify-start text-xl py-8 shadow-md"
               >
                 <MessageCircle className="w-7 h-7 mr-4" />
                 Submit a Ticket
