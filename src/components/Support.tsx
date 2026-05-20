@@ -37,6 +37,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [focusedId, setFocusedId] = useState('tab-help');
   const { apps } = useAppData();
   const { toast } = useToast();
 
@@ -121,6 +122,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const focusTab = () => {
       const el = document.querySelector<HTMLElement>(`[data-focus-id="tab-${tab}"]`);
       if (el) {
+        setFocusedId(`tab-${tab}`);
         el.focus();
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
@@ -139,10 +141,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
     const tabIds: Tab[] = ['help', 'ai', 'community'];
     const helpIds = ['help-speedtest', 'help-guide', 'help-videos', 'help-tickets'];
+    const supportOwnedIds = new Set(['support-back', ...helpIds, ...tabIds.map((id) => `tab-${id}`)]);
 
     const focusEl = (id: string) => {
       const el = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
       if (el) {
+        setFocusedId(id);
         el.focus();
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
@@ -159,8 +163,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const onTab = currentId?.startsWith('tab-');
       const onHelp = !!currentId && helpIds.includes(currentId);
 
-      // Left/Right ALWAYS cycles tabs (highest priority on Support page).
+      // Left/Right cycles the Support tabs only while focus is on Support's
+      // own chrome. Embedded screens (AI chat, community, tickets) keep their
+      // own horizontal D-pad controls.
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (!currentId || !supportOwnedIds.has(currentId)) return;
         e.preventDefault();
         e.stopPropagation();
         const idx = Math.max(0, tabIds.indexOf(tab));
@@ -173,9 +180,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
 
       if (e.key === 'ArrowDown') {
+        if (currentId === 'support-back') {
+          e.preventDefault();
+          focusEl(`tab-${tab}`);
+          return;
+        }
         if (onTab && tab === 'help') {
           e.preventDefault();
           focusEl(helpIds[0]);
+          return;
+        }
+        if (onTab && tab === 'ai') {
+          e.preventDefault();
+          e.stopPropagation();
+          focusEl('ai-input');
           return;
         }
         if (onHelp) {
@@ -187,6 +205,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
 
       if (e.key === 'ArrowUp') {
+        if (onTab) {
+          e.preventDefault();
+          focusEl('support-back');
+          return;
+        }
         if (onHelp) {
           e.preventDefault();
           const idx = helpIds.indexOf(currentId!);
@@ -225,7 +248,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               onClick={onBack}
               variant="gold"
               size="lg"
+              data-focus-id="support-back"
               tabIndex={0}
+              onFocus={() => setFocusedId('support-back')}
+              className={`focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:ring-offset-0 focus-visible:scale-[1.03] ${focusedId === 'support-back' ? 'ring-2 ring-brand-ice scale-[1.03]' : ''}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -244,7 +270,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="help"
               data-focus-id="tab-help"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_0_22px_rgba(255,200,60,0.65)] focus-visible:ring-4 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              onFocus={() => setFocusedId('tab-help')}
+              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-help' ? 'ring-2 ring-brand-gold scale-[1.02]' : ''}`}
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
@@ -252,7 +279,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="ai"
               data-focus-id="tab-ai"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[0_0_22px_rgba(168,85,247,0.7)] focus-visible:ring-4 focus-visible:ring-purple-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              onFocus={() => setFocusedId('tab-ai')}
+              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-ai' ? 'ring-2 ring-purple-300 scale-[1.02]' : ''}`}
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
@@ -260,7 +288,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="community"
               data-focus-id="tab-community"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[0_0_22px_rgba(34,197,94,0.7)] focus-visible:ring-4 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus:scale-105"
+              onFocus={() => setFocusedId('tab-community')}
+              className={`text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)] focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-0 focus:scale-[1.02] ${focusedId === 'tab-community' ? 'ring-2 ring-green-300 scale-[1.02]' : ''}`}
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
@@ -276,7 +305,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-speedtest"
-                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 justify-start text-xl py-8 shadow-md"
+                onFocus={() => setFocusedId('help-speedtest')}
+                className={`bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:bg-cyan-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-speedtest' ? 'ring-2 ring-cyan-300 bg-cyan-600/80 scale-[1.02]' : ''}`}
               >
                 <Gauge className="w-7 h-7 mr-4" />
                 Speedtest
@@ -290,7 +320,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-guide"
-                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 justify-start text-xl py-8 shadow-md"
+                onFocus={() => setFocusedId('help-guide')}
+                className={`bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 focus-visible:ring-2 focus-visible:ring-purple-300 focus-visible:bg-purple-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-guide' ? 'ring-2 ring-purple-300 bg-purple-600/80 scale-[1.02]' : ''}`}
               >
                 <LifeBuoy className="w-7 h-7 mr-4" />
                 Buffering Guide
@@ -304,7 +335,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-videos"
-                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 justify-start text-xl py-8 shadow-md"
+                onFocus={() => setFocusedId('help-videos')}
+                className={`bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:bg-blue-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-videos' ? 'ring-2 ring-blue-300 bg-blue-600/80 scale-[1.02]' : ''}`}
               >
                 <Video className="w-7 h-7 mr-4" />
                 Support Videos
@@ -318,7 +350,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-focus-id="help-tickets"
-                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 justify-start text-xl py-8 shadow-md"
+                onFocus={() => setFocusedId('help-tickets')}
+                className={`bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:bg-orange-600/80 focus-visible:scale-[1.02] justify-start text-xl py-8 shadow-md ${focusedId === 'help-tickets' ? 'ring-2 ring-orange-300 bg-orange-600/80 scale-[1.02]' : ''}`}
               >
                 <MessageCircle className="w-7 h-7 mr-4" />
                 Submit a Ticket

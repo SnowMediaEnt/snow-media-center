@@ -39,6 +39,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -165,6 +166,66 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, onBack]);
 
+  useEffect(() => {
+    const selector = '[data-support-focus]:not([disabled])';
+    const getElements = () => Array.from(
+      containerRef.current?.querySelectorAll<HTMLElement>(selector) ?? []
+    ).filter((el) => el.offsetParent !== null && !el.hasAttribute('disabled'));
+
+    const focusElement = (el?: HTMLElement) => {
+      if (!el) return;
+      el.focus();
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    };
+
+    const handleDpad = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+      const target = event.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      if (isTyping && event.key === 'Enter') return;
+      if (isTyping && !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+
+      const elements = getElements();
+      if (!elements.length) return;
+      const active = document.activeElement as HTMLElement | null;
+      const currentIndex = Math.max(0, elements.findIndex((el) => el === active || el.contains(active)));
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (isTyping) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const el = elements[currentIndex];
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          el.focus();
+          (el as HTMLInputElement | HTMLTextAreaElement).click();
+        } else {
+          el.click();
+        }
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (isTyping) target.blur();
+
+      let nextIndex = currentIndex;
+      if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+      if (event.key === 'ArrowRight') nextIndex = Math.min(currentIndex + 1, elements.length - 1);
+      if (event.key === 'ArrowLeft') nextIndex = Math.max(currentIndex - 1, 0);
+      focusElement(elements[nextIndex]);
+    };
+
+    const focusTimer = window.setTimeout(() => {
+      if (!containerRef.current?.contains(document.activeElement)) focusElement(getElements()[0]);
+    }, 80);
+    window.addEventListener('keydown', handleDpad, true);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleDpad, true);
+    };
+  }, [view, selectedTicketId, selectedAIConversationId, tickets.length, aiConversations.length, loading, aiLoading]);
+
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
     
@@ -255,14 +316,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
               onClick={() => setView('list')} 
               variant="outline" 
               size="sm"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+              data-support-focus
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -290,7 +352,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   }}
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
-                  className="bg-slate-700 border-slate-600 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
               
@@ -304,7 +367,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                 />
               </div>
 
@@ -312,13 +376,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
+                  data-support-focus
+                  className="focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   Cancel
                 </Button>
@@ -333,7 +400,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -341,7 +408,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 onClick={() => setView('list')} 
                 variant="outline" 
                 size="sm"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+                data-support-focus
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -359,7 +427,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCloseTicket}
                   variant="outline"
-                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white"
+                  data-support-focus
+                  className="bg-green-600/20 hover:bg-green-500/30 border-green-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Close Ticket
@@ -374,7 +443,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   setView('list');
                 }}
                 variant="outline"
-                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white"
+                data-support-focus
+                className="bg-red-600/20 hover:bg-red-500/30 border-red-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Ticket
@@ -421,12 +491,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onChange={(e) => setReplyMessage(e.target.value)}
                     placeholder="Type your reply..."
                     rows={4}
-                    className="bg-slate-700 border-slate-600 text-white"
+                    data-support-focus
+                    className="bg-slate-700 border-slate-600 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   />
                   <Button 
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    data-support-focus
+                    className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
@@ -442,14 +514,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ai-chat' && selectedAIConversation) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button
               onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
               variant="outline"
               size="sm"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white"
+              data-support-focus
+              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -498,13 +571,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   value={aiReplyMessage}
                   onChange={(e) => setAiReplyMessage(e.target.value)}
                   placeholder="Type your message..."
-                  className="bg-slate-700 border-purple-600/50 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendAIReply()}
                 />
                 <Button
                   onClick={handleSendAIReply}
                   disabled={!aiReplyMessage.trim() || aiLoading}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  data-support-focus
+                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -517,7 +592,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -525,7 +600,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               onClick={onBack} 
               variant="outline" 
               size="sm"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+              data-support-focus
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -544,7 +620,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               }
               setView('create');
             }}
-            className="bg-blue-600 hover:bg-blue-700"
+            data-support-focus
+            className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -559,6 +636,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 key={ticket.id}
                 tabIndex={0}
                 role="button"
+                data-support-focus
                 onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewTicket(ticket.id); } }}
                 className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-all focus:outline-none focus:ring-4 focus:ring-brand-ice focus:scale-105 ${
@@ -622,7 +700,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {user ? (
                 <Button 
                   onClick={() => setView('create')}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Your First Ticket
@@ -630,7 +709,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               ) : (
                 <Button 
                   onClick={() => navigate('/auth')}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  data-support-focus
+                  className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Sign In
@@ -662,13 +742,15 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onChange={(e) => setAiNewMessage(e.target.value)}
                   placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
                   disabled={!user}
-                  className="bg-slate-700 border-purple-600/50 text-white"
+                  data-support-focus
+                  className="bg-slate-700 border-purple-600/50 text-white focus-visible:ring-2 focus-visible:ring-brand-ice"
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
                   disabled={!user || !aiNewMessage.trim() || aiLoading}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  data-support-focus
+                  className="bg-purple-600 hover:bg-purple-700 focus-visible:ring-2 focus-visible:ring-brand-ice focus-visible:scale-[1.03]"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   New Chat
@@ -686,6 +768,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     <div
                       key={c.id}
                       tabIndex={0}
+                      data-support-focus
                       role="button"
                       onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenAIChat(c.id); } }}

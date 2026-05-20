@@ -581,7 +581,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Community tab (4+): visit-forum, join-groups
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
-    const header = [
+    const header = embedded ? [] : [
       { id: 'back', type: 'button' },
       { id: 'tab-admin', type: 'tab' },
       { id: 'tab-community', type: 'tab' },
@@ -645,7 +645,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -714,6 +714,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       const elements = getFocusableElements();
       const maxIndex = elements.length - 1;
+      const contentStartIndex = embedded ? 0 : 4;
 
       // Handle message scrolling when focused on the scroll element
       const scrollMessages = (direction: 'up' | 'down') => {
@@ -728,20 +729,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
+          if (['ai-input', 'ai-voice', 'ai-send'].includes(currentFocusId)) {
+            const historyIndex = elements.findIndex(e => e.id === 'ai-history-0');
+            if (historyIndex !== -1) {
+              setFocusIndex(historyIndex);
+              return;
+            }
+          }
           // If focused on message-scroll, scroll down instead of changing focus
           if (currentFocusId === 'message-scroll') {
             scrollMessages('down');
             return;
           }
           setFocusIndex(prev => {
-            // From back button (index 0), go to the current active tab
-            if (prev === 0) {
+            // From back button (index 0), go to the current active tab in standalone mode
+            if (!embedded && prev === 0) {
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
-            // From tabs (indices 1, 2, 3), go to first content item (index 4)
-            if (prev >= 1 && prev <= 3) {
-              return Math.min(4, maxIndex);
+            // From tabs (indices 1, 2, 3), go to first content item
+            if (!embedded && prev >= 1 && prev <= 3) {
+              return Math.min(contentStartIndex, maxIndex);
             }
             // Move down through content items
             if (prev < maxIndex) {
@@ -752,19 +760,26 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
+          if (currentFocusId.startsWith('ai-history-')) {
+            const inputIndex = elements.findIndex(e => e.id === 'ai-input');
+            if (inputIndex !== -1) {
+              setFocusIndex(inputIndex);
+              return;
+            }
+          }
           // If focused on message-scroll, scroll up instead of changing focus
           if (currentFocusId === 'message-scroll') {
             scrollMessages('up');
             return;
           }
           setFocusIndex(prev => {
-            // From first content item (index 4), go to active tab
-            if (prev === 4) {
+            // From first content item, go to active tab in standalone mode
+            if (!embedded && prev === contentStartIndex) {
               const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
               return tabIndex;
             }
             // From other content items, go up one
-            if (prev > 4) {
+            if (prev > contentStartIndex) {
               return prev - 1;
             }
             // From any tab, go to back button
@@ -847,15 +862,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             handleCloseTicket();
           } else if (currentFocusId === 'new-subject' || currentFocusId === 'new-message' || currentFocusId === 'reply-input' || currentFocusId === 'ai-input') {
             // Focus the actual input/textarea element for typing
-            setTimeout(() => {
-              const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
-              if (el) {
-                el.focus();
-                // Move cursor to end
-                const len = el.value?.length || 0;
-                el.setSelectionRange(len, len);
-              }
-            }, 0);
+            const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLInputElement | HTMLTextAreaElement;
+            if (el) {
+              el.focus();
+              el.click();
+              const len = el.value?.length || 0;
+              el.setSelectionRange(len, len);
+            }
           } else if (currentFocusId === 'submit-ticket') {
             handleCreateTicket();
           } else if (currentFocusId === 'cancel-ticket') {
@@ -883,7 +896,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded]);
 
   // Auto-focus input/textarea when navigating to them with D-pad
   useEffect(() => {
@@ -914,9 +927,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Reset focus when tab changes
   useEffect(() => {
     // Keep focus at tab level when switching tabs
+    if (embedded) {
+      setFocusIndex(0);
+      return;
+    }
     const tabIndex = activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3;
     setFocusIndex(tabIndex);
-  }, [activeTab]);
+  }, [activeTab, embedded]);
 
   return (
     <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>

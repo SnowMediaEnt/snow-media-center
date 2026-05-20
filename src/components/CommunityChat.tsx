@@ -47,8 +47,13 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     { id: 'feedback', name: 'Feedback', description: 'Share your feedback' }
   ];
 
-  // Build focusable elements list: back, rooms..., input, send
-  const focusableIds = useMemo(() => ['back', ...rooms.map(r => `room-${r.id}`), 'input', 'send'], []);
+  // Build focusable elements list: standalone includes back; embedded starts on visible room controls.
+  const focusableIds = useMemo(() => [
+    ...(embedded ? [] : ['back']),
+    ...rooms.map(r => `room-${r.id}`),
+    'input',
+    'send'
+  ], [embedded]);
 
   const getCurrentFocusId = () => focusableIds[focusedIndex];
 
@@ -84,7 +89,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
         if (roomIndex > 1) {
           return roomIndex - 1;
         } else {
-          return 0; // back
+          return embedded ? 0 : 0; // first room in embedded, back in standalone
         }
       }
     } else if (direction === 'right') {
@@ -99,6 +104,10 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     
     return focusedIndex;
   }, [focusedIndex, focusableIds]);
+
+  useEffect(() => {
+    if (embedded) setFocusedIndex(0);
+  }, [embedded]);
 
   // D-pad Navigation with proper preventDefault
   useEffect(() => {
