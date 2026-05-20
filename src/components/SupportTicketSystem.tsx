@@ -328,7 +328,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   }}
                   enterKeyHint="done"
                   placeholder="Brief description of your issue..."
-                      data-tv-focus-id="create-subject"
+                  data-tv-focus-id="create-subject"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
@@ -343,7 +343,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
-                      data-tv-focus-id="create-message"
+                  data-tv-focus-id="create-message"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
@@ -352,7 +352,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
-                      data-tv-focus-id="create-submit"
+                  data-tv-focus-id="create-submit"
                   className="bg-blue-600 hover:bg-blue-700 "
                 >
                   {loading ? "Creating..." : "Create Ticket"}
@@ -360,7 +360,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button 
                   onClick={() => setView('list')}
                   variant="outline"
-                      data-tv-focus-id="create-cancel"
+                  data-tv-focus-id="create-cancel"
                   className=""
                 >
                   Cancel
