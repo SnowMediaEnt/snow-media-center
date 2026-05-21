@@ -11,11 +11,13 @@ import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from 
 
 const DEVICE_OPTIONS: string[] = [
   'Amazon Fire TV / Firestick',
-  'Android TV / Google TV',
+  'Smart TV',
+  'Android TV Box',
   'Android Phone or Tablet',
-  'Set-Top Box (X96 / T95 / etc.)',
   'Other',
 ];
+
+const SERVICE_OPTIONS: string[] = ['Dreamstreams', 'VibezTV', 'Plex'];
 
 const COMMON_IPTV_APPS: string[] = [
   'TiviMate',
@@ -88,19 +90,22 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
     });
   };
 
-  const addService = () => {
-    setServices(prev => [
-      ...prev,
-      {
-        id: `new-${Date.now()}`,
-        service_type: 'IPTV',
-        service_name: '',
-        expiration_date: null,
-        tied_apps: [],
-        renewal_status: 'active',
-        notes: null,
-      },
-    ]);
+  const addServiceByName = (name: string) => {
+    setServices(prev => {
+      if (prev.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase())) return prev;
+      return [
+        ...prev,
+        {
+          id: `new-${Date.now()}-${name}`,
+          service_type: name === 'Plex' ? 'Plex' : 'IPTV',
+          service_name: name,
+          expiration_date: null,
+          tied_apps: [],
+          renewal_status: 'active',
+          notes: null,
+        },
+      ];
+    });
   };
 
   const updateService = (id: string, patch: Partial<UserService>) => {
@@ -225,23 +230,34 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
             {/* Services */}
             <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Wifi className="w-5 h-5 text-green-300" /> IPTV Services
+              <div className="mb-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                  <Wifi className="w-5 h-5 text-green-300" /> Your Services
                 </h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={addService}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add service
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {SERVICE_OPTIONS.map(name => {
+                    const active = services.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase());
+                    return (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        onClick={() => addServiceByName(name)}
+                        disabled={active}
+                        className={active
+                          ? 'bg-emerald-700 text-white opacity-80 cursor-default'
+                          : 'bg-green-600 hover:bg-green-700 text-white'}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> {active ? `${name} added` : `Add ${name}`}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
 
               {services.length === 0 && (
                 <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-700 rounded-md">
-                  No services yet. Click "Add service" to track an expiration date.
+                  No services yet. Pick one above to track its expiration date.
                 </p>
               )}
 
@@ -258,13 +274,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                   return (
                     <div key={s.id} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <Input
-                          value={s.service_name || ''}
-                          onChange={(e) => updateService(s.id, { service_name: e.target.value })}
-                          placeholder="Service name (e.g. Snow IPTV)"
-                          className="bg-slate-900 border-slate-600 text-white flex-1"
-                        />
-                        {statusBadge}
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-white font-semibold text-base">{s.service_name || s.service_type}</span>
+                          {statusBadge}
+                        </div>
                         <Button
                           type="button"
                           size="sm"
@@ -275,6 +288,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
+
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>

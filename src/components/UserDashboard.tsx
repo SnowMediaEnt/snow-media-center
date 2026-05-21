@@ -123,6 +123,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
+          } else if (focusedElement === 9) {
+            setFocusedElement(5); // edit -> overview tab
+          } else if (focusedElement === 10) {
+            setFocusedElement(9); // delete -> edit
           }
           break;
         case 'ArrowDown':
@@ -131,7 +135,16 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           } else if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(5); // action buttons -> first tab
           } else if (focusedElement >= 5 && focusedElement <= 8) {
-            // Scroll the content area down so users can reach Danger Zone, etc.
+            if (activeTab === 'overview') {
+              setFocusedElement(9); // tabs -> edit button
+            } else {
+              const container = dashboardScrollRef.current;
+              if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
+              else window.scrollBy({ top: 300, behavior: 'smooth' });
+            }
+          } else if (focusedElement === 9) {
+            setFocusedElement(10); // edit -> delete
+          } else if (focusedElement === 10) {
             const container = dashboardScrollRef.current;
             if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
             else window.scrollBy({ top: 300, behavior: 'smooth' });
@@ -148,9 +161,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 6) setActiveTab('credits');
           else if (focusedElement === 7) setActiveTab('store');
           else if (focusedElement === 8) setActiveTab('referrals');
+          else if (focusedElement === 9) setShowServicesEditor(true);
+          else if (focusedElement === 10) setShowDeleteConfirm(true);
           break;
       }
     };
+
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -174,6 +190,17 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     }, 50);
     return () => clearTimeout(id);
   }, [activeTab]);
+
+  // Scroll focused Edit/Delete buttons into view
+  useEffect(() => {
+    if (focusedElement !== 9 && focusedElement !== 10) return;
+    const id = setTimeout(() => {
+      const el = document.querySelector(`[data-dash-focus="true"]`) as HTMLElement | null;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [focusedElement]);
+
 
   // Fetch Wix data once per email change. Do NOT depend on wixLoading —
   // fetchWixData itself flips wixLoading, which would otherwise cause a
@@ -375,12 +402,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
               {/* My Devices & Services */}
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 9 ? 'true' : 'false'}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${
+                      focusedElement === 9 ? 'ring-4 ring-white/60 scale-105' : ''
+                    }`}
                     size="sm"
                   >
                     <Pencil className="w-4 h-4 mr-1" /> Edit
@@ -429,7 +458,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 10 ? 'true' : 'false'}>
                 <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
@@ -438,7 +467,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 <Button
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white"
+                  className={`bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-all duration-200 ${
+                    focusedElement === 10 ? 'ring-4 ring-white/60 scale-105' : ''
+                  }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete My Account
