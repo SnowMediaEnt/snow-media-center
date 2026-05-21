@@ -22,6 +22,7 @@ import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { trackAppLaunch } from '@/lib/analytics';
+import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -181,16 +182,24 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   useEffect(() => {
     const handler = (e: Event) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
+      void hideKeyboardForDpad(document.activeElement as HTMLElement | null);
       setChildFocusActive(false);
-      supportFocus.focusById(`tab-${target}`);
       // Force the Support scroll container all the way back to the top so the
       // tab row and Back button aren't clipped behind the safe-area padding.
-      requestAnimationFrame(() => {
-        supportFocus.containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      const snapTop = () => {
+        supportFocus.containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
         document.querySelectorAll<HTMLElement>('.tv-scroll-container').forEach((el) =>
-          el.scrollTo({ top: 0, behavior: 'smooth' })
+          el.scrollTo({ top: 0, behavior: 'auto' })
         );
+      };
+      snapTop();
+      requestAnimationFrame(() => {
+        snapTop();
+        supportFocus.focusById(`tab-${target}`, 'start');
+        snapTop();
       });
+      window.setTimeout(snapTop, 120);
+      window.setTimeout(snapTop, 320);
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
