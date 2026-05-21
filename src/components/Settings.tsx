@@ -252,6 +252,14 @@ const Settings = ({ onBack }: SettingsProps) => {
               Media Manager
             </TabsTrigger>
             <TabsTrigger
+              data-settings-focus="tab-ui"
+              value="ui"
+              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
+            >
+              <Sliders className="w-4 h-4 mr-2" />
+              UI
+            </TabsTrigger>
+            <TabsTrigger
               data-settings-focus="tab-updates"
               value="updates"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
@@ -291,11 +299,11 @@ const Settings = ({ onBack }: SettingsProps) => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="updates" className="mt-6 space-y-4">
+          <TabsContent value="ui" className="mt-6 space-y-4">
             <Card
-              data-settings-focus="updates-content-bar-toggle"
+              data-settings-focus="ui-content-bar-toggle"
               className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-transform duration-150 ${
-                focusedElement === 'updates-content-bar-toggle'
+                focusedElement === 'ui-content-bar-toggle'
                   ? 'scale-[1.02] shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))]'
                   : ''
               }`}
@@ -319,7 +327,9 @@ const Settings = ({ onBack }: SettingsProps) => {
                 />
               </div>
             </Card>
+          </TabsContent>
 
+          <TabsContent value="updates" className="mt-6 space-y-4">
             <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
               <AppUpdater />
             </Card>
