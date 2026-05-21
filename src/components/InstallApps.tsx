@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge, LifeBuoy } from 'lucide-react';
+import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge, LifeBuoy, StopCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
@@ -563,6 +563,37 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
   };
 
+  /** Opens App Info and prompts the user to tap Force Stop. */
+  const handleForceStop = useCallback(async (app: AppData) => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+    try {
+      const { installed } = await AppManager.isInstalled({ packageName });
+      if (!installed) {
+        toast({
+          title: 'App not installed',
+          description: `${app.name} isn't installed, so there's nothing to force stop.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      await AppManager.openAppSettings({ packageName });
+      toast({
+        title: "Tap 'Force Stop'",
+        description: `Opening ${app.name} system info…`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Force Stop Failed',
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : `Could not open ${app.name} App Info.`,
+        variant: 'destructive',
+      });
+    }
+  }, [resolvePackageName, toast]);
+
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
     if (!Capacitor.isNativePlatform()) {
@@ -768,8 +799,30 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                       Launch
                     </Button>
                     
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button 
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        data-focus-id={`forcestop-${app.id}`}
+                        onClick={() => handleForceStop(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        title="Opens system App Info – tap Force Stop"
+                      >
+                        <StopCircle className="w-4 h-4 mr-1" />
+                        Force Stop
+                      </Button>
+
+                      <Button
+                        data-focus-id={`cache-${app.id}`}
+                        onClick={() => handleAutoClearCache(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Cache
+                      </Button>
+
+                      <Button
                         data-focus-id={`settings-${app.id}`}
                         onClick={() => {
                           toast({
@@ -786,18 +839,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         Clear Data
                       </Button>
 
-                      <Button 
-                        data-focus-id={`cache-${app.id}`}
-                        onClick={() => handleAutoClearCache(app)}
-                        variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
-                      >
-                        <Settings className="w-4 h-4 mr-1" />
-                        Clear Cache
-                      </Button>
-
-                      <Button 
+                      <Button
                         data-focus-id={`uninstall-${app.id}`}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
