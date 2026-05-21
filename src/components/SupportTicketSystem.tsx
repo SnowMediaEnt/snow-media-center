@@ -480,11 +480,13 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
+                      onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-subject')}
                       placeholder="you@example.com (leave blank to send anonymously)"
                       enterKeyHint="next"
                       autoComplete="off"
                       autoCorrect="off"
                       spellCheck={false}
+                      data-tv-focus-id="create-email"
                       className="bg-slate-700 border-slate-600 text-white "
                     />
                   </div>
@@ -498,13 +500,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      (e.currentTarget as HTMLInputElement).blur();
-                    }
-                  }}
-                  enterKeyHint="done"
+                  onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-message')}
+                  enterKeyHint="next"
                   autoComplete="off"
                   autoCorrect="off"
                   spellCheck={false}
@@ -523,6 +520,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => handleTicketFieldKeyDown(e)}
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
