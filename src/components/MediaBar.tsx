@@ -196,7 +196,6 @@ const openPlexDirectPlay = async (item: MediaItem) => {
   }
 };
 
-};
 
 
 
