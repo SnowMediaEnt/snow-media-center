@@ -1571,7 +1571,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             </p>
             
             {/* AI Chat Messages */}
-            <div ref={aiChatContainerRef} className="bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+            <div
+              ref={aiChatContainerRef}
+              data-focus-id="message-scroll"
+              className={`bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto transition-all duration-200 ${isFocused('message-scroll') ? 'ring-4 ring-brand-ice' : ''}`}
+            >
+              {isFocused('message-scroll') && aiChat.length > 0 && (
+                <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
+                  ↑↓ Use D-pad to scroll messages
+                </div>
+              )}
               {aiChat.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
                   <Brain className="w-12 h-12 mx-auto mb-4 text-purple-400" />
