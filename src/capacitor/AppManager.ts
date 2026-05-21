@@ -41,12 +41,15 @@ export interface AppManagerPlugin {
   clearAppCache(options: { packageName: string }): Promise<void>;
   /** Opens a URL with Android ACTION_VIEW, optionally targeting a specific package. */
   openUrl(options: { url: string; packageName?: string }): Promise<void>;
+  /** Plex-only deep-link launcher. Probes resolveActivity for each URL and never clears Plex's task. */
+  openPlexItem(options: { urls: string[]; packageName?: string; title?: string }): Promise<{ method: string; usedUrl?: string; attempted?: unknown }>;
   /** Checks whether Android has a speech recognizer service installed. */
   isSpeechRecognitionAvailable(): Promise<{ available: boolean }>;
   /** Opens native Android speech input and returns the recognized text. */
   startVoiceInput(options?: { prompt?: string }): Promise<{ text: string }>;
   /** Cancels any pending native speech input session. */
   cancelVoiceInput(): Promise<void>;
+
 }
 
 export const WEB_UNSUPPORTED_MSG =
@@ -68,10 +71,16 @@ const webFallback: AppManagerPlugin = {
   async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
+  async openPlexItem({ urls }) {
+    const url = urls?.[0];
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    return { method: 'web', usedUrl: url };
+  },
   async isSpeechRecognitionAvailable() { return { available: false }; },
   async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async cancelVoiceInput() { /* no-op on web */ },
 };
+
 
 export function isWebUnsupportedError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');

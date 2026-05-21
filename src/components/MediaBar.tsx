@@ -116,28 +116,25 @@ const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
 };
 
 /**
- * Ordered list of deep-link candidates. Preferred: Plex preplay (details
- * page in the native Plex app). Fallback: Plex autoplay. Final fallback:
- * launch the Plex app cold. Web URLs are used only when SMC is running on
- * the web (no Android intent resolver available).
+ * Build the Plex deep-link launch order per spec:
+ *   1. HTTPS preplay/details (Plex Android registers app links for app.plex.tv)
+ *   2. HTTPS preplay/details with encoded key
+ *   3. plex:// autoplay
+ *   4. plex:// autoplay encoded
+ * Only after ALL of these resolveActivity-fail does the plugin fall back to
+ * a non-clearing package launch.
  */
-const buildPlexLaunchCandidates = (item: ValidatedPlexItem) => {
-  const { ratingKey, metadataKey, machineIdentifier, metadataType } = item;
+const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
+  const { ratingKey, metadataKey, machineIdentifier } = item;
+  const rawKey = metadataKey;
   const encKey = encodeURIComponent(metadataKey);
-  const encMid = encodeURIComponent(machineIdentifier);
 
-  return {
-    native: [
-      // 1. Preplay/details — opens the item's details page in Plex Android.
-      `plex://preplay/?server=${encMid}&metadataKey=${encKey}&metadataType=${metadataType}`,
-      // 2. Autoplay fallback.
-      `plex://play/?server=${encMid}&metadataKey=${encKey}&metadataType=${metadataType}&viewOffset=0&offset=0&t=0`,
-    ],
-    web: [
-      `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${encKey}`,
-      `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/playMedia?key=${encKey}&viewOffset=0&offset=0&t=0`,
-    ],
-  };
+  return [
+    `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${rawKey}`,
+    `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${encKey}`,
+    `plex://play/?metadataKey=${rawKey}&server=${machineIdentifier}`,
+    `plex://play/?metadataKey=${encKey}&server=${encodeURIComponent(machineIdentifier)}`,
+  ];
 };
 
 const openPlexItemFromBeginning = async (item: MediaItem) => {
@@ -148,11 +145,9 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     title: item.title,
     type: item.kind,
     ratingKey: validated?.ratingKey,
-    key: item.key,
     metadataKey: validated?.metadataKey,
     machineIdentifier: validated?.machineIdentifier,
     guid: item.guid,
-    librarySectionID: item.librarySectionID,
   });
 
   if (!validated) {
@@ -160,10 +155,10 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  const candidates = buildPlexLaunchCandidates(validated);
+  const urls = buildPlexLaunchCandidates(validated);
 
   if (!native) {
-    window.open(candidates.web[0], '_blank', 'noopener,noreferrer');
+    window.open(urls[0], '_blank', 'noopener,noreferrer');
     return;
   }
 
@@ -171,31 +166,26 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
-    const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
-    if (!installed) {
+    const result = await AppManager.openPlexItem({
+      urls,
+      packageName: PLEX_ANDROID_PACKAGE,
+      title: item.title,
+    });
+    console.info('PLEX_OPEN_RESULT', result);
+    if (result.method === 'package_launch') {
+      console.warn('PLEX_DEEPLINK_ROUTE_FAILED — opened Plex without deep link');
+    }
+  } catch (err) {
+    const msg = (err as Error)?.message ?? 'Unknown error';
+    if (msg.includes('PLEX_NOT_INSTALLED')) {
       toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
       return;
     }
-
-    for (const url of candidates.native) {
-      try {
-        console.info('PLEX_OPEN_ATTEMPT', { attemptedUrl: url, packageTarget: PLEX_ANDROID_PACKAGE });
-        await AppManager.openUrl({ url, packageName: PLEX_ANDROID_PACKAGE });
-        console.info('PLEX_OPEN_ATTEMPT', { attemptedUrl: url, success: true });
-        return;
-      } catch (err) {
-        console.warn('PLEX_OPEN_ATTEMPT failed', { attemptedUrl: url, error: (err as Error)?.message });
-      }
-    }
-
-    // Final fallback — just open Plex.
-    console.warn('PLEX_OPEN_ATTEMPT all deep links failed — launching Plex home');
-    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
-  } catch (err) {
     console.error('[MediaBar] Plex launch unrecoverable error', err);
-    toast({ title: "Couldn't open Plex", description: (err as Error)?.message ?? 'Unknown error' });
+    toast({ title: "Couldn't open Plex", description: msg });
   }
 };
+
 
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {

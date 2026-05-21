@@ -156,21 +156,29 @@ export const VoiceInput = ({
   };
 
   const showVoiceError = async (code: string, source: VoiceErrorSource, error?: unknown) => {
+
     const message = getErrorMessage(error);
     logVoiceError(code, message || code, source, error);
 
     if (code === 'MIC_PERMISSION_DENIED') {
-      toast({
-        title: 'Microphone permission needed',
-        description: 'Enable microphone permission for Snow Media Center, then try Voice again.',
-        variant: 'destructive',
-      });
+      // No alert — just take the user straight to the App Info / Permissions screen.
       if (isNativePlatform()) {
         try {
           await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
         } catch (settingsError) {
           console.warn('openAppSettings failed', settingsError);
+          toast({
+            title: 'Microphone permission needed',
+            description: 'Open Settings → Apps → Snow Media Center → Permissions and enable Microphone.',
+            variant: 'destructive',
+          });
         }
+      } else {
+        toast({
+          title: 'Microphone permission needed',
+          description: 'Allow microphone access in your browser, then try Voice again.',
+          variant: 'destructive',
+        });
       }
     } else if (code === 'NO_MICROPHONE_HARDWARE') {
       toast({
@@ -201,6 +209,9 @@ export const VoiceInput = ({
     cleanupAudioSession();
     finishAfterErrorOrCancel('error');
   };
+
+
+
 
   const cancelVoiceAttempt = (reason: 'button' | 'unmount' | 'back' | 'timeout' = 'button') => {
     console.log(`VOICE_CANCEL: ${reason}`);
@@ -387,9 +398,14 @@ export const VoiceInput = ({
       console.log('VOICE_NATIVE_RESULT_TEXT:', text);
 
       if (!text) {
-        await showVoiceError('EMPTY_SPEECH', 'native', new Error('I didn’t catch that, try again'));
+        // Fire TV Alexa often consumes the mic so the native recognizer hears nothing.
+        // Auto-fall back to ElevenLabs recording instead of nagging the user.
+        console.warn('VOICE_NATIVE_EMPTY → falling back to ElevenLabs recording');
+        toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
+        await startFallbackRecording('native_fallback');
         return;
       }
+
 
       cleanupAudioSession();
       transitionVoiceState('processing_transcription');
@@ -412,12 +428,15 @@ export const VoiceInput = ({
       if (code === 'VOICE_RECOGNIZER_BUSY') {
         await showVoiceError(code, 'native', error);
         return;
-      }
-
-      if (shouldFallbackFromNativeError(code)) {
-        toast({ title: 'No speech recognizer', description: 'Using ElevenLabs voice fallback.' });
+      if (shouldFallbackFromNativeError(code) || code === 'EMPTY_SPEECH') {
+        console.warn(`VOICE_NATIVE_${code} → ElevenLabs fallback`);
+        toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
         await startFallbackRecording('native_fallback');
         return;
+      }
+
+      await showVoiceError(code, 'native', error);
+
       }
 
       await showVoiceError(code, 'native', error);
