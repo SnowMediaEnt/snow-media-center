@@ -568,7 +568,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 variant="outline"
                 size="sm"
                 data-focus-id="signin"
-                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
               >
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
