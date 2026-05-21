@@ -13,6 +13,7 @@ interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
   onLaunchApp: (app: AppData) => void;
   onPinApp: (app: InstalledApp) => void;
+  onReplacePinnedApp: (slotIndex: number, app: InstalledApp) => void;
   onUnpinApp: (appId: string) => void;
   apps: AppData[];
   isVisible: boolean;
@@ -28,10 +29,16 @@ type CapacitorListenerHandle = { remove?: () => void };
 const isHardwareBackKey = (e: KeyboardEvent) =>
   e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
+const iconFallback = (name: string) => {
+  const letter = encodeURIComponent((name || '?').trim().charAt(0).toUpperCase() || '?');
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23334155'/%3E%3Ctext x='48' y='58' text-anchor='middle' font-family='Arial,sans-serif' font-size='40' font-weight='700' fill='%23ffffff'%3E${letter}%3C/text%3E%3C/svg%3E`;
+};
+
 const PinnedAppsPopup = ({ 
   pinnedApps, 
   onLaunchApp, 
   onPinApp,
+  onReplacePinnedApp,
   onUnpinApp,
   apps,
   isVisible,
@@ -42,9 +49,11 @@ const PinnedAppsPopup = ({
   onExitFocus
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
+  const [editingSlotIndex, setEditingSlotIndex] = useState<number | null>(null);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
   const { installedApps: deviceApps } = useDeviceInstalledApps();
 
@@ -83,15 +92,33 @@ const PinnedAppsPopup = ({
         e.stopPropagation();
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
-      } else if (e.key === 'Enter' || e.key === ' ') {
+      } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
         e.preventDefault();
         e.stopPropagation();
+        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = setTimeout(() => {
+          longPressTimerRef.current = null;
+          openSelector(pinnedApps[focusedIndex] ? focusedIndex : null);
+        }, 650);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
         buttonsRef.current[focusedIndex]?.click();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
   }, [isVisible, focusedIndex, pinnedApps.length, onFocusChange, onExitFocus, showAppSelector]);
 
   // Auto-focus first item when selector opens (once)
@@ -176,22 +203,49 @@ const PinnedAppsPopup = ({
     };
   }, [showAppSelector]);
 
-  if (!isVisible) return null;
+  const openSelector = (slotIndex: number | null = null) => {
+    setEditingSlotIndex(slotIndex);
+    setSelectorFocusIndex(0);
+    setShowAppSelector(true);
+  };
 
-  const handleTogglePin = (app: InstalledApp | AppData) => {
+  const handleSelectApp = (app: InstalledApp | AppData) => {
+    const installedApp: InstalledApp = {
+      id: app.id,
+      name: app.name,
+      icon: 'icon' in app ? app.icon : '',
+      packageName: app.packageName,
+    };
+
+    if (editingSlotIndex !== null) {
+      onReplacePinnedApp(editingSlotIndex, installedApp);
+      setShowAppSelector(false);
+      setEditingSlotIndex(null);
+      return;
+    }
+
     if (isPinned(app.id)) {
       onUnpinApp(app.id);
     } else if (canPinMore) {
-      // Convert AppData to InstalledApp format
-      const installedApp: InstalledApp = {
-        id: app.id,
-        name: app.name,
-        icon: 'icon' in app ? app.icon : '',
-        packageName: app.packageName,
-      };
       onPinApp(installedApp);
     }
   };
+
+  const asLaunchableApp = (pinnedApp: PinnedApp, fullApp?: AppData): AppData => fullApp ?? ({
+    id: pinnedApp.id,
+    name: pinnedApp.name,
+    icon: pinnedApp.icon,
+    packageName: pinnedApp.packageName,
+    version: '1.0',
+    size: '',
+    description: pinnedApp.name,
+    apk: '',
+    downloadUrl: '',
+    featured: false,
+    category: 'main',
+  } as AppData);
+
+  if (!isVisible) return null;
 
   // Build selector list from PHP-synced apps + device-installed apps.
   // Dedupe by lowercased name, then by packageName as a safety net.
@@ -260,21 +314,25 @@ const PinnedAppsPopup = ({
                     ref={el => buttonsRef.current[index] = el}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (fullApp) onLaunchApp(fullApp);
+                      if (longPressTriggeredRef.current) {
+                        longPressTriggeredRef.current = false;
+                        return;
+                      }
+                      onLaunchApp(asLaunchableApp(pinnedApp, fullApp));
                     }}
                     onContextMenu={(e) => {
                       // Right-click / long-press fallback: open selector to swap this slot
                       e.preventDefault();
                       e.stopPropagation();
-                      onUnpinApp(pinnedApp.id);
-                      setShowAppSelector(true);
+                      openSelector(index);
                     }}
                     onPointerDown={(e) => {
                       // Long-press (touch / remote OK held) to edit pinned slot
+                      longPressTriggeredRef.current = false;
                       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                       longPressTimerRef.current = setTimeout(() => {
-                        onUnpinApp(pinnedApp.id);
-                        setShowAppSelector(true);
+                        longPressTriggeredRef.current = true;
+                        openSelector(index);
                       }, 600);
                     }}
                     onPointerUp={() => {
@@ -294,8 +352,7 @@ const PinnedAppsPopup = ({
                       if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
                         if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                         longPressTimerRef.current = setTimeout(() => {
-                          onUnpinApp(pinnedApp.id);
-                          setShowAppSelector(true);
+                          openSelector(index);
                           longPressTimerRef.current = null;
                         }, 700);
                       }
@@ -319,12 +376,14 @@ const PinnedAppsPopup = ({
                     <div className="flex flex-col items-center gap-1.5">
                       <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
                         <img 
-                          src={pinnedApp.icon} 
+                          src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain p-1"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = 'https://via.placeholder.com/48?text=' + pinnedApp.name.charAt(0);
+                            target.src = iconFallback(pinnedApp.name);
                           }}
                         />
                       </div>
@@ -342,7 +401,7 @@ const PinnedAppsPopup = ({
                     ref={el => buttonsRef.current[index] = el}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowAppSelector(true);
+                      openSelector(null);
                     }}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
@@ -371,12 +430,12 @@ const PinnedAppsPopup = ({
       </div>
 
       {/* App Selector Dialog */}
-      <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); }}>
+      <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); else setEditingSlotIndex(null); }}>
         <DialogContent className="bg-slate-900 border-slate-700 max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Pin className="w-5 h-5 text-brand-gold" />
-              Select Apps to Pin
+              {editingSlotIndex !== null ? 'Change Pinned App' : 'Select Apps to Pin'}
             </DialogTitle>
           </DialogHeader>
           <div
@@ -393,7 +452,7 @@ const PinnedAppsPopup = ({
                 e.preventDefault();
                 e.stopPropagation();
                 const app = allSelectableApps[selectorFocusIndex];
-                if (app) handleTogglePin(app);
+                if (app) handleSelectApp(app);
                 return;
               }
               else return;
@@ -407,7 +466,7 @@ const PinnedAppsPopup = ({
           >
             {allSelectableApps.map((app, idx) => {
               const isAppPinned = isPinned(app.id);
-              const canSelect = canPinMore || isAppPinned;
+              const canSelect = editingSlotIndex !== null || canPinMore || isAppPinned;
               const isFocused = selectorFocusIndex === idx;
 
               return (
@@ -419,7 +478,7 @@ const PinnedAppsPopup = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleTogglePin(app);
+                    handleSelectApp(app);
                   }}
                   disabled={!canSelect}
                   className={`
@@ -436,12 +495,14 @@ const PinnedAppsPopup = ({
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden">
                       <img 
-                        src={app.icon} 
+                          src={app.icon || iconFallback(app.name)} 
                         alt={`${app.name} icon`}
-                        className="w-full h-full object-cover"
+                          className="w-full h-full object-contain p-1"
+                          loading="lazy"
+                          decoding="async"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = 'https://via.placeholder.com/48?text=' + app.name.charAt(0);
+                            target.src = iconFallback(app.name);
                         }}
                       />
                     </div>

@@ -6,7 +6,7 @@ import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
-import smeLogo from '@/assets/sme-logo.png';
+import smeLogo from '@/assets/sme-logo-512.png';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
@@ -163,7 +163,7 @@ const Index = () => {
   }, [showEasterEgg, isInPopup, isInMediaBar]);
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
-  const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+  const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { resolvePackageName } = useDeviceInstalledApps();
@@ -180,6 +180,15 @@ const Index = () => {
     };
     pinApp(pinnedAppData);
   }, [pinApp]);
+
+  const handleReplacePinnedFromPopup = useCallback((slotIndex: number, app: InstalledApp) => {
+    replacePinnedApp(slotIndex, {
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      packageName: app.packageName,
+    });
+  }, [replacePinnedApp]);
 
   // Actually launch a pinned app — mirrors InstallApps.handleLaunch
   const performLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
@@ -720,6 +729,7 @@ const Index = () => {
                         isVisible={isFocused}
                         onLaunchApp={handleLaunchPinnedApp}
                         onPinApp={handlePinFromPopup}
+                        onReplacePinnedApp={handleReplacePinnedFromPopup}
                         onUnpinApp={unpinApp}
                         isPinned={isPinned}
                         canPinMore={canPinMore}

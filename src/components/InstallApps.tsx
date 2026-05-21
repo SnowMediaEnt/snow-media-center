@@ -663,7 +663,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-7 pb-10 px-2 sm:px-4">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
@@ -675,7 +675,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
             onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.03] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -690,8 +690,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               });
             }}
           >
-            <div className="p-6">
-              <div className="flex items-start gap-4 mb-4">
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-5 mb-5">
                 <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img 
                     src={app.icon || '/icons/default.png'} 
@@ -745,7 +745,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               </div>
               
               {/* Action Buttons - each individually focusable */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {!isInstalled && (
                   <Button 
                     data-focus-id={`download-${app.id}`}
@@ -819,7 +819,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   return (
     <div className="tv-scroll-container tv-safe">
-      <div className="max-w-6xl mx-auto pb-16">
+        <div className="max-w-5xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <Button 
