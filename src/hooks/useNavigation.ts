@@ -122,9 +122,11 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           // single Back press leaks through both handlers and skips Support
           // straight to Home.
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
-          if (Date.now() - handledAt < 350) {
+          const guideOpen = (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen === true;
+          if (guideOpen || Date.now() - handledAt < 350) {
             return;
           }
+
           console.log('Capacitor back button pressed, current view:', navigationState.currentView, 'canGoBack:', canGoBack);
 
           // Handle back navigation based on current view
