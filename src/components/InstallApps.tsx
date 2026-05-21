@@ -218,10 +218,12 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       if (focusedElement === 'back') {
         if (event.key === 'ArrowRight') { setFocusedElement('refresh'); return; }
         if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+        return;
       }
       if (focusedElement === 'refresh') {
         if (event.key === 'ArrowLeft') { setFocusedElement('back'); return; }
         if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+        return;
       }
       if (focusedElement === 'tab-0') {
         if (event.key === 'ArrowRight') { setFocusedElement('tab-1'); return; }
