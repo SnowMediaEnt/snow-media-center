@@ -285,11 +285,11 @@ class AppManagerPlugin : Plugin() {
       } else {
         Intent(Intent.ACTION_VIEW, Uri.parse(url))
       }.apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (activity == null) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!pkg.isNullOrBlank()) setPackage(pkg)
       }
       Log.d(TAG, "openUrl launching url=$url package=${pkg ?: intent.getPackage() ?: "auto"} action=${intent.action}")
-      context.startActivity(intent)
+      (activity ?: context).startActivity(intent)
       call.resolve()
     } catch (e: Exception) {
       Log.e(TAG, "openUrl failed for $url", e)
