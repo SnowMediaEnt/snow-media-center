@@ -292,6 +292,27 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   };
 
+  const handleCreateAccountFromPrompt = async () => {
+    if (!pendingAccountEmail || !accountPassword.trim() || accountPassword.length < 6) {
+      toast({ title: 'Password too short', description: 'Use at least 6 characters.', variant: 'destructive' });
+      return;
+    }
+    setCreatingAccount(true);
+    try {
+      const { error } = await signUp(pendingAccountEmail, accountPassword, accountName.trim() || undefined);
+      if (error) throw error;
+      toast({ title: 'Account created', description: 'Check your email to confirm, then sign in to see replies.' });
+      setAccountPromptOpen(false);
+      setAccountName('');
+      setAccountPassword('');
+      setPendingAccountEmail('');
+    } catch (e: any) {
+      console.error('Account create failed', e);
+      toast({ title: 'Could not create account', description: e?.message ?? 'Try again later.', variant: 'destructive' });
+    } finally {
+      setCreatingAccount(false);
+    }
+  };
 
 
   const handleSendReply = async () => {
