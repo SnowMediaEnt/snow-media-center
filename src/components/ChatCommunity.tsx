@@ -903,7 +903,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               forceSupportScrollTop();
               window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             } else if (atTop && !embedded) {
-              setFocusIndex(activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3);
+              setFocusIndex(3);
             } else {
               scrollMessages('up');
             }
