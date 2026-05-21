@@ -219,6 +219,28 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
 
+  // When the on-screen keyboard is dismissed (Android back), blur the active
+  // text field so the webview can't immediately refocus it and reopen the OSK.
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+        const { Keyboard } = await import('@capacitor/keyboard');
+        const handle = await Keyboard.addListener('keyboardDidHide', () => {
+          const el = document.activeElement as HTMLElement | null;
+          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+            el.blur();
+          }
+        });
+        cleanup = () => { try { handle.remove(); } catch { /* ignore */ } };
+      } catch { /* ignore — web or plugin missing */ }
+    })();
+    return () => { cleanup?.(); };
+  }, []);
+
+
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
