@@ -287,15 +287,13 @@ const PinnedAppsPopup = ({
                       // Right-click / long-press fallback: open selector to swap this slot
                       e.preventDefault();
                       e.stopPropagation();
-                      onUnpinApp(pinnedApp.id);
-                      setShowAppSelector(true);
+                      openSelector(index);
                     }}
                     onPointerDown={(e) => {
                       // Long-press (touch / remote OK held) to edit pinned slot
                       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                       longPressTimerRef.current = setTimeout(() => {
-                        onUnpinApp(pinnedApp.id);
-                        setShowAppSelector(true);
+                        openSelector(index);
                       }, 600);
                     }}
                     onPointerUp={() => {
@@ -315,8 +313,7 @@ const PinnedAppsPopup = ({
                       if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
                         if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                         longPressTimerRef.current = setTimeout(() => {
-                          onUnpinApp(pinnedApp.id);
-                          setShowAppSelector(true);
+                          openSelector(index);
                           longPressTimerRef.current = null;
                         }, 700);
                       }
