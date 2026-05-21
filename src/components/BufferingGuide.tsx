@@ -264,17 +264,26 @@ const BufferingGuide = ({
           } else {
             score = Math.abs(dx) + Math.abs(dy) * 2;
           }
-          // Footer bias: when descending into the footer row, prefer the
-          // primary "Next" action over the secondary "Back" action so the
-          // D-pad lands on Next first (Back is still reachable via ArrowLeft).
+          // Footer bias: when descending WITHIN the footer row, prefer the
+          // primary "Next" action over the secondary "Back" action. We only
+          // apply this when the currently-focused element is itself in the
+          // footer (i.e. already on Back/Next) — otherwise the bias would
+          // make the footer Next button win over real content buttons like
+          // the VPN Install button, which sit between the user and the footer.
           if (key === 'ArrowDown') {
+            const activeIsFooter = !!activeEl?.getAttribute('data-guide-nav');
             const nav = el.getAttribute('data-guide-nav');
-            if (nav === 'next' && !(el as HTMLButtonElement).disabled) {
+            if (activeIsFooter && nav === 'next' && !(el as HTMLButtonElement).disabled) {
               score -= 1000;
-            } else if (nav === 'back') {
+            } else if (activeIsFooter && nav === 'back') {
               score += 1000;
+            } else if (nav === 'next' || nav === 'back') {
+              // From content, slightly deprioritize footer buttons so a
+              // content button at similar distance wins.
+              score += 200;
             }
           }
+
           return { el, score };
         })
         .sort((a, b) => a.score - b.score);
