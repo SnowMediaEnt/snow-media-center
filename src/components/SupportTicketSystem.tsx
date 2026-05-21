@@ -157,7 +157,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   const focusTicketField = (id: 'create-email' | 'create-subject' | 'create-message') => {
     requestAnimationFrame(() => {
-      const el = tvFocus.containerRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-tv-focus-id="${id}"]`);
+      const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-tv-focus-id="${id}"]`);
       el?.focus({ preventScroll: true });
       if (el) {
         try {
