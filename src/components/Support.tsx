@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
+import { trackAppLaunch } from '@/lib/analytics';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -59,6 +60,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
       const { AppManager } = await import('@/capacitor/AppManager');
       const packageName = app.packageName || generatePackageName(app.name);
+      try { trackAppLaunch(app.name); } catch {}
       await AppManager.launch({ packageName });
     } catch (err) {
       console.error('[Support] launch failed:', err);

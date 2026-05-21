@@ -19,6 +19,7 @@ import BufferingGuide from '@/components/BufferingGuide';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
+import { trackAppLaunch, trackAlertShown } from '@/lib/analytics';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -399,6 +400,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Launch] ${app.name} → ${packageName}`);
+      try { trackAppLaunch(app.name); } catch {}
       await AppManager.launch({ packageName });
       
       toast({
@@ -422,6 +424,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const attemptLaunch = useCallback((app: AppData) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
+      try { trackAlertShown(alert.title || app.name); } catch {}
       setPendingAlert({ alert, app });
       return;
     }
