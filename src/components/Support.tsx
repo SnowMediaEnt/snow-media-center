@@ -228,11 +228,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-auto">
+          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <HelpCircle className="w-5 h-5 mr-2" />
               Help
@@ -240,7 +240,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="ai"
               data-support-tv-focus-id="tab-ai"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <Brain className="w-5 h-5 mr-2" />
               AI Chat
@@ -248,12 +248,13 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             <TabsTrigger
               value="community"
               data-support-tv-focus-id="tab-community"
-              className="text-white text-center text-lg py-3 min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
               <MessageSquare className="w-5 h-5 mr-2" />
               Community
             </TabsTrigger>
           </TabsList>
+
 
 
           <TabsContent value="help" className="mt-0">
