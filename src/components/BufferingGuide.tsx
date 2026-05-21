@@ -89,6 +89,7 @@ const VPN_INFO = {
   ipvanish: {
     label: 'IPVanish',
     pkg: 'com.ixonn.ipvanish',
+    pkgCandidates: ['com.ixonn.ipvanish', 'com.ixolus.ipvanish', 'com.ipvanish.vpn', 'com.ipvanish.android'],
     downloaderCode: '805133',
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
@@ -98,6 +99,7 @@ const VPN_INFO = {
   surfshark: {
     label: 'Surfshark',
     pkg: 'com.surfshark.vpnclient.android',
+    pkgCandidates: ['com.surfshark.vpnclient.android', 'com.surfshark.android.tv'],
     downloaderCode: '3829522',
     signupUrl: 'https://surfshark.com',
     matchKeys: ['surfshark'],
@@ -105,6 +107,7 @@ const VPN_INFO = {
     fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=Surfshark.apk',
   },
 } as const;
+
 
 const BufferingGuide = ({
   onClose,
