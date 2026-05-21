@@ -29,16 +29,33 @@ class AppManagerPlugin : Plugin() {
   private var pendingVoiceCall: PluginCall? = null
   private var voiceListening = false
 
+  private fun packageCandidates(pkg: String): List<String> {
+    val ipvanish = listOf("com.ixolit.ipvanish", "com.ixonn.ipvanish", "com.ixolus.ipvanish", "com.ipvanish.vpn", "com.ipvanish.android")
+    val surfshark = listOf("com.surfshark.vpnclient.android", "com.surfshark.android.tv")
+    return when {
+      ipvanish.contains(pkg) -> ipvanish
+      surfshark.contains(pkg) -> surfshark
+      else -> listOf(pkg)
+    }
+  }
+
+  private fun resolveInstalledPackage(pkg: String): String? {
+    val pm = context.packageManager
+    for (candidate in packageCandidates(pkg)) {
+      try {
+        pm.getPackageInfo(candidate, 0)
+        return candidate
+      } catch (_: Exception) {}
+    }
+    return null
+  }
+
   @PluginMethod
   fun isInstalled(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
-    val pm = context.packageManager
-    val installed = try {
-      pm.getPackageInfo(pkg, 0)
-      true
-    } catch (_: Exception) { false }
-    call.resolve(JSObject().put("installed", installed))
+    val resolved = resolveInstalledPackage(pkg)
+    call.resolve(JSObject().put("installed", resolved != null).put("packageName", resolved ?: pkg))
   }
 
   @PluginMethod
