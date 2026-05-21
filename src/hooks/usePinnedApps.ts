@@ -87,6 +87,21 @@ export const usePinnedApps = () => {
     return true;
   }, [pinnedApps, isPinned, savePinnedApps]);
 
+  const replacePinnedApp = useCallback((slotIndex: number, app: PinnedApp): boolean => {
+    if (slotIndex < 0 || slotIndex >= MAX_PINNED_APPS) return false;
+
+    const withoutDuplicate = pinnedApps.filter((pinned, index) =>
+      index === slotIndex || pinned.id !== app.id
+    );
+    const nextPinnedApps = [...withoutDuplicate];
+    nextPinnedApps[slotIndex] = app;
+    const compacted = nextPinnedApps.filter(Boolean).slice(0, MAX_PINNED_APPS);
+
+    setPinnedApps(compacted);
+    savePinnedApps(compacted);
+    return true;
+  }, [pinnedApps, savePinnedApps]);
+
   const togglePin = useCallback((app: PinnedApp): { success: boolean; action: 'pinned' | 'unpinned' | 'limit_reached' } => {
     if (isPinned(app.id)) {
       unpinApp(app.id);
@@ -105,6 +120,7 @@ export const usePinnedApps = () => {
     isPinned,
     pinApp,
     unpinApp,
+    replacePinnedApp,
     togglePin,
     maxPinnedApps: MAX_PINNED_APPS,
     canPinMore: pinnedApps.length < MAX_PINNED_APPS,
