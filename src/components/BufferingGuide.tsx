@@ -415,10 +415,14 @@ const BufferingGuide = ({
       category: 'support',
     } as AppData;
   };
+  const ipvanishApp = useMemo(() => buildVpnApp('ipvanish'), [apps]);
+  const surfsharkApp = useMemo(() => buildVpnApp('surfshark'), [apps]);
+
   const [ipvanishLive, setIpvanishLive] = useState<boolean | null>(null);
   const [surfsharkLive, setSurfsharkLive] = useState<boolean | null>(null);
 
   const { isAppNameInstalled, refresh: refreshInstalledApps } = useDeviceInstalledApps();
+
 
   useEffect(() => {
     let cancelled = false;
