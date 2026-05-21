@@ -1,21 +1,17 @@
 import { useEffect, useState } from 'react';
-import { isNativePlatform } from '@/utils/platform';
 
 const KEY = 'snow-media-bar-enabled';
 const EVENT = 'snow-media-bar-enabled-changed';
-const isLikelyLowMemoryAndroid = () => {
-  if (!isNativePlatform()) return false;
-  const ua = navigator.userAgent || '';
-  return /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(ua);
-};
 
+// Default ON for every device. Low-memory Android TV boxes get a slower
+// staggered fetch inside MediaBar itself, so we no longer disable at boot.
 export const readMediaBarEnabled = (): boolean => {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw === null) return !isLikelyLowMemoryAndroid();
+    if (raw === null) return true;
     return raw === '1' || raw === 'true';
   } catch {
-    return !isLikelyLowMemoryAndroid();
+    return true;
   }
 };
 
