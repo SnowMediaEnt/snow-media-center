@@ -782,7 +782,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   return (
     <div className="tv-scroll-container tv-safe">
-        <div className="max-w-5xl mx-auto pb-16">
+        <div className="max-w-2xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <Button 
