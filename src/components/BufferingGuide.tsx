@@ -797,19 +797,21 @@ const BufferingGuide = ({
 
           {step === 'step4' && (
             <Step4
-              vpnChoice={state.vpnChoice}
               vpnSpeedOk={state.vpnSpeedOk}
               vpnTest={state.vpnTest}
-              vpnApp={vpnApp}
-              vpnInstalled={vpnInstalled}
-              onChooseVpn={(c) => setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }))}
-              onDownloadVpn={() => {
-                if (vpnApp) onDownload(vpnApp);
+              ipvanishApp={ipvanishApp}
+              ipvanishInstalled={ipvanishInstalled}
+              surfsharkApp={surfsharkApp}
+              surfsharkInstalled={surfsharkInstalled}
+              onDownloadVpn={(c) => {
+                setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }));
+                const app = c === 'ipvanish' ? ipvanishApp : surfsharkApp;
+                if (app) onDownload(app);
                 else toast({ title: 'VPN not in store', description: 'Use the Downloader code instead.', variant: 'destructive' });
               }}
-              onLaunchVpn={() => {
-                const pkg = vpnApp?.packageName || (state.vpnChoice ? VPN_INFO[state.vpnChoice].pkg : null);
-                if (pkg) launchPackage(pkg);
+              onLaunchVpn={(c) => {
+                setState((s) => ({ ...s, vpnChoice: c }));
+                launchPackage(VPN_INFO[c].pkg);
               }}
               onRunSpeedTest={() => setShowSpeedTest(true)}
               onVpnSpeedOk={(ok) => {
