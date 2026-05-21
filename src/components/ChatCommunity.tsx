@@ -706,6 +706,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const nextIndex = elements.findIndex((el) => el.id === id);
     if (nextIndex !== -1) setFocusIndex(nextIndex);
     void hideKeyboardForDpad(active);
+    requestAnimationFrame(() => {
+      const target = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLElement | null;
+      const focusTarget = (target as HTMLButtonElement | null)?.disabled ? containerRef.current : target;
+      if (focusTarget) {
+        if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
+        focusTarget.focus({ preventScroll: true });
+        focusTarget.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      }
+    });
   }, [getFocusableElements]);
 
   const focusableElements = getFocusableElements();
