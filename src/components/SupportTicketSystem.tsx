@@ -205,17 +205,18 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
       'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
-      'empty-sign-in': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
-      'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
-      'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
-    };
-    tickets.forEach((_, index) => {
-      map[`ticket-${index}`] = {
-        up: index === 0 ? 'list-back' : `ticket-${index - 1}`,
-        down: index === tickets.length - 1 ? 'ai-new-input' : `ticket-${index + 1}`,
-        right: index === 0 ? 'new-ticket' : undefined,
-      };
-    });
+  const tvFocus = useTVFocus({
+    initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    navigation: tvNavigation,
+    onBack: handleSystemBack,
+  });
+
+  useEffect(() => {
+    const id = view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
+    return () => window.clearTimeout(timer);
+  }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
+
     aiConversations.forEach((_, index) => {
       map[`ai-history-${index}`] = {
         up: index === 0 ? 'ai-new-input' : `ai-history-${index - 1}`,
