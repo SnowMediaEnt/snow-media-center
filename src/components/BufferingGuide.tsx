@@ -666,9 +666,9 @@ const BufferingGuide = ({
     setStepIndex(0);
   };
 
-  const openAppSettings = async (packageName: string) => {
+  const openAppSettings = async (packageName: string, appName?: string) => {
     try {
-      await AppManager.openAppSettings({ packageName });
+      await AppManager.openAppSettings({ packageName, appName });
       toast({
         title: 'Opened app settings',
         description: 'Tap Force Stop, then Storage → Clear Cache. Press Back when done.',
@@ -944,14 +944,15 @@ const BufferingGuide = ({
                 const pkg =
                   chosenApp?.packageName ||
                   (state.appType ? STREAMING_PKG[state.appType] : null);
-                if (!pkg) {
+                const label = state.appType ? APP_LABELS[state.appType] : (chosenApp?.name || undefined);
+                if (!pkg && !label) {
                   toast({
                     title: 'Open Android Settings → Apps',
                     description: 'Find the app, then tap Force Stop and Clear Cache.',
                   });
                   return;
                 }
-                openAppSettings(pkg);
+                openAppSettings(pkg || '', label);
               }}
               onSelect={(v) => {
                 setState((s) => ({ ...s, didRestartAndCache: v }));
