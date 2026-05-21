@@ -134,23 +134,33 @@ const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
  * a non-clearing package launch.
  */
 const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
-  const { ratingKey, metadataKey, machineIdentifier } = item;
+  const { ratingKey, metadataKey, machineIdentifier, metadataType } = item;
   // Plex's URI parser crashes ("Unknown scheme: null" in ContentSourceURI) when
   // the metadataKey points at a container like /library/metadata/123/children
-  // or /allLeaves. Normalise down to the bare item path before deep-linking.
+  // or /allLeaves. Normalise to the bare item path before deep-linking.
   const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
-  const rawKey = cleanKey;
   const encKey = encodeURIComponent(cleanKey);
   const encServer = encodeURIComponent(machineIdentifier);
 
-  return [
+  // Movies (1) and episodes (4) are directly playable — try autoplay first so
+  // the user lands on the actual video. Shows (2) and seasons (3) aren't
+  // single-item playable, so open the preplay page where they can pick.
+  const isPlayable = metadataType === 1 || metadataType === 4;
+  const preplay = [
     `plex://preplay/?metadataKey=${encKey}&server=${encServer}`,
-    `plex://preplay/?metadataKey=${rawKey}&server=${machineIdentifier}`,
-    `plex://server/${machineIdentifier}/library/metadata/${ratingKey}`,
-    `plex://play/?metadataKey=${encKey}&server=${encServer}`,
-    `plex://play/?metadataKey=${rawKey}&server=${machineIdentifier}`,
+    `plex://preplay/?metadataKey=${cleanKey}&server=${machineIdentifier}`,
   ];
+  const play = [
+    `plex://play/?metadataKey=${encKey}&server=${encServer}`,
+    `plex://play/?metadataKey=${cleanKey}&server=${machineIdentifier}`,
+  ];
+  const serverRoute = `plex://server/${machineIdentifier}/library/metadata/${ratingKey}`;
+
+  return isPlayable
+    ? [...play, ...preplay, serverRoute]
+    : [...preplay, serverRoute, ...play];
 };
+
 
 
 const openPlexItemFromBeginning = async (item: MediaItem) => {
