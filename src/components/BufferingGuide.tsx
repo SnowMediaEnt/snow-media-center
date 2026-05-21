@@ -684,7 +684,9 @@ const BufferingGuide = ({
       {/* Content */}
       <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6">
         <div className="max-w-3xl mx-auto space-y-4">
-          <p className="text-xs uppercase tracking-wider text-cyan-300/80">{HINTS[step]}</p>
+          {HINTS[step] && step !== 'step4' && (
+            <p className="text-xs uppercase tracking-wider text-cyan-300/80">{HINTS[step]}</p>
+          )}
 
           {step === 'intro' && (
             <IntroStep
