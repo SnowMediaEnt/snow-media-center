@@ -1067,7 +1067,7 @@ const ChoiceButton = ({
 );
 
 const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Which app is buffering?</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1116,7 +1116,7 @@ const ReportChannelStep = ({
   onSubmit: () => void;
   onBack: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-3">
     <div>
       <h2 className="text-xl font-semibold text-white">Report the broken channel/title</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1176,7 +1176,7 @@ const ReportChannelStep = ({
 
 
 const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Is it only one channel/title, or everything?</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1211,7 +1211,7 @@ const Step2 = ({
   onOpenSettings: () => void;
   onSelect: (v: boolean) => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Force Stop + Clear Cache for {appLabel}</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1263,7 +1263,7 @@ const Step3 = ({
   onRunInApp: () => void;
   onSaveTyped: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Test your internet speed</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1354,7 +1354,7 @@ const Step4 = ({
   const activeInstalled = activeChoice === 'ipvanish' ? ipvanishInstalled : surfsharkInstalled;
   const anyInstalled = ipvanishInstalled || surfsharkInstalled;
   return (
-    <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+    <Card className="bg-white/5 border-white/10 p-3 space-y-3">
       <div className="text-center">
         <h2 className="text-xl font-semibold text-white flex items-center justify-center gap-2">
           <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
@@ -1564,7 +1564,7 @@ const Summary = ({
   submittingTicket: boolean;
   onRestart: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Your results</h2>
       <p className="text-sm text-white/70 mt-1">Most likely cause and what to do next.</p>
