@@ -447,7 +447,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 10 ? 'true' : 'false'}>
                 <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
@@ -456,7 +456,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 <Button
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white"
+                  className={`bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-all duration-200 ${
+                    focusedElement === 10 ? 'ring-4 ring-white/60 scale-105' : ''
+                  }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete My Account
