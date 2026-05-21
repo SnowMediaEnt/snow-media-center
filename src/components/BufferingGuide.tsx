@@ -1138,6 +1138,7 @@ const ReportChannelStep = ({
           }
         }}
         placeholder="e.g. ESPN HD, The Bear S03E01"
+        data-guide-entry="true"
         className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
     </div>
