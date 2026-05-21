@@ -36,10 +36,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+
 
   const { user } = useAuth();
   const { toast } = useToast();
