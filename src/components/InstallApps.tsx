@@ -83,6 +83,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ app: null, position: { x: 0, y: 0 } });
+  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
