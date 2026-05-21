@@ -489,23 +489,12 @@ const BufferingGuide = ({
     }
   }, [step, state.vpnChoice]);
 
-  // After choosing a VPN, put D-pad focus directly on the Install/Open action.
-  useEffect(() => {
-    if (showSpeedTest || step !== 'step4') return;
-    const choice = state.vpnChoice ?? 'ipvanish';
-    const t = setTimeout(() => {
-      const target = rootRef.current?.querySelector<HTMLElement>(
-        `[data-vpn-primary-action="${choice}"]`
-      );
+  // NOTE: We intentionally do NOT auto-focus the Install/Open VPN button on
+  // step4 — that jumped focus past the step title/instructions and made
+  // ArrowUp feel broken (it would leap to the header Close button). The
+  // generic auto-focus effect above will focus the first content element,
+  // keeping the page scrolled to the top so the user can read the step.
 
-      if (target) {
-        target.focus();
-        lastFocusedRef.current = target;
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    }, 80);
-    return () => clearTimeout(t);
-  }, [showSpeedTest, step, state.vpnChoice, vpnInstalled]);
 
   const canNext = (() => {
     switch (step) {
