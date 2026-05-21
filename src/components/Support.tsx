@@ -23,6 +23,7 @@ import type { AppData } from '@/hooks/useAppData';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { trackAppLaunch } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -184,22 +185,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
       void hideKeyboardForDpad(document.activeElement as HTMLElement | null);
       setChildFocusActive(false);
-      // Force the Support scroll container all the way back to the top so the
-      // tab row and Back button aren't clipped behind the safe-area padding.
-      const snapTop = () => {
-        supportFocus.containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-        document.querySelectorAll<HTMLElement>('.tv-scroll-container').forEach((el) =>
-          el.scrollTo({ top: 0, behavior: 'auto' })
-        );
-      };
+      // Force every possible scroll owner back to absolute top. Android WebView
+      // can scroll the document instead of the nested TV container after the
+      // keyboard/input bar was centered, so both must be snapped.
+      const snapTop = () => snapAllTVScrollToTop([supportFocus.containerRef.current]);
       snapTop();
       requestAnimationFrame(() => {
         snapTop();
-        supportFocus.focusById(`tab-${target}`, 'start');
+        supportFocus.focusById(`tab-${target}`, 'nearest');
         snapTop();
       });
-      window.setTimeout(snapTop, 120);
-      window.setTimeout(snapTop, 320);
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
