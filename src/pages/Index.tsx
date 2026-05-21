@@ -557,7 +557,7 @@ const Index = () => {
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${
+                className={`tv-focusable home-focus-surface focus-tint-black ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
@@ -577,7 +577,7 @@ const Index = () => {
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${
+                className={`tv-focusable home-focus-surface focus-tint-grey ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
@@ -597,7 +597,7 @@ const Index = () => {
               size={screenHeight >= 1440 ? "default" : "sm"}
               tabIndex={0}
               data-focused={focusedButton === -1 ? 'true' : 'false'}
-              className={`tv-focusable home-focus-surface ${
+              className={`tv-focusable home-focus-surface focus-tint-white ${
                 screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                 screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                 ''
@@ -610,6 +610,7 @@ const Index = () => {
               }`} />
               Settings
             </Button>
+
           </div>
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
