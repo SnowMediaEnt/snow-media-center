@@ -14,7 +14,7 @@ import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
+import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { Capacitor } from '@capacitor/core';
 
 
@@ -264,6 +264,32 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
+
+  const forceSupportScrollTop = useCallback(() => {
+    const scrollers = Array.from(document.querySelectorAll<HTMLElement>('.tv-scroll-container'));
+    const snapTop = () => scrollers.forEach((el) => el.scrollTo({ top: 0, behavior: 'auto' }));
+    snapTop();
+    requestAnimationFrame(snapTop);
+    window.setTimeout(snapTop, 120);
+    window.setTimeout(snapTop, 320);
+  }, []);
+
+  const focusTextFieldById = useCallback((id: string) => {
+    const elements = getFocusableElements();
+    const nextIndex = elements.findIndex((el) => el.id === id);
+    if (nextIndex !== -1) setFocusIndex(nextIndex);
+    requestAnimationFrame(() => {
+      const input = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLInputElement | HTMLTextAreaElement | null;
+      void focusTextInputForDpad(input);
+    });
+  }, [getFocusableElements]);
+
+  const leaveTextFieldById = useCallback((id: string, active?: HTMLElement | null) => {
+    const elements = getFocusableElements();
+    const nextIndex = elements.findIndex((el) => el.id === id);
+    if (nextIndex !== -1) setFocusIndex(nextIndex);
+    void hideKeyboardForDpad(active);
+  }, [getFocusableElements]);
 
   useEffect(() => {
     if (activeTab === 'ai') {
