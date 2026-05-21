@@ -71,16 +71,16 @@ const webFallback: AppManagerPlugin = {
   async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
-  async isSpeechRecognitionAvailable() { return { available: false }; },
-  async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
   async openPlexItem({ urls }) {
     const url = urls?.[0];
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
     return { method: 'web', usedUrl: url };
   },
-
+  async isSpeechRecognitionAvailable() { return { available: false }; },
+  async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async cancelVoiceInput() { /* no-op on web */ },
 };
+
 
 export function isWebUnsupportedError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');
