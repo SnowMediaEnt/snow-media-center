@@ -487,6 +487,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       autoCorrect="off"
                       spellCheck={false}
                       data-tv-focus-id="create-email"
+                      data-tv-allow-enter="true"
                       className="bg-slate-700 border-slate-600 text-white "
                     />
                   </div>
@@ -507,6 +508,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   spellCheck={false}
                   placeholder="Brief description of your issue..."
                   data-tv-focus-id="create-subject"
+                  data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
 
@@ -525,6 +527,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   rows={8}
                   enterKeyHint="done"
                   data-tv-focus-id="create-message"
+                  data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
