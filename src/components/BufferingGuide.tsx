@@ -389,8 +389,36 @@ const BufferingGuide = ({
       if (next) {
         next.focus();
         lastFocusedRef.current = next;
-        next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // On step4 (VPN step) the QR code sits between focusables. Use a
+        // gentler two-stage scroll so the QR isn't skipped over by a big
+        // center-jump to the next button.
+        if (step === 'step4') {
+          const nextRect = next.getBoundingClientRect();
+          const curRect = cur;
+          const delta = nextRect.top - curRect.top;
+          // If the jump is large, scroll halfway first so the QR stays visible,
+          // then finish the scroll after a short pause.
+          if (Math.abs(delta) > 220) {
+            const scroller =
+              contentRef.current?.closest('[data-guide-scroll]') as HTMLElement | null
+              ?? contentRef.current
+              ?? document.scrollingElement as HTMLElement | null;
+            if (scroller) {
+              scroller.scrollBy({ top: delta / 2, behavior: 'smooth' });
+              window.setTimeout(() => {
+                next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              }, 320);
+            } else {
+              next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+          } else {
+            next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        } else {
+          next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
       }
+
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
