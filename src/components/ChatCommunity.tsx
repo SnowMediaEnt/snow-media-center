@@ -708,10 +708,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (focusTarget) {
         if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
         focusTarget.focus({ preventScroll: true });
-        focusTarget.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        if (!embedded) {
+          focusTarget.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        }
       }
     });
-  }, [getFocusableElements]);
+  }, [embedded, getFocusableElements]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -876,7 +878,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
-          if (embedded && focusIndex === 0) {
+          if (embedded && (focusIndex === 0 || currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send')) {
             void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
             forceSupportScrollTop();
