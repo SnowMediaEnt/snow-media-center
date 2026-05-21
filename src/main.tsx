@@ -47,11 +47,13 @@ const logStartupDiagnostics = async () => {
   console.log('[STARTUP] Diagnostics complete, rendering app...');
 };
 
-// Run diagnostics then render
-logStartupDiagnostics().then(() => {
-  createRoot(document.getElementById("root")!).render(<App />);
-}).catch((err) => {
-  console.error('[STARTUP] Fatal error:', err);
-  // Still try to render even if diagnostics fail
-  createRoot(document.getElementById("root")!).render(<App />);
+// Render IMMEDIATELY — do not block first paint on Supabase round-trips or
+// storage probes. Diagnostics run in the background and only log; they never
+// gate the UI. This was the cause of perceived slowness after recent edits.
+createRoot(document.getElementById("root")!).render(<App />);
+
+// Fire-and-forget diagnostics
+logStartupDiagnostics().catch((err) => {
+  console.error('[STARTUP] Diagnostics error (non-fatal):', err);
 });
+
