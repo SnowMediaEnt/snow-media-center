@@ -719,7 +719,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   <Card 
                     key={product.id} 
                     data-focus-id={`product-${product.id}`}
-                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-[6px] ring-white scale-110 shadow-[0_0_28px_rgba(255,255,255,0.7)] z-10 relative' : ''}`}
                   >
                     <div className="relative">
                       <img 
