@@ -351,10 +351,18 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   // Scroll focused element into view
   useEffect(() => {
-    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement | null;
+    if (!el) return;
+    // Top-row elements: snap container to absolute top so the Back button
+    // (and tabs row) aren't clipped by the safe-area padding.
+    const isTopRow = focusedElement === 'back' || focusedElement === 'refresh'
+      || focusedElement === 'tab-0' || focusedElement === 'tab-1';
+    const scroller = el.closest('.tv-scroll-container') as HTMLElement | null;
+    if (isTopRow && scroller) {
+      scroller.scrollTo({ top: 0, behavior: 'auto' });
+      return;
     }
+    el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   }, [focusedElement]);
 
   // Auto-collapse expanded card when focus moves to a different app card
