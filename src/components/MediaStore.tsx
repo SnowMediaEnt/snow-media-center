@@ -27,7 +27,6 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [focusedElement, setFocusedElement] = useState<'back' | 'signin' | 'cart' | string>('back');
   const [detailFocusedElement, setDetailFocusedElement] = useState<string>('detail-back');
-  const backButtonRef = useRef<HTMLButtonElement>(null);
   
   const cartItems = cart.items;
   const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
@@ -59,9 +58,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       // Do NOT treat Backspace as back button (it's used for text editing)
       const isAndroidBack = event.keyCode === 4 || event.which === 4;
       const isEscape = event.key === 'Escape';
-      const isBackspace = event.key === 'Backspace' || event.code === 'GoBack';
       
-      if (isEscape || isBackspace || isAndroidBack) {
+      if (isEscape || isAndroidBack) {
         // If viewing a product detail, intercept back to return to grid (stay in store).
         // Use stopImmediatePropagation so the window-level listener in Index.tsx
         // (which would otherwise call goBack() and exit the store) doesn't also fire.
@@ -73,10 +71,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           setDetailFocusedElement('detail-back');
           return;
         }
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        onBack();
+        // At top level of store: let Index.tsx handle exit to home (don't call onBack here,
+        // otherwise we'd trigger goBack twice).
         return;
       }
       
@@ -239,7 +235,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'Enter':
         case ' ':
-          if (focusedElement === 'back') { console.log('[MediaStore] Enter on Back → onBack()'); onBack(); backButtonRef.current?.click(); }
+          if (focusedElement === 'back') onBack();
           else if (focusedElement === 'signin') navigate('/auth');
           else if (focusedElement === 'cart') handleCheckout();
           else if (focusedElement.startsWith('category-')) {
@@ -535,7 +531,6 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
             <Button 
-              ref={backButtonRef}
               onClick={onBack}
               variant="gold" 
               size="lg"
@@ -721,7 +716,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   <Card 
                     key={product.id} 
                     data-focus-id={`product-${product.id}`}
-                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-[6px] ring-white scale-110 shadow-[0_0_28px_rgba(255,255,255,0.7)] z-10 relative' : ''}`}
+                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                   >
                     <div className="relative">
                       <img 

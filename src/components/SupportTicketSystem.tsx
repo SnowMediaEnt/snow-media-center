@@ -137,26 +137,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
   const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : emptyActionId;
 
-  const hideNativeKeyboard = async () => {
-    try {
-      if (typeof document !== 'undefined') {
-        const active = document.activeElement as HTMLElement | null;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-          active.blur();
-        }
-      }
-      const { Capacitor } = await import('@capacitor/core');
-      if (Capacitor.isNativePlatform()) {
-        const { Keyboard } = await import('@capacitor/keyboard');
-        await Keyboard.hide();
-      }
-    } catch (e) {
-      // best-effort
-    }
-  };
-
   const handleSystemBack = () => {
-    void hideNativeKeyboard();
     if (view === 'ticket') {
       setView('list');
       setSelectedTicketId(null);
@@ -173,7 +154,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
     onBack();
   };
-
 
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
     if (view === 'create') {
@@ -205,9 +185,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
       'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+      'empty-sign-in': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+      'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
+      'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
     };
-
-
+    tickets.forEach((_, index) => {
+      map[`ticket-${index}`] = {
+        up: index === 0 ? 'list-back' : `ticket-${index - 1}`,
+        down: index === tickets.length - 1 ? 'ai-new-input' : `ticket-${index + 1}`,
+        right: index === 0 ? 'new-ticket' : undefined,
+      };
+    });
     aiConversations.forEach((_, index) => {
       map[`ai-history-${index}`] = {
         up: index === 0 ? 'ai-new-input' : `ai-history-${index - 1}`,
@@ -218,17 +206,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
 
   const tvFocus = useTVFocus({
-    initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
     navigation: tvNavigation,
     onBack: handleSystemBack,
   });
 
   useEffect(() => {
-    const id = view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
-
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
@@ -403,7 +390,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
@@ -411,7 +398,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-tv-focus-id="create-back"
-              className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -493,7 +480,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
                   data-tv-focus-id="create-submit"
-                  className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
@@ -516,7 +503,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -525,7 +512,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 variant="outline" 
                 size="sm"
                 data-tv-focus-id="ticket-back"
-                className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
+                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -582,7 +569,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     {ticketMessages.map((message) => (
                       <div key={message.id} className={`p-4 rounded-lg ${
                         message.sender_type === 'user' 
-                          ? 'bg-purple-600/25 ml-8' 
+                          ? 'bg-blue-600/20 ml-8' 
                           : 'bg-slate-700/50 mr-8'
                       }`}>
                         <div className="flex items-center gap-2 mb-2">
@@ -614,7 +601,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
                     data-tv-focus-id="ticket-send"
-                    className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
+                    className="bg-blue-600 hover:bg-blue-700 "
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
@@ -708,7 +695,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -717,7 +704,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-tv-focus-id="list-back"
-              className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
+              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -727,7 +714,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           <Button 
             onClick={() => setView('create')}
             data-tv-focus-id="new-ticket"
-            className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
+            className="bg-blue-600 hover:bg-blue-700 "
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -754,7 +741,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     </CardTitle>
                     <div className="flex items-center gap-2 ml-2">
                       {ticket.user_has_unread && (
-                        <Badge className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow">New</Badge>
+                        <Badge className="bg-blue-600 text-white">New</Badge>
                       )}
                       <Button
                         variant="ghost"
@@ -808,7 +795,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button
                   onClick={() => setView('create')}
                   data-tv-focus-id="empty-create-ticket"
-                  className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
+                  className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {user ? 'Create Your First Ticket' : 'Send a Ticket'}
@@ -818,7 +805,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch {} navigate('/auth'); }}
                     variant="outline"
                     data-tv-focus-id="empty-sign-in"
-                    className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
+                    className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
                   >
                     <LogIn className="h-4 w-4 mr-2" />
                     Sign In
@@ -954,7 +941,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <Button
               onClick={handleCreateAccountFromPrompt}
               disabled={creatingAccount || accountPassword.length < 6}
-              className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {creatingAccount ? 'Creating...' : 'Create account'}
             </Button>

@@ -79,9 +79,9 @@ const HomeActionCard = memo(({
       data-home-card={index}
       className={`
         home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
-        ${button.variant === 'blue' ? '[background:var(--gradient-blue)] focus-tint-purple' : ''}
-        ${button.variant === 'purple' ? '[background:var(--gradient-purple)] focus-tint-gold' : ''}
-        ${button.variant === 'gold' ? '[background:var(--gradient-gold)] focus-tint-white' : ''}
+        ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
+        ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
+        ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
         ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
       `}
       onClick={onActivate}
@@ -161,7 +161,7 @@ const Index = () => {
     }
     return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
   }, [showEasterEgg, isInPopup, isInMediaBar]);
-  const { currentView, navigateTo, goBack, resetNavigation, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
+  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
 
   // Resume post-auth view (e.g., returning from /auth after Sign In on the Tickets page)
   useEffect(() => {
@@ -305,7 +305,7 @@ const Index = () => {
       }
       
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') { // Android back button
+      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
         event.stopPropagation();
 
@@ -474,7 +474,7 @@ const Index = () => {
       {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
       <Suspense fallback={<RouteFallback />}>
         {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('support')} />}
-        {currentView === 'store' && <MediaStore onBack={() => resetNavigation()} />}
+        {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
         {currentView === 'support' && <Support onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
         {currentView === 'support-videos' && <SupportVideos onBack={() => goBack()} />}
         {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
@@ -557,7 +557,7 @@ const Index = () => {
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface focus-tint-black ${
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
@@ -577,7 +577,7 @@ const Index = () => {
                 size={screenHeight >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface focus-tint-grey ${
+                className={`tv-focusable home-focus-surface ${
                   screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                   screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
@@ -597,7 +597,7 @@ const Index = () => {
               size={screenHeight >= 1440 ? "default" : "sm"}
               tabIndex={0}
               data-focused={focusedButton === -1 ? 'true' : 'false'}
-              className={`tv-focusable home-focus-surface focus-tint-white ${
+              className={`tv-focusable home-focus-surface ${
                 screenHeight >= 2160 ? 'text-xl px-6 py-3' :
                 screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
                 ''
@@ -610,7 +610,6 @@ const Index = () => {
               }`} />
               Settings
             </Button>
-
           </div>
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
