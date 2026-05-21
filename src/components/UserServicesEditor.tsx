@@ -67,6 +67,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [devices, setDevices] = useState<UserDevice[]>([]);
   const [services, setServices] = useState<UserService[]>([]);
+  const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
   const [focusedIndex, setFocusedIndex] = useState(0);
   const focusRefs = useRef<Array<HTMLElement | null>>([]);
 
