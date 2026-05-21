@@ -29,7 +29,7 @@ export const defaultInstalledApps: InstalledApp[] = [
     id: 'ipvanish',
     name: 'IPVanish',
     icon: 'https://snowmediaapps.com/icons/ipvanish.png',
-    packageName: 'com.ixonn.ipvanish',
+    packageName: 'com.ixolit.ipvanish',
   },
   {
     id: 'downloader',
