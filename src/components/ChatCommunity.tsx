@@ -890,7 +890,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
-          if (activeTab === 'ai' && currentFocusId === 'ai-input' && aiMessageScrollIndex !== -1) {
+          if (activeTab === 'ai' && ['ai-input', 'ai-voice', 'ai-send'].includes(currentFocusId) && aiMessageScrollIndex !== -1) {
             setFocusIndex(aiMessageScrollIndex);
             return;
           }
