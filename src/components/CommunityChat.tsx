@@ -56,7 +56,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
       map[`room-${room.id}`] = {
         up: index === 0
           ? (embedded
-              ? () => { window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'community' } })); return null; }
+              ? () => { setEmbeddedFocusActive(false); window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'community' } })); return null; }
               : 'back')
           : `room-${rooms[index - 1].id}`,
         down: index === rooms.length - 1 ? 'input' : `room-${rooms[index + 1].id}`,
