@@ -90,19 +90,22 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
     });
   };
 
-  const addService = () => {
-    setServices(prev => [
-      ...prev,
-      {
-        id: `new-${Date.now()}`,
-        service_type: 'IPTV',
-        service_name: '',
-        expiration_date: null,
-        tied_apps: [],
-        renewal_status: 'active',
-        notes: null,
-      },
-    ]);
+  const addServiceByName = (name: string) => {
+    setServices(prev => {
+      if (prev.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase())) return prev;
+      return [
+        ...prev,
+        {
+          id: `new-${Date.now()}-${name}`,
+          service_type: name === 'Plex' ? 'Plex' : 'IPTV',
+          service_name: name,
+          expiration_date: null,
+          tied_apps: [],
+          renewal_status: 'active',
+          notes: null,
+        },
+      ];
+    });
   };
 
   const updateService = (id: string, patch: Partial<UserService>) => {
