@@ -42,11 +42,22 @@ const normalizeService = (service: CustomerServiceRow): UserService => ({
 
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-const formatDateEntry = (value: string) => {
+// User types DD-MM-YYYY; we store YYYY-MM-DD in state/DB.
+const formatDateEntry = (value: string): string => {
   const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+  if (digits.length < 8) return ''; // incomplete — clear stored value
+  const dd = digits.slice(0, 2);
+  const mm = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+// Convert stored YYYY-MM-DD back to DD-MM-YYYY for display.
+const toDisplayDate = (value: string | null): string => {
+  if (!value) return '';
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return value;
+  return `${m[3]}-${m[2]}-${m[1]}`;
 };
 
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
@@ -56,6 +67,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [devices, setDevices] = useState<UserDevice[]>([]);
   const [services, setServices] = useState<UserService[]>([]);
+  const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
   const [focusedIndex, setFocusedIndex] = useState(0);
   const focusRefs = useRef<Array<HTMLElement | null>>([]);
 
@@ -373,10 +385,19 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           ref={setFocusRef(inputIndex)}
                           type="text"
                           inputMode="numeric"
-                          placeholder="YYYY-MM-DD"
-                          pattern="\d{4}-\d{2}-\d{2}"
-                          value={s.expiration_date || ''}
-                          onChange={(e) => updateService(s.id, { expiration_date: formatDateEntry(e.target.value) || null })}
+                          placeholder="DD-MM-YYYY"
+                          pattern="\d{2}-\d{2}-\d{4}"
+                          value={dateDrafts[s.id] ?? toDisplayDate(s.expiration_date)}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+                            let display = raw;
+                            if (raw.length > 4) display = `${raw.slice(0,2)}-${raw.slice(2,4)}-${raw.slice(4)}`;
+                            else if (raw.length > 2) display = `${raw.slice(0,2)}-${raw.slice(2)}`;
+                            setDateDrafts(prev => ({ ...prev, [s.id]: display }));
+                            const stored = formatDateEntry(e.target.value);
+                            updateService(s.id, { expiration_date: stored || null });
+                          }}
+                          onBlur={() => setDateDrafts(prev => { const { [s.id]: _, ...rest } = prev; return rest; })}
                           className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${focusedIndex === inputIndex ? 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]' : ''}`}
                         />
                         {statusBadge}
