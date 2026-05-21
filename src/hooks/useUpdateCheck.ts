@@ -32,6 +32,7 @@ export const useUpdateCheck = (currentVersion: string) => {
 
   useEffect(() => {
     if (!currentVersion) return;
+    if (isNativePlatform()) return;
     let cancelled = false;
 
     const check = async () => {
