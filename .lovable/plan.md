@@ -1,50 +1,42 @@
-# Fix: APK shows old layout even though `version.json` says 1.0.5
+# Three fixes: Content Bar default, DreamStreams settings, Download resume
 
-## What's actually happening
+## 1. Turn the Content Bar back on by default (with a slower, safer load)
 
-Your APK is running an **old JavaScript bundle** that was committed to the GitHub repo months ago. The "v1.0.5" label is unrelated — it comes from a tiny static file (`public/version.json`) that just says `"1.0.5"`. The version number didn't change, so the app *looks* up-to-date, but the actual UI code is stale.
+- Change the home Content Bar to default **on** for every device, including older Android TV / Fire TV / X96 boxes.
+- To keep low-memory devices stable, the bar will load its content gradually instead of instantly:
+  - Delay the first feed fetch to ~6 seconds after the home screen renders on low-memory devices (was 1.5s).
+  - Keep the current safety cap that limits the bar to one page (8 items) on low-memory devices, so the WebView doesn't get hit with dozens of posters at once.
+  - Refresh interval stays the same.
+- Users can still toggle it off in Settings.
 
-Two things combined to cause this:
+## 2. Buffering Guide "Open DreamStreams Settings" lands on the wrong page
 
-1. **Prebuilt web assets are committed to the repo** at `android/app/src/main/assets/public/assets/` (the `index-d9rX3euz.js`, `MediaBar-*.js`, etc. files). These are snapshots of an old build.
-2. **Your last `npm run build` failed** on the Mac mini with the `@swc/core` native binding error. When `npx cap sync android` ran afterward, there was no fresh `dist/` to copy from — so Capacitor kept the **old committed files** inside the Android project and packaged them into the APK.
+Today it opens Android's generic "Manage Installed Applications" list instead of the DreamStreams App Info page. Plex and VibezTV work because their package names match what we hard-coded; the real DreamStreams APK on the device uses a different package name, so the lookup misses.
 
-Result: APK installs cleanly, `version.json` still reads 1.0.5, but the UI is whatever was last committed to `android/app/src/main/assets/public/` — the old 4-tile layout, no media bar, etc.
+Fix:
+- Have the buffering guide pass the **app's display name** ("Dreamstreams") to the open-settings call, not just the guessed package.
+- In the native AppManager plugin, when the package isn't found, scan the installed apps list for one whose label matches "dreamstream" (case- and punctuation-insensitive) and use that real package to open App Info.
+- If nothing matches at all, show a clear toast ("DreamStreams isn't installed on this device") instead of silently dumping the user on the generic Apps page.
+- Same fix automatically helps any other app whose real package name differs from what's in the catalog.
 
-## The fix (two parts)
+## 3. Remember finished downloads so the user can install on next open
 
-### Part 1 — Make the next build actually succeed on your Mac
+Right now, if a download reaches 100% and the user backs out before tapping Install, the APK is wiped and they have to re-download the whole thing.
 
-On the Mac mini, in the project folder:
+Fix:
+- When a download hits 100% (state = complete), **keep** the APK in cache even if the user closes the dialog. Only purge it on errors, cancellations during download, or after a successful install.
+- When the user opens Main Apps or taps Download for that app again, check the APK cache first:
+  - If a finished APK for that exact app + version is on disk, skip straight to the install prompt ("Ready to install — Install Now / Cancel") instead of starting a new download.
+  - If the cached file is for an older version, delete it and download fresh.
+- Existing 7-day / size-based cache cleanup keeps things from piling up forever.
 
-```bash
-rm -rf node_modules package-lock.json dist
-npm install
-npm run build          # MUST complete without errors — confirm "dist/" appears
-npx cap sync android
-npx cap open android
-```
+## Technical notes
 
-If `npm run build` errors again, stop and send the full error. Do not run `npx cap sync` on a failed build — that's what got you here.
-
-### Part 2 — Stop committing prebuilt assets so this can't happen again
-
-Add `android/app/src/main/assets/public/` to `.gitignore` and remove the committed copy. After this change, the Android assets folder is always regenerated from a fresh `npm run build` + `npx cap sync android`, so a stale bundle can never sneak into the APK.
-
-I'll also bump `public/version.json` to `1.0.6` so once the real new build lands, you'll see the version change confirm it's the fresh bundle.
-
-## Technical details
-
-- Files to change:
-  - `.gitignore` — add `android/app/src/main/assets/public/`
-  - `public/version.json` — bump to `1.0.6`
-  - `git rm -r --cached android/app/src/main/assets/public/` (you'll run this locally on the Mac after pulling)
-- No source code (React/TS) changes — the current `src/` already has the new layout, media bar, etc. The repo is fine; only the build/packaging pipeline is broken.
-
-## How you'll verify it worked
-
-After Part 1 completes successfully:
-- `android/app/src/main/assets/public/index.html` timestamp is **today**
-- The filenames inside `android/app/src/main/assets/public/assets/` have **different hashes** than the ones currently committed (e.g. `index-d9rX3euz.js` → something new)
-- APK is back around ~25 MB
-- App shows the new layout with media bar, and version reads `1.0.6`
+- `src/hooks/useMediaBarEnabled.ts` — default returns `true`; remove the low-memory auto-off branch.
+- `src/components/MediaBar.tsx` — bump the initial `setTimeout` from 1500ms to 6000ms when `IS_LOW_MEMORY_NATIVE` is true; keep the existing `slice(0, PAGE_SIZE)` cap.
+- `android/.../AppManagerPlugin.kt` — `openAppSettings` accepts an optional `appName`; on package miss, iterate `getInstalledPackages(0)` and match by normalised label substring.
+- `src/capacitor/AppManager.ts` — extend `openAppSettings` signature with optional `appName`.
+- `src/components/Support.tsx` — pass `appName: app.name` into `AppManager.openAppSettings`.
+- `src/components/DownloadProgress.tsx` — in `handleCloseAndCleanup`, skip `purgeCachedApk()` when `state === 'complete'`.
+- `src/components/InstallApps.tsx` — in `handleDownload`, before calling `startDownload`, use `AppManager.listCachedApks()` to look for `generateFileName(app.name, app.version)`. If present, open `DownloadProgress` in a new "ready-to-install" mode (or call `AppManager.installApk` directly with a confirmation toast).
+- `src/utils/downloadApk.ts` — add a small helper `findCachedApk(filename)` that returns the cached path or null.
