@@ -288,8 +288,6 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
               )}
             </section>
           </div>
-            </section>
-          </div>
         )}
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
