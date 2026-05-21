@@ -235,7 +235,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'Enter':
         case ' ':
-          if (focusedElement === 'back') onBack();
+          if (focusedElement === 'back') {
+            // Stop the event so the Index window keydown handler (and any
+            // re-entrant Card onKeyDown) cannot fire navigateTo('store')
+            // again on the same Enter press.
+            event.stopImmediatePropagation();
+            onBack();
+          }
           else if (focusedElement === 'signin') navigate('/auth');
           else if (focusedElement === 'cart') handleCheckout();
           else if (focusedElement.startsWith('category-')) {
@@ -249,6 +255,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             }
           }
           break;
+
           
         // Add checkout shortcut
         case 'c':
@@ -531,7 +538,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
             <Button 
-              onClick={onBack}
+              onClick={(e) => {
+                // Defensive: keep this click from bubbling to any window-level
+                // handler that might re-navigate into the store.
+                e.preventDefault();
+                e.stopPropagation();
+                onBack();
+              }}
               variant="gold" 
               size="lg"
               className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
@@ -539,6 +552,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
             </Button>
+
             <div className="invisible">
               <Button variant="gold" size="lg">Placeholder</Button>
             </div>
