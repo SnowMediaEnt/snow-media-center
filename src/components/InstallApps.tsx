@@ -689,6 +689,29 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   </div>
                 </div>
 
+                {/* Inline primary action — always visible (Download or Launch) */}
+                {!appExpanded && (
+                  isInstalled ? (
+                    <Button
+                      data-focus-id={`launch-${app.id}`}
+                      onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
+                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Launch
+                    </Button>
+                  ) : (
+                    <Button
+                      data-focus-id={`download-${app.id}`}
+                      onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
+                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </Button>
+                  )
+                )}
+
                 {/* Pin/Unpin Button — only when expanded */}
                 {appExpanded && (
                   <Button
