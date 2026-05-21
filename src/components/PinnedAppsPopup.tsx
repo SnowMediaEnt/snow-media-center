@@ -229,6 +229,20 @@ const PinnedAppsPopup = ({
       packageName: app.packageName,
     };
 
+    // If not installed on device (native only), route to install flow instead of pinning
+    if (isNative && !isPackageInstalled(installedApp.packageName) && !isAppNameInstalled(installedApp.name)) {
+      onInstallApp({
+        id: installedApp.id,
+        name: installedApp.name,
+        icon: installedApp.icon,
+        packageName: installedApp.packageName,
+        position: 0,
+      } as PinnedApp);
+      setShowAppSelector(false);
+      setEditingSlotIndex(null);
+      return;
+    }
+
     if (editingSlotIndex !== null) {
       onReplacePinnedApp(editingSlotIndex, installedApp);
       setShowAppSelector(false);
@@ -242,6 +256,7 @@ const PinnedAppsPopup = ({
       onPinApp(installedApp);
     }
   };
+
 
   const asLaunchableApp = (pinnedApp: PinnedApp, fullApp?: AppData): AppData => fullApp ?? ({
     id: pinnedApp.id,
