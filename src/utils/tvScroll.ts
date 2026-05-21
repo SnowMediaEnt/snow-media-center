@@ -1,6 +1,16 @@
 export const snapAllTVScrollToTop = (extraElements: Array<HTMLElement | null | undefined> = []) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+  const scrollRootToScreenEdge = () => {
+    const root = document.documentElement;
+    const body = document.body;
+    root.scrollTop = 0;
+    body.scrollTop = 0;
+    root.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    body.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  };
+
   const snapElement = (el: HTMLElement | Element | null | undefined) => {
     if (!(el instanceof HTMLElement)) return;
     const previousScrollBehavior = el.style.scrollBehavior;
@@ -25,9 +35,7 @@ export const snapAllTVScrollToTop = (extraElements: Array<HTMLElement | null | u
     const previousBodyScrollBehavior = body.style.scrollBehavior;
     html.style.scrollBehavior = 'auto';
     body.style.scrollBehavior = 'auto';
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    html.scrollTop = 0;
-    body.scrollTop = 0;
+    scrollRootToScreenEdge();
     window.setTimeout(() => {
       html.style.scrollBehavior = previousHtmlScrollBehavior;
       body.style.scrollBehavior = previousBodyScrollBehavior;
