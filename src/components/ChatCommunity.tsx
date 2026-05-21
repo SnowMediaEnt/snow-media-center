@@ -702,6 +702,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const targetInside = !!containerRef.current?.contains(target);
       const activeInside = !!(active && containerRef.current?.contains(active));
       const hasCurrentChildFocus = !!containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
+      if (embedded && !embeddedFocusActive) return;
       if (embedded && !targetInside && !activeInside && !(target === document.body && hasCurrentChildFocus)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
@@ -787,6 +788,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
+          if (embedded && currentFocusId === 'ai-input') {
+            return;
+          }
           // Only when on the Send button, jump down to the first saved chat.
           // Letting the typing bar and voice/send buttons step naturally
           // means users don't skip past the input on a single Down press.
@@ -823,6 +827,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         case 'ArrowUp':
           if (embedded && focusIndex === 0) {
+            setEmbeddedFocusActive(false);
             window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             return;
           }
