@@ -759,9 +759,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             </div>
           )}
         </div>
-
-        </div>
       </div>
+
       <QRCheckoutDialog
         open={qrOpen}
         onOpenChange={(o) => { setQrOpen(o); if (!o) setQrUrl(null); }}
