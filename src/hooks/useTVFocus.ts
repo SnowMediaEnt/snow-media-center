@@ -143,7 +143,7 @@ export const useTVFocus = ({
   }, [findManagedElement, getElements, getId]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !autoFocusOnMount) return;
     const timer = window.setTimeout(() => {
       const elements = getElements();
       const wanted = initialFocusId && elements.some((el) => getId(el) === initialFocusId)
@@ -152,7 +152,8 @@ export const useTVFocus = ({
       focusById(wanted, 'nearest');
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [enabled, focusById, getElements, getId, initialFocusId]);
+  }, [enabled, autoFocusOnMount, focusById, getElements, getId, initialFocusId]);
+
 
   useEffect(() => {
     if (!enabled) return;
