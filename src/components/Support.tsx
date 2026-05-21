@@ -61,7 +61,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
       const { AppManager } = await import('@/capacitor/AppManager');
       const packageName = app.packageName || generatePackageName(app.name);
-      try { trackAppLaunch(app.name); } catch {}
+        try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
     } catch (err) {
       console.error('[Support] launch failed:', err);
