@@ -22,7 +22,7 @@ const KNOWN_PACKAGE_NAMES: Record<string, string> = {
   'dreamstreams': 'com.dreamstreams.app',
   'vibeztv': 'com.vibeztv.app',
   'plex': 'com.plexapp.android',
-  'ipvanish': 'com.ixonn.ipvanish',
+  'ipvanish': 'com.ixolit.ipvanish',
   'surfshark': 'com.surfshark.vpnclient.android',
   'cinemahd': 'com.cinemahdv2',
   'cinema hd': 'com.cinemahdv2',
