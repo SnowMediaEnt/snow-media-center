@@ -74,7 +74,15 @@ export const useTVFocus = ({
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
     target.focus({ preventScroll: true });
-    target.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
+    // When focusing a top-of-page "back" control, snap the nearest scroll
+    // container to absolute top so the safe-area padding isn't clipped.
+    const isBackTop = /(^|-)back($|-)/i.test(id);
+    const scroller = target.closest('.tv-scroll-container') as HTMLElement | null;
+    if (isBackTop && scroller) {
+      scroller.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      target.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
+    }
     currentIdRef.current = id;
     setCurrentFocusId(id);
     onFocusChange?.(id);
