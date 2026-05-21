@@ -177,10 +177,15 @@ export const useTVFocus = ({
         if (event.key === 'Backspace' && typing) return;
         event.preventDefault();
         event.stopPropagation();
+        if (typing) {
+          (active ?? target)?.blur();
+          return;
+        }
         onBack?.();
         return;
       }
 
+      if (typing && event.key === 'Enter' && managedTarget.dataset.tvAllowEnter === 'true') return;
       if (typing && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
 

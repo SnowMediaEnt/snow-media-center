@@ -155,11 +155,41 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     onBack();
   };
 
+  const focusTicketField = (id: 'create-email' | 'create-subject' | 'create-message') => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-tv-focus-id="${id}"]`);
+      el?.focus({ preventScroll: true });
+      if (el) {
+        try {
+          const end = el.value?.length ?? 0;
+          el.setSelectionRange(end, end);
+        } catch { /* ignore */ }
+      }
+    });
+  };
+
+  const handleTicketFieldKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    nextId?: 'create-subject' | 'create-message'
+  ) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!nextId) {
+      e.currentTarget.blur();
+      return;
+    }
+    e.currentTarget.blur();
+    focusTicketField(nextId);
+  };
+
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
     if (view === 'create') {
+      const firstField = user ? 'create-subject' : 'create-email';
       return {
-        'create-back': { down: 'create-subject' },
-        'create-subject': { up: 'create-back', down: 'create-message' },
+        'create-back': { down: firstField },
+        'create-email': { up: 'create-back', down: 'create-subject' },
+        'create-subject': { up: user ? 'create-back' : 'create-email', down: 'create-message' },
         'create-message': { up: 'create-subject', down: 'create-submit' },
         'create-submit': { up: 'create-message', right: 'create-cancel' },
         'create-cancel': { up: 'create-message', left: 'create-submit' },
@@ -331,9 +361,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       setAccountName('');
       setAccountPassword('');
       setPendingAccountEmail('');
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Account create failed', e);
-      toast({ title: 'Could not create account', description: e?.message ?? 'Try again later.', variant: 'destructive' });
+      toast({ title: 'Could not create account', description: e instanceof Error ? e.message : 'Try again later.', variant: 'destructive' });
     } finally {
       setCreatingAccount(false);
     }
@@ -450,11 +480,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
+                      onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-subject')}
                       placeholder="you@example.com (leave blank to send anonymously)"
                       enterKeyHint="next"
                       autoComplete="off"
                       autoCorrect="off"
                       spellCheck={false}
+                      data-tv-focus-id="create-email"
+                      data-tv-allow-enter="true"
                       className="bg-slate-700 border-slate-600 text-white "
                     />
                   </div>
@@ -468,18 +501,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      (e.currentTarget as HTMLInputElement).blur();
-                    }
-                  }}
-                  enterKeyHint="done"
+                  onKeyDown={(e) => handleTicketFieldKeyDown(e, 'create-message')}
+                  enterKeyHint="next"
                   autoComplete="off"
                   autoCorrect="off"
                   spellCheck={false}
                   placeholder="Brief description of your issue..."
                   data-tv-focus-id="create-subject"
+                  data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
 
@@ -493,10 +522,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => handleTicketFieldKeyDown(e)}
                   placeholder="Describe your issue in detail..."
                   rows={8}
                   enterKeyHint="done"
                   data-tv-focus-id="create-message"
+                  data-tv-allow-enter="true"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
@@ -828,7 +859,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </Button>
                 {!user && (
                   <Button
-                    onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch {} navigate('/auth'); }}
+                    onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch { void 0; } navigate('/auth'); }}
                     variant="outline"
                     data-tv-focus-id="empty-sign-in"
                     className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
