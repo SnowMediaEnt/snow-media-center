@@ -391,12 +391,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
               {/* My Devices & Services */}
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 9 ? 'true' : 'false'}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${
+                      focusedElement === 9 ? 'ring-4 ring-white/60 scale-105' : ''
+                    }`}
                     size="sm"
                   >
                     <Pencil className="w-4 h-4 mr-1" /> Edit
