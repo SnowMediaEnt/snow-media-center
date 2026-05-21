@@ -28,7 +28,6 @@ const isVisible = (el: HTMLElement) =>
   el.getAttribute('aria-disabled') !== 'true' &&
   el.dataset.tvDisabled !== 'true' &&
   el.offsetParent !== null;
-
 export const useTVFocus = ({
   enabled = true,
   initialFocusId,
@@ -37,6 +36,12 @@ export const useTVFocus = ({
   onBack,
   onFocusChange,
   scrollBlock = 'center',
+  autoFocusOnMount = true,
+}: UseTVFocusOptions = {}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const currentIdRef = useRef<string | null>(initialFocusId ?? null);
+  const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
+
 }: UseTVFocusOptions = {}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
