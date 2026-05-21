@@ -135,8 +135,12 @@ const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
  */
 const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
   const { ratingKey, metadataKey, machineIdentifier } = item;
-  const rawKey = metadataKey;
-  const encKey = encodeURIComponent(metadataKey);
+  // Plex's URI parser crashes ("Unknown scheme: null" in ContentSourceURI) when
+  // the metadataKey points at a container like /library/metadata/123/children
+  // or /allLeaves. Normalise down to the bare item path before deep-linking.
+  const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
+  const rawKey = cleanKey;
+  const encKey = encodeURIComponent(cleanKey);
   const encServer = encodeURIComponent(machineIdentifier);
 
   return [
@@ -147,6 +151,7 @@ const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
     `plex://play/?metadataKey=${rawKey}&server=${machineIdentifier}`,
   ];
 };
+
 
 const openPlexItemFromBeginning = async (item: MediaItem) => {
   const native = isNativePlatform();
