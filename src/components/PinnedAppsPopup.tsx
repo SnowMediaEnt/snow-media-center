@@ -362,7 +362,7 @@ const PinnedAppsPopup = ({
                     ref={el => buttonsRef.current[index] = el}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowAppSelector(true);
+                      openSelector(null);
                     }}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
@@ -391,12 +391,12 @@ const PinnedAppsPopup = ({
       </div>
 
       {/* App Selector Dialog */}
-      <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); }}>
+      <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); else setEditingSlotIndex(null); }}>
         <DialogContent className="bg-slate-900 border-slate-700 max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Pin className="w-5 h-5 text-brand-gold" />
-              Select Apps to Pin
+              {editingSlotIndex !== null ? 'Change Pinned App' : 'Select Apps to Pin'}
             </DialogTitle>
           </DialogHeader>
           <div
