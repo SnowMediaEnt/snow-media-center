@@ -464,10 +464,8 @@ const BufferingGuide = ({
   const surfsharkInstalled =
     !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true || isAppNameInstalled('Surfshark');
 
-  const ipvanishInstalled =
-    !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true;
-  const surfsharkInstalled =
-    !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true;
+
+
 
   // Backward-compatible single-choice values used by diagnosis/script
   const vpnApp: AppData | undefined =
