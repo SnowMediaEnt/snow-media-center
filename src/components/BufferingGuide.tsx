@@ -1286,40 +1286,65 @@ const Step4 = ({
   onTestStreamingApp: () => void;
   chosenAppLabel: string | null;
   chosenAppAvailable: boolean;
+  vpnChoice,
+  onChooseVpn,
+}: {
+  vpnSpeedOk: YesNo;
+  vpnTest: VpnTest;
+  ipvanishApp: AppData;
+  ipvanishInstalled: boolean;
+  surfsharkApp: AppData;
+  surfsharkInstalled: boolean;
+  onDownloadVpn: (c: 'ipvanish' | 'surfshark') => void;
+  onLaunchVpn: (c: 'ipvanish' | 'surfshark') => void;
+  onRunSpeedTest: () => void;
+  onVpnSpeedOk: (ok: boolean) => void;
+  onVpnTest: (v: VpnTest) => void;
+  onTestStreamingApp: () => void;
+  chosenAppLabel: string | null;
+  chosenAppAvailable: boolean;
+  vpnChoice: VpnChoice;
+  onChooseVpn: (c: 'ipvanish' | 'surfshark') => void;
 }) => {
+  const activeChoice: 'ipvanish' | 'surfshark' = vpnChoice ?? 'ipvanish';
+  const activeApp = activeChoice === 'ipvanish' ? ipvanishApp : surfsharkApp;
+  const activeInstalled = activeChoice === 'ipvanish' ? ipvanishInstalled : surfsharkInstalled;
   const anyInstalled = ipvanishInstalled || surfsharkInstalled;
   return (
     <Card className="bg-white/5 border-white/10 p-5 space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-white flex items-center justify-center gap-2">
           <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
         </h2>
-        <p className="text-sm text-white/70 mt-1">
+        <p className="text-sm text-white/70 mt-1 max-w-xl mx-auto">
           A premium VPN bypasses ISP throttling — the #1 cause of buffering during peak hours.
           Pick whichever you prefer below, install it, sign in, and re-test.
         </p>
-        <div className="mt-3 bg-amber-500/10 border border-amber-500/40 rounded-md p-3 text-xs text-amber-100 leading-relaxed">
+        <div className="mt-3 bg-amber-500/10 border border-amber-500/40 rounded-md p-3 text-xs text-amber-100 leading-relaxed text-left">
           <strong>Heads up — VPN is a paid service.</strong> Free VPNs don't deliver the speed or
           protection we need. Check with <strong>your reseller</strong> for sign-in details, or sign
           up yourself by scanning the QR code under either option below.
         </div>
       </div>
 
-      <VpnSection
-        choice="ipvanish"
-        vpnApp={ipvanishApp}
-        vpnInstalled={ipvanishInstalled}
-        onDownloadVpn={() => onDownloadVpn('ipvanish')}
-        onLaunchVpn={() => onLaunchVpn('ipvanish')}
-      />
+      {/* Side-by-side picker */}
+      <div className="grid grid-cols-2 gap-2">
+        <ChoiceButton active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
+          <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
+        </ChoiceButton>
+        <ChoiceButton active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
+          <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
+        </ChoiceButton>
+      </div>
 
       <VpnSection
-        choice="surfshark"
-        vpnApp={surfsharkApp}
-        vpnInstalled={surfsharkInstalled}
-        onDownloadVpn={() => onDownloadVpn('surfshark')}
-        onLaunchVpn={() => onLaunchVpn('surfshark')}
+        choice={activeChoice}
+        vpnApp={activeApp}
+        vpnInstalled={activeInstalled}
+        onDownloadVpn={() => onDownloadVpn(activeChoice)}
+        onLaunchVpn={() => onLaunchVpn(activeChoice)}
       />
+
 
       {anyInstalled && (
         <>
