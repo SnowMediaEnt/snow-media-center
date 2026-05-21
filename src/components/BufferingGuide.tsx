@@ -131,7 +131,10 @@ const BufferingGuide = ({
   });
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [speedInput, setSpeedInput] = useState<string>('');
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportDevice, setReportDevice] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
 
