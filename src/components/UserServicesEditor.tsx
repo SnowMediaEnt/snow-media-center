@@ -230,25 +230,39 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
             {/* Services */}
             <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Wifi className="w-5 h-5 text-green-300" /> IPTV Services
+              <div className="mb-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
+                  <Wifi className="w-5 h-5 text-green-300" /> Your Services
                 </h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={addService}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add service
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {SERVICE_OPTIONS.map(name => {
+                    const active = services.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase());
+                    return (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        onClick={() => addServiceByName(name)}
+                        disabled={active}
+                        className={active
+                          ? 'bg-emerald-700 text-white opacity-80 cursor-default'
+                          : 'bg-green-600 hover:bg-green-700 text-white'}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> {active ? `${name} added` : `Add ${name}`}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
 
               {services.length === 0 && (
                 <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-700 rounded-md">
-                  No services yet. Click "Add service" to track an expiration date.
+                  No services yet. Pick one above to track its expiration date.
                 </p>
               )}
+
+              <div className="space-y-4">
+                {services.map(s => {
 
               <div className="space-y-4">
                 {services.map(s => {
