@@ -256,6 +256,33 @@ const BufferingGuide = ({
         }
       }
 
+      // Summary step: walk a deterministic ordered list (header Close →
+      // Launch? → Submit → Start Over → footer Back) so spatial scoring
+      // can't skip past the full-width "Submit Ticket" when adjacent
+      // buttons (Start Over, footer Back) are left-aligned and narrow.
+      if (step === 'summary' && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        const ordered = Array.from(
+          rootRef.current?.querySelectorAll<HTMLElement>('[data-summary-order]') ?? []
+        )
+          .filter((el) => !(el as HTMLButtonElement).disabled && el.getBoundingClientRect().width > 0)
+          .sort((a, b) => Number(a.dataset.summaryOrder) - Number(b.dataset.summaryOrder));
+        if (ordered.length > 0) {
+          const docActiveNow = document.activeElement as HTMLElement | null;
+          const idx = docActiveNow ? ordered.indexOf(docActiveNow) : -1;
+          const nextIdx = key === 'ArrowDown'
+            ? Math.min(ordered.length - 1, idx < 0 ? 0 : idx + 1)
+            : Math.max(0, idx < 0 ? ordered.length - 1 : idx - 1);
+          const target = ordered[nextIdx];
+          if (target && target !== docActiveNow) {
+            target.focus();
+            lastFocusedRef.current = target;
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+          return;
+        }
+      }
+
+
 
       // Spatial 2D navigation based on bounding rects
       const docActive = document.activeElement as HTMLElement | null;
