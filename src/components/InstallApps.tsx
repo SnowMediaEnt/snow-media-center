@@ -363,7 +363,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const ensureStatus = useCallback(async (app: AppData): Promise<{ installed: boolean }> => {
     try {
       const installed = await checkInstallStatus(app);
-      setAppStatuses(prev => new Map(prev.set(app.id, { installed })));
+      setAppStatuses(prev => {
+        const next = new Map(prev);
+        next.set(app.id, { installed });
+        return next;
+      });
       return { installed };
     } catch (error) {
       console.error('Error checking app status:', error);
@@ -413,7 +417,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     if (Capacitor.isNativePlatform()) {
       const alreadyInstalled = await checkInstallStatus(app);
       if (alreadyInstalled) {
-        setAppStatuses(prev => new Map(prev.set(app.id, { installed: true })));
+        setAppStatuses(prev => {
+          const next = new Map(prev);
+          next.set(app.id, { installed: true });
+          return next;
+        });
         const alert = getAlertForApp(app.name);
         if (alert) {
           setPendingAlert({ alert, app });
