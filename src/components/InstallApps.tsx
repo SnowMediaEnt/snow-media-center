@@ -712,8 +712,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 )}
               </div>
               
-              {/* Action Buttons - each individually focusable */}
+              {/* Action Buttons - only rendered when card is expanded */}
+              {appExpanded && (
               <div className="space-y-2">
+
 
                 {!isInstalled && (
                   <Button 
