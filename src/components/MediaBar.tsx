@@ -99,31 +99,6 @@ const openPlexApp = async (item: MediaItem) => {
   }
 };
 
-    const msg = (err as Error)?.message ?? '';
-    if (msg.includes('PLEX_NOT_INSTALLED')) {
-      toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
-      return;
-    }
-    console.warn('[MediaBar] Plex direct play failed, falling back to preplay', err);
-  }
-  // 2) Preplay fallback — lands on the title's detail page so the user can
-  //    hit Play manually if auto-play was blocked by sign-in / user-picker.
-  try {
-    await AppManager.openUrl({ url: preplayUrl, packageName: PLEX_ANDROID_PACKAGE });
-    return;
-  } catch (err) {
-    const msg = (err as Error)?.message ?? 'Unknown error';
-    if (msg.includes('PLEX_NOT_INSTALLED')) {
-      toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
-      return;
-    }
-    console.error('[MediaBar] Plex launch unrecoverable error', err);
-    toast({ title: "Couldn't open Plex", description: msg });
-  }
-};
-
-
-
 
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
