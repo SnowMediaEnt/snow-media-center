@@ -33,6 +33,7 @@ const PinnedAppsPopup = ({
   pinnedApps, 
   onLaunchApp, 
   onPinApp,
+  onReplacePinnedApp,
   onUnpinApp,
   apps,
   isVisible,
@@ -407,7 +408,7 @@ const PinnedAppsPopup = ({
                 e.preventDefault();
                 e.stopPropagation();
                 const app = allSelectableApps[selectorFocusIndex];
-                if (app) handleTogglePin(app);
+                if (app) handleSelectApp(app);
                 return;
               }
               else return;
@@ -433,7 +434,7 @@ const PinnedAppsPopup = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleTogglePin(app);
+                    handleSelectApp(app);
                   }}
                   disabled={!canSelect}
                   className={`
