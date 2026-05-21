@@ -475,13 +475,23 @@ const BufferingGuide = ({
     state.vpnChoice === 'surfshark' ? surfsharkInstalled :
     state.vpnChoice === 'ipvanish' ? ipvanishInstalled : false;
 
+  // When entering step4, auto-select IPVanish so the Install/Open button is
+  // immediately reachable (no need to click the VPN tab first).
+  useEffect(() => {
+    if (step === 'step4' && !state.vpnChoice) {
+      setState((s) => ({ ...s, vpnChoice: 'ipvanish' }));
+    }
+  }, [step, state.vpnChoice]);
+
   // After choosing a VPN, put D-pad focus directly on the Install/Open action.
   useEffect(() => {
-    if (showSpeedTest || step !== 'step4' || !state.vpnChoice) return;
+    if (showSpeedTest || step !== 'step4') return;
+    const choice = state.vpnChoice ?? 'ipvanish';
     const t = setTimeout(() => {
       const target = rootRef.current?.querySelector<HTMLElement>(
-        `[data-vpn-primary-action="${state.vpnChoice}"]`
+        `[data-vpn-primary-action="${choice}"]`
       );
+
       if (target) {
         target.focus();
         lastFocusedRef.current = target;
