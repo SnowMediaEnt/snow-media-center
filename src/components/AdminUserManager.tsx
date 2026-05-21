@@ -204,6 +204,6 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
   );
 };
 
-};
+
 
 export default AdminUserManager;
