@@ -328,6 +328,26 @@
   box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
 }
 
+/* Variant-aware focus glow: blue→purple, gold/yellow→white, purple→gold */
+.home-focus-surface[data-focused="true"][class*="--gradient-blue"],
+.home-focus-surface[data-focused="true"][class*="bg-blue"] {
+  outline-color: hsl(280 90% 65% / 0.95) !important;
+  box-shadow: 0 0 24px hsl(280 90% 65% / 0.6) !important;
+}
+.home-focus-surface[data-focused="true"][class*="--gradient-gold"],
+.home-focus-surface[data-focused="true"][class*="bg-yellow"],
+.home-focus-surface[data-focused="true"][class*="bg-amber"] {
+  outline-color: hsl(0 0% 100% / 0.98) !important;
+  box-shadow: 0 0 24px hsl(0 0% 100% / 0.6) !important;
+}
+.home-focus-surface[data-focused="true"][class*="--gradient-purple"],
+.home-focus-surface[data-focused="true"][class*="bg-purple"],
+.home-focus-surface[data-focused="true"][class*="bg-violet"] {
+  outline-color: hsl(45 95% 55% / 0.98) !important;
+  box-shadow: 0 0 24px hsl(45 95% 55% / 0.6) !important;
+}
+
+
 
 /* On low-power devices that prefer reduced motion, skip the transform/shadow
    transition entirely so D-pad movement never has to wait on a paint. */
