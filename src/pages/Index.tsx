@@ -728,6 +728,16 @@ const Index = () => {
                         apps={apps}
                         isVisible={isFocused}
                         onLaunchApp={handleLaunchPinnedApp}
+                        onInstallApp={(app) => {
+                          toast({
+                            title: 'Install ' + app.name,
+                            description: 'Opening Main Apps so you can download and install it.',
+                          });
+                          setIsInPopup(false);
+                          setPopupFocusIndex(-1);
+                          navigateTo('apps');
+                        }}
+
                         onPinApp={handlePinFromPopup}
                         onReplacePinnedApp={handleReplacePinnedFromPopup}
                         onUnpinApp={unpinApp}

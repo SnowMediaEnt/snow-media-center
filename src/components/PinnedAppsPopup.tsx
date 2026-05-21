@@ -2,16 +2,18 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pin, Plus, Play, Check } from 'lucide-react';
+import { Pin, Plus, Play, Check, Download } from 'lucide-react';
 import { PinnedApp } from '@/hooks/usePinnedApps';
 import { AppData } from '@/hooks/useAppData';
 import { InstalledApp } from '@/data/installedApps';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
   onLaunchApp: (app: AppData) => void;
+  onInstallApp: (app: PinnedApp) => void;
   onPinApp: (app: InstalledApp) => void;
   onReplacePinnedApp: (slotIndex: number, app: InstalledApp) => void;
   onUnpinApp: (appId: string) => void;
@@ -24,6 +26,7 @@ interface PinnedAppsPopupProps {
   onExitFocus: () => void; // Called when user navigates out of popup
 }
 
+
 type CapacitorListenerHandle = { remove?: () => void };
 
 const isHardwareBackKey = (e: KeyboardEvent) =>
@@ -33,10 +36,10 @@ const iconFallback = (name: string) => {
   const letter = encodeURIComponent((name || '?').trim().charAt(0).toUpperCase() || '?');
   return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23334155'/%3E%3Ctext x='48' y='58' text-anchor='middle' font-family='Arial,sans-serif' font-size='40' font-weight='700' fill='%23ffffff'%3E${letter}%3C/text%3E%3C/svg%3E`;
 };
-
 const PinnedAppsPopup = ({ 
   pinnedApps, 
   onLaunchApp, 
+  onInstallApp,
   onPinApp,
   onReplacePinnedApp,
   onUnpinApp,
@@ -55,7 +58,16 @@ const PinnedAppsPopup = ({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggeredRef = useRef(false);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
-  const { installedApps: deviceApps } = useDeviceInstalledApps();
+  const { installedApps: deviceApps, isPackageInstalled, isAppNameInstalled } = useDeviceInstalledApps();
+  const isNative = Capacitor.isNativePlatform();
+
+  // A pinned app is considered installed on web preview (we can't check),
+  // or when the native installed-apps list confirms it.
+  const isPinnedAppInstalled = (p: PinnedApp) => {
+    if (!isNative) return true;
+    return isPackageInstalled(p.packageName) || isAppNameInstalled(p.name);
+  };
+
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
@@ -307,7 +319,8 @@ const PinnedAppsPopup = ({
               
               if (pinnedApp) {
                 const fullApp = apps.find(a => a.id === pinnedApp.id);
-                
+                const installed = isPinnedAppInstalled(pinnedApp);
+
                 return (
                   <button
                     key={pinnedApp.id}
@@ -316,6 +329,10 @@ const PinnedAppsPopup = ({
                       e.stopPropagation();
                       if (longPressTriggeredRef.current) {
                         longPressTriggeredRef.current = false;
+                        return;
+                      }
+                      if (!installed) {
+                        onInstallApp(pinnedApp);
                         return;
                       }
                       onLaunchApp(asLaunchableApp(pinnedApp, fullApp));
@@ -365,16 +382,16 @@ const PinnedAppsPopup = ({
                         }
                       }
                     }}
-                    title="Tap to launch · Hold to change"
+                    title={installed ? 'Tap to launch · Hold to change' : 'Not installed — tap to download · Hold to change'}
                     className={`
-                      flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
-                      border-2 border-slate-600 hover:border-brand-ice/50 
+                      relative flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
+                      border-2 ${installed ? 'border-slate-600 hover:border-brand-ice/50' : 'border-slate-700/70 hover:border-amber-500/60'}
                       transition-all duration-150 group cursor-pointer
                       ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
+                      <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
@@ -386,14 +403,20 @@ const PinnedAppsPopup = ({
                             target.src = iconFallback(pinnedApp.name);
                           }}
                         />
+                        {!installed && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <Download className="w-5 h-5 text-amber-300 drop-shadow" />
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs text-white text-center font-medium line-clamp-1 w-full">
-                        {pinnedApp.name}
+                      <span className={`text-xs text-center font-medium line-clamp-1 w-full ${installed ? 'text-white' : 'text-amber-200/90'}`}>
+                        {installed ? pinnedApp.name : 'Install'}
                       </span>
                     </div>
                   </button>
                 );
               } else {
+
                 // Empty slot - show add button
                 return (
                   <button
