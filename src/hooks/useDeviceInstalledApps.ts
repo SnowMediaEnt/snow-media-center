@@ -6,6 +6,17 @@ import { AppManager, type InstalledAppInfo } from '@/capacitor/AppManager';
 const normaliseName = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const PACKAGE_ALIASES: Record<string, string[]> = {
+  ipvanish: [
+    'com.ixolit.ipvanish',
+    'com.ixonn.ipvanish',
+    'com.ixolus.ipvanish',
+    'com.ipvanish.vpn',
+    'com.ipvanish.android',
+  ],
+  surfshark: ['com.surfshark.vpnclient.android', 'com.surfshark.android.tv'],
+};
+
 /**
  * Bulk-loads every user-installed app on the Android device.
  * Returns an empty list on web (or when permission is denied).
@@ -59,8 +70,14 @@ export const useDeviceInstalledApps = () => {
   }, [refresh]);
 
   const isPackageInstalled = useCallback(
-    (packageName?: string | null) =>
-      Boolean(packageName && installedSet.has(packageName.toLowerCase())),
+    (packageName?: string | null) => {
+      if (!packageName) return false;
+      const pkg = packageName.toLowerCase();
+      if (installedSet.has(pkg)) return true;
+      return Object.values(PACKAGE_ALIASES).some((aliases) =>
+        aliases.includes(pkg) && aliases.some((alias) => installedSet.has(alias.toLowerCase()))
+      );
+    },
     [installedSet]
   );
 
@@ -92,11 +109,21 @@ export const useDeviceInstalledApps = () => {
    */
   const resolvePackageName = useCallback(
     (appName?: string | null, fallbackPackage?: string | null): string | null => {
+      const target = normaliseName(appName || '');
+      const fallback = fallbackPackage?.toLowerCase() || '';
+      const aliases =
+        (target ? PACKAGE_ALIASES[target] : undefined) ||
+        Object.values(PACKAGE_ALIASES).find((group) => group.includes(fallback));
+
+      if (aliases) {
+        for (const pkg of aliases) {
+          if (installedSet.has(pkg.toLowerCase())) return pkg;
+        }
+      }
       if (fallbackPackage && installedSet.has(fallbackPackage.toLowerCase())) {
         return fallbackPackage;
       }
       if (appName) {
-        const target = normaliseName(appName);
         if (target) {
           const exact = nameToPackage.get(target);
           if (exact) return exact;
@@ -107,6 +134,7 @@ export const useDeviceInstalledApps = () => {
           }
         }
       }
+      if (aliases?.length) return aliases.includes(fallback) ? aliases[0] : aliases[0];
       return fallbackPackage || null;
     },
     [installedSet, nameToPackage]

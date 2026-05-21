@@ -29,16 +29,33 @@ class AppManagerPlugin : Plugin() {
   private var pendingVoiceCall: PluginCall? = null
   private var voiceListening = false
 
+  private fun packageCandidates(pkg: String): List<String> {
+    val ipvanish = listOf("com.ixolit.ipvanish", "com.ixonn.ipvanish", "com.ixolus.ipvanish", "com.ipvanish.vpn", "com.ipvanish.android")
+    val surfshark = listOf("com.surfshark.vpnclient.android", "com.surfshark.android.tv")
+    return when {
+      ipvanish.contains(pkg) -> ipvanish
+      surfshark.contains(pkg) -> surfshark
+      else -> listOf(pkg)
+    }
+  }
+
+  private fun resolveInstalledPackage(pkg: String): String? {
+    val pm = context.packageManager
+    for (candidate in packageCandidates(pkg)) {
+      try {
+        pm.getPackageInfo(candidate, 0)
+        return candidate
+      } catch (_: Exception) {}
+    }
+    return null
+  }
+
   @PluginMethod
   fun isInstalled(call: PluginCall) {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
-    val pm = context.packageManager
-    val installed = try {
-      pm.getPackageInfo(pkg, 0)
-      true
-    } catch (_: Exception) { false }
-    call.resolve(JSObject().put("installed", installed))
+    val resolved = resolveInstalledPackage(pkg)
+    call.resolve(JSObject().put("installed", resolved != null).put("packageName", resolved ?: pkg))
   }
 
   @PluginMethod
@@ -268,8 +285,9 @@ class AppManagerPlugin : Plugin() {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
     val pm = context.packageManager
-    val intent = pm.getLaunchIntentForPackage(pkg)
-    if (intent == null) { call.reject("Launch intent not found"); return }
+    val resolvedPkg = resolveInstalledPackage(pkg) ?: pkg
+    val intent = pm.getLaunchIntentForPackage(resolvedPkg)
+    if (intent == null) { call.reject("Launch intent not found for $resolvedPkg"); return }
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
     call.resolve()
@@ -694,15 +712,14 @@ class AppManagerPlugin : Plugin() {
     // Verify the target package actually exists. If we pass an unknown package
     // to ACTION_APPLICATION_DETAILS_SETTINGS, some Android versions silently
     // fall back to opening the caller's (SMC's) own App Info page instead.
-    try {
-      context.packageManager.getPackageInfo(pkg, 0)
-    } catch (_: Exception) {
+    val resolvedPkg = resolveInstalledPackage(pkg)
+    if (resolvedPkg == null) {
       call.reject("Package not installed: $pkg")
       return
     }
     try {
       val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-        .setData(Uri.parse("package:$pkg"))
+        .setData(Uri.parse("package:$resolvedPkg"))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
       call.resolve()
