@@ -521,17 +521,15 @@ const BufferingGuide = ({
     } finally {
       setSubmittingTicket(false);
     }
-  };
-
-  const submitChannelReport = async () => {
+  const buildChannelReport = () => {
     const title = reportTitle.trim();
     if (!title) {
       toast({ title: 'Enter a title', description: 'Type the channel or movie/show name first.', variant: 'destructive' });
-      return;
+      return null;
     }
     if (!reportDevice) {
       toast({ title: 'Pick a device', description: 'Tell us which device you are watching on.', variant: 'destructive' });
-      return;
+      return null;
     }
     const ts = new Date().toLocaleString();
     const appLabel = state.appType ? APP_LABELS[state.appType] : 'streaming app';
@@ -542,6 +540,58 @@ const BufferingGuide = ({
       `Channel / Title: ${title}`,
       `Reported: ${ts}`,
     ].join('\n');
+    return { subject, body };
+  };
+
+  const submitChannelReport = async () => {
+    const report = buildChannelReport();
+    if (!report) return;
+    if (!user) {
+      // Show in-guide confirmation (z-index above the guide)
+      setShowAnonConfirm(true);
+      return;
+    }
+    await submitAsTicket(report.subject, report.body);
+  };
+
+  const submitAnonymousChannelReport = async () => {
+    const report = buildChannelReport();
+    if (!report) return;
+    try {
+      setSubmittingTicket(true);
+      const ts = new Date().toLocaleString();
+      await supabase.functions.invoke('send-custom-email', {
+        body: {
+          to: 'support@snowmediaent.com',
+          subject: `[Anonymous Report] ${report.subject}`,
+          html: `
+            <h3>Anonymous Channel/Title Report</h3>
+            <p><em>Submitted from Buffering Guide by an unauthenticated user.</em></p>
+            <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap;">${report.body.replace(/\n/g, '<br>')}</div>
+            <p style="margin-top: 16px; font-size: 12px; color: #666;">Received: ${ts}</p>
+          `,
+          fromName: 'Snow Media Anonymous Report',
+        },
+      });
+      toast({
+        title: 'Report sent',
+        description: 'Thanks! Sign in next time to track it on your account.',
+      });
+      setShowAnonConfirm(false);
+      onClose();
+    } catch (err) {
+      console.error('[BufferingGuide] anonymous report failed', err);
+      toast({
+        title: 'Could not send report',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
+
     await submitAsTicket(subject, body);
   };
 
