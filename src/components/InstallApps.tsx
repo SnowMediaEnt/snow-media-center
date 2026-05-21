@@ -20,6 +20,7 @@ import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { trackAppLaunch, trackAlertShown } from '@/lib/analytics';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 interface InstallAppsProps {
   onBack: () => void;
@@ -352,6 +353,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   // Scroll focused element into view
   useEffect(() => {
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`);
+    if (focusedElement === 'back' || focusedElement === 'refresh' || focusedElement === 'tab-0' || focusedElement === 'tab-1') {
+      snapAllTVScrollToTop([el?.closest('.tv-scroll-container') as HTMLElement | null]);
+      return;
+    }
     if (el) {
       el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }
