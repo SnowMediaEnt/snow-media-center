@@ -954,7 +954,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
 
     const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
