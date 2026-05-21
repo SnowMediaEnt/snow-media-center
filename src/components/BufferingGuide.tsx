@@ -1172,7 +1172,7 @@ const BufferingGuide = ({
               You need an account to submit a support ticket so our team can <strong>reply back to you</strong> and you can track the conversation.
             </p>
             <p className="text-sm text-cyan-200 leading-relaxed mb-6">
-              Close this guide, then sign in or create a free account from the Home Screen and try again.
+              Sign in or create a free account to submit your ticket and get replies back.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-end">
               <Button
@@ -1186,11 +1186,12 @@ const BufferingGuide = ({
                 onClick={() => {
                   setShowSignInPrompt(false);
                   onClose();
+                  navigate('/auth');
                 }}
                 className="bg-cyan-600 hover:bg-cyan-500 text-white"
                 autoFocus
               >
-                Close guide
+                Sign In
               </Button>
             </div>
           </div>
