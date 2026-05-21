@@ -206,16 +206,19 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
 
   const tvFocus = useTVFocus({
-    initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-back' : 'list-back',
     navigation: tvNavigation,
     onBack: handleSystemBack,
   });
 
   useEffect(() => {
-    const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    // Land focus on the Back button (not an input) so the on-screen keyboard
+    // doesn't auto-open when entering Create / Ticket / AI-chat views.
+    const id = view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-back' : 'list-back';
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
+
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
