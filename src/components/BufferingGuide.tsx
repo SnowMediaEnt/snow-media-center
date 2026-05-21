@@ -176,6 +176,19 @@ const BufferingGuide = ({
     return () => clearTimeout(t);
   }, [showAnonConfirm]);
 
+  useEffect(() => {
+    if (!showVpnSkipConfirm) return;
+    const t = setTimeout(() => {
+      const btn = vpnSkipConfirmRef.current?.querySelector<HTMLButtonElement>(
+        '[data-vpn-skip-primary="true"]'
+      ) || vpnSkipConfirmRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])');
+      btn?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [showVpnSkipConfirm]);
+
+
+
 
   // D-pad / Arrow key navigation between focusables
   useEffect(() => {
