@@ -42,12 +42,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
-  const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
-  const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+  const [accountPromptOpen, setAccountPromptOpen] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [creatingAccount, setCreatingAccount] = useState(false);
 
 
-  const { user } = useAuth();
+  const { user, signUp } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
   const { toast } = useToast();
   const navigate = useNavigate();
 
