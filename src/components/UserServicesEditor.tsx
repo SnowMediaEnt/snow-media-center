@@ -32,6 +32,16 @@ interface Props {
   onSaved?: () => void;
 }
 
+type CustomerDeviceRow = Pick<UserDevice, 'id' | 'device_type'>;
+type CustomerServiceRow = UserService & { tied_apps: unknown };
+
+const normalizeService = (service: CustomerServiceRow): UserService => ({
+  ...service,
+  tied_apps: Array.isArray(service.tied_apps) ? service.tied_apps.filter((app): app is string => typeof app === 'string') : [],
+});
+
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -59,12 +69,9 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         ]);
         if (cancelled) return;
         setDevices((devRes.data as UserDevice[]) || []);
-        setServices(((svcRes.data as any[]) || []).map((s) => ({
-          ...s,
-          tied_apps: Array.isArray(s.tied_apps) ? s.tied_apps : [],
-        })));
-      } catch (e: any) {
-        toast({ title: 'Could not load', description: e.message || String(e), variant: 'destructive' });
+        setServices(((svcRes.data as CustomerServiceRow[]) || []).map(normalizeService));
+      } catch (e: unknown) {
+        toast({ title: 'Could not load', description: getErrorMessage(e), variant: 'destructive' });
       } finally {
         if (!cancelled) setLoading(false);
       }
