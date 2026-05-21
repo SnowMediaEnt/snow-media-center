@@ -371,6 +371,34 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <CardTitle className="text-white">New Support Request</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!user && (
+                <>
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    <strong>Heads up:</strong> You can send a ticket without an account, but we can't reply back in-app.{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/auth')}
+                      className="underline text-amber-200 hover:text-white"
+                    >
+                      Create an account
+                    </button>{' '}
+                    to receive replies here.
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-300 mb-2 block">
+                      Your email
+                    </label>
+                    <Input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      enterKeyHint="next"
+                      className="bg-slate-700 border-slate-600 text-white "
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
                   Subject
@@ -390,6 +418,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
+
               
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
