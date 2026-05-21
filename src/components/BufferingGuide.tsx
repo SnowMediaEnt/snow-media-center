@@ -479,7 +479,11 @@ const BufferingGuide = ({
       toast({ title: 'Copied!', description: 'Results copied to clipboard.' });
     } catch {
       toast({ title: 'Copy failed', description: 'Select the text manually.', variant: 'destructive' });
+    }
+  };
+
   const submitAsTicket = async (overrideSubject?: string, overrideBody?: string) => {
+
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
       toast({
