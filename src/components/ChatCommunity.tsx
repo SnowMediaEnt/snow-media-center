@@ -1578,6 +1578,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 value={aiMessage}
                 onChange={(e) => setAiMessage(e.target.value)}
                 placeholder="Ask Snow Media AI anything..."
+                enterKeyHint="done"
                 data-focus-id="ai-input"
                 className={`bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-md ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
                 disabled={aiLoading || !user}
