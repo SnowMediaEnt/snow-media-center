@@ -339,7 +339,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           onLaunch={launchApp}
           onDownload={downloadApp}
           onOpenAppSettings={openAppSettings}
-          onNavigateToChat={() => setTab('ai')}
+          onNavigateToChat={() => { setTab('help'); setHelpView('tickets'); }}
+
         />
       )}
     </div>
