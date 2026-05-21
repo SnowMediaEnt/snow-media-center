@@ -280,7 +280,6 @@
   /* Height is controlled inline by the component (compact vs thick). */
 }
 
-.native-low-memory .news-ticker-track,
 .native-low-memory .media-bar-track {
   animation: none !important;
   transform: none !important;
