@@ -268,6 +268,35 @@ const BufferingGuide = ({
         return;
       }
 
+      // Explicit override: ArrowDown from a VPN choice tab should always
+      // land on the Install/Open button below it (regardless of spatial
+      // scoring vs. QR link). ArrowUp from that button returns to the
+      // currently active VPN tab.
+      if (key === 'ArrowDown') {
+        const vpnChoice = activeEl.getAttribute('data-vpn-choice');
+        if (vpnChoice) {
+          const btn = document.querySelector<HTMLElement>('[data-vpn-primary-action]');
+          if (btn) {
+            btn.focus();
+            lastFocusedRef.current = btn;
+            btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+      if (key === 'ArrowUp' && activeEl.hasAttribute('data-vpn-primary-action')) {
+        const activeTab = document.querySelector<HTMLElement>(
+          '[data-vpn-choice][data-guide-choice-active="true"]'
+        ) || document.querySelector<HTMLElement>('[data-vpn-choice]');
+        if (activeTab) {
+          activeTab.focus();
+          lastFocusedRef.current = activeTab;
+          activeTab.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
+      }
+
+
       const cur = activeEl.getBoundingClientRect();
       const curCx = cur.left + cur.width / 2;
       const curCy = cur.top + cur.height / 2;
