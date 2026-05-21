@@ -153,7 +153,10 @@ export const VoiceInput = ({
       if (voiceStateRef.current === state) transitionVoiceState('idle');
       onRestoreFocus?.();
     }, 300);
+  };
+
   const showVoiceError = async (code: string, source: VoiceErrorSource, error?: unknown) => {
+
     const message = getErrorMessage(error);
     logVoiceError(code, message || code, source, error);
 
