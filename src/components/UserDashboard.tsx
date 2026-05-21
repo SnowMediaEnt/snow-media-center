@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
 import UserServicesEditor from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 
 interface UserDashboardProps {
@@ -180,8 +181,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     if (!didMountRef.current) {
       didMountRef.current = true;
       // Ensure we start at the top on entry.
-      dashboardScrollRef.current?.scrollTo({ top: 0, left: 0 });
-      window.scrollTo({ top: 0, left: 0 });
+      snapAllTVScrollToTop([dashboardScrollRef.current]);
       return;
     }
     const id = setTimeout(() => {
