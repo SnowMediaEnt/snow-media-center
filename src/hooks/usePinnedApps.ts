@@ -90,12 +90,11 @@ export const usePinnedApps = () => {
   const replacePinnedApp = useCallback((slotIndex: number, app: PinnedApp): boolean => {
     if (slotIndex < 0 || slotIndex >= MAX_PINNED_APPS) return false;
 
-    const withoutDuplicate = pinnedApps.filter((pinned, index) =>
-      index === slotIndex || pinned.id !== app.id
-    );
-    const nextPinnedApps = [...withoutDuplicate];
+    const nextPinnedApps = [...pinnedApps];
     nextPinnedApps[slotIndex] = app;
-    const compacted = nextPinnedApps.filter(Boolean).slice(0, MAX_PINNED_APPS);
+    const compacted = nextPinnedApps
+      .filter((pinned, index) => index === slotIndex || pinned.id !== app.id)
+      .slice(0, MAX_PINNED_APPS);
 
     setPinnedApps(compacted);
     savePinnedApps(compacted);
