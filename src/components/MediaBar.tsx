@@ -78,101 +78,27 @@ const extractRatingKey = (key?: string): string | undefined => {
 };
 
 type ValidatedPlexItem = MediaItem & { ratingKey: string; metadataKey: string; metadataType: number };
+const PLEX_ANDROID_PACKAGE_LAUNCH = 'com.plexapp.android';
 
-/**
- * Ensure the clicked card carries the Plex metadata required to deep-link
- * back into the user's own Plex server. The content bar receives these
- * fields straight from media-bar-feed (which talks to PLEX_SERVER_URL using
- * PLEX_TOKEN) — we never search/guess by title.
- */
-const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
-  const ratingKey = item.ratingKey ? String(item.ratingKey)
-    : (extractRatingKey(item.key) ?? item.id?.match(/^plex-(\d+)$/)?.[1]);
-  const metadataKey = item.key
-    || (ratingKey ? `/library/metadata/${ratingKey}` : undefined);
-  const metadataType = item.metadataType
-    ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()]
-    ?? 1;
-
-  if (!ratingKey || !metadataKey) {
-    console.error('PLEX ITEM MISSING LAUNCH METADATA', {
-      title: item.title,
-      ratingKey,
-      key: item.key,
-      metadataKey,
-      item,
-    });
-    return null;
-  }
-
-  return { ...item, ratingKey, metadataKey, metadataType };
-};
-
-/**
- * Build the single playback-first Plex URL. The feed already sends androidLink
- * as plex://play with the exact ratingKey/server info, so do not add probes,
- * preplay fallbacks, or package-launch fallback paths here.
- */
-const buildPlexPlayUrl = (item: ValidatedPlexItem): string => {
-  if (item.androidLink?.startsWith('plex://play')) return item.androidLink;
-  if (item.deepLink?.startsWith('plex://play')) return item.deepLink;
-
-  const { metadataKey, machineIdentifier, metadataType } = item;
-  const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
-  const encKey = encodeURIComponent(cleanKey);
-  const server = machineIdentifier ? `server=${encodeURIComponent(machineIdentifier)}&` : '';
-  return `plex://play/?${server}metadataKey=${encKey}&metadataType=${metadataType}&viewOffset=0&offset=0&t=0`;
-};
-
-/**
- * Per project memory: try plex://preplay first (loads the title's detail page,
- * which survives Plex's user-picker / sign-in detour) → fall back to
- * plex://play (direct playback) → final fallback is launching the Plex package.
- */
-const buildPlexPreplayUrl = (item: ValidatedPlexItem): string => {
-  const { metadataKey, machineIdentifier } = item;
-  const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
-  const encKey = encodeURIComponent(cleanKey);
-  const server = machineIdentifier ? `server=${encodeURIComponent(machineIdentifier)}&` : '';
-  return `plex://preplay/?${server}metadataKey=${encKey}`;
-};
-
-
-
-const openPlexDirectPlay = async (item: MediaItem) => {
+// Deep links aren't reliably routing to the exact item, so just launch
+// the Plex app and let the user pick from there. This also lets the feed
+// drop all the heavy metadata fields and load posters faster.
+const openPlexApp = async (item: MediaItem) => {
   const native = isNativePlatform();
-  const validated = validatePlexLaunchItem(item);
-
-  console.info('PLEX_CONTENT_ITEM_CLICKED', {
-    title: item.title,
-    type: item.kind,
-    ratingKey: validated?.ratingKey,
-    metadataKey: validated?.metadataKey,
-    machineIdentifier: validated?.machineIdentifier,
-    guid: item.guid,
-  });
-
-  if (!validated) {
-    toast({ title: "Can't open this item in Plex", description: 'Missing Plex item info.' });
-    return;
-  }
-
-  const preplayUrl = buildPlexPreplayUrl(validated);
-  const playUrl = buildPlexPlayUrl(validated);
-
   if (!native) {
-    window.open(preplayUrl, '_blank', 'noopener,noreferrer');
+    window.open('https://app.plex.tv/desktop', '_blank', 'noopener,noreferrer');
     return;
   }
-
-  toast({ title: 'Opening in Plex…', description: item.title });
-
-  const { AppManager } = await import('@/capacitor/AppManager');
-  // 1) Direct play first — user wants the video to auto-play immediately.
+  toast({ title: 'Opening Plex…', description: item.title });
   try {
-    await AppManager.openUrl({ url: playUrl, packageName: PLEX_ANDROID_PACKAGE });
-    return;
+    const { AppManager } = await import('@/capacitor/AppManager');
+    await AppManager.launchApp({ packageName: PLEX_ANDROID_PACKAGE_LAUNCH });
   } catch (err) {
+    const msg = (err as Error)?.message ?? 'Unknown error';
+    toast({ title: "Couldn't open Plex", description: msg });
+  }
+};
+
     const msg = (err as Error)?.message ?? '';
     if (msg.includes('PLEX_NOT_INSTALLED')) {
       toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
