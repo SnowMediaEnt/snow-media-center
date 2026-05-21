@@ -254,7 +254,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   return (
     <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
-      <div className="max-w-6xl mx-auto pb-28" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 7rem)' }}>
+      <div className="max-w-6xl mx-auto pb-28" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}>
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center w-full justify-start">
             <Button
