@@ -719,7 +719,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                       Launch
                     </Button>
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         data-focus-id={`forcestop-${app.id}`}
                         onClick={() => handleForceStop(app)}
