@@ -42,10 +42,7 @@ export const useTVFocus = ({
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
   const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
 
-}: UseTVFocusOptions = {}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const currentIdRef = useRef<string | null>(initialFocusId ?? null);
-  const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
+
 
   const getElements = useCallback(() => {
     const root = containerRef.current;
