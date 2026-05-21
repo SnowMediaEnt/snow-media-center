@@ -218,6 +218,27 @@ const BufferingGuide = ({
       e.preventDefault();
       e.stopPropagation();
 
+      // On the summary step there's a long recap that users want to read.
+      // If the content area can still scroll in the pressed direction,
+      // scroll it FIRST instead of yanking focus up to the header Close.
+      if (step === 'summary' && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        const scroller = contentRef.current;
+        if (scroller) {
+          const canScrollUp = scroller.scrollTop > 4;
+          const canScrollDown =
+            scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 4;
+          if (key === 'ArrowUp' && canScrollUp) {
+            scroller.scrollBy({ top: -Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' });
+            return;
+          }
+          if (key === 'ArrowDown' && canScrollDown) {
+            scroller.scrollBy({ top: Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+
+
       // Spatial 2D navigation based on bounding rects
       const docActive = document.activeElement as HTMLElement | null;
       let activeEl: HTMLElement | null =
