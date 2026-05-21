@@ -41,8 +41,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const { apps } = useAppData();
+  const { resolvePackageName, isPackageInstalled } = useDeviceInstalledApps();
+  const { toast } = useToast();
   const { toast } = useToast();
 
 
