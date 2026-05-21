@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.1.0': [
+    'Support Tickets: send a ticket without an account — email is now optional, and if you add it we\'ll offer to set a password and create your account right from the ticket form',
+    'Support Tickets: fixed the suggestion menu that would stick open after tapping the subject or email field',
+    'Pinned Apps now show which apps are actually installed — uninstalled pins are greyed out with a download icon, tap to jump to Main Apps and reinstall',
+    'Settings: new dedicated "UI" tab — the Content Bar toggle now lives there (moved out of Updates) with room for more UI options coming soon',
+    'Smaller polish across the home screen, Buffering Guide step 5, and Support back button',
+  ],
   '1.0.5': [
     'Content Bar can now be turned off in Settings → Updates — great for older or slower devices',
     'Smoother home screen — news ticker no longer stutters when moving across the bottom buttons',
@@ -18,6 +25,7 @@ const CHANGELOG: Record<string, string[]> = {
     'Simpler Plex launching with fewer extra handoff attempts on Android',
     'D-pad now reaches the new Content Bar toggle directly from the Updates tab',
   ],
+
   '1.0.4': [
     'Plex deep-linking fixed — tapping a movie or show on the Content Bar now opens that exact item in Plex',
     'Content Bar duplicates removed — 1080p and 4K versions are merged so each title only appears once (switch to 4K from inside Plex)',
