@@ -788,19 +788,19 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
-          if (embedded && currentFocusId === 'ai-input') {
-            return;
-          }
-          // Only when on the Send button, jump down to the first saved chat.
-          // Letting the typing bar and voice/send buttons step naturally
-          // means users don't skip past the input on a single Down press.
-          if (currentFocusId === 'ai-send') {
+          // From the input bar, voice, or send buttons, jump down to the first
+          // saved chat (the three input-row controls sit on the same row, so
+          // Down should leave the row entirely, not cycle within it).
+          if (currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send') {
             const historyIndex = elements.findIndex(e => e.id === 'ai-history-0');
             if (historyIndex !== -1) {
               setFocusIndex(historyIndex);
               return;
             }
+            // No saved chats — stay put in embedded mode instead of bouncing back to tabs.
+            if (embedded && currentFocusId === 'ai-input') return;
           }
+
 
           // If focused on message-scroll, scroll down instead of changing focus
           if (currentFocusId === 'message-scroll') {

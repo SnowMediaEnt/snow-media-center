@@ -207,6 +207,9 @@ const Settings = ({ onBack }: SettingsProps) => {
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
+  const backFocusRing = (id: string) => isFocused(id)
+    ? 'scale-110 ring-4 ring-white shadow-[0_0_28px_rgba(255,255,255,0.85)] brightness-110 z-10'
+    : '';
   const focusRing = (id: string) => isFocused(id)
     ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
     : '';
@@ -229,7 +232,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               onClick={onBack}
               variant="gold"
               size="lg"
-              className={`transition-all duration-200 ${focusRing('back')}`}
+              className={`transition-all duration-200 ${backFocusRing('back')}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
