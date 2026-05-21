@@ -708,13 +708,19 @@ class AppManagerPlugin : Plugin() {
   @PluginMethod
   fun openAppSettings(call: PluginCall) {
     val pkg = call.getString("packageName")
-    if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
+    val appName = call.getString("appName")
+    if (pkg.isNullOrBlank() && appName.isNullOrBlank()) {
+      call.reject("packageName or appName required"); return
+    }
     // Verify the target package actually exists. If we pass an unknown package
     // to ACTION_APPLICATION_DETAILS_SETTINGS, some Android versions silently
-    // fall back to opening the caller's (SMC's) own App Info page instead.
-    val resolvedPkg = resolveInstalledPackage(pkg)
+    // fall back to opening the generic "Manage Apps" list instead.
+    var resolvedPkg: String? = if (!pkg.isNullOrBlank()) resolveInstalledPackage(pkg) else null
+    if (resolvedPkg == null && !appName.isNullOrBlank()) {
+      resolvedPkg = resolveInstalledPackageByName(appName)
+    }
     if (resolvedPkg == null) {
-      call.reject("Package not installed: $pkg")
+      call.reject("Package not installed: ${pkg ?: appName}")
       return
     }
     try {
@@ -724,8 +730,32 @@ class AppManagerPlugin : Plugin() {
       context.startActivity(intent)
       call.resolve()
     } catch (e: Exception) {
-      Log.e(TAG, "openAppSettings failed for $pkg", e)
-      call.reject("Could not open App Info for $pkg: ${e.message}")
+      Log.e(TAG, "openAppSettings failed for $resolvedPkg", e)
+      call.reject("Could not open App Info for $resolvedPkg: ${e.message}")
+    }
+  }
+
+  /** Fuzzy lookup: normalise display labels and find one that contains the name fragment. */
+  private fun resolveInstalledPackageByName(name: String): String? {
+    val needle = name.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
+    if (needle.isEmpty()) return null
+    return try {
+      val pm = context.packageManager
+      val packages = pm.getInstalledPackages(0)
+      for (info in packages) {
+        val ai = info.applicationInfo ?: continue
+        if (ai.packageName == context.packageName) continue
+        val label = pm.getApplicationLabel(ai).toString()
+          .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
+        if (label.isEmpty()) continue
+        if (label.contains(needle) || needle.contains(label)) {
+          return ai.packageName
+        }
+      }
+      null
+    } catch (e: Exception) {
+      Log.w(TAG, "resolveInstalledPackageByName failed: ${e.message}")
+      null
     }
   }
 
