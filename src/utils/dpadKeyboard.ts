@@ -1,5 +1,20 @@
 import { Capacitor } from '@capacitor/core';
 
+export const hideKeyboardForDpad = async (
+  element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
+) => {
+  element?.blur();
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Keyboard } = await import('@capacitor/keyboard');
+      await Keyboard.hide();
+    } catch (error) {
+      console.warn('[DPadKeyboard] Unable to hide native keyboard:', error);
+    }
+  }
+};
+
 export const focusTextInputForDpad = async (
   element: HTMLInputElement | HTMLTextAreaElement | null | undefined
 ) => {

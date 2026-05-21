@@ -14,8 +14,7 @@ import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
-import { Capacitor } from '@capacitor/core';
+import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 
 
 interface ChatCommunityProps {
@@ -264,6 +263,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
+
+  const forceSupportScrollTop = useCallback(() => {
+    const scrollers = Array.from(document.querySelectorAll<HTMLElement>('.tv-scroll-container'));
+    const snapTop = () => scrollers.forEach((el) => el.scrollTo({ top: 0, behavior: 'auto' }));
+    snapTop();
+    requestAnimationFrame(snapTop);
+    window.setTimeout(snapTop, 120);
+    window.setTimeout(snapTop, 320);
+    window.setTimeout(snapTop, 700);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'ai') {
@@ -683,6 +692,32 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
   }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded]);
 
+  const focusTextFieldById = useCallback((id: string) => {
+    const elements = getFocusableElements();
+    const nextIndex = elements.findIndex((el) => el.id === id);
+    if (nextIndex !== -1) setFocusIndex(nextIndex);
+    requestAnimationFrame(() => {
+      const input = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLInputElement | HTMLTextAreaElement | null;
+      void focusTextInputForDpad(input);
+    });
+  }, [getFocusableElements]);
+
+  const leaveTextFieldById = useCallback((id: string, active?: HTMLElement | null) => {
+    const elements = getFocusableElements();
+    const nextIndex = elements.findIndex((el) => el.id === id);
+    if (nextIndex !== -1) setFocusIndex(nextIndex);
+    void hideKeyboardForDpad(active);
+    requestAnimationFrame(() => {
+      const target = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLElement | null;
+      const focusTarget = (target as HTMLButtonElement | null)?.disabled ? containerRef.current : target;
+      if (focusTarget) {
+        if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
+        focusTarget.focus({ preventScroll: true });
+        focusTarget.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      }
+    });
+  }, [getFocusableElements]);
+
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
   const currentElement = focusableElements[clampedIndex];
@@ -737,7 +772,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         return;
       }
 
-      if ((event.key === 'Enter' || event.key === ' ') && isTyping) {
+      if (isTyping && event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const inputId = target.getAttribute('data-focus-id') || currentFocusId;
+        if (inputId === 'new-subject') {
+          focusTextFieldById('new-message');
+        } else if (inputId === 'new-message') {
+          leaveTextFieldById('submit-ticket', target);
+        } else if (inputId === 'reply-input') {
+          leaveTextFieldById('reply-send', target);
+        } else if (inputId === 'ai-input') {
+          leaveTextFieldById('ai-send', target);
+        } else {
+          void hideKeyboardForDpad(target);
+        }
+        return;
+      }
+
+      if (isTyping && event.key === ' ') {
         event.preventDefault();
         event.stopPropagation();
         void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
@@ -748,6 +801,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       // We blur the element first to allow D-pad navigation
       if (isTyping && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
         (target as HTMLElement).blur();
+        void hideKeyboardForDpad(target);
       }
 
       // Allow normal typing except arrows
@@ -769,6 +823,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       // doesn't keep the field "owned" by the OSK on Android.
       if (isTyping && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         (target as HTMLElement).blur();
+        void hideKeyboardForDpad(target);
       }
 
       const elements = getFocusableElements();
@@ -827,7 +882,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         case 'ArrowUp':
           if (embedded && focusIndex === 0) {
+            void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
+            forceSupportScrollTop();
             window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             return;
           }
@@ -962,7 +1019,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded, focusTextFieldById, leaveTextFieldById, forceSupportScrollTop]);
 
   // Move D-pad highlight WITHOUT focusing native text inputs (which would
   // auto-open the on-screen keyboard). Keyboard only opens when user presses OK/Enter.
@@ -987,9 +1044,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const active = document.activeElement as HTMLElement | null;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active !== el) {
       active.blur();
-      if (Capacitor.isNativePlatform()) {
-        import('@capacitor/keyboard').then(({ Keyboard }) => Keyboard.hide().catch(() => {})).catch(() => {});
-      }
+      void hideKeyboardForDpad(active);
     }
 
     if (isTextInputFocus) {
@@ -1032,7 +1087,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           '[data-focus-id="ai-input"]'
         ) as HTMLElement | null;
         if (input) {
-          input.focus({ preventScroll: true });
+          containerRef.current?.focus({ preventScroll: true });
           input.scrollIntoView({ block: 'center', behavior: 'smooth' });
         } else {
           containerRef.current?.focus({ preventScroll: true });
@@ -1163,6 +1218,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
                     placeholder="What do you need help with?"
+                    enterKeyHint="next"
                     data-focus-id="new-subject"
                     className={`bg-slate-800 border-slate-600 text-white transition-all duration-200 ${isFocused('new-subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1173,6 +1229,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Describe your issue in detail..."
+                    enterKeyHint="done"
                     data-focus-id="new-message"
                     className={`bg-slate-800 border-slate-600 text-white min-h-32 transition-all duration-200 ${isFocused('new-message') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1299,6 +1356,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply..."
+                      enterKeyHint="done"
                       data-focus-id="reply-input"
                       disabled={replySending}
                       className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
@@ -1520,6 +1578,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 value={aiMessage}
                 onChange={(e) => setAiMessage(e.target.value)}
                 placeholder="Ask Snow Media AI anything..."
+                enterKeyHint="done"
                 data-focus-id="ai-input"
                 className={`bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-md ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
                 disabled={aiLoading || !user}
