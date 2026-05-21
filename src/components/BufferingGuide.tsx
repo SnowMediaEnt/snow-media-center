@@ -832,11 +832,24 @@ const BufferingGuide = ({
           )}
 
           {step === 'intro' && (
-            <IntroStep
-              value={state.appType}
-              onSelect={(t) => setState((s) => ({ ...s, appType: t }))}
-            />
+            <>
+              <IntroStep
+                value={state.appType}
+                onSelect={(t) => setState((s) => ({ ...s, appType: t }))}
+              />
+              <div className="mt-4 flex justify-center">
+                <Button
+                  onClick={() => setStepIndex(STEPS.indexOf('step4'))}
+                  variant="outline"
+                  title="Already tried a VPN? Jump straight to the VPN step."
+                  className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+                >
+                  Already did VPN → Skip to VPN step
+                </Button>
+              </div>
+            </>
           )}
+
 
           {step === 'step1' && state.step1Choice !== 'one_only' && (
             <Step1
@@ -1022,16 +1035,6 @@ const BufferingGuide = ({
               </Button>
             ) : (
               <span className="w-[88px]" />
-            )}
-            {step === 'step1' && (
-              <Button
-                onClick={() => setStepIndex(STEPS.indexOf('step4'))}
-                variant="outline"
-                title="Already tried a VPN? Jump straight to the VPN step."
-                className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
-              >
-                Already did VPN → Skip to VPN
-              </Button>
             )}
           </div>
 
