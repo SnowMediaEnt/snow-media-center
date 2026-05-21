@@ -825,7 +825,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   <Button 
                     data-focus-id={`download-${app.id}`}
                     onClick={() => handleDownload(app)}
-                    className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                    className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 ${isFocused(`download-${app.id}`) ? 'text-slate-900' : 'text-white'}`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Download
@@ -837,7 +837,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     <Button 
                       data-focus-id={`launch-${app.id}`}
                       onClick={() => attemptLaunch(app)}
-                      className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                      className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 ${isFocused(`launch-${app.id}`) ? 'text-slate-900' : 'text-primary-foreground'}`}
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Launch
