@@ -1179,11 +1179,13 @@ const ChoiceButton = ({
   onClick,
   children,
   className = '',
+  dataVpnChoice,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   className?: string;
+  dataVpnChoice?: 'ipvanish' | 'surfshark';
 }) => (
   <Button
     onClick={(e) => {
@@ -1197,6 +1199,7 @@ const ChoiceButton = ({
     }}
     data-guide-choice="true"
     data-guide-choice-active={active ? 'true' : 'false'}
+    data-vpn-choice={dataVpnChoice}
     variant="outline"
     className={`w-full justify-start text-left h-auto py-3 px-4 font-semibold transition-all duration-200 !text-white whitespace-normal break-words ${
       active
@@ -1207,6 +1210,7 @@ const ChoiceButton = ({
     {children}
   </Button>
 );
+
 
 const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
   <Card className="bg-white/5 border-white/10 p-3 space-y-2">
