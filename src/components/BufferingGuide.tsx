@@ -1257,12 +1257,12 @@ const Step3 = ({
 );
 
 const Step4 = ({
-  vpnChoice,
   vpnSpeedOk,
   vpnTest,
-  vpnApp,
-  vpnInstalled,
-  onChooseVpn,
+  ipvanishApp,
+  ipvanishInstalled,
+  surfsharkApp,
+  surfsharkInstalled,
   onDownloadVpn,
   onLaunchVpn,
   onRunSpeedTest,
@@ -1272,101 +1272,106 @@ const Step4 = ({
   chosenAppLabel,
   chosenAppAvailable,
 }: {
-  vpnChoice: VpnChoice;
   vpnSpeedOk: YesNo;
   vpnTest: VpnTest;
-  vpnApp: AppData | undefined;
-  vpnInstalled: boolean;
-  onChooseVpn: (c: VpnChoice) => void;
-  onDownloadVpn: () => void;
-  onLaunchVpn: () => void;
+  ipvanishApp: AppData;
+  ipvanishInstalled: boolean;
+  surfsharkApp: AppData;
+  surfsharkInstalled: boolean;
+  onDownloadVpn: (c: 'ipvanish' | 'surfshark') => void;
+  onLaunchVpn: (c: 'ipvanish' | 'surfshark') => void;
   onRunSpeedTest: () => void;
   onVpnSpeedOk: (ok: boolean) => void;
   onVpnTest: (v: VpnTest) => void;
   onTestStreamingApp: () => void;
   chosenAppLabel: string | null;
   chosenAppAvailable: boolean;
-}) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-5">
-    <div>
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
-      </h2>
-      <p className="text-sm text-white/70 mt-1">
-        A premium VPN bypasses ISP throttling. Pick one below — we'll install it, help you sign in, and re-test.
-      </p>
-    </div>
+}) => {
+  const anyInstalled = ipvanishInstalled || surfsharkInstalled;
+  return (
+    <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
+        </h2>
+        <p className="text-sm text-white/70 mt-1">
+          A premium VPN bypasses ISP throttling — the #1 cause of buffering during peak hours.
+          Pick whichever you prefer below, install it, sign in, and re-test.
+        </p>
+        <div className="mt-3 bg-amber-500/10 border border-amber-500/40 rounded-md p-3 text-xs text-amber-100 leading-relaxed">
+          <strong>Heads up — VPN is a paid service.</strong> Free VPNs don't deliver the speed or
+          protection we need. Check with <strong>your reseller</strong> for sign-in details, or sign
+          up yourself by scanning the QR code under either option below.
+        </div>
+      </div>
 
-    {/* VPN choice */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      <ChoiceButton active={vpnChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
-        <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
-      </ChoiceButton>
-      <ChoiceButton active={vpnChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
-        <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
-      </ChoiceButton>
-    </div>
-
-    {vpnChoice && (
       <VpnSection
-        choice={vpnChoice}
-        vpnApp={vpnApp}
-        vpnInstalled={vpnInstalled}
-        onDownloadVpn={onDownloadVpn}
-        onLaunchVpn={onLaunchVpn}
+        choice="ipvanish"
+        vpnApp={ipvanishApp}
+        vpnInstalled={ipvanishInstalled}
+        onDownloadVpn={() => onDownloadVpn('ipvanish')}
+        onLaunchVpn={() => onLaunchVpn('ipvanish')}
       />
-    )}
 
-    {vpnChoice && vpnInstalled && (
-      <>
-        <div className="border-t border-white/10 pt-4">
-          <p className="text-sm text-white mb-2">After connecting the VPN, re-test your speed:</p>
-          <Button
-            onClick={onRunSpeedTest}
-            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
-          >
-            <Gauge className="w-4 h-4 mr-2" /> Run Speedtest with VPN On
-          </Button>
-        </div>
+      <VpnSection
+        choice="surfshark"
+        vpnApp={surfsharkApp}
+        vpnInstalled={surfsharkInstalled}
+        onDownloadVpn={() => onDownloadVpn('surfshark')}
+        onLaunchVpn={() => onLaunchVpn('surfshark')}
+      />
 
-        <div>
-          <p className="text-sm text-white mb-2">Is your speed still 15+ Mbps?</p>
-          <div className="space-y-2">
-            <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)}>
-              Yes — 15+ Mbps with VPN
-            </ChoiceButton>
-            <ChoiceButton active={vpnSpeedOk === false} onClick={() => onVpnSpeedOk(false)}>
-              No — speed dropped below 15 (switch to a closer VPN city/server)
-            </ChoiceButton>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-sm text-white mb-2">
-            Now test your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}:
-          </p>
-          {chosenAppAvailable && (
+      {anyInstalled && (
+        <>
+          <div className="border-t border-white/10 pt-4">
+            <p className="text-sm text-white mb-2">After connecting the VPN, re-test your speed:</p>
             <Button
-              onClick={onTestStreamingApp}
-              variant="outline"
-              className="w-full mb-2 bg-white/5 border-white/20 text-white hover:bg-white/10"
+              onClick={onRunSpeedTest}
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
             >
-              <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel}
+              <Gauge className="w-4 h-4 mr-2" /> Run Speedtest with VPN On
             </Button>
-          )}
-          <div className="space-y-2">
-            <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')}>
-              <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" /> VPN fixed it
-            </ChoiceButton>
-            <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')}>
-              Still buffering
-            </ChoiceButton>
           </div>
-        </div>
-      </>
-    )}
-  </Card>
-);
+
+          <div>
+            <p className="text-sm text-white mb-2">Is your speed still 15+ Mbps?</p>
+            <div className="space-y-2">
+              <ChoiceButton active={vpnSpeedOk === true} onClick={() => onVpnSpeedOk(true)}>
+                Yes — 15+ Mbps with VPN
+              </ChoiceButton>
+              <ChoiceButton active={vpnSpeedOk === false} onClick={() => onVpnSpeedOk(false)}>
+                No — speed dropped below 15 (switch to a closer VPN city/server)
+              </ChoiceButton>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm text-white mb-2">
+              Now test your stream{chosenAppLabel ? ` in ${chosenAppLabel}` : ''}:
+            </p>
+            {chosenAppAvailable && (
+              <Button
+                onClick={onTestStreamingApp}
+                variant="outline"
+                className="w-full mb-2 bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
+                <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel}
+              </Button>
+            )}
+            <div className="space-y-2">
+              <ChoiceButton active={vpnTest === 'fixed'} onClick={() => onVpnTest('fixed')}>
+                <CheckCircle2 className="w-4 h-4 mr-2 text-green-400" /> VPN fixed it
+              </ChoiceButton>
+              <ChoiceButton active={vpnTest === 'still_buffering'} onClick={() => onVpnTest('still_buffering')}>
+                Still buffering
+              </ChoiceButton>
+            </div>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+};
 
 const VpnSection = ({
   choice,
@@ -1384,18 +1389,21 @@ const VpnSection = ({
   const info = VPN_INFO[choice];
   return (
     <div className="bg-black/30 border border-white/10 rounded-md p-4 space-y-4">
-      <div>
-        <p className="font-medium text-white">{info.label}</p>
-        <p className="text-xs text-white/60 mt-0.5">
-          {vpnInstalled ? 'Installed on this device' : 'Not installed yet — tap Install below'}
-        </p>
+      <div className="flex items-center gap-3">
+        <img src={info.icon} alt="" className="w-10 h-10 rounded-md flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-white">{info.label}</p>
+          <p className="text-xs text-white/60 mt-0.5">
+            {vpnInstalled ? 'Installed on this device' : 'Not installed yet — tap Install below'}
+          </p>
+        </div>
       </div>
 
       {/* Primary action — full width so D-pad lands here first */}
       {vpnInstalled ? (
         <Button
           onClick={onLaunchVpn}
-          data-vpn-primary-action="true"
+          data-vpn-primary-action={choice}
           className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
         >
           <Play className="w-4 h-4 mr-2" /> Open {info.label}
@@ -1403,24 +1411,33 @@ const VpnSection = ({
       ) : (
         <Button
           onClick={onDownloadVpn}
-          data-vpn-primary-action="true"
+          data-vpn-primary-action={choice}
           className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white"
         >
           <DownloadIcon className="w-4 h-4 mr-2" /> Install {info.label}
         </Button>
       )}
 
+      {vpnInstalled && (
+        <div className="bg-green-500/10 border border-green-500/40 rounded-md p-3 text-xs text-green-100 leading-relaxed">
+          <strong>After tapping Open:</strong> sign into your {info.label} account, then tap{' '}
+          <strong>Quick Connect</strong> on the home screen. Once it says "Connected,"
+          come back here and try your channel again.
+        </div>
+      )}
+
       {!vpnInstalled && (
         <p className="text-xs text-white/60">
-          Downloads directly from Snow Media (same source as Main Apps). Optional Downloader code:{' '}
-          <span className="text-cyan-300 font-mono">{info.downloaderCode}</span>.
+          Paid service. Downloads directly from Snow Media (same source as Main Apps).
+          Optional Downloader code: <span className="text-cyan-300 font-mono">{info.downloaderCode}</span>.
         </p>
       )}
 
       <div className="border-t border-white/10 pt-3 space-y-3">
         <p className="text-sm text-white">Need an account?</p>
         <p className="text-xs text-white/70">
-          Reach out to your reseller for sign-in details, or sign up yourself by scanning the QR code below.
+          {info.label} is a paid VPN. Reach out to your reseller for sign-in details,
+          or sign up yourself by scanning the QR code below.
         </p>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <QrBlock value={info.signupUrl} />
