@@ -231,7 +231,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   if (loading) {
     return (
-      <div className="tv-safe min-h-dvh bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="tv-safe min-h-dvh bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
           <p className="text-xl text-blue-200">Loading your dashboard...</p>
@@ -241,7 +241,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   }
 
   return (
-    <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white h-dvh overflow-y-auto overscroll-contain">
+    <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white h-dvh overflow-y-auto overscroll-contain">
       <div className="max-w-6xl mx-auto pb-24">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
@@ -323,7 +323,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onCommunityChat}
             size="lg"
             variant="outline"
-            className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 transition-all duration-200 ${
+            className={`bg-purple-600/25 border-purple-500/50 text-white hover:bg-purple-600/30 transition-all duration-200 ${
               focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
             }`}
           >
@@ -407,7 +407,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
-                    className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${
+                    className={`bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg transition-all duration-200 ${
                       focusedElement === 9 ? 'ring-4 ring-white/60 scale-105' : ''
                     }`}
                     size="sm"
@@ -562,7 +562,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-green-400">{String(order.total).startsWith('$') ? order.total : `$${order.total}`}</p>
-                          <Badge variant="secondary" className="bg-blue-600 text-white">
+                          <Badge variant="secondary" className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow">
                             {order.status}
                           </Badge>
                         </div>
@@ -651,7 +651,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                               navigator.clipboard.writeText(wixReferrals.referralUrl || '');
                               toast({ title: 'Copied!', description: 'Referral link copied to clipboard.' });
                             }}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg"
                           >
                             Copy
                           </Button>
