@@ -198,6 +198,17 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
 
+      if (focusedElement === 'tab-0' && event.key === 'ArrowRight') {
+        setFocusedElement('tab-1');
+        setActiveTab('all');
+        return;
+      }
+      if (focusedElement === 'tab-1' && event.key === 'ArrowLeft') {
+        setFocusedElement('tab-0');
+        setActiveTab('featured');
+        return;
+      }
+
       // Spatial 2D navigation across all visible [data-focus-id] elements
       const focusables = Array.from(
         document.querySelectorAll<HTMLElement>('[data-focus-id]')
@@ -241,7 +252,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       const next = scored[0]?.el;
       if (next?.dataset.focusId) {
-        setFocusedElement(next.dataset.focusId as FocusType);
+        const nextFocus = next.dataset.focusId as FocusType;
+        setFocusedElement(nextFocus);
+        if (nextFocus === 'tab-0') setActiveTab('featured');
+        if (nextFocus === 'tab-1') setActiveTab('all');
       }
 
     };
