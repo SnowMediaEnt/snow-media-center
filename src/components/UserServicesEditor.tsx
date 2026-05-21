@@ -263,9 +263,6 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
               <div className="space-y-4">
                 {services.map(s => {
-
-              <div className="space-y-4">
-                {services.map(s => {
                   const days = daysUntil(s.expiration_date);
                   let statusBadge: React.ReactNode = null;
                   if (days !== null) {
@@ -277,13 +274,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                   return (
                     <div key={s.id} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <Input
-                          value={s.service_name || ''}
-                          onChange={(e) => updateService(s.id, { service_name: e.target.value })}
-                          placeholder="Service name (e.g. Snow IPTV)"
-                          className="bg-slate-900 border-slate-600 text-white flex-1"
-                        />
-                        {statusBadge}
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-white font-semibold text-base">{s.service_name || s.service_type}</span>
+                          {statusBadge}
+                        </div>
                         <Button
                           type="button"
                           size="sm"
@@ -294,6 +288,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
+
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
