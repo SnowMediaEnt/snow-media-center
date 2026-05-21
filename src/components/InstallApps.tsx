@@ -276,7 +276,25 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           if (focusedElement === `cache-${id}`) { setFocusedElement(`forcestop-${id}` as FocusType); return; }
           if (focusedElement === `uninstall-${id}`) { setFocusedElement(`settings-${id}` as FocusType); return; }
         }
+        // Escape hatch: ArrowDown from bottom row collapses and moves to next app card
+        if (event.key === 'ArrowDown' && (focusedElement === `settings-${id}` || focusedElement === `uninstall-${id}`)) {
+          const next = categoryApps[currentAppIndex + 1];
+          setExpandedAppId(null);
+          if (next) setFocusedElement(`app-${next.id}` as FocusType);
+          else setFocusedElement(`app-${id}` as FocusType);
+          return;
+        }
+        // Escape hatch: ArrowUp from app card header collapses and moves to previous app (or tabs)
+        if (event.key === 'ArrowUp' && focusedElement === `app-${id}`) {
+          setExpandedAppId(null);
+          if (currentAppIndex === 0) setFocusedElement(activeTabFocus);
+          else setFocusedElement(`app-${categoryApps[currentAppIndex - 1].id}` as FocusType);
+          return;
+        }
+        // Escape hatch: ArrowDown from app card header (when expanded but somehow still on header) -> next app
+        // already handled above by jumping to launch/download
       }
+
 
 
       // Spatial 2D navigation across all visible [data-focus-id] elements
