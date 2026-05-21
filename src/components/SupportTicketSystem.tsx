@@ -219,17 +219,19 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
-    // Guest path: email-only, no DB ticket (no account = no replies)
+    // Guest path: email optional (anonymous allowed)
     if (!user) {
       const email = guestEmail.trim();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const hasEmail = email.length > 0;
+      if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         toast({
-          title: "Email required",
-          description: "Enter a valid email so we know who sent the ticket.",
+          title: "Invalid email",
+          description: "Please enter a valid email or leave it blank to send anonymously.",
           variant: "destructive",
         });
         return;
       }
+      const fromLabel = hasEmail ? email : 'Anonymous guest (no email provided)';
       try {
         await supabase.functions.invoke('send-custom-email', {
           body: {
@@ -238,26 +240,34 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             fromName: 'Snow Media Support System',
             html: `
               <h3>New Guest Support Ticket</h3>
-              <p><strong>From (guest):</strong> ${email}</p>
+              <p><strong>From:</strong> ${fromLabel}</p>
               <p><strong>Subject:</strong> ${newSubject}</p>
               <div style="margin-top:20px;padding:15px;background:#f5f5f5;border-radius:5px;">
                 <p><strong>Message:</strong></p>
                 <p>${newMessage.replace(/\n/g, '<br>')}</p>
               </div>
               <p style="margin-top:20px;font-size:12px;color:#666;">
-                Guest user — no account. Reply directly to ${email}.
+                ${hasEmail ? `Guest user — no account. Reply directly to ${email}.` : 'Anonymous guest — no reply address provided.'}
               </p>
             `,
           },
         });
         toast({
           title: "Ticket sent",
-          description: "We received it. Create an account to get a reply in-app.",
+          description: hasEmail
+            ? "We received it. Create an account to get a reply in-app."
+            : "We received your anonymous ticket. No reply will be possible.",
         });
         setNewSubject('');
         setNewMessage('');
-        setGuestEmail('');
         setView('list');
+        if (hasEmail) {
+          setPendingAccountEmail(email);
+          setGuestEmail('');
+          setAccountPromptOpen(true);
+        } else {
+          setGuestEmail('');
+        }
       } catch (error) {
         console.error('Failed to send guest ticket:', error);
         toast({
@@ -268,6 +278,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       }
       return;
     }
+
 
     try {
       const ticketId = await createTicket(newSubject, newMessage);
