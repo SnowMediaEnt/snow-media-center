@@ -176,13 +176,34 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
                     <MessageCircle className="h-4 w-4 mr-1" /> Tickets
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingUser(u)}
+                  className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+                >
+                  <Pencil className="h-4 w-4 mr-1" /> Devices/Services
+                </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {editingUser && (
+        <UserServicesEditor
+          open={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          userId={editingUser.user_id}
+          email={editingUser.email || ''}
+          displayName={editingUser.full_name || editingUser.username || editingUser.email || ''}
+          adminMode
+        />
+      )}
     </div>
   );
+};
+
 };
 
 export default AdminUserManager;
