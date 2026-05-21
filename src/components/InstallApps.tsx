@@ -740,15 +740,20 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`settings-${app.id}`}
                         onClick={() => {
                           toast({
-                            title: "Tap 'Storage' → 'Clear data'",
-                            description: `Opening ${app.name} system info…`,
-                          });
-                          handleOpenAppSettings(app);
-                        }}
-                        variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
-                        title="Opens system App Info – tap Storage → Clear data"
-                      >
+                  <img 
+                    src={app.icon || '/icons/default.png'} 
+                    alt={`${app.name} icon`}
+                    className="w-full h-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    {...({ fetchpriority: 'high' } as any)}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+
                         <Settings className="w-4 h-4 mr-1" />
                         Clear Data
                       </Button>
