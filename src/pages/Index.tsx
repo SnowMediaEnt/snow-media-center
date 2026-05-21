@@ -305,7 +305,7 @@ const Index = () => {
       }
       
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
-      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') { // Android back button
         event.preventDefault();
         event.stopPropagation();
 
