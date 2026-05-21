@@ -1085,7 +1085,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ) as HTMLElement | null;
         if (input) {
           containerRef.current?.focus({ preventScroll: true });
-          input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          input.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
         } else {
           containerRef.current?.focus({ preventScroll: true });
         }

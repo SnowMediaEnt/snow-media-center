@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -46,6 +46,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
   const { resolvePackageName, isPackageInstalled } = useDeviceInstalledApps();
   const { toast } = useToast();
@@ -163,7 +164,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // straight to the Home screen.
   const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
-    initialFocusId: `tab-${tab}`,
+    initialFocusId: 'support-back',
     focusableSelector: '[data-support-tv-focus-id]',
     navigation: supportNavigation,
     onBack,
@@ -172,11 +173,38 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   });
 
 
+  const scrollSupportToRealTop = useCallback(() => {
+    supportTopRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+    snapAllTVScrollToTop([supportFocus.containerRef.current]);
+  }, [supportFocus.containerRef]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlHeight = html.style.height;
+    const previousBodyHeight = body.style.height;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.height = '100dvh';
+    body.style.height = '100dvh';
+    scrollSupportToRealTop();
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      html.style.height = previousHtmlHeight;
+      body.style.height = previousBodyHeight;
+    };
+  }, [scrollSupportToRealTop]);
+
   useEffect(() => {
     if (showSpeedTest || showGuide || helpView !== 'menu' || childFocusActive) return;
-    const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
-    return () => window.clearTimeout(timer);
-  }, [childFocusActive, helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
+    const id = supportFocus.currentFocusId;
+    if (id === 'support-back' || id?.startsWith('tab-')) {
+      scrollSupportToRealTop();
+    }
+  }, [childFocusActive, helpView, scrollSupportToRealTop, showGuide, showSpeedTest, supportFocus.currentFocusId]);
 
   // Listen for "escape up" requests from embedded child components so they
   // can hand focus back to the Support tab row via the D-pad.
@@ -188,7 +216,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       // Force every possible scroll owner back to absolute top. Android WebView
       // can scroll the document instead of the nested TV container after the
       // keyboard/input bar was centered, so both must be snapped.
-      const snapTop = () => snapAllTVScrollToTop([supportFocus.containerRef.current]);
+      const snapTop = scrollSupportToRealTop;
       snapTop();
       requestAnimationFrame(() => {
         snapTop();
@@ -203,7 +231,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
     };
-  }, [supportFocus, tab]);
+  }, [scrollSupportToRealTop, supportFocus, tab]);
 
 
 
@@ -224,7 +252,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }
 
   return (
-    <div ref={supportFocus.containerRef} className="tv-scroll-container tv-safe">
+    <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
+      <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center w-full justify-start">
