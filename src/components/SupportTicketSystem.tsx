@@ -414,29 +414,25 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {!user && (
                 <>
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <strong>Heads up:</strong> You can send a ticket without an account, but we can't reply back in-app.{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/auth')}
-                      className="underline text-amber-200 hover:text-white"
-                    >
-                      Create an account
-                    </button>{' '}
-                    to receive replies here.
+                    <strong>Heads up:</strong> You can send a ticket anonymously, but we can't reply back. Add your email and we'll offer to create an account so you can get replies in-app.
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">
-                      Your email
+                      Your email <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
                     <Input
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder="you@example.com (leave blank to send anonymously)"
                       enterKeyHint="next"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
                       className="bg-slate-700 border-slate-600 text-white "
                     />
                   </div>
+
                 </>
               )}
               <div>
