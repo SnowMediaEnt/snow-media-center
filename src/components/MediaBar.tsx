@@ -77,12 +77,7 @@ const extractRatingKey = (key?: string): string | undefined => {
   return m?.[1];
 };
 
-type ValidatedPlexItem = MediaItem & {
-  ratingKey: string;
-  metadataKey: string;
-  machineIdentifier: string;
-  metadataType: number;
-};
+type ValidatedPlexItem = MediaItem & { ratingKey: string; metadataKey: string; metadataType: number };
 
 /**
  * Ensure the clicked card carries the Plex metadata required to deep-link
@@ -95,70 +90,38 @@ const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
     : (extractRatingKey(item.key) ?? item.id?.match(/^plex-(\d+)$/)?.[1]);
   const metadataKey = item.key
     || (ratingKey ? `/library/metadata/${ratingKey}` : undefined);
-  const machineIdentifier = item.machineIdentifier;
   const metadataType = item.metadataType
     ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()]
     ?? 1;
 
-  if (!ratingKey || !metadataKey || !machineIdentifier) {
+  if (!ratingKey || !metadataKey) {
     console.error('PLEX ITEM MISSING LAUNCH METADATA', {
       title: item.title,
       ratingKey,
       key: item.key,
       metadataKey,
-      machineIdentifier,
       item,
     });
     return null;
   }
 
-  return { ...item, ratingKey, metadataKey, machineIdentifier, metadataType };
+  return { ...item, ratingKey, metadataKey, metadataType };
 };
 
 /**
- * Build the Plex deep-link launch order.
- *
- * IMPORTANT: We deliberately use plex:// URIs ONLY — never the
- * https://app.plex.tv/desktop/... web-client URLs. Plex Android claims those
- * web links via Android App Links, but its handler does not parse the
- * `#!/...` SPA fragment, so the app just opens to Home — and because the
- * handler activity has its own task affinity, every click cold-starts Plex
- * (splash screen again). The plex:// scheme is what the native player
- * actually deep-links on, and lets an already-running Plex receive the new
- * intent via onNewIntent() instead of being recreated.
- *
- *   1. plex://preplay  (documented playback deep link — opens the item page)
- *   2. plex://server/{machineId}/... (alternate library route)
- *   3. plex://play     (autoplay fallback)
- * Only after ALL of these resolveActivity-fail does the plugin fall back to
- * a non-clearing package launch.
+ * Build the single playback-first Plex URL. The feed already sends androidLink
+ * as plex://play with the exact ratingKey/server info, so do not add probes,
+ * preplay fallbacks, or package-launch fallback paths here.
  */
-const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
-  const { ratingKey, metadataKey, machineIdentifier, metadataType } = item;
-  // Plex's URI parser crashes ("Unknown scheme: null" in ContentSourceURI) when
-  // the metadataKey points at a container like /library/metadata/123/children
-  // or /allLeaves. Normalise to the bare item path before deep-linking.
+const buildPlexPlayUrl = (item: ValidatedPlexItem): string => {
+  if (item.androidLink?.startsWith('plex://play')) return item.androidLink;
+  if (item.deepLink?.startsWith('plex://play')) return item.deepLink;
+
+  const { metadataKey, machineIdentifier, metadataType } = item;
   const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
   const encKey = encodeURIComponent(cleanKey);
-  const encServer = encodeURIComponent(machineIdentifier);
-
-  // Movies (1) and episodes (4) are directly playable — try autoplay first so
-  // the user lands on the actual video. Shows (2) and seasons (3) aren't
-  // single-item playable, so open the preplay page where they can pick.
-  const isPlayable = metadataType === 1 || metadataType === 4;
-  const preplay = [
-    `plex://preplay/?metadataKey=${encKey}&server=${encServer}`,
-    `plex://preplay/?metadataKey=${cleanKey}&server=${machineIdentifier}`,
-  ];
-  const play = [
-    `plex://play/?metadataKey=${encKey}&server=${encServer}`,
-    `plex://play/?metadataKey=${cleanKey}&server=${machineIdentifier}`,
-  ];
-  const serverRoute = `plex://server/${machineIdentifier}/library/metadata/${ratingKey}`;
-
-  return isPlayable
-    ? [...play, ...preplay, serverRoute]
-    : [...preplay, serverRoute, ...play];
+  const server = machineIdentifier ? `server=${encodeURIComponent(machineIdentifier)}&` : '';
+  return `plex://play/?${server}metadataKey=${encKey}&metadataType=${metadataType}&viewOffset=0&offset=0&t=0`;
 };
 
 
@@ -181,10 +144,10 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     return;
   }
 
-  const urls = buildPlexLaunchCandidates(validated);
+  const url = buildPlexPlayUrl(validated);
 
   if (!native) {
-    window.open(urls[0], '_blank', 'noopener,noreferrer');
+    window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
 
@@ -192,15 +155,10 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
-    const result = await AppManager.openPlexItem({
-      urls,
+    await AppManager.openUrl({
+      url,
       packageName: PLEX_ANDROID_PACKAGE,
-      title: item.title,
     });
-    console.info('PLEX_OPEN_RESULT', result);
-    if (result.method === 'package_launch') {
-      console.warn('PLEX_DEEPLINK_ROUTE_FAILED — opened Plex without deep link');
-    }
   } catch (err) {
     const msg = (err as Error)?.message ?? 'Unknown error';
     if (msg.includes('PLEX_NOT_INSTALLED')) {
