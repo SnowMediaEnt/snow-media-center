@@ -207,11 +207,17 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            // From back, go to cart (skip signin for simpler navigation)
-            setFocusedElement('cart');
+            // From back, drop straight into the categories row
+            if (categoryIds.length > 0) {
+              setFocusedElement(categoryIds[0]);
+            } else if (filteredProducts.length > 0) {
+              setFocusedElement(`product-${filteredProducts[0].id}`);
+            }
           } else if (focusedElement === 'signin') {
-            // From signin, go to cart
-            setFocusedElement('cart');
+            // From signin, drop into categories
+            if (categoryIds.length > 0) {
+              setFocusedElement(categoryIds[0]);
+            }
           } else if (focusedElement === 'cart') {
             // From cart, go to categories
             if (categoryIds.length > 0) {
