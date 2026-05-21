@@ -142,10 +142,14 @@ const BufferingGuide = ({
 
   const step: StepKey = STEPS[stepIndex];
 
+  const anonConfirmRef = useRef<HTMLDivElement>(null);
+
   // Collect focusable buttons/links/inputs inside the modal
   const getFocusables = (): HTMLElement[] => {
-    if (!rootRef.current) return [];
-    const nodes = rootRef.current.querySelectorAll<HTMLElement>(
+    const scope: HTMLElement | null =
+      showAnonConfirm && anonConfirmRef.current ? anonConfirmRef.current : rootRef.current;
+    if (!scope) return [];
+    const nodes = scope.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
     return Array.from(nodes).filter((el) => {
@@ -155,6 +159,19 @@ const BufferingGuide = ({
       return rect.width > 0 && rect.height > 0;
     });
   };
+
+  // Auto-focus the confirm dialog when it opens
+  useEffect(() => {
+    if (!showAnonConfirm) return;
+    const t = setTimeout(() => {
+      const btn = anonConfirmRef.current?.querySelector<HTMLButtonElement>(
+        'button:not([disabled])'
+      );
+      btn?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [showAnonConfirm]);
+
 
   // D-pad / Arrow key navigation between focusables
   useEffect(() => {
@@ -853,7 +870,7 @@ const BufferingGuide = ({
       )}
 
       {showAnonConfirm && (
-        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
+        <div ref={anonConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
             <h3 className="text-xl font-semibold text-white mb-3">Send report without signing in?</h3>
             <p className="text-sm text-white/80 leading-relaxed mb-4">
