@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Tv, Wifi, Trash2, Plus, Calendar, Smartphone } from 'lucide-react';
+import { Tv, Wifi, Calendar, Smartphone } from 'lucide-react';
 import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from '@/hooks/useUserServices';
 
 const DEVICE_OPTIONS: string[] = [
@@ -18,16 +18,6 @@ const DEVICE_OPTIONS: string[] = [
 ];
 
 const SERVICE_OPTIONS: string[] = ['Dreamstreams', 'VibezTV', 'Plex'];
-
-const COMMON_IPTV_APPS: string[] = [
-  'TiviMate',
-  'IPTV Smarters Pro',
-  'XCIPTV',
-  'Sparkle TV',
-  'OTT Navigator',
-  'Smart STB',
-  'Snow IPTV',
-];
 
 interface Props {
   open: boolean;
@@ -49,6 +39,8 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [devices, setDevices] = useState<UserDevice[]>([]);
   const [services, setServices] = useState<UserService[]>([]);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const focusRefs = useRef<Array<HTMLElement | null>>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +73,97 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   }, [open, userId, email, adminMode, toast]);
 
   const selectedDeviceTypes = useMemo(() => new Set(devices.map(d => d.device_type)), [devices]);
+  const selectedServiceNames = useMemo(() => new Set(services.map(s => (s.service_name || '').toLowerCase())), [services]);
+  const firstDateIndex = DEVICE_OPTIONS.length + SERVICE_OPTIONS.length;
+  const cancelIndex = firstDateIndex + services.length;
+  const saveIndex = cancelIndex + 1;
+
+  const focusClass = 'scale-110 shadow-[0_0_22px_rgba(96,165,250,0.85)] z-10';
+
+  const setFocusRef = (index: number) => (node: HTMLElement | null) => {
+    focusRefs.current[index] = node;
+  };
+
+  useEffect(() => {
+    if (!open || loading) return;
+    setFocusedIndex(0);
+    const id = window.setTimeout(() => {
+      focusRefs.current[0]?.focus();
+      focusRefs.current[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 75);
+    return () => window.clearTimeout(id);
+  }, [open, loading]);
+
+  useEffect(() => {
+    if (!open || loading) return;
+    const maxIndex = saveIndex;
+    if (focusedIndex > maxIndex) setFocusedIndex(maxIndex);
+  }, [focusedIndex, loading, open, saveIndex]);
+
+  useEffect(() => {
+    if (!open || loading) return;
+    const el = focusRefs.current[focusedIndex];
+    el?.focus();
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusedIndex, loading, open]);
+
+  useEffect(() => {
+    if (!open || loading) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Backspace'].includes(event.key) && event.keyCode !== 4) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      const cols = window.innerWidth >= 640 ? 2 : 1;
+      const maxIndex = saveIndex;
+      const lastServiceIndex = DEVICE_OPTIONS.length + SERVICE_OPTIONS.length - 1;
+
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+        onClose();
+        return;
+      }
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        focusRefs.current[focusedIndex]?.click();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setFocusedIndex(prev => (prev === saveIndex ? cancelIndex : prev > 0 && prev % cols !== 0 ? prev - 1 : prev));
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        setFocusedIndex(prev => (prev === cancelIndex ? saveIndex : prev < maxIndex && prev % cols !== cols - 1 ? prev + 1 : prev));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        setFocusedIndex(prev => {
+          if (prev === cancelIndex || prev === saveIndex) return services.length > 0 ? firstDateIndex + services.length - 1 : lastServiceIndex;
+          if (prev >= firstDateIndex) return prev === firstDateIndex ? lastServiceIndex : prev - 1;
+          return prev - cols >= 0 ? prev - cols : prev;
+        });
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        setFocusedIndex(prev => {
+          if (prev < firstDateIndex) {
+            const next = prev + cols;
+            if (next < firstDateIndex) return next;
+            return services.length > 0 ? firstDateIndex : cancelIndex;
+          }
+          if (prev >= firstDateIndex && prev < cancelIndex) return prev + 1 <= cancelIndex ? prev + 1 : cancelIndex;
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [cancelIndex, firstDateIndex, focusedIndex, loading, onClose, open, saveIndex, services.length]);
 
   const toggleDevice = (deviceType: string) => {
     setDevices(prev => {
