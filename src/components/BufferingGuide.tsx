@@ -26,6 +26,7 @@ import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { supabase } from '@/integrations/supabase/client';
 import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
