@@ -206,10 +206,59 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
-
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
-    
+
+    // Guest path: email-only, no DB ticket (no account = no replies)
+    if (!user) {
+      const email = guestEmail.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast({
+          title: "Email required",
+          description: "Enter a valid email so we know who sent the ticket.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        await supabase.functions.invoke('send-custom-email', {
+          body: {
+            to: 'support@snowmediaent.com',
+            subject: `[Guest Ticket] ${newSubject}`,
+            fromName: 'Snow Media Support System',
+            html: `
+              <h3>New Guest Support Ticket</h3>
+              <p><strong>From (guest):</strong> ${email}</p>
+              <p><strong>Subject:</strong> ${newSubject}</p>
+              <div style="margin-top:20px;padding:15px;background:#f5f5f5;border-radius:5px;">
+                <p><strong>Message:</strong></p>
+                <p>${newMessage.replace(/\n/g, '<br>')}</p>
+              </div>
+              <p style="margin-top:20px;font-size:12px;color:#666;">
+                Guest user — no account. Reply directly to ${email}.
+              </p>
+            `,
+          },
+        });
+        toast({
+          title: "Ticket sent",
+          description: "We received it. Create an account to get a reply in-app.",
+        });
+        setNewSubject('');
+        setNewMessage('');
+        setGuestEmail('');
+        setView('list');
+      } catch (error) {
+        console.error('Failed to send guest ticket:', error);
+        toast({
+          title: "Error",
+          description: "Failed to send ticket. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     try {
       const ticketId = await createTicket(newSubject, newMessage);
       setNewSubject('');
@@ -220,6 +269,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     } catch (error) {
       console.error('Failed to create ticket:', error);
     }
+  };
+
   };
 
   const handleSendReply = async () => {
