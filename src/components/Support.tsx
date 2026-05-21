@@ -60,7 +60,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       console.error('[Support] launch failed:', err);
       toast({ title: 'Launch failed', description: `Could not launch ${app.name}.`, variant: 'destructive' });
     }
+  }, [toast]);
+
   const openAppSettings = useCallback(async (app: AppData) => {
+
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) return;
