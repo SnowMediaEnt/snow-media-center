@@ -79,9 +79,9 @@ const HomeActionCard = memo(({
       data-home-card={index}
       className={`
         home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
-        ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
-        ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
-        ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
+        ${button.variant === 'blue' ? '[background:var(--gradient-blue)] focus-tint-purple' : ''}
+        ${button.variant === 'purple' ? '[background:var(--gradient-purple)] focus-tint-gold' : ''}
+        ${button.variant === 'gold' ? '[background:var(--gradient-gold)] focus-tint-white' : ''}
         ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
       `}
       onClick={onActivate}
