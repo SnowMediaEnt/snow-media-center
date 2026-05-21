@@ -712,15 +712,14 @@ class AppManagerPlugin : Plugin() {
     // Verify the target package actually exists. If we pass an unknown package
     // to ACTION_APPLICATION_DETAILS_SETTINGS, some Android versions silently
     // fall back to opening the caller's (SMC's) own App Info page instead.
-    try {
-      context.packageManager.getPackageInfo(pkg, 0)
-    } catch (_: Exception) {
+    val resolvedPkg = resolveInstalledPackage(pkg)
+    if (resolvedPkg == null) {
       call.reject("Package not installed: $pkg")
       return
     }
     try {
       val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-        .setData(Uri.parse("package:$pkg"))
+        .setData(Uri.parse("package:$resolvedPkg"))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
       call.resolve()
