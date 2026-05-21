@@ -146,23 +146,24 @@ export const trackEvent = (
 export const trackCrash = (message: string, stack?: string, component?: string) => {
   safe(() => {
     if (!deviceId) return;
-    void supabase
-      .from("analytics_crashes")
-      .insert({
-        device_id: deviceId,
-        session_id: sessionId,
-        user_id: userId,
-        message: (message || "").slice(0, 4000),
-        stack: (stack || "").slice(0, 16000),
-        component: component?.slice(0, 128) ?? null,
-        severity: "error",
-        app_version: APP_VERSION,
-        platform,
-      } as any)
-      .then(() => {})
-      .catch(() => {});
+    try {
+      void supabase
+        .from("analytics_crashes")
+        .insert({
+          device_id: deviceId,
+          session_id: sessionId,
+          user_id: userId,
+          message: (message || "").slice(0, 4000),
+          stack: (stack || "").slice(0, 16000),
+          component: component?.slice(0, 128) ?? null,
+          severity: "error",
+          app_version: APP_VERSION,
+          platform,
+        } as any);
+    } catch {}
   });
 };
+
 
 const startSession = async () => {
   sessionId = uuid();
