@@ -184,6 +184,243 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_crashes: {
+        Row: {
+          app_version: string | null
+          component: string | null
+          created_at: string
+          device_id: string
+          id: string
+          message: string | null
+          occurred_at: string
+          os_version: string | null
+          platform: string | null
+          reseller_id: string | null
+          session_id: string | null
+          severity: string | null
+          stack: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          component?: string | null
+          created_at?: string
+          device_id: string
+          id?: string
+          message?: string | null
+          occurred_at?: string
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          session_id?: string | null
+          severity?: string | null
+          stack?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          component?: string | null
+          created_at?: string
+          device_id?: string
+          id?: string
+          message?: string | null
+          occurred_at?: string
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          session_id?: string | null
+          severity?: string | null
+          stack?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      analytics_daily_rollup: {
+        Row: {
+          anonymous_count: number
+          created_at: string
+          day: string
+          event_name: string
+          id: string
+          platform: string | null
+          reseller_id: string | null
+          signed_in_count: number
+          total_count: number
+          unique_devices: number
+          unique_users: number
+          updated_at: string
+        }
+        Insert: {
+          anonymous_count?: number
+          created_at?: string
+          day: string
+          event_name: string
+          id?: string
+          platform?: string | null
+          reseller_id?: string | null
+          signed_in_count?: number
+          total_count?: number
+          unique_devices?: number
+          unique_users?: number
+          updated_at?: string
+        }
+        Update: {
+          anonymous_count?: number
+          created_at?: string
+          day?: string
+          event_name?: string
+          id?: string
+          platform?: string | null
+          reseller_id?: string | null
+          signed_in_count?: number
+          total_count?: number
+          unique_devices?: number
+          unique_users?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      analytics_devices: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_id: string
+          device_model: string | null
+          first_seen_at: string
+          first_user_id: string | null
+          form_factor: string | null
+          id: string
+          last_seen_at: string
+          last_user_id: string | null
+          os_version: string | null
+          platform: string | null
+          reseller_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_id: string
+          device_model?: string | null
+          first_seen_at?: string
+          first_user_id?: string | null
+          form_factor?: string | null
+          id?: string
+          last_seen_at?: string
+          last_user_id?: string | null
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_id?: string
+          device_model?: string | null
+          first_seen_at?: string
+          first_user_id?: string | null
+          form_factor?: string | null
+          id?: string
+          last_seen_at?: string
+          last_user_id?: string | null
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      analytics_events: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_id: string
+          event_category: string | null
+          event_name: string
+          id: string
+          occurred_at: string
+          platform: string | null
+          properties: Json
+          reseller_id: string | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_id: string
+          event_category?: string | null
+          event_name: string
+          id?: string
+          occurred_at?: string
+          platform?: string | null
+          properties?: Json
+          reseller_id?: string | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_id?: string
+          event_category?: string | null
+          event_name?: string
+          id?: string
+          occurred_at?: string
+          platform?: string | null
+          properties?: Json
+          reseller_id?: string | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      analytics_sessions: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_id: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          os_version: string | null
+          platform: string | null
+          reseller_id: string | null
+          session_id: string
+          started_at: string
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_id: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          session_id: string
+          started_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_id?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          os_version?: string | null
+          platform?: string | null
+          reseller_id?: string | null
+          session_id?: string
+          started_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       app_alerts: {
         Row: {
           active: boolean
@@ -1070,6 +1307,25 @@ export type Database = {
     }
     Functions: {
       ai_tokens_last_hour: { Args: never; Returns: number }
+      analytics_active_users: {
+        Args: { p_period?: string }
+        Returns: {
+          active_devices: number
+          active_users: number
+          anonymous_devices: number
+          period_start: string
+        }[]
+      }
+      analytics_event_counts: {
+        Args: { p_end?: string; p_reseller?: string; p_start?: string }
+        Returns: {
+          day: string
+          event_name: string
+          total: number
+          unique_devices: number
+          unique_users: number
+        }[]
+      }
       backfill_customers_from_auth: { Args: never; Returns: Json }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
       get_qr_session: {

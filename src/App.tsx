@@ -12,6 +12,11 @@ import SsoConsume from "./pages/SsoConsume";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
+import { initAnalytics } from "@/lib/analytics";
+
+// Kick off silent background analytics (non-blocking, swallows all errors)
+try { initAnalytics(); } catch {}
+
 
 const queryClient = new QueryClient();
 
