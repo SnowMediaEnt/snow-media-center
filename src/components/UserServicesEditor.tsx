@@ -330,7 +330,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                                 key={app}
                                 type="button"
                                 onClick={() => toggleTiedApp(s.id, app)}
-                                className={`px-3 py-1 rounded-full text-sm transition-all ${
+                                className={`px-3 py-1 rounded-full text-sm transition-all outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_18px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
                                   active
                                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
