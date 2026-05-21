@@ -42,6 +42,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const [aiLoading, setAiLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
+  const [embeddedFocusActive, setEmbeddedFocusActive] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [replySending, setReplySending] = useState(false);
@@ -685,7 +686,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
   const currentElement = focusableElements[clampedIndex];
-  const currentFocusId = currentElement?.id || 'back';
+  const currentFocusId = embedded && !embeddedFocusActive ? '' : (currentElement?.id || 'back');
 
   const isFocused = (id: string) => currentFocusId === id;
   const focusRing = (id: string) =>
