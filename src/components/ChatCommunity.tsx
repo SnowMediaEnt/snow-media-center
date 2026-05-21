@@ -1026,8 +1026,18 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     if (!embedded || activeTab !== 'ai') return;
     const handler = () => {
       setEmbeddedFocusActive(true);
-      setFocusIndex(0);
-      requestAnimationFrame(() => containerRef.current?.focus({ preventScroll: true }));
+      setFocusIndex(0); // ai-input is index 0 in embedded AI elements
+      requestAnimationFrame(() => {
+        const input = containerRef.current?.querySelector(
+          '[data-focus-id="ai-input"]'
+        ) as HTMLElement | null;
+        if (input) {
+          input.focus({ preventScroll: true });
+          input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } else {
+          containerRef.current?.focus({ preventScroll: true });
+        }
+      });
     };
     window.addEventListener('chat-community:focus-ai-input', handler);
     return () => window.removeEventListener('chat-community:focus-ai-input', handler);
