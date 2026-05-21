@@ -164,8 +164,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 9) setShowServicesEditor(true);
           else if (focusedElement === 10) setShowDeleteConfirm(true);
           break;
-
+      }
     };
+
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
