@@ -153,24 +153,29 @@ export const VoiceInput = ({
       if (voiceStateRef.current === state) transitionVoiceState('idle');
       onRestoreFocus?.();
     }, 300);
-  };
-
   const showVoiceError = async (code: string, source: VoiceErrorSource, error?: unknown) => {
     const message = getErrorMessage(error);
     logVoiceError(code, message || code, source, error);
 
     if (code === 'MIC_PERMISSION_DENIED') {
-      toast({
-        title: 'Microphone permission needed',
-        description: 'Enable microphone permission for Snow Media Center, then try Voice again.',
-        variant: 'destructive',
-      });
+      // No alert — just take the user straight to the App Info / Permissions screen.
       if (isNativePlatform()) {
         try {
           await AppManager.openAppSettings({ packageName: 'com.snowmedia' });
         } catch (settingsError) {
           console.warn('openAppSettings failed', settingsError);
+          toast({
+            title: 'Microphone permission needed',
+            description: 'Open Settings → Apps → Snow Media Center → Permissions and enable Microphone.',
+            variant: 'destructive',
+          });
         }
+      } else {
+        toast({
+          title: 'Microphone permission needed',
+          description: 'Allow microphone access in your browser, then try Voice again.',
+          variant: 'destructive',
+        });
       }
     } else if (code === 'NO_MICROPHONE_HARDWARE') {
       toast({
@@ -200,6 +205,8 @@ export const VoiceInput = ({
 
     cleanupAudioSession();
     finishAfterErrorOrCancel('error');
+  };
+
   };
 
   const cancelVoiceAttempt = (reason: 'button' | 'unmount' | 'back' | 'timeout' = 'button') => {
