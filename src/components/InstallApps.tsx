@@ -79,6 +79,7 @@ interface ContextMenuState {
 const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
+  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
