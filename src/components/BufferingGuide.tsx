@@ -256,6 +256,33 @@ const BufferingGuide = ({
         }
       }
 
+      // Summary step: walk a deterministic ordered list (header Close →
+      // Launch? → Submit → Start Over → footer Back) so spatial scoring
+      // can't skip past the full-width "Submit Ticket" when adjacent
+      // buttons (Start Over, footer Back) are left-aligned and narrow.
+      if (step === 'summary' && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        const ordered = Array.from(
+          rootRef.current?.querySelectorAll<HTMLElement>('[data-summary-order]') ?? []
+        )
+          .filter((el) => !(el as HTMLButtonElement).disabled && el.getBoundingClientRect().width > 0)
+          .sort((a, b) => Number(a.dataset.summaryOrder) - Number(b.dataset.summaryOrder));
+        if (ordered.length > 0) {
+          const docActiveNow = document.activeElement as HTMLElement | null;
+          const idx = docActiveNow ? ordered.indexOf(docActiveNow) : -1;
+          const nextIdx = key === 'ArrowDown'
+            ? Math.min(ordered.length - 1, idx < 0 ? 0 : idx + 1)
+            : Math.max(0, idx < 0 ? ordered.length - 1 : idx - 1);
+          const target = ordered[nextIdx];
+          if (target && target !== docActiveNow) {
+            target.focus();
+            lastFocusedRef.current = target;
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+          return;
+        }
+      }
+
+
 
       // Spatial 2D navigation based on bounding rects
       const docActive = document.activeElement as HTMLElement | null;
@@ -864,6 +891,7 @@ const BufferingGuide = ({
             variant="outline"
             size="sm"
             data-guide-nav="close"
+            data-summary-order="0"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Close
@@ -1094,6 +1122,7 @@ const BufferingGuide = ({
                 onClick={goBack}
                 variant="outline"
                 data-guide-nav="back"
+                data-summary-order="4"
                 className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
@@ -1796,6 +1825,7 @@ const Summary = ({
     {chosenApp && chosenAppInstalled && chosenAppLabel && (
       <Button
         onClick={onLaunchApp}
+        data-summary-order="1"
         className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
       >
         <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel} to Test
@@ -1805,6 +1835,7 @@ const Summary = ({
     <Button
       onClick={onSubmitTicket}
       disabled={submittingTicket}
+      data-summary-order="2"
       className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
     >
       <MessageSquare className="w-4 h-4 mr-2" />
@@ -1812,7 +1843,7 @@ const Summary = ({
     </Button>
 
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
+      <Button onClick={onRestart} data-summary-order="3" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
     </div>
