@@ -19,6 +19,7 @@ import BufferingGuide from '@/components/BufferingGuide';
 import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
+import { trackAppLaunch, trackAlertShown } from '@/lib/analytics';
 
 interface InstallAppsProps {
   onBack: () => void;
