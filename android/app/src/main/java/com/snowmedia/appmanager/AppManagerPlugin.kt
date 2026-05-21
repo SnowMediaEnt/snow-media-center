@@ -285,8 +285,9 @@ class AppManagerPlugin : Plugin() {
     val pkg = call.getString("packageName")
     if (pkg.isNullOrBlank()) { call.reject("packageName required"); return }
     val pm = context.packageManager
-    val intent = pm.getLaunchIntentForPackage(pkg)
-    if (intent == null) { call.reject("Launch intent not found"); return }
+    val resolvedPkg = resolveInstalledPackage(pkg) ?: pkg
+    val intent = pm.getLaunchIntentForPackage(resolvedPkg)
+    if (intent == null) { call.reject("Launch intent not found for $resolvedPkg"); return }
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
     call.resolve()
