@@ -215,7 +215,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                       key={d}
                       type="button"
                       onClick={() => toggleDevice(d)}
-                      className={`justify-start text-left h-auto py-3 transition-all duration-200 ${
+                      className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
                         active
                           ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-lg shadow-blue-500/30'
                           : 'bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200'
@@ -243,7 +243,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                         key={name}
                         type="button"
                         onClick={() => toggleServiceByName(name)}
-                        className={`justify-start text-left h-auto py-3 transition-all duration-200 ${
+                        className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
                           active
                             ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-lg shadow-blue-500/30'
                             : 'bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200'
@@ -285,7 +285,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           size="sm"
                           variant="outline"
                           onClick={() => removeService(s.id)}
-                          className="bg-red-600/20 hover:bg-red-600/40 border-red-500/50 text-white"
+                          className="bg-red-600/20 hover:bg-red-600/40 border-red-500/50 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(248,113,113,0.7)] focus-visible:z-10 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -301,7 +301,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                             type="date"
                             value={s.expiration_date || ''}
                             onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
-                            className="bg-slate-900 border-slate-600 text-white"
+                            className="bg-slate-900 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
                           />
                         </div>
                         <div>
@@ -309,7 +309,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           <select
                             value={s.renewal_status || 'active'}
                             onChange={(e) => updateService(s.id, { renewal_status: e.target.value })}
-                            className="w-full h-10 rounded-md bg-slate-900 border border-slate-600 text-white px-3"
+                            className="w-full h-10 rounded-md bg-slate-900 border border-slate-600 text-white px-3 outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
                           >
                             <option value="active">Active</option>
                             <option value="pending">Pending</option>
@@ -330,7 +330,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                                 key={app}
                                 type="button"
                                 onClick={() => toggleTiedApp(s.id, app)}
-                                className={`px-3 py-1 rounded-full text-sm transition-all ${
+                                className={`px-3 py-1 rounded-full text-sm transition-all outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_18px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
                                   active
                                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
@@ -352,11 +352,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
           <Button variant="outline" onClick={onClose} disabled={saving}
-            className="bg-slate-700 hover:bg-slate-600 border-slate-600 text-white">
+            className="bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(148,163,184,0.7)] transition-all">
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving || loading}
-            className="bg-blue-600 hover:bg-blue-700">
+            className="bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.8)] transition-all">
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
