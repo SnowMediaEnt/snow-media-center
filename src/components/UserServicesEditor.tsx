@@ -11,8 +11,6 @@ import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from 
 
 const DEVICE_OPTIONS: string[] = [
   'Amazon Fire TV / Firestick',
-const DEVICE_OPTIONS: string[] = [
-  'Amazon Fire TV / Firestick',
   'Smart TV',
   'Android TV Box',
   'Android Phone or Tablet',
@@ -30,6 +28,9 @@ const COMMON_IPTV_APPS: string[] = [
   'Smart STB',
   'Snow IPTV',
 ];
+
+interface Props {
+  open: boolean;
   onClose: () => void;
   /** The user whose devices/services we're editing. */
   userId: string;
