@@ -864,6 +864,7 @@ const BufferingGuide = ({
             variant="outline"
             size="sm"
             data-guide-nav="close"
+            data-summary-order="0"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Close
