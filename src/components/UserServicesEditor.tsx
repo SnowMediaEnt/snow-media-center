@@ -371,9 +371,12 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                         <span className="text-white font-medium text-sm w-24 flex-shrink-0">{s.service_name || s.service_type}</span>
                         <Input
                           ref={setFocusRef(inputIndex)}
-                          type="date"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="YYYY-MM-DD"
+                          pattern="\d{4}-\d{2}-\d{2}"
                           value={s.expiration_date || ''}
-                          onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
+                          onChange={(e) => updateService(s.id, { expiration_date: formatDateEntry(e.target.value) || null })}
                           className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${focusedIndex === inputIndex ? 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]' : ''}`}
                         />
                         {statusBadge}
