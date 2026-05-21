@@ -726,7 +726,7 @@ const BufferingGuide = ({
           </Badge>
         </div>
         {/* Progress */}
-        <div className="max-w-3xl mx-auto mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="max-w-3xl mx-auto mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300"
             style={{ width: `${(stepIndex / (STEPS.length - 1)) * 100}%` }}
