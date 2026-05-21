@@ -68,7 +68,12 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     initialFocusId: embedded ? 'room-general' : 'back',
     navigation: tvNavigation,
     onBack,
+    // When embedded inside Support, let the parent's tab-community Down rule
+    // hand focus in. Otherwise focus auto-drops into "general" the moment the
+    // tab mounts, which feels like skipping the Community tab entirely.
+    autoFocusOnMount: !embedded,
   });
+
 
   const loadMessages = useCallback(async () => {
     if (!user) {

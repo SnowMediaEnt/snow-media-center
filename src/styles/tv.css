@@ -102,8 +102,18 @@
   border-color: hsl(45 95% 55% / 0.95) !important;
 }
 
+/* White / light buttons (e.g. Dashboard) get a dark-grey selector */
+[data-tv-focused="true"][class*="--gradient-white"],
+[data-tv-focused="true"][class*="bg-white"] {
+  box-shadow:
+    0 0 0 3px hsl(0 0% 18% / 0.98),
+    0 0 18px 4px hsl(0 0% 18% / 0.55) !important;
+  border-color: hsl(0 0% 18% / 0.95) !important;
+}
+
 [data-tv-focused="true"]:focus-visible,
 [data-tv-focus-id]:focus-visible {
   outline: none !important;
 }
+
 

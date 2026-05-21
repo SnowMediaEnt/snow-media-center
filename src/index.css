@@ -346,6 +346,12 @@
   outline-color: hsl(45 95% 55% / 0.98) !important;
   box-shadow: 0 0 24px hsl(45 95% 55% / 0.6) !important;
 }
+.home-focus-surface[data-focused="true"][class*="--gradient-white"],
+.home-focus-surface[data-focused="true"][class*="bg-white"] {
+  outline-color: hsl(0 0% 18% / 0.98) !important;
+  box-shadow: 0 0 24px hsl(0 0% 18% / 0.65) !important;
+}
+
 
 
 

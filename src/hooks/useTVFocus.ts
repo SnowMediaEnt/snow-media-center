@@ -14,7 +14,11 @@ interface UseTVFocusOptions {
   onBack?: () => void;
   onFocusChange?: (id: string) => void;
   scrollBlock?: ScrollLogicalPosition;
+  /** When false, don't auto-focus any element on mount. Useful for embedded
+   *  views where the parent decides when focus enters. */
+  autoFocusOnMount?: boolean;
 }
+
 
 const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
   !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
@@ -24,7 +28,6 @@ const isVisible = (el: HTMLElement) =>
   el.getAttribute('aria-disabled') !== 'true' &&
   el.dataset.tvDisabled !== 'true' &&
   el.offsetParent !== null;
-
 export const useTVFocus = ({
   enabled = true,
   initialFocusId,
@@ -33,10 +36,13 @@ export const useTVFocus = ({
   onBack,
   onFocusChange,
   scrollBlock = 'center',
+  autoFocusOnMount = true,
 }: UseTVFocusOptions = {}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
   const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
+
+
 
   const getElements = useCallback(() => {
     const root = containerRef.current;
@@ -137,7 +143,7 @@ export const useTVFocus = ({
   }, [findManagedElement, getElements, getId]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !autoFocusOnMount) return;
     const timer = window.setTimeout(() => {
       const elements = getElements();
       const wanted = initialFocusId && elements.some((el) => getId(el) === initialFocusId)
@@ -146,7 +152,8 @@ export const useTVFocus = ({
       focusById(wanted, 'nearest');
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [enabled, focusById, getElements, getId, initialFocusId]);
+  }, [enabled, autoFocusOnMount, focusById, getElements, getId, initialFocusId]);
+
 
   useEffect(() => {
     if (!enabled) return;
