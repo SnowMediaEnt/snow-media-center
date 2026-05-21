@@ -20,6 +20,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { supabase } from '@/integrations/supabase/client';
+
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
