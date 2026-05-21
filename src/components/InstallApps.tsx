@@ -152,6 +152,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
+        // If an app is expanded, collapse it first and return focus to the card
+        if (expandedAppId) {
+          const id = expandedAppId;
+          setExpandedAppId(null);
+          setFocusedElement(`app-${id}` as FocusType);
+          return;
+        }
         onBack();
         return;
       }
@@ -189,9 +196,12 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         } else if (focusedElement.startsWith('cache-') && currentApp) handleAutoClearCache(currentApp);
         else if (focusedElement.startsWith('uninstall-') && currentApp) handleUninstall(currentApp);
         else if (focusedElement.startsWith('app-') && currentApp) {
+          // Expand the card to reveal action buttons; focus first inner action.
           const isInstalled = !!appStatuses.get(currentApp.id)?.installed;
-          if (isInstalled) setFocusedElement(`launch-${currentApp.id}` as FocusType);
-          else handleDownload(currentApp);
+          setExpandedAppId(currentApp.id);
+          const firstFocus = isInstalled ? `launch-${currentApp.id}` : `download-${currentApp.id}`;
+          // Defer until buttons render
+          setTimeout(() => setFocusedElement(firstFocus as FocusType), 0);
         }
         return;
       }
