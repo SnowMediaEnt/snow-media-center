@@ -183,6 +183,8 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
     };
     window.addEventListener('keydown', onKey, { capture: true });
     return () => window.removeEventListener('keydown', onKey, { capture: true });
+  }, [focused, phase, runTest, onClose]);
+
 
 
   // Auto-start on mount
