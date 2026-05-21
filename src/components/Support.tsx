@@ -72,11 +72,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     } catch (err) {
       console.error('[Support] openAppSettings failed:', err);
     }
+  // Download in place (mirrors Main Apps) so the user stays inside the
+  // Buffering Guide and doesn't lose their progress mid-flow.
+  const downloadApp = useCallback((app: AppData) => {
+    setDownloadingApp(app);
   }, []);
 
-  const downloadApp = useCallback(() => {
-    setShowGuide(false);
-    toast({ title: 'Open Main Apps', description: 'Install the app from the Main Apps screen.' });
     onNavigate?.('apps');
   }, [onNavigate, toast]);
 
