@@ -203,11 +203,11 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
     }
   }, []);
 
-  // Wrap onClose so closing the dialog (X button, Esc, "Install Later")
-  // ALWAYS cleans up the APK from cache. Prevents the "5 leftover APKs" bug.
+  // Wrap onClose so closing the dialog cleans up the APK from cache
+  // — UNLESS the download already finished. In that case we keep the
+  // file so the user can resume install on next open without re-downloading.
   const handleCloseAndCleanup = useCallback(() => {
-    // Only cleanup if we're not mid-install (let install path handle it)
-    if (state !== 'installing' && state !== 'installed') {
+    if (state !== 'installing' && state !== 'installed' && state !== 'complete') {
       purgeCachedApk();
     }
     onClose();
