@@ -12,11 +12,13 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.1.0': [
-    'Support Tickets: send a ticket without an account — email is now optional, and if you add it we\'ll offer to set a password and create your account right from the ticket form',
-    'Support Tickets: fixed the suggestion menu that would stick open after tapping the subject or email field',
-    'Pinned Apps now show which apps are actually installed — uninstalled pins are greyed out with a download icon, tap to jump to Main Apps and reinstall',
-    'Settings: new dedicated "UI" tab — the Content Bar toggle now lives there (moved out of Updates) with room for more UI options coming soon',
-    'Smaller polish across the home screen, Buffering Guide step 5, and Support back button',
+    'New, more intuitive layout — easier to find your way around',
+    'All support is now in one place: tickets, AI chat, videos, and the buffering guide together under Support',
+    'Turn the Content Bar on or off any time in Settings → UI — great if it makes your device feel slower',
+    'Brand new interactive Buffering Guide with built-in speed test and one-tap VPN install',
+    'Pinned Apps now show which ones are actually installed — tap a greyed-out pin to reinstall it',
+    'Send a Support ticket without an account (add your email and we can create your account right from the form)',
+    'Bug fixes and polish across the home screen, Support, and navigation',
   ],
   '1.0.5': [
     'Content Bar can now be turned off in Settings → Updates — great for older or slower devices',
