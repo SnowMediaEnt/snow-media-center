@@ -1431,35 +1431,21 @@ const VpnSection = ({
       )}
 
       {vpnInstalled && (
-        <div className="bg-green-500/10 border border-green-500/40 rounded-md p-3 text-xs text-green-100 leading-relaxed">
-          <strong>After tapping Open:</strong> sign into your {info.label} account, then tap{' '}
-          <strong>Quick Connect</strong> on the home screen. Once it says "Connected,"
-          come back here and try your channel again.
+        <div className="bg-green-500/10 border border-green-500/40 rounded-md p-2 text-xs text-green-100 leading-snug">
+          <strong>After tapping Open:</strong> sign in, tap <strong>Quick Connect</strong>, then retry your channel.
         </div>
       )}
 
-      {!vpnInstalled && (
-        <p className="text-xs text-white/60">
-          Paid service. Downloads directly from Snow Media (same source as Main Apps).
-          Optional Downloader code: <span className="text-cyan-300 font-mono">{info.downloaderCode}</span>.
-        </p>
-      )}
-
-      <div className="border-t border-white/10 pt-3 space-y-3">
-        <p className="text-sm text-white">Need an account?</p>
-        <p className="text-xs text-white/70">
-          {info.label} is a paid VPN. Reach out to your reseller for sign-in details,
-          or sign up yourself by scanning the QR code below.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center gap-4">
+      <div className="border-t border-white/10 pt-3 space-y-2">
+        <p className="text-sm text-white">Need an account? Scan to sign up:</p>
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <QrBlock value={info.signupUrl} />
           <div className="flex-1 min-w-0 text-center sm:text-left">
-            <p className="text-xs text-white/60 mb-1">Sign up link:</p>
             <a
               href={info.signupUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-cyan-300 text-sm break-all hover:underline inline-flex items-center gap-1"
+              className="text-cyan-300 text-xs break-all hover:underline inline-flex items-center gap-1"
             >
               {info.signupUrl}
               <ExternalLink className="w-3 h-3 flex-shrink-0" />
@@ -1467,6 +1453,7 @@ const VpnSection = ({
           </div>
         </div>
       </div>
+
     </div>
   );
 };
@@ -1485,11 +1472,11 @@ const QrBlock = ({ value }: { value: string }) => {
     };
   }, [value]);
   return (
-    <div className="bg-white p-2 rounded-md flex-shrink-0">
+    <div className="bg-white p-1.5 rounded-md flex-shrink-0">
       {dataUrl ? (
-        <img src={dataUrl} alt="QR code" className="w-[160px] h-[160px]" />
+        <img src={dataUrl} alt="QR code" className="w-[110px] h-[110px]" />
       ) : (
-        <div className="w-[160px] h-[160px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
+        <div className="w-[110px] h-[110px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
       )}
     </div>
   );
