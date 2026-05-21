@@ -145,8 +145,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       const filteredProducts = getFilteredProducts();
       const categoryIds = categories.map(c => `category-${c.id}`);
       
-      // Get grid dimensions (assume 4 columns for products)
-      const gridCols = 4;
+      // Get grid dimensions (6 columns for compact product grid)
+      const gridCols = 6;
       
       switch (event.key) {
         case 'ArrowLeft':
@@ -534,62 +534,58 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
       <div ref={topAnchorRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-7xl mx-auto pb-16">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center w-full justify-between">
-            <Button 
-              onClick={(e) => {
-                // Defensive: keep this click from bubbling to any window-level
-                // handler that might re-navigate into the store.
-                e.preventDefault();
-                e.stopPropagation();
-                onBack();
-              }}
-              variant="gold" 
-              size="lg"
-              className={focusedElement === 'back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
-
-            <div className="invisible">
-              <Button variant="gold" size="lg">Placeholder</Button>
-            </div>
-          </div>
-          <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Snow Media Store</h1>
-            <p className="text-xl text-blue-200">Official Wix Store Integration</p>
-          </div>
-        </div>
-          
-        {/* Top Right Controls */}
-        <div className="flex items-center space-x-4 mb-8">
-          {user ? (
-            <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/50 rounded-lg px-3 py-2">
-              <User className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-sm">Signed In</span>
-            </div>
-          ) : (
-            <Button
-              onClick={() => navigate('/auth')}
-              variant="outline"
-              size="sm"
-              className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
-            >
-              <LogIn className="w-4 h-4 mr-2" />
-              Sign In
-            </Button>
-          )}
+        {/* Header — Back on left, Sign-in + Cart on right */}
+        <div className="flex items-center justify-between gap-4 mb-4">
           <Button
-            variant="outline"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onBack();
+            }}
+            variant="gold"
             size="lg"
-            className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+            className={focusedElement === 'back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}
           >
-            <ShoppingCart className="w-5 h-5 mr-2" />
-            Cart ({cartItems.length})
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Back to Home
           </Button>
+
+          <div className="flex items-center space-x-3">
+            {user ? (
+              <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/50 rounded-lg px-3 py-2">
+                <User className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 text-sm">Signed In</span>
+              </div>
+            ) : (
+              <Button
+                onClick={() => navigate('/auth')}
+                variant="outline"
+                size="sm"
+                data-focus-id="signin"
+                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign In
+              </Button>
+            )}
+            <Button
+              onClick={handleCheckout}
+              variant="outline"
+              size="lg"
+              data-focus-id="cart"
+              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+            >
+              <ShoppingCart className="w-5 h-5 mr-2" />
+              Cart ({cartItems.length})
+            </Button>
+          </div>
         </div>
+
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-white">Snow Media Store</h1>
+          <p className="text-sm text-blue-200">Official Wix Store Integration</p>
+        </div>
+
 
         {/* Category Filter */}
         <div className="mb-8">
@@ -697,14 +693,13 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             {selectedCategory === 'All' ? 'All Products' : categories.find(c => c.id === selectedCategory)?.name}
           </h2>
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[...Array(8)].map((_, i) => (
-                <Card key={i} className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 animate-pulse">
-                  <div className="h-48 bg-white/10"></div>
-                  <CardContent className="p-4 space-y-2">
-                    <div className="h-4 bg-white/10 rounded"></div>
-                    <div className="h-3 bg-white/10 rounded w-3/4"></div>
-                    <div className="h-6 bg-white/10 rounded w-1/2"></div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+              {[...Array(12)].map((_, i) => (
+                <Card key={i} className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 animate-pulse overflow-hidden">
+                  <div className="aspect-square bg-white/10"></div>
+                  <CardContent className="p-2 space-y-1">
+                    <div className="h-3 bg-white/10 rounded"></div>
+                    <div className="h-3 bg-white/10 rounded w-1/2"></div>
                   </CardContent>
                 </Card>
               ))}
@@ -713,127 +708,48 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             <div className="text-center py-8">
               <p className="text-red-400 mb-4">Failed to load products from Wix store</p>
               <p className="text-white/60 text-sm">{error}</p>
-              <Button 
-                onClick={() => window.location.reload()} 
+              <Button
+                onClick={() => window.location.reload()}
                 className="mt-4 bg-blue-600 hover:bg-blue-700"
               >
                 Retry
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {getFilteredProducts().map((product) => {
-                const cartItem = cartItems.find(item => item.id === product.id);
-                const isInCart = !!cartItem;
-                
                 return (
-                  <Card 
-                    key={product.id} 
+                  <Card
+                    key={product.id}
                     data-focus-id={`product-${product.id}`}
-                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_28px_hsl(var(--brand-gold)/0.75)] scale-105' : ''}`}
+                    onClick={() => setSelectedProduct(product)}
+                    className={`cursor-pointer bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-200 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_28px_hsl(var(--brand-gold)/0.75)] scale-105 z-10' : ''}`}
                   >
-                    <div className="relative">
-                      <img 
-                        src={product.images[0]} 
+                    <div className="relative aspect-square overflow-hidden bg-slate-800">
+                      <img
+                        src={product.images[0]}
                         alt={product.name}
-                        className="w-full h-48 object-cover cursor-pointer"
-                        onClick={() => setSelectedProduct(product)}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                       {product.comparePrice && product.comparePrice > product.price && (
-                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
-                          Save ${(product.comparePrice - product.price).toFixed(2)}
+                        <div className="absolute top-1 right-1 bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                          -${(product.comparePrice - product.price).toFixed(0)}
                         </div>
                       )}
                     </div>
-                    
-                    <CardContent className="p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2 cursor-pointer hover:text-blue-300 transition-colors line-clamp-1"
-                          onClick={() => setSelectedProduct(product)}>
+                    <CardContent className="p-2">
+                      <h3 className="text-xs font-semibold text-white line-clamp-2 mb-1 min-h-[2rem] leading-tight">
                         {product.name}
                       </h3>
-                       <div 
-                         className="text-white/70 text-sm mb-3 line-clamp-2 max-h-10 overflow-hidden"
-                         dangerouslySetInnerHTML={{ 
-                           __html: DOMPurify.sanitize(product.description, {
-                             ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'span'],
-                             ALLOWED_ATTR: []
-                           })
-                         }}
-                        />
-                      
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xl font-bold text-green-400">
-                            ${product.price.toFixed(2)}
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm font-bold text-green-400">
+                          ${product.price.toFixed(2)}
+                        </span>
+                        {product.comparePrice && product.comparePrice > product.price && (
+                          <span className="text-[10px] text-white/50 line-through">
+                            ${product.comparePrice.toFixed(2)}
                           </span>
-                          {product.comparePrice && product.comparePrice > product.price && (
-                            <span className="text-sm text-white/50 line-through">
-                              ${product.comparePrice.toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center">
-                          {product.inStock && product.inventory?.quantity ? (
-                            <div className="flex items-center text-green-400 text-sm">
-                              <Package className="w-4 h-4 mr-1" />
-                              {product.inventory.quantity} in stock
-                            </div>
-                          ) : product.inStock ? (
-                            <div className="flex items-center text-green-400 text-sm">
-                              <Package className="w-4 h-4 mr-1" />
-                              In stock
-                            </div>
-                          ) : (
-                            <div className="flex items-center text-red-400 text-sm">
-                              <Package className="w-4 h-4 mr-1" />
-                              Out of stock
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        {isInCart ? (
-                          <div className="flex items-center space-x-2 w-full">
-                            <div className="flex items-center bg-blue-600/20 border border-blue-500/30 rounded-lg">
-                              <button
-                                onClick={() => updateQuantity(product.id, Math.max(0, cartItem.cartQuantity - 1))}
-                                className="p-2 text-blue-400 hover:text-blue-300"
-                              >
-                                <Minus className="w-4 h-4" />
-                              </button>
-                              <span className="px-3 py-2 text-white">{cartItem.cartQuantity}</span>
-                              <button
-                                onClick={() => updateQuantity(product.id, cartItem.cartQuantity + 1)}
-                                className="p-2 text-blue-400 hover:text-blue-300"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <Button
-                              onClick={() => removeFromCart(product.id)}
-                              variant="outline"
-                              size="sm"
-                              className="bg-red-600/20 border-red-500/30 text-red-400 hover:bg-red-600/30"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              addToCart(product as any, 1);
-                              toast({
-                                title: "Added to cart!",
-                                description: `${product.name} has been added to your cart.`,
-                              });
-                            }}
-                            disabled={!product.inStock}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <ShoppingCart className="w-4 h-4 mr-2" />
-                            Add to Cart
-                          </Button>
                         )}
                       </div>
                     </CardContent>
@@ -844,6 +760,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           )}
         </div>
       </div>
+
       <QRCheckoutDialog
         open={qrOpen}
         onOpenChange={(o) => { setQrOpen(o); if (!o) setQrUrl(null); }}

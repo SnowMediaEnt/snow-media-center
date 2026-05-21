@@ -229,6 +229,20 @@ const PinnedAppsPopup = ({
       packageName: app.packageName,
     };
 
+    // If not installed on device (native only), route to install flow instead of pinning
+    if (isNative && !isPackageInstalled(installedApp.packageName) && !isAppNameInstalled(installedApp.name)) {
+      onInstallApp({
+        id: installedApp.id,
+        name: installedApp.name,
+        icon: installedApp.icon,
+        packageName: installedApp.packageName,
+        position: 0,
+      } as PinnedApp);
+      setShowAppSelector(false);
+      setEditingSlotIndex(null);
+      return;
+    }
+
     if (editingSlotIndex !== null) {
       onReplacePinnedApp(editingSlotIndex, installedApp);
       setShowAppSelector(false);
@@ -242,6 +256,7 @@ const PinnedAppsPopup = ({
       onPinApp(installedApp);
     }
   };
+
 
   const asLaunchableApp = (pinnedApp: PinnedApp, fullApp?: AppData): AppData => fullApp ?? ({
     id: pinnedApp.id,
@@ -489,7 +504,8 @@ const PinnedAppsPopup = ({
           >
             {allSelectableApps.map((app, idx) => {
               const isAppPinned = isPinned(app.id);
-              const canSelect = editingSlotIndex !== null || canPinMore || isAppPinned;
+              const installedOnDevice = !isNative || isPackageInstalled(app.packageName) || isAppNameInstalled(app.name);
+              const canSelect = installedOnDevice && (editingSlotIndex !== null || canPinMore || isAppPinned);
               const isFocused = selectorFocusIndex === idx;
 
               return (
@@ -503,46 +519,55 @@ const PinnedAppsPopup = ({
                     e.stopPropagation();
                     handleSelectApp(app);
                   }}
-                  disabled={!canSelect}
                   className={`
-                    p-3 rounded-xl border transition-all duration-150
-                    ${isAppPinned 
-                      ? 'bg-brand-gold/20 border-brand-gold' 
-                      : canSelect
+                    p-3 rounded-xl border transition-all duration-150 text-left
+                    ${isAppPinned
+                      ? 'bg-brand-gold/20 border-brand-gold'
+                      : installedOnDevice
                         ? 'bg-slate-800 border-slate-600 hover:border-brand-ice/50'
-                        : 'bg-slate-800/50 border-slate-700 opacity-50 cursor-not-allowed'
+                        : 'bg-slate-800/40 border-slate-700/70 hover:border-amber-500/60'
                     }
                     ${isFocused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}
                   `}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden">
-                      <img 
-                          src={app.icon || iconFallback(app.name)} 
+                    <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden ${installedOnDevice ? '' : 'grayscale opacity-60'}`}>
+                      <img
+                        src={app.icon || iconFallback(app.name)}
                         alt={`${app.name} icon`}
-                          className="w-full h-full object-contain p-1"
-                          loading="lazy"
-                          decoding="async"
+                        className="w-full h-full object-contain p-1"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                            target.src = iconFallback(app.name);
+                          target.src = iconFallback(app.name);
                         }}
                       />
+                      {!installedOnDevice && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <Download className="w-5 h-5 text-amber-300 drop-shadow" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 text-left">
-                      <span className="text-sm text-white font-medium block">
+                      <span className={`text-sm font-medium block ${installedOnDevice ? 'text-white' : 'text-amber-200/90'}`}>
                         {app.name}
                       </span>
-                      {isAppPinned && (
+                      {isAppPinned ? (
                         <span className="text-xs text-brand-gold flex items-center gap-1">
                           <Check className="w-3 h-3" /> Pinned
                         </span>
-                      )}
+                      ) : !installedOnDevice ? (
+                        <span className="text-xs text-amber-300/90 flex items-center gap-1">
+                          <Download className="w-3 h-3" /> Tap to install
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </button>
               );
             })}
+
           </div>
           <p className="text-xs text-slate-500 text-center mt-4">
             {canPinMore 

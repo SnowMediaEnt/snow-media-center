@@ -954,7 +954,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+    // For AI history jumps, glide smoothly into view instead of snapping.
+    // Everything else uses the cheap 'nearest' scroll so the layout doesn't jiggle.
+    const useSmoothCenter = currentFocusId.startsWith('ai-history-');
+    el.scrollIntoView(
+      useSmoothCenter
+        ? { behavior: 'smooth', block: 'center', inline: 'nearest' }
+        : { behavior: 'auto', block: 'nearest', inline: 'nearest' }
+    );
 
     const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
