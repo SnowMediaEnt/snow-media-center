@@ -53,16 +53,21 @@ const PinnedAppsPopup = ({
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
   const [editingSlotIndex, setEditingSlotIndex] = useState<number | null>(null);
-
-}: PinnedAppsPopupProps) => {
-  const [showAppSelector, setShowAppSelector] = useState(false);
-  const [editingSlotIndex, setEditingSlotIndex] = useState<number | null>(null);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggeredRef = useRef(false);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
-  const { installedApps: deviceApps } = useDeviceInstalledApps();
+  const { installedApps: deviceApps, isPackageInstalled, isAppNameInstalled } = useDeviceInstalledApps();
+  const isNative = Capacitor.isNativePlatform();
+
+  // A pinned app is considered installed on web preview (we can't check),
+  // or when the native installed-apps list confirms it.
+  const isPinnedAppInstalled = (p: PinnedApp) => {
+    if (!isNative) return true;
+    return isPackageInstalled(p.packageName) || isAppNameInstalled(p.name);
+  };
+
 
   // Handle keyboard navigation within the popup
   useEffect(() => {
