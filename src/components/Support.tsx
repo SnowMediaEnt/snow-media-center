@@ -38,8 +38,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const { apps } = useAppData();
   const { toast } = useToast();
+
 
   // Minimal launch / download handlers for the buffering guide. Full
   // install + progress UX still lives in Main Apps — we route downloads
