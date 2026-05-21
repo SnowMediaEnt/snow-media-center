@@ -431,7 +431,14 @@ const BufferingGuide = ({
   }, [stepIndex]);
 
   const goNext = () => {
+    // On the VPN step, allow advancing even if the VPN flow isn't complete,
+    // but warn the user first with an info popup explaining ISP throttling.
+    if (step === 'step4' && !canNext) {
+      setShowVpnSkipConfirm(true);
+      return;
+    }
     if (canNext && stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
+  };
   };
   const goBack = () => {
     if (stepIndex > 0) setStepIndex((i) => i - 1);
