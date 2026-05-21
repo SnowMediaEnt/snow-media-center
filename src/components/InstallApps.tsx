@@ -724,7 +724,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`forcestop-${app.id}`}
                         onClick={() => handleForceStop(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
                         title="Opens system App Info – tap Force Stop"
                       >
                         <StopCircle className="w-4 h-4 mr-1" />
@@ -735,7 +735,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`cache-${app.id}`}
                         onClick={() => handleAutoClearCache(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
                         title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -752,7 +752,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                           handleOpenAppSettings(app);
                         }}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
                         title="Opens system App Info – tap Storage → Clear data"
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -764,7 +764,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`uninstall-${app.id}`}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Uninstall
