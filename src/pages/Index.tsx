@@ -6,7 +6,7 @@ import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
-import smeLogo from '@/assets/sme-logo.png';
+import smeLogo from '@/assets/sme-logo-512.png';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
