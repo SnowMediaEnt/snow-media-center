@@ -14,7 +14,11 @@ interface UseTVFocusOptions {
   onBack?: () => void;
   onFocusChange?: (id: string) => void;
   scrollBlock?: ScrollLogicalPosition;
+  /** When false, don't auto-focus any element on mount. Useful for embedded
+   *  views where the parent decides when focus enters. */
+  autoFocusOnMount?: boolean;
 }
+
 
 const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
   !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
