@@ -701,7 +701,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   <Button 
                     data-focus-id={`download-${app.id}`}
                     onClick={() => handleDownload(app)}
-                    className={`w-full transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                    className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Download
