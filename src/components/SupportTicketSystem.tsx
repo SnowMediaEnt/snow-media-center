@@ -718,27 +718,32 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No Support Tickets</h3>
               <p className="text-slate-500 mb-4">
-                {user ? "You haven't created any support tickets yet." : "Sign in to create and view your support tickets."}
+                {user
+                  ? "You haven't created any support tickets yet."
+                  : "You can send a ticket without an account, but replies require signing in."}
               </p>
-              {user ? (
-                <Button 
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <Button
                   onClick={() => setView('create')}
                   data-tv-focus-id="empty-create-ticket"
                   className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Ticket
+                  {user ? 'Create Your First Ticket' : 'Send a Ticket'}
                 </Button>
-              ) : (
-                <Button 
-                  onClick={() => navigate('/auth')}
-                  data-tv-focus-id="empty-sign-in"
-                  className="bg-blue-600 hover:bg-blue-700 "
-                >
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-              )}
+                {!user && (
+                  <Button
+                    onClick={() => navigate('/auth')}
+                    variant="outline"
+                    data-tv-focus-id="empty-sign-in"
+                    className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Sign In
+                  </Button>
+                )}
+              </div>
+
             </div>
           )}
         </div>
