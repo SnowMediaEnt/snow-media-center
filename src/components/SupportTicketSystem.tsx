@@ -137,7 +137,26 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
   const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : emptyActionId;
 
+  const hideNativeKeyboard = async () => {
+    try {
+      if (typeof document !== 'undefined') {
+        const active = document.activeElement as HTMLElement | null;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          active.blur();
+        }
+      }
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Keyboard } = await import('@capacitor/keyboard');
+        await Keyboard.hide();
+      }
+    } catch (e) {
+      // best-effort
+    }
+  };
+
   const handleSystemBack = () => {
+    void hideNativeKeyboard();
     if (view === 'ticket') {
       setView('list');
       setSelectedTicketId(null);
@@ -154,6 +173,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
     onBack();
   };
+
 
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
     if (view === 'create') {
@@ -185,17 +205,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
       'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
-      'empty-sign-in': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
-      'ai-new-input': { up: lastTicketId, right: 'ai-new-send', down: firstAIHistoryId },
-      'ai-new-send': { up: 'new-ticket', left: 'ai-new-input', down: firstAIHistoryId },
     };
-    tickets.forEach((_, index) => {
-      map[`ticket-${index}`] = {
-        up: index === 0 ? 'list-back' : `ticket-${index - 1}`,
-        down: index === tickets.length - 1 ? 'ai-new-input' : `ticket-${index + 1}`,
-        right: index === 0 ? 'new-ticket' : undefined,
-      };
-    });
+
+
     aiConversations.forEach((_, index) => {
       map[`ai-history-${index}`] = {
         up: index === 0 ? 'ai-new-input' : `ai-history-${index - 1}`,
@@ -206,16 +218,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
 
   const tvFocus = useTVFocus({
-    initialFocusId: view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
+    initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
     navigation: tvNavigation,
     onBack: handleSystemBack,
   });
 
   useEffect(() => {
-    const id = view === 'create' ? 'create-subject' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
+    const id = view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
+
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
