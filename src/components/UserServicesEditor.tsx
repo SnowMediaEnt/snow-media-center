@@ -309,7 +309,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           <select
                             value={s.renewal_status || 'active'}
                             onChange={(e) => updateService(s.id, { renewal_status: e.target.value })}
-                            className="w-full h-10 rounded-md bg-slate-900 border border-slate-600 text-white px-3"
+                            className="w-full h-10 rounded-md bg-slate-900 border border-slate-600 text-white px-3 outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
                           >
                             <option value="active">Active</option>
                             <option value="pending">Pending</option>
