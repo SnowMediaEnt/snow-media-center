@@ -228,10 +228,13 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         if (error) throw error;
         const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
         if (next.length) {
-          const safeItems = IS_LOW_MEMORY_NATIVE ? next.slice(0, PAGE_SIZE) : next;
+          // Keep multiple pages even on low-memory boxes so left/right paging
+          // actually has somewhere to go. 32 items = 4 pages of 8.
+          const safeItems = IS_LOW_MEMORY_NATIVE ? next.slice(0, 32) : next;
           setItems(safeItems);
           writeCache(safeItems);
         }
+
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       }
