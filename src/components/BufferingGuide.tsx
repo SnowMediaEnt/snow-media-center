@@ -290,7 +290,7 @@ const BufferingGuide = ({
     return () => window.removeEventListener('keydown', handler, true);
   }, [showSpeedTest, stepIndex]);
 
-  // Auto-focus the first focusable element when step changes
+  // Auto-focus the first focusable element when step (or step1 sub-view) changes
   useEffect(() => {
     if (showSpeedTest) return;
     // Snap content to top BEFORE focusing so focus() doesn't scroll us to a
@@ -298,9 +298,23 @@ const BufferingGuide = ({
     contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     const t = setTimeout(() => {
       const focusables = getFocusables();
+      // If we just came here via Back, keep focus on the footer Back button
+      // so the user can hold Back to keep popping.
+      if (justWentBackRef.current) {
+        justWentBackRef.current = false;
+        const back = rootRef.current?.querySelector<HTMLElement>('[data-guide-nav="back"]');
+        if (back) {
+          back.focus({ preventScroll: true });
+          lastFocusedRef.current = back;
+          contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          return;
+        }
+      }
       // Prefer first focusable inside the content area (skip header Close button)
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
-      const target = contentFocusables[0] || focusables[0];
+      // Prefer an explicit step-entry anchor if provided (e.g. ReportChannelStep input)
+      const anchor = contentFocusables.find((el) => el.getAttribute('data-guide-entry') === 'true');
+      const target = anchor || contentFocusables[0] || focusables[0];
       if (target) {
         target.focus({ preventScroll: true });
         lastFocusedRef.current = target;
@@ -309,7 +323,7 @@ const BufferingGuide = ({
       contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     }, 80);
     return () => clearTimeout(t);
-  }, [stepIndex, showSpeedTest]);
+  }, [stepIndex, showSpeedTest, state.step1Choice]);
 
 
   // Track last-focused element inside the modal so D-pad can resume after focus loss
