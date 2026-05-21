@@ -590,6 +590,9 @@ const BufferingGuide = ({
         const { App } = await import('@capacitor/app');
         handle = await App.addListener('backButton', () => {
           if (cancelled) return;
+          // Mark the back press as handled so the global navigation
+          // handler in useNavigation doesn't also pop Support → Home.
+          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (showSpeedTest) return;
           if (step === 'step1' && state.step1Choice === 'one_only') {
             setReportTitle('');
@@ -605,6 +608,7 @@ const BufferingGuide = ({
             onClose();
           }
         });
+
       } catch {
         // Web / non-Capacitor — keydown handler covers Escape/Backspace.
       }
