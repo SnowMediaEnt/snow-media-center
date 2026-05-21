@@ -40,6 +40,7 @@ type HelpView = 'menu' | 'videos' | 'tickets';
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
+  const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
@@ -125,10 +126,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // we can't express this in the navigation map directly.
   const focusIntoChild = useCallback((childTab: Tab) => {
     if (childTab === 'ai') {
+      setChildFocusActive(true);
       window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
       return true;
     }
     if (childTab === 'community') {
+      setChildFocusActive(true);
       window.dispatchEvent(new CustomEvent('community-chat:focus-room'));
       return true;
     }
@@ -156,7 +159,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // the child component owns D-pad + Back. Disabling the parent focus manager
   // here prevents its Back handler from firing first and exiting Support
   // straight to the Home screen.
-  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu';
+  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
     initialFocusId: `tab-${tab}`,
     focusableSelector: '[data-support-tv-focus-id]',
@@ -178,6 +181,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   useEffect(() => {
     const handler = (e: Event) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
+      setChildFocusActive(false);
       supportFocus.focusById(`tab-${target}`);
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
@@ -230,7 +234,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
+        <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
             <TabsTrigger
               value="help"
