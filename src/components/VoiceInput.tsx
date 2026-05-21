@@ -428,6 +428,8 @@ export const VoiceInput = ({
       if (code === 'VOICE_RECOGNIZER_BUSY') {
         await showVoiceError(code, 'native', error);
         return;
+      }
+
       if (shouldFallbackFromNativeError(code) || code === 'EMPTY_SPEECH') {
         console.warn(`VOICE_NATIVE_${code} → ElevenLabs fallback`);
         toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
@@ -436,15 +438,12 @@ export const VoiceInput = ({
       }
 
       await showVoiceError(code, 'native', error);
-
-      }
-
-      await showVoiceError(code, 'native', error);
     } finally {
       nativePendingRef.current = false;
       cancelRequestedRef.current = false;
     }
   };
+
 
   const startRecording = async () => {
     if (disabled) return;

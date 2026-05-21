@@ -131,7 +131,10 @@ const BufferingGuide = ({
   });
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [speedInput, setSpeedInput] = useState<string>('');
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportDevice, setReportDevice] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
 
@@ -479,7 +482,8 @@ const BufferingGuide = ({
     }
   };
 
-  const submitAsTicket = async () => {
+  const submitAsTicket = async (overrideSubject?: string, overrideBody?: string) => {
+
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
       toast({
@@ -492,16 +496,17 @@ const BufferingGuide = ({
     try {
       setSubmittingTicket(true);
       const ts = new Date().toLocaleString();
-      const subject = `Buffering Walkthrough Results — ${ts}`;
-      const body = `${supportScript}\n\nSaved: ${ts}`;
+      const subject = overrideSubject ?? `Buffering Walkthrough Results — ${ts}`;
+      const body = overrideBody ?? `${supportScript}\n\nSaved: ${ts}`;
       await createTicket(subject, body);
       toast({
         title: 'Ticket submitted',
-        description: 'Opening Chat & Community → My Tickets.',
+        description: 'Opening Support → Tickets.',
       });
       onClose();
       // Defer nav slightly so the modal unmounts cleanly first
       setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('support:open-tickets'));
         onNavigateToChat?.();
       }, 50);
     } catch (err) {
@@ -515,6 +520,29 @@ const BufferingGuide = ({
       setSubmittingTicket(false);
     }
   };
+
+  const submitChannelReport = async () => {
+    const title = reportTitle.trim();
+    if (!title) {
+      toast({ title: 'Enter a title', description: 'Type the channel or movie/show name first.', variant: 'destructive' });
+      return;
+    }
+    if (!reportDevice) {
+      toast({ title: 'Pick a device', description: 'Tell us which device you are watching on.', variant: 'destructive' });
+      return;
+    }
+    const ts = new Date().toLocaleString();
+    const appLabel = state.appType ? APP_LABELS[state.appType] : 'streaming app';
+    const subject = `Broken channel/title in ${appLabel}: ${title}`;
+    const body = [
+      `App: ${appLabel}`,
+      `Device: ${reportDevice}`,
+      `Channel / Title: ${title}`,
+      `Reported: ${ts}`,
+    ].join('\n');
+    await submitAsTicket(subject, body);
+  };
+
 
   return (
     <div
@@ -563,21 +591,35 @@ const BufferingGuide = ({
             />
           )}
 
-          {step === 'step1' && (
+          {step === 'step1' && state.step1Choice !== 'one_only' && (
             <Step1
               value={state.step1Choice}
               onSelect={(choice) => {
                 setState((s) => ({ ...s, step1Choice: choice }));
-                if (choice === 'one_only') {
-                  toast({
-                    title: 'Report the channel/title',
-                    description: 'Email the exact channel/title name to support — we\'ll fix it fast.',
-                  });
-                  jumpToSummary();
-                }
+                // Stay on step1; the report form renders below when choice === 'one_only'
+                contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             />
           )}
+
+          {step === 'step1' && state.step1Choice === 'one_only' && (
+            <ReportChannelStep
+              title={reportTitle}
+              device={reportDevice}
+              appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
+              submitting={submittingTicket}
+              onTitleChange={setReportTitle}
+              onDeviceChange={setReportDevice}
+              onSubmit={submitChannelReport}
+              onBack={() => {
+                setReportTitle('');
+                setReportDevice(null);
+                setState((s) => ({ ...s, step1Choice: null }));
+                contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+
 
           {step === 'step2' && (
             <Step2
@@ -820,6 +862,92 @@ const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType)
     </div>
   </Card>
 );
+
+const DEVICE_OPTIONS: string[] = [
+  'Amazon Fire TV / Firestick',
+  'Android TV / Google TV',
+  'Android Phone or Tablet',
+  'Set-Top Box (X96 / T95 / etc.)',
+  'Other',
+];
+
+const ReportChannelStep = ({
+  title,
+  device,
+  appLabel,
+  submitting,
+  onTitleChange,
+  onDeviceChange,
+  onSubmit,
+  onBack,
+}: {
+  title: string;
+  device: string | null;
+  appLabel: string;
+  submitting: boolean;
+  onTitleChange: (v: string) => void;
+  onDeviceChange: (v: string) => void;
+  onSubmit: () => void;
+  onBack: () => void;
+}) => (
+  <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+    <div>
+      <h2 className="text-xl font-semibold text-white">Report the broken channel/title</h2>
+      <p className="text-sm text-white/70 mt-1">
+        Tell us the exact channel or movie/show name in <strong>{appLabel}</strong> and which device you're using.
+        We'll open a Support Ticket for you.
+      </p>
+    </div>
+
+    <div className="space-y-2">
+      <label className="text-sm text-white/80">Channel or movie/show name</label>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
+        placeholder="e.g. ESPN HD, The Bear S03E01"
+        className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
+      />
+    </div>
+
+    <div className="space-y-2">
+      <label className="text-sm text-white/80">Which device are you watching on?</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {DEVICE_OPTIONS.map((d) => (
+          <ChoiceButton key={d} active={device === d} onClick={() => onDeviceChange(d)}>
+            {d}
+          </ChoiceButton>
+        ))}
+      </div>
+    </div>
+
+    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+      <Button
+        onClick={onBack}
+        variant="outline"
+        className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" /> Change answer
+      </Button>
+      <Button
+        onClick={onSubmit}
+        disabled={submitting || !title.trim() || !device}
+        className="bg-gradient-to-r from-orange-500 to-red-600 text-white disabled:opacity-40 flex-1"
+      >
+        <MessageSquare className="w-4 h-4 mr-2" />
+        {submitting ? 'Submitting…' : 'Submit Ticket'}
+      </Button>
+    </div>
+  </Card>
+);
+
+
 
 const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">

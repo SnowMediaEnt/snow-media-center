@@ -177,9 +177,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
       supportFocus.focusById(`tab-${target}`);
     };
+    const openTickets = () => { setTab('help'); setHelpView('tickets'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
-    return () => window.removeEventListener('support:focus-tab', handler as EventListener);
+    window.addEventListener('support:open-tickets', openTickets);
+    return () => {
+      window.removeEventListener('support:focus-tab', handler as EventListener);
+      window.removeEventListener('support:open-tickets', openTickets);
+    };
   }, [supportFocus, tab]);
+
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
   if (tab === 'help' && helpView === 'videos') {
@@ -339,7 +345,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           onLaunch={launchApp}
           onDownload={downloadApp}
           onOpenAppSettings={openAppSettings}
-          onNavigateToChat={() => setTab('ai')}
+          onNavigateToChat={() => { setTab('help'); setHelpView('tickets'); }}
+
         />
       )}
     </div>
