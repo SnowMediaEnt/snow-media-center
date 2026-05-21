@@ -319,14 +319,14 @@
   transform: translateZ(0);
   will-change: transform;
   transition-property: transform;
-  transition-duration: 130ms;
-  transition-timing-function: ease-out;
-}
-
 .home-focus-surface[data-focused="true"] {
   transform: translateZ(0) scale(1.05);
-  /* Bright gold matches the pinned-apps focus glow used elsewhere and is far
-     more visible than the icy blue on top of the dynamic background. */
+  /* White highlight ring — readable over any dynamic background. */
+  outline: 4px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 0;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.6);
+}
+
   outline: 4px solid hsl(var(--brand-gold) / 0.95);
   outline-offset: 0;
   box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
