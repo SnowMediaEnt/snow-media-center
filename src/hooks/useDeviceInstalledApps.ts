@@ -110,8 +110,10 @@ export const useDeviceInstalledApps = () => {
   const resolvePackageName = useCallback(
     (appName?: string | null, fallbackPackage?: string | null): string | null => {
       const target = normaliseName(appName || '');
-      const aliases = target ? PACKAGE_ALIASES[target] : undefined;
       const fallback = fallbackPackage?.toLowerCase() || '';
+      const aliases =
+        (target ? PACKAGE_ALIASES[target] : undefined) ||
+        Object.values(PACKAGE_ALIASES).find((group) => group.includes(fallback));
 
       if (aliases) {
         for (const pkg of aliases) {
