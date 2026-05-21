@@ -66,7 +66,6 @@ type FocusType =
   | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
-  | `forcestop-${string}`
   | `settings-${string}` 
   | `cache-${string}` 
   | `uninstall-${string}`
@@ -123,7 +122,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   // Helpers to extract the app id out of a focus token like "launch-<id>".
   const getAppIdFromFocus = (focus: string): string | null => {
-    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'forcestop-', 'settings-', 'cache-', 'uninstall-'];
+    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'settings-', 'cache-', 'uninstall-'];
     for (const p of prefixes) {
       if (focus.startsWith(p)) return focus.slice(p.length);
     }
@@ -198,17 +197,6 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
 
-      if (focusedElement === 'tab-0' && event.key === 'ArrowRight') {
-        setFocusedElement('tab-1');
-        setActiveTab('all');
-        return;
-      }
-      if (focusedElement === 'tab-1' && event.key === 'ArrowLeft') {
-        setFocusedElement('tab-0');
-        setActiveTab('featured');
-        return;
-      }
-
       // Spatial 2D navigation across all visible [data-focus-id] elements
       const focusables = Array.from(
         document.querySelectorAll<HTMLElement>('[data-focus-id]')
@@ -252,10 +240,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       const next = scored[0]?.el;
       if (next?.dataset.focusId) {
-        const nextFocus = next.dataset.focusId as FocusType;
-        setFocusedElement(nextFocus);
-        if (nextFocus === 'tab-0') setActiveTab('featured');
-        if (nextFocus === 'tab-1') setActiveTab('all');
+        setFocusedElement(next.dataset.focusId as FocusType);
       }
 
     };
@@ -620,8 +605,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-105 shadow-[0_0_0_4px_hsl(var(--brand-gold)/0.9),0_0_24px_hsl(var(--brand-gold)/0.45)] z-10' : '';
-
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-7 pb-10 px-2 sm:px-4">
@@ -635,8 +619,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-transparent overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'scale-[1.02] shadow-[0_0_0_4px_hsl(var(--brand-gold)/0.9),0_0_24px_hsl(var(--brand-gold)/0.45)] z-10' : ''}`}
-
+            onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -674,7 +658,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white">{app.name}</h3>
                     {appIsPinned && (
-                      <Badge className="bg-brand-gold/20 text-brand-gold border-brand-gold/30">📌 Pinned</Badge>
+                      <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30">📌 Pinned</Badge>
                     )}
                     {app.featured && (
                       <Badge className="bg-green-600 text-white">Featured</Badge>

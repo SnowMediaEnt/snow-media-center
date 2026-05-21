@@ -7,14 +7,12 @@
 @layer base {
   :root {
     /* Snow Media Brand Colors */
-    --brand-ice: 267 55% 78%; /* Soft lavender (was light blue) */
+    --brand-ice: 189 37% 80%; /* #a1d5dc - Light blue/teal from logo */
     --brand-charcoal: 0 0% 20%; /* #333333 - Dark gray/black */
     --brand-gold: 39 31% 60%; /* #c3aa72 - Brown/tan */
     --brand-silver: 0 0% 65%; /* #a6a6a6 - Medium gray */
-    --brand-navy: 240 8% 18%; /* Neutral dark (was navy) */
-    --brand-purple: 267 60% 45%; /* Richer purple */
-
-
+    --brand-navy: 214 91% 15%; /* #092145 - Dark navy */
+    --brand-purple: 296 89% 20%; /* #600468 - Purple */
     
     /* Snowy white and blue background when no image selected */
     --snow-blue: 220 60% 85%; /* Light snowy blue */
@@ -57,8 +55,10 @@
     --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-gold)), hsl(var(--brand-charcoal)));
     --gradient-accent: linear-gradient(135deg, hsl(var(--brand-purple)), hsl(var(--brand-ice)));
     --gradient-snowy: linear-gradient(135deg, hsl(var(--snow-white)), hsl(var(--snow-blue)));
-    --gradient-gold: linear-gradient(135deg, hsl(44 76% 68%), hsl(39 55% 48%));
-    --gradient-blue: linear-gradient(135deg, hsl(267 60% 70%), hsl(267 65% 45%));
+    
+    /* Metallic gradients using HSL values */
+    --gradient-gold: linear-gradient(135deg, hsl(51 100% 50%), hsl(43 77% 38%));
+    --gradient-blue: linear-gradient(135deg, hsl(194 53% 79%), hsl(207 44% 49%));
     --gradient-silver: linear-gradient(135deg, hsl(0 0% 90%), hsl(0 0% 66%));
     --gradient-purple: linear-gradient(135deg, hsl(248 53% 58%), hsl(267 50% 40%));
     --gradient-navy: linear-gradient(135deg, hsl(214 91% 15%), hsl(214 91% 20%));
@@ -315,37 +315,18 @@
   transform: translateZ(0);
   will-change: transform;
   transition-property: transform;
+  transition-duration: 130ms;
+  transition-timing-function: ease-out;
 }
 
 .home-focus-surface[data-focused="true"] {
   transform: translateZ(0) scale(1.05);
-  outline: 4px solid rgba(255, 255, 255, 0.95);
+  /* Bright gold matches the pinned-apps focus glow used elsewhere and is far
+     more visible than the icy blue on top of the dynamic background. */
+  outline: 4px solid hsl(var(--brand-gold) / 0.95);
   outline-offset: 0;
-  box-shadow: 0 0 24px rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
 }
-
-/* Per-button focus tint overrides (header Sign In / Settings / Dashboard) */
-.home-focus-surface.focus-tint-grey[data-focused="true"] {
-  outline-color: #333333 !important;
-  box-shadow: 0 0 24px rgba(51, 51, 51, 0.65) !important;
-}
-.home-focus-surface.focus-tint-white[data-focused="true"] {
-  outline-color: #ffffff !important;
-  box-shadow: 0 0 24px rgba(255, 255, 255, 0.85) !important;
-}
-.home-focus-surface.focus-tint-black[data-focused="true"] {
-  outline-color: #000000 !important;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.75) !important;
-}
-.home-focus-surface.focus-tint-purple[data-focused="true"] {
-  outline-color: #a78bfa !important;
-  box-shadow: 0 0 24px rgba(167, 139, 250, 0.7) !important;
-}
-.home-focus-surface.focus-tint-gold[data-focused="true"] {
-  outline-color: #d4a84c !important;
-  box-shadow: 0 0 24px rgba(212, 168, 76, 0.7) !important;
-}
-
 
 
 /* On low-power devices that prefer reduced motion, skip the transform/shadow
