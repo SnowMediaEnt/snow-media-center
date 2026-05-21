@@ -149,7 +149,9 @@ const BufferingGuide = ({
   // Collect focusable buttons/links/inputs inside the modal
   const getFocusables = (): HTMLElement[] => {
     const scope: HTMLElement | null =
-      showAnonConfirm && anonConfirmRef.current ? anonConfirmRef.current : rootRef.current;
+      (showVpnSkipConfirm && vpnSkipConfirmRef.current) ? vpnSkipConfirmRef.current :
+      (showAnonConfirm && anonConfirmRef.current) ? anonConfirmRef.current :
+      rootRef.current;
     if (!scope) return [];
     const nodes = scope.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
