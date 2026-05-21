@@ -385,10 +385,19 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           ref={setFocusRef(inputIndex)}
                           type="text"
                           inputMode="numeric"
-                          placeholder="YYYY-MM-DD"
-                          pattern="\d{4}-\d{2}-\d{2}"
-                          value={s.expiration_date || ''}
-                          onChange={(e) => updateService(s.id, { expiration_date: formatDateEntry(e.target.value) || null })}
+                          placeholder="DD-MM-YYYY"
+                          pattern="\d{2}-\d{2}-\d{4}"
+                          value={dateDrafts[s.id] ?? toDisplayDate(s.expiration_date)}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+                            let display = raw;
+                            if (raw.length > 4) display = `${raw.slice(0,2)}-${raw.slice(2,4)}-${raw.slice(4)}`;
+                            else if (raw.length > 2) display = `${raw.slice(0,2)}-${raw.slice(2)}`;
+                            setDateDrafts(prev => ({ ...prev, [s.id]: display }));
+                            const stored = formatDateEntry(e.target.value);
+                            updateService(s.id, { expiration_date: stored || null });
+                          }}
+                          onBlur={() => setDateDrafts(prev => { const { [s.id]: _, ...rest } = prev; return rest; })}
                           className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${focusedIndex === inputIndex ? 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]' : ''}`}
                         />
                         {statusBadge}
