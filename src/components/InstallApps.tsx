@@ -622,7 +622,6 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
             data-focus-id={`app-${app.id}`}
             className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-white/90 scale-[1.02] shadow-[0_0_24px_rgba(255,255,255,0.5)] z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
 
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
