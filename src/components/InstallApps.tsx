@@ -67,6 +67,7 @@ type FocusType =
   | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
+  | `forcestop-${string}`
   | `settings-${string}` 
   | `cache-${string}` 
   | `uninstall-${string}`
@@ -124,7 +125,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   // Helpers to extract the app id out of a focus token like "launch-<id>".
   const getAppIdFromFocus = (focus: string): string | null => {
-    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'settings-', 'cache-', 'uninstall-'];
+    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'forcestop-', 'settings-', 'cache-', 'uninstall-'];
     for (const p of prefixes) {
       if (focus.startsWith(p)) return focus.slice(p.length);
     }
@@ -169,10 +170,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       }
 
       const categoryApps = getCategoryApps(activeTab);
+      const activeTabFocus = (activeTab === 'featured' ? 'tab-0' : 'tab-1') as FocusType;
+      const firstAppFocus = categoryApps[0] ? (`app-${categoryApps[0].id}` as FocusType) : activeTabFocus;
       const currentAppId = getAppIdFromFocus(focusedElement);
       const currentApp = currentAppId
         ? categoryApps.find((a) => a.id === currentAppId)
         : null;
+      const currentAppIndex = currentApp ? categoryApps.findIndex((a) => a.id === currentApp.id) : -1;
 
       // Enter / Space — behavior unchanged
       if (event.key === 'Enter' || event.key === ' ') {
@@ -209,10 +213,45 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
 
+      // Explicit header/tab/app hand-offs. This prevents spatial navigation from
+      // skipping the Featured/All tabs or landing on visible-but-not-open actions.
+      if (focusedElement === 'back') {
+        if (event.key === 'ArrowRight') { setFocusedElement('refresh'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+        return;
+      }
+      if (focusedElement === 'refresh') {
+        if (event.key === 'ArrowLeft') { setFocusedElement('back'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+        return;
+      }
+      if (focusedElement === 'tab-0') {
+        if (event.key === 'ArrowRight') { setFocusedElement('tab-1'); return; }
+        if (event.key === 'ArrowUp') { setFocusedElement('back'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(firstAppFocus); return; }
+      }
+      if (focusedElement === 'tab-1') {
+        if (event.key === 'ArrowLeft') { setFocusedElement('tab-0'); return; }
+        if (event.key === 'ArrowUp') { setFocusedElement('refresh'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(firstAppFocus); return; }
+      }
+      if (focusedElement.startsWith('app-') && currentApp) {
+        if (event.key === 'ArrowUp' && currentAppIndex === 0) { setFocusedElement(activeTabFocus); return; }
+        if (event.key === 'ArrowDown' && expandedAppId === currentApp.id) {
+          const isInstalled = !!appStatuses.get(currentApp.id)?.installed;
+          setFocusedElement((isInstalled ? `launch-${currentApp.id}` : `download-${currentApp.id}`) as FocusType);
+          return;
+        }
+      }
+
       // Override: keep D-pad inside an expanded card's action grid so
       // ArrowDown from Launch lands on Force Stop (not the next app card).
       if (currentApp && expandedAppId === currentApp.id) {
         const id = currentApp.id;
+        if (event.key === 'ArrowUp' && (focusedElement === `launch-${id}` || focusedElement === `download-${id}` || focusedElement === `pin-${id}`)) {
+          setFocusedElement(`app-${id}` as FocusType);
+          return;
+        }
         if (event.key === 'ArrowDown' && focusedElement === `launch-${id}`) {
           setFocusedElement(`forcestop-${id}` as FocusType);
           return;
@@ -326,7 +365,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const ensureStatus = useCallback(async (app: AppData): Promise<{ installed: boolean }> => {
     try {
       const installed = await checkInstallStatus(app);
-      setAppStatuses(prev => new Map(prev.set(app.id, { installed })));
+      setAppStatuses(prev => {
+        const next = new Map(prev);
+        next.set(app.id, { installed });
+        return next;
+      });
       return { installed };
     } catch (error) {
       console.error('Error checking app status:', error);
@@ -376,7 +419,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     if (Capacitor.isNativePlatform()) {
       const alreadyInstalled = await checkInstallStatus(app);
       if (alreadyInstalled) {
-        setAppStatuses(prev => new Map(prev.set(app.id, { installed: true })));
+        setAppStatuses(prev => {
+          const next = new Map(prev);
+          next.set(app.id, { installed: true });
+          return next;
+        });
         const alert = getAlertForApp(app.name);
         if (alert) {
           setPendingAlert({ alert, app });
@@ -431,7 +478,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Launch] ${app.name} → ${packageName}`);
-      try { trackAppLaunch(app.name); } catch {}
+      try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
       
       toast({
@@ -455,7 +502,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const attemptLaunch = useCallback((app: AppData) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
-      try { trackAlertShown(alert.title || app.name); } catch {}
+      try { trackAlertShown(alert.title || app.name); } catch { void 0; }
       setPendingAlert({ alert, app });
       return;
     }
@@ -650,7 +697,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-ice shadow-[0_0_26px_rgba(255,255,255,0.75),0_0_52px_rgba(161,213,220,0.45)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-3 pb-10 px-2">
@@ -670,7 +717,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               setExpandedAppId(app.id);
               setFocusedElement(`app-${app.id}` as FocusType);
             }}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02] shadow-[0_0_26px_rgba(255,255,255,0.7),0_0_54px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -724,18 +771,18 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 {!appExpanded && (
                   isInstalled ? (
                     <Button
-                      data-focus-id={`launch-${app.id}`}
-                      onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
-                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                      onClick={(e) => { e.stopPropagation(); setExpandedAppId(app.id); setFocusedElement(`app-${app.id}` as FocusType); }}
+                      tabIndex={-1}
+                      className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-primary hover:bg-primary/80 text-primary-foreground"
                     >
                       <Play className="w-4 h-4 mr-1" />
                       Launch
                     </Button>
                   ) : (
                     <Button
-                      data-focus-id={`download-${app.id}`}
-                      onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
-                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                      onClick={(e) => { e.stopPropagation(); setExpandedAppId(app.id); setFocusedElement(`app-${app.id}` as FocusType); }}
+                      tabIndex={-1}
+                      className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-brand-ice hover:bg-brand-ice/80 text-white"
                     >
                       <Download className="w-4 h-4 mr-1" />
                       Download

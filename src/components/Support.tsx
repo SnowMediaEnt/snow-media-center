@@ -40,6 +40,7 @@ type HelpView = 'menu' | 'videos' | 'tickets';
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
+  const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
@@ -60,7 +61,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       }
       const { AppManager } = await import('@/capacitor/AppManager');
       const packageName = app.packageName || generatePackageName(app.name);
-      try { trackAppLaunch(app.name); } catch {}
+        try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
     } catch (err) {
       console.error('[Support] launch failed:', err);
@@ -125,19 +126,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // we can't express this in the navigation map directly.
   const focusIntoChild = useCallback((childTab: Tab) => {
     if (childTab === 'ai') {
+      setChildFocusActive(true);
       window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
-      const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
-      if (input) {
-        input.focus({ preventScroll: true });
-        return true;
-      }
+      return true;
     }
     if (childTab === 'community') {
-      const room = document.querySelector<HTMLElement>('[data-tv-focus-id="room-general"]');
-      if (room) {
-        room.focus({ preventScroll: true });
-        return true;
-      }
+      setChildFocusActive(true);
+      window.dispatchEvent(new CustomEvent('community-chat:focus-room'));
+      return true;
     }
     return false;
   }, []);
@@ -163,27 +159,29 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // the child component owns D-pad + Back. Disabling the parent focus manager
   // here prevents its Back handler from firing first and exiting Support
   // straight to the Home screen.
-  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu';
+  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
     initialFocusId: `tab-${tab}`,
     focusableSelector: '[data-support-tv-focus-id]',
     navigation: supportNavigation,
     onBack,
     enabled: supportFocusActive,
+    scrollBlock: 'nearest',
   });
 
 
   useEffect(() => {
-    if (showSpeedTest || showGuide || helpView !== 'menu') return;
+    if (showSpeedTest || showGuide || helpView !== 'menu' || childFocusActive) return;
     const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
     return () => window.clearTimeout(timer);
-  }, [helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
+  }, [childFocusActive, helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
 
   // Listen for "escape up" requests from embedded child components so they
   // can hand focus back to the Support tab row via the D-pad.
   useEffect(() => {
     const handler = (e: Event) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
+      setChildFocusActive(false);
       supportFocus.focusById(`tab-${target}`);
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
@@ -236,7 +234,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
+        <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
             <TabsTrigger
               value="help"

@@ -42,6 +42,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const [aiLoading, setAiLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
+  const [embeddedFocusActive, setEmbeddedFocusActive] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [replySending, setReplySending] = useState(false);
@@ -685,7 +686,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
   const currentElement = focusableElements[clampedIndex];
-  const currentFocusId = currentElement?.id || 'back';
+  const currentFocusId = embedded && !embeddedFocusActive ? '' : (currentElement?.id || 'back');
 
   const isFocused = (id: string) => currentFocusId === id;
   const focusRing = (id: string) =>
@@ -701,6 +702,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const targetInside = !!containerRef.current?.contains(target);
       const activeInside = !!(active && containerRef.current?.contains(active));
       const hasCurrentChildFocus = !!containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`);
+      if (embedded && !embeddedFocusActive) return;
       if (embedded && !targetInside && !activeInside && !(target === document.body && hasCurrentChildFocus)) return;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
@@ -760,7 +762,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
         event.stopPropagation();
-        (event as any).stopImmediatePropagation?.();
+        event.stopImmediatePropagation?.();
       }
 
       // When leaving the input via D-pad in any direction, blur so the caret
@@ -786,6 +788,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
+          if (embedded && currentFocusId === 'ai-input') {
+            return;
+          }
           // Only when on the Send button, jump down to the first saved chat.
           // Letting the typing bar and voice/send buttons step naturally
           // means users don't skip past the input on a single Down press.
@@ -822,6 +827,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         case 'ArrowUp':
           if (embedded && focusIndex === 0) {
+            setEmbeddedFocusActive(false);
             window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             return;
           }
@@ -964,14 +970,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    // For AI history jumps, glide smoothly into view instead of snapping.
-    // Everything else uses the cheap 'nearest' scroll so the layout doesn't jiggle.
-    const useSmoothCenter = currentFocusId.startsWith('ai-history-');
-    el.scrollIntoView(
-      useSmoothCenter
-        ? { behavior: 'smooth', block: 'center', inline: 'nearest' }
-        : { behavior: 'auto', block: 'nearest', inline: 'nearest' }
-    );
+    if (!embedded) {
+      // Standalone mode may scroll its own page; embedded Support must not auto-drop.
+      const useSmoothCenter = currentFocusId.startsWith('ai-history-');
+      el.scrollIntoView(
+        useSmoothCenter
+          ? { behavior: 'smooth', block: 'center', inline: 'nearest' }
+          : { behavior: 'auto', block: 'nearest', inline: 'nearest' }
+      );
+    }
 
     const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
@@ -1017,7 +1024,11 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
   useEffect(() => {
     if (!embedded || activeTab !== 'ai') return;
-    const handler = () => setFocusIndex(0);
+    const handler = () => {
+      setEmbeddedFocusActive(true);
+      setFocusIndex(0);
+      requestAnimationFrame(() => containerRef.current?.focus({ preventScroll: true }));
+    };
     window.addEventListener('chat-community:focus-ai-input', handler);
     return () => window.removeEventListener('chat-community:focus-ai-input', handler);
   }, [activeTab, embedded]);
