@@ -42,11 +42,22 @@ const normalizeService = (service: CustomerServiceRow): UserService => ({
 
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-const formatDateEntry = (value: string) => {
+// User types DD-MM-YYYY; we store YYYY-MM-DD in state/DB.
+const formatDateEntry = (value: string): string => {
   const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+  if (digits.length < 8) return ''; // incomplete — clear stored value
+  const dd = digits.slice(0, 2);
+  const mm = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+// Convert stored YYYY-MM-DD back to DD-MM-YYYY for display.
+const toDisplayDate = (value: string | null): string => {
+  if (!value) return '';
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return value;
+  return `${m[3]}-${m[2]}-${m[1]}`;
 };
 
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
