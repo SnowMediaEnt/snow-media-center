@@ -135,6 +135,7 @@ const BufferingGuide = ({
   const [reportTitle, setReportTitle] = useState('');
   const [reportDevice, setReportDevice] = useState<string | null>(null);
   const [showAnonConfirm, setShowAnonConfirm] = useState(false);
+  const [showVpnSkipConfirm, setShowVpnSkipConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
