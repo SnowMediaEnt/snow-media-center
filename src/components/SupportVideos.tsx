@@ -148,7 +148,8 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
           }
           break;
       }
-    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
