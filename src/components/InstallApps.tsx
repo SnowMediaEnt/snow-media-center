@@ -9,7 +9,7 @@ import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
-import { generatePackageName } from '@/utils/downloadApk';
+import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
 
 import AppContextMenu from '@/components/AppContextMenu';
@@ -81,6 +81,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ app: null, position: { x: 0, y: 0 } });
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
@@ -392,8 +393,23 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
   }, [checkInstallStatus]);
 
-  const startDownload = useCallback((app: AppData) => {
+  const startDownload = useCallback(async (app: AppData) => {
     if (Capacitor.isNativePlatform()) {
+      // Resume support: if a finished APK is already in the cache from a
+      // previous session, skip the download and jump straight to install.
+      try {
+        const cached = await findCachedApk(app.name, app.version);
+        if (cached) {
+          toast({
+            title: 'Ready to install',
+            description: `${app.name} was already downloaded — tap Install.`,
+          });
+          setPrefetchedPath(cached);
+          setDownloadingApp(app);
+          return;
+        }
+      } catch { /* ignore — fall through to fresh download */ }
+      setPrefetchedPath(undefined);
       setDownloadingApp(app);
     } else {
       let url = app.downloadUrl!;
@@ -930,11 +946,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       {downloadingApp && (
         <DownloadProgress
           app={downloadingApp}
-          onClose={() => setDownloadingApp(null)}
+          prefetchedPath={prefetchedPath}
+          onClose={() => { setDownloadingApp(null); setPrefetchedPath(undefined); }}
           onComplete={() => {
             // Refresh the app status after download/install
             ensureStatus(downloadingApp);
             setDownloadingApp(null);
+            setPrefetchedPath(undefined);
           }}
         />
       )}

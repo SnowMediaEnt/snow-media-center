@@ -34,7 +34,7 @@ export interface AppManagerPlugin {
   installApk(options: { filePath: string }): Promise<void>;
   launch(options: { packageName: string }): Promise<void>;
   uninstall(options: { packageName: string }): Promise<{ started: boolean; uninstalled?: boolean; cancelled?: boolean; packageName?: string }>;
-  openAppSettings(options: { packageName: string }): Promise<void>;
+  openAppSettings(options: { packageName: string; appName?: string }): Promise<void>;
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>;
   openAccessibilitySettings(): Promise<void>;
   /** Auto-taps Storage → Clear cache for the given package via Accessibility Service. */

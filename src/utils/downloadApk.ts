@@ -134,3 +134,50 @@ export function generatePackageName(appName: string): string {
   const sanitizedName = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
   return `com.${sanitizedName}.app`;
 }
+
+/**
+ * Look for a previously-downloaded APK in the cache. Returns the file URI
+ * if found (so we can jump straight to install) or null.
+ *
+ * Also cleans up any older versioned APKs for the same app (different
+ * version number) so the cache doesn't grow forever.
+ */
+export async function findCachedApk(
+  appName: string,
+  version?: string
+): Promise<string | null> {
+  if (!isNativePlatform()) return null;
+  const target = generateFileName(appName, version);
+  const sanitizedName = appName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  try {
+    const result = await Filesystem.readdir({
+      path: 'apk',
+      directory: Directory.Cache,
+    });
+    let found: string | null = null;
+    for (const file of result.files) {
+      if (!file.name.endsWith('.apk')) continue;
+      // Stale version for the same app — remove it.
+      if (file.name.startsWith(`${sanitizedName}-`) && file.name !== target) {
+        try {
+          await Filesystem.deleteFile({
+            path: `apk/${file.name}`,
+            directory: Directory.Cache,
+          });
+        } catch { /* ignore */ }
+        continue;
+      }
+      if (file.name === target) {
+        const uri = await Filesystem.getUri({
+          directory: Directory.Cache,
+          path: `apk/${target}`,
+        });
+        found = uri.uri;
+      }
+    }
+    return found;
+  } catch {
+    return null;
+  }
+}
+

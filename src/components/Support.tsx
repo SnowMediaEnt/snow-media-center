@@ -85,7 +85,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         });
         return;
       }
-      await AppManager.openAppSettings({ packageName: resolved });
+      await AppManager.openAppSettings({ packageName: resolved, appName: app.name });
       toast({
         title: `Opening ${app.name}`,
         description: "Tap 'Force Stop', then 'Storage' → 'Clear cache'. Press Back when done.",

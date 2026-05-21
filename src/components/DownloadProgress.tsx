@@ -20,18 +20,21 @@ interface DownloadProgressProps {
   };
   onClose: () => void;
   onComplete: () => void;
+  /** If provided, skip downloading and jump straight to the install prompt
+   *  using this already-downloaded APK URI. Used for resume-after-100%. */
+  prefetchedPath?: string;
 }
 
 type DownloadState = 'downloading' | 'complete' | 'installing' | 'installed' | 'error';
 type FocusedButton = 'install' | 'later' | 'open' | 'close';
 
-const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) => {
-  const [progress, setProgress] = useState(0);
+const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: DownloadProgressProps) => {
+  const [progress, setProgress] = useState(prefetchedPath ? 100 : 0);
   const [downloadSpeed, setDownloadSpeed] = useState('0 KB/s');
   const [downloaded, setDownloaded] = useState('0 MB');
-  const [state, setState] = useState<DownloadState>('downloading');
+  const [state, setState] = useState<DownloadState>(prefetchedPath ? 'complete' : 'downloading');
   const [errorMessage, setErrorMessage] = useState('');
-  const [filePath, setFilePath] = useState('');
+  const [filePath, setFilePath] = useState(prefetchedPath || '');
   const [focusedButton, setFocusedButton] = useState<FocusedButton>('install');
   const { toast } = useToast();
   
@@ -105,6 +108,8 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
   }, [state]);
 
   useEffect(() => {
+    // If we already have a finished APK on disk, skip the network entirely.
+    if (prefetchedPath) return;
     let isMounted = true;
     let progressListener: any = null;
     
@@ -198,11 +203,11 @@ const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) =
     }
   }, []);
 
-  // Wrap onClose so closing the dialog (X button, Esc, "Install Later")
-  // ALWAYS cleans up the APK from cache. Prevents the "5 leftover APKs" bug.
+  // Wrap onClose so closing the dialog cleans up the APK from cache
+  // — UNLESS the download already finished. In that case we keep the
+  // file so the user can resume install on next open without re-downloading.
   const handleCloseAndCleanup = useCallback(() => {
-    // Only cleanup if we're not mid-install (let install path handle it)
-    if (state !== 'installing' && state !== 'installed') {
+    if (state !== 'installing' && state !== 'installed' && state !== 'complete') {
       purgeCachedApk();
     }
     onClose();

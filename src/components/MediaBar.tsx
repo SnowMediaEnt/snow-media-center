@@ -236,7 +236,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       }
     };
-    const t = window.setTimeout(load, 1500);
+    // Slow initial load on low-memory Android boxes so the home screen
+    // settles before we hit the network + decode posters.
+    const t = window.setTimeout(load, IS_LOW_MEMORY_NATIVE ? 6000 : 1500);
     const i = window.setInterval(load, REFRESH_MS);
     return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
   }, []);
