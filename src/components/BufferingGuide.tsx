@@ -1271,21 +1271,6 @@ const Step4 = ({
   onTestStreamingApp,
   chosenAppLabel,
   chosenAppAvailable,
-}: {
-  vpnSpeedOk: YesNo;
-  vpnTest: VpnTest;
-  ipvanishApp: AppData;
-  ipvanishInstalled: boolean;
-  surfsharkApp: AppData;
-  surfsharkInstalled: boolean;
-  onDownloadVpn: (c: 'ipvanish' | 'surfshark') => void;
-  onLaunchVpn: (c: 'ipvanish' | 'surfshark') => void;
-  onRunSpeedTest: () => void;
-  onVpnSpeedOk: (ok: boolean) => void;
-  onVpnTest: (v: VpnTest) => void;
-  onTestStreamingApp: () => void;
-  chosenAppLabel: string | null;
-  chosenAppAvailable: boolean;
   vpnChoice,
   onChooseVpn,
 }: {
