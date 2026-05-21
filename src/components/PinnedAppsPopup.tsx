@@ -2,16 +2,18 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pin, Plus, Play, Check } from 'lucide-react';
+import { Pin, Plus, Play, Check, Download } from 'lucide-react';
 import { PinnedApp } from '@/hooks/usePinnedApps';
 import { AppData } from '@/hooks/useAppData';
 import { InstalledApp } from '@/data/installedApps';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
   onLaunchApp: (app: AppData) => void;
+  onInstallApp: (app: PinnedApp) => void;
   onPinApp: (app: InstalledApp) => void;
   onReplacePinnedApp: (slotIndex: number, app: InstalledApp) => void;
   onUnpinApp: (appId: string) => void;
@@ -23,6 +25,7 @@ interface PinnedAppsPopupProps {
   onFocusChange: (index: number) => void;
   onExitFocus: () => void; // Called when user navigates out of popup
 }
+
 
 type CapacitorListenerHandle = { remove?: () => void };
 
