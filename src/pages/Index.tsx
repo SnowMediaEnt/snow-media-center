@@ -163,7 +163,7 @@ const Index = () => {
   }, [showEasterEgg, isInPopup, isInMediaBar]);
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
-  const { pinnedApps, isPinned, pinApp, unpinApp, canPinMore } = usePinnedApps();
+  const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { resolvePackageName } = useDeviceInstalledApps();
@@ -180,6 +180,15 @@ const Index = () => {
     };
     pinApp(pinnedAppData);
   }, [pinApp]);
+
+  const handleReplacePinnedFromPopup = useCallback((slotIndex: number, app: InstalledApp) => {
+    replacePinnedApp(slotIndex, {
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      packageName: app.packageName,
+    });
+  }, [replacePinnedApp]);
 
   // Actually launch a pinned app — mirrors InstallApps.handleLaunch
   const performLaunchPinnedApp = useCallback(async (app: LaunchableApp) => {
@@ -720,6 +729,7 @@ const Index = () => {
                         isVisible={isFocused}
                         onLaunchApp={handleLaunchPinnedApp}
                         onPinApp={handlePinFromPopup}
+                        onReplacePinnedApp={handleReplacePinnedFromPopup}
                         onUnpinApp={unpinApp}
                         isPinned={isPinned}
                         canPinMore={canPinMore}
