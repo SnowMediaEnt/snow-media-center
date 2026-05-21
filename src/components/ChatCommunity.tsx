@@ -15,6 +15,7 @@ import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 
 interface ChatCommunityProps {
@@ -265,13 +266,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
 
   const forceSupportScrollTop = useCallback(() => {
-    const scrollers = Array.from(document.querySelectorAll<HTMLElement>('.tv-scroll-container'));
-    const snapTop = () => scrollers.forEach((el) => el.scrollTo({ top: 0, behavior: 'auto' }));
-    snapTop();
-    requestAnimationFrame(snapTop);
-    window.setTimeout(snapTop, 120);
-    window.setTimeout(snapTop, 320);
-    window.setTimeout(snapTop, 700);
+    snapAllTVScrollToTop([containerRef.current]);
   }, []);
 
   useEffect(() => {
