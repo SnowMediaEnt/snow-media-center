@@ -640,7 +640,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </Tabs>
       </div>
 
+      {user && (
+        <UserServicesEditor
+          open={showServicesEditor}
+          onClose={() => setShowServicesEditor(false)}
+          userId={user.id}
+          email={user.email || ''}
+          onSaved={refetchUserServices}
+        />
+      )}
+
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+
         <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
