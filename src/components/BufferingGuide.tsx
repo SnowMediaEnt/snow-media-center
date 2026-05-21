@@ -140,6 +140,10 @@ const BufferingGuide = ({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  // When the user goes back (footer Back / remote Back), don't re-focus
+  // content — keep focus on the Back button so they can press it again
+  // to pop further without hunting back up.
+  const justWentBackRef = useRef(false);
 
   const step: StepKey = STEPS[stepIndex];
 
@@ -286,7 +290,7 @@ const BufferingGuide = ({
     return () => window.removeEventListener('keydown', handler, true);
   }, [showSpeedTest, stepIndex]);
 
-  // Auto-focus the first focusable element when step changes
+  // Auto-focus the first focusable element when step (or step1 sub-view) changes
   useEffect(() => {
     if (showSpeedTest) return;
     // Snap content to top BEFORE focusing so focus() doesn't scroll us to a
@@ -294,9 +298,23 @@ const BufferingGuide = ({
     contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     const t = setTimeout(() => {
       const focusables = getFocusables();
+      // If we just came here via Back, keep focus on the footer Back button
+      // so the user can hold Back to keep popping.
+      if (justWentBackRef.current) {
+        justWentBackRef.current = false;
+        const back = rootRef.current?.querySelector<HTMLElement>('[data-guide-nav="back"]');
+        if (back) {
+          back.focus({ preventScroll: true });
+          lastFocusedRef.current = back;
+          contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          return;
+        }
+      }
       // Prefer first focusable inside the content area (skip header Close button)
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
-      const target = contentFocusables[0] || focusables[0];
+      // Prefer an explicit step-entry anchor if provided (e.g. ReportChannelStep input)
+      const anchor = contentFocusables.find((el) => el.getAttribute('data-guide-entry') === 'true');
+      const target = anchor || contentFocusables[0] || focusables[0];
       if (target) {
         target.focus({ preventScroll: true });
         lastFocusedRef.current = target;
@@ -305,7 +323,7 @@ const BufferingGuide = ({
       contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     }, 80);
     return () => clearTimeout(t);
-  }, [stepIndex, showSpeedTest]);
+  }, [stepIndex, showSpeedTest, state.step1Choice]);
 
 
   // Track last-focused element inside the modal so D-pad can resume after focus loss
@@ -447,17 +465,35 @@ const BufferingGuide = ({
       }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         if (document.querySelector('[data-download-progress="true"]')) return;
+        // Don't hijack Backspace while typing in a text field — only
+        // ESC and the Android remote BACK key (keyCode 4) should navigate.
+        const tgt = e.target as HTMLElement | null;
+        const inField = tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA');
+        if (e.key === 'Backspace' && inField) return;
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
         if (showSpeedTest) return; // SpeedTest handles its own
-        if (stepIndex > 0) setStepIndex((i) => i - 1);
-        else onClose();
+        // If we're inside the "report broken channel" sub-view, pop back to
+        // the Step 1 yes/no choice instead of jumping to the intro screen.
+        if (step === 'step1' && state.step1Choice === 'one_only') {
+          setReportTitle('');
+          setReportDevice(null);
+          setState((s) => ({ ...s, step1Choice: null }));
+          justWentBackRef.current = true;
+          return;
+        }
+        if (stepIndex > 0) {
+          justWentBackRef.current = true;
+          setStepIndex((i) => i - 1);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [stepIndex, onClose, showSpeedTest]);
+  }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice]);
 
   // Scroll content to top on step change
   useEffect(() => {
@@ -474,7 +510,18 @@ const BufferingGuide = ({
     if (canNext && stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
   };
   const goBack = () => {
-    if (stepIndex > 0) setStepIndex((i) => i - 1);
+    // Pop the report sub-view first, otherwise step back one.
+    if (step === 'step1' && state.step1Choice === 'one_only') {
+      setReportTitle('');
+      setReportDevice(null);
+      setState((s) => ({ ...s, step1Choice: null }));
+      justWentBackRef.current = true;
+      return;
+    }
+    if (stepIndex > 0) {
+      justWentBackRef.current = true;
+      setStepIndex((i) => i - 1);
+    }
   };
 
   const jumpToSummary = () => setStepIndex(STEPS.length - 1);
@@ -658,7 +705,7 @@ const BufferingGuide = ({
       ref={rootRef}
       className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150 [&_a:focus]:outline-none [&_a:focus]:ring-2 [&_a:focus]:ring-yellow-300 [&_a:focus]:rounded">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-white/10 bg-gradient-to-b from-blue-950/60 to-transparent">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-white/10 bg-gradient-to-b from-blue-950/60 to-transparent">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
           <Button
             onClick={onClose}
@@ -679,7 +726,7 @@ const BufferingGuide = ({
           </Badge>
         </div>
         {/* Progress */}
-        <div className="max-w-3xl mx-auto mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="max-w-3xl mx-auto mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300"
             style={{ width: `${(stepIndex / (STEPS.length - 1)) * 100}%` }}
@@ -688,8 +735,8 @@ const BufferingGuide = ({
       </div>
 
       {/* Content */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-3xl mx-auto space-y-4">
+      <div ref={contentRef} className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="max-w-3xl mx-auto space-y-2">
           {HINTS[step] && step !== 'step4' && (
             <p className="text-xs uppercase tracking-wider text-cyan-300/80">{HINTS[step]}</p>
           )}
@@ -871,7 +918,7 @@ const BufferingGuide = ({
       </div>
 
       {/* Footer */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10 bg-black/60">
+      <div className="flex-shrink-0 px-4 py-2 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           {stepIndex > 0 ? (
             <Button
@@ -1020,7 +1067,7 @@ const ChoiceButton = ({
 );
 
 const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Which app is buffering?</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1069,7 +1116,7 @@ const ReportChannelStep = ({
   onSubmit: () => void;
   onBack: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-3">
     <div>
       <h2 className="text-xl font-semibold text-white">Report the broken channel/title</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1091,6 +1138,7 @@ const ReportChannelStep = ({
           }
         }}
         placeholder="e.g. ESPN HD, The Bear S03E01"
+        data-guide-entry="true"
         className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
       />
     </div>
@@ -1129,7 +1177,7 @@ const ReportChannelStep = ({
 
 
 const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Is it only one channel/title, or everything?</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1164,7 +1212,7 @@ const Step2 = ({
   onOpenSettings: () => void;
   onSelect: (v: boolean) => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Force Stop + Clear Cache for {appLabel}</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1216,7 +1264,7 @@ const Step3 = ({
   onRunInApp: () => void;
   onSaveTyped: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Test your internet speed</h2>
       <p className="text-sm text-white/70 mt-1">
@@ -1307,7 +1355,7 @@ const Step4 = ({
   const activeInstalled = activeChoice === 'ipvanish' ? ipvanishInstalled : surfsharkInstalled;
   const anyInstalled = ipvanishInstalled || surfsharkInstalled;
   return (
-    <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+    <Card className="bg-white/5 border-white/10 p-3 space-y-3">
       <div className="text-center">
         <h2 className="text-xl font-semibold text-white flex items-center justify-center gap-2">
           <ShieldCheck className="w-5 h-5 text-cyan-300" /> VPN test (ISP throttling check)
@@ -1517,7 +1565,7 @@ const Summary = ({
   submittingTicket: boolean;
   onRestart: () => void;
 }) => (
-  <Card className="bg-white/5 border-white/10 p-5 space-y-4">
+  <Card className="bg-white/5 border-white/10 p-3 space-y-2">
     <div>
       <h2 className="text-xl font-semibold text-white">Your results</h2>
       <p className="text-sm text-white/70 mt-1">Most likely cause and what to do next.</p>
