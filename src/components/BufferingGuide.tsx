@@ -840,6 +840,8 @@ const BufferingGuide = ({
               }}
               chosenAppLabel={state.appType ? APP_LABELS[state.appType] : null}
               chosenAppAvailable={!!chosenApp && chosenAppInstalled}
+              vpnChoice={state.vpnChoice}
+              onChooseVpn={(c) => setState((s) => ({ ...s, vpnChoice: c, vpnSpeedOk: null, vpnTest: null }))}
             />
           )}
 
