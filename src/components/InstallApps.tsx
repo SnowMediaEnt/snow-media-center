@@ -424,6 +424,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const attemptLaunch = useCallback((app: AppData) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
+      try { trackAlertShown(alert.title || app.name); } catch {}
       setPendingAlert({ alert, app });
       return;
     }
