@@ -274,23 +274,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     window.setTimeout(snapTop, 320);
   }, []);
 
-  const focusTextFieldById = useCallback((id: string) => {
-    const elements = getFocusableElements();
-    const nextIndex = elements.findIndex((el) => el.id === id);
-    if (nextIndex !== -1) setFocusIndex(nextIndex);
-    requestAnimationFrame(() => {
-      const input = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLInputElement | HTMLTextAreaElement | null;
-      void focusTextInputForDpad(input);
-    });
-  }, [getFocusableElements]);
-
-  const leaveTextFieldById = useCallback((id: string, active?: HTMLElement | null) => {
-    const elements = getFocusableElements();
-    const nextIndex = elements.findIndex((el) => el.id === id);
-    if (nextIndex !== -1) setFocusIndex(nextIndex);
-    void hideKeyboardForDpad(active);
-  }, [getFocusableElements]);
-
   useEffect(() => {
     if (activeTab === 'ai') {
       requestAnimationFrame(() => {
