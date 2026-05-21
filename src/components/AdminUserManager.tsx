@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Coins, Plus, Minus, MessageCircle, User as UserIcon, Mail } from 'lucide-react';
+import { Search, Coins, Plus, Minus, MessageCircle, User as UserIcon, Mail, Pencil } from 'lucide-react';
+import UserServicesEditor from '@/components/UserServicesEditor';
+
 
 interface ProfileRow {
   user_id: string;
@@ -23,6 +25,8 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [editingUser, setEditingUser] = useState<ProfileRow | null>(null);
+
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -172,13 +176,34 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
                     <MessageCircle className="h-4 w-4 mr-1" /> Tickets
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingUser(u)}
+                  className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white"
+                >
+                  <Pencil className="h-4 w-4 mr-1" /> Devices/Services
+                </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {editingUser && (
+        <UserServicesEditor
+          open={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          userId={editingUser.user_id}
+          email={editingUser.email || ''}
+          displayName={editingUser.full_name || editingUser.username || editingUser.email || ''}
+          adminMode
+        />
+      )}
     </div>
   );
 };
+
+
 
 export default AdminUserManager;

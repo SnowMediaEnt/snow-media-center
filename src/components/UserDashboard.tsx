@@ -7,13 +7,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
+import UserServicesEditor from '@/components/UserServicesEditor';
+import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
 
 
 interface UserDashboardProps {
@@ -44,7 +46,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [referralQr, setReferralQr] = useState<string | null>(null);
+  const [showServicesEditor, setShowServicesEditor] = useState(false);
+  const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     const url = wixReferrals?.referralUrl;
@@ -368,6 +373,62 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </div>
                 </div>
               </div>
+
+              {/* My Devices & Services */}
+              <div className="mt-8 pt-6 border-t border-slate-700">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
+                  <Button
+                    onClick={() => setShowServicesEditor(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    size="sm"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Devices</p>
+                    {myDevices.length === 0 ? (
+                      <p className="text-slate-400 text-sm">No devices added yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {myDevices.map(d => (
+                          <Badge key={d.id} className="bg-slate-700 text-white border border-slate-600">{d.device_type}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Services</p>
+                    {myServices.length === 0 ? (
+                      <p className="text-slate-400 text-sm">No services tracked yet.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {myServices.map(s => {
+                          const days = daysUntil(s.expiration_date);
+                          let label = 'No date';
+                          let cls = 'text-slate-400';
+                          if (days !== null) {
+                            if (days < 0) { label = `Expired ${Math.abs(days)}d ago`; cls = 'text-red-400'; }
+                            else if (days === 0) { label = 'Expires today'; cls = 'text-amber-400'; }
+                            else if (days <= 7) { label = `In ${days} days`; cls = 'text-amber-400'; }
+                            else { label = `${days}d left`; cls = 'text-emerald-400'; }
+                          }
+                          return (
+                            <li key={s.id} className="text-sm text-slate-300 flex justify-between gap-2">
+                              <span className="truncate">{s.service_name || s.service_type}</span>
+                              <span className={cls}>{label}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+
               <div className="mt-8 pt-6 border-t border-slate-700">
                 <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
@@ -579,7 +640,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </Tabs>
       </div>
 
+      {user && (
+        <UserServicesEditor
+          open={showServicesEditor}
+          onClose={() => setShowServicesEditor(false)}
+          userId={user.id}
+          email={user.email || ''}
+          onSaved={refetchUserServices}
+        />
+      )}
+
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+
         <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>

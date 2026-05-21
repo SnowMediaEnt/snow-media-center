@@ -472,8 +472,10 @@ export type Database = {
           notes: string | null
           panel_username: string | null
           renewal_status: string | null
+          service_name: string | null
           service_type: string
           start_date: string | null
+          tied_apps: string[]
         }
         Insert: {
           created_at?: string
@@ -484,8 +486,10 @@ export type Database = {
           notes?: string | null
           panel_username?: string | null
           renewal_status?: string | null
+          service_name?: string | null
           service_type: string
           start_date?: string | null
+          tied_apps?: string[]
         }
         Update: {
           created_at?: string
@@ -496,8 +500,10 @@ export type Database = {
           notes?: string | null
           panel_username?: string | null
           renewal_status?: string | null
+          service_name?: string | null
           service_type?: string
           start_date?: string | null
+          tied_apps?: string[]
         }
         Relationships: [
           {
