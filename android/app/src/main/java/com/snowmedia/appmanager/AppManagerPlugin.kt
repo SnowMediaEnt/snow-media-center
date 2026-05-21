@@ -285,107 +285,17 @@ class AppManagerPlugin : Plugin() {
       } else {
         Intent(Intent.ACTION_VIEW, Uri.parse(url))
       }.apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (activity == null) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!pkg.isNullOrBlank()) setPackage(pkg)
       }
       Log.d(TAG, "openUrl launching url=$url package=${pkg ?: intent.getPackage() ?: "auto"} action=${intent.action}")
-      context.startActivity(intent)
+      (activity ?: context).startActivity(intent)
       call.resolve()
     } catch (e: Exception) {
       Log.e(TAG, "openUrl failed for $url", e)
       call.reject("Could not open URL: ${e.message}")
     }
   }
-
-  /**
-   * Plex-specific launcher.
-   * - Tries each plex:// deep-link URL via ACTION_VIEW + setPackage(com.plexapp.android).
-   * - Uses resolveActivity to verify Plex can actually handle the URI BEFORE
-   *   starting, so we never fire a launcher intent that resets Plex to home.
-   * - Starts from the host Activity (not application context) so Android can
-   *   route the intent into Plex's existing task instead of creating a new one.
-   * - Adds FLAG_ACTIVITY_SINGLE_TOP so an already-running Plex handler
-   *   activity receives onNewIntent() instead of being recreated (no splash).
-   * - Final fallback: getLaunchIntentForPackage WITHOUT FLAG_ACTIVITY_CLEAR_TASK
-   *   so an already-running Plex is brought to the foreground instead of
-   *   being force-restarted.
-   * Never uses FLAG_ACTIVITY_CLEAR_TASK / CLEAR_TOP / RESET_TASK_IF_NEEDED.
-   */
-  @PluginMethod
-  fun openPlexItem(call: PluginCall) {
-    val urlsArray = call.getArray("urls")
-    val pkg = call.getString("packageName") ?: "com.plexapp.android"
-    val title = call.getString("title") ?: ""
-    if (urlsArray == null || urlsArray.length() == 0) {
-      call.reject("urls required")
-      return
-    }
-
-    val pm = context.packageManager
-    val installed = try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
-    if (!installed) { call.reject("PLEX_NOT_INSTALLED"); return }
-
-    // Prefer the host Activity as launch context so Android reuses Plex's
-    // existing task. Fall back to application context only if no activity
-    // is attached (shouldn't happen in our flow).
-    val launchCtx = activity ?: context
-    val needsNewTask = launchCtx !is Activity
-
-    val attempts = JSArray()
-    for (i in 0 until urlsArray.length()) {
-      val url = try { urlsArray.getString(i) } catch (_: Exception) { null } ?: continue
-      val attempt = JSObject().put("attemptedUrl", url).put("packageTarget", pkg)
-      try {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-          setPackage(pkg)
-          // SINGLE_TOP → existing Plex handler activity receives onNewIntent
-          // (no splash). NEW_TASK only when launching from non-activity ctx.
-          addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-          if (needsNewTask) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val resolved = intent.resolveActivity(pm)
-        attempt.put("resolved", resolved != null)
-        attempt.put("intentAction", intent.action ?: "")
-        attempt.put("flags", if (needsNewTask) "NEW_TASK|SINGLE_TOP" else "SINGLE_TOP")
-        if (resolved == null) {
-          attempt.put("success", false).put("error", "NO_HANDLER")
-          attempts.put(attempt)
-          Log.d(TAG, "PLEX_OPEN_ATTEMPT title=$title url=$url resolved=false")
-          continue
-        }
-        Log.d(TAG, "PLEX_OPEN_ATTEMPT title=$title url=$url resolved=$resolved ctx=${if (launchCtx is Activity) "activity" else "app"} → starting")
-        launchCtx.startActivity(intent)
-        attempt.put("success", true)
-        attempts.put(attempt)
-        call.resolve(JSObject().put("method", "deeplink").put("attempted", attempts).put("usedUrl", url))
-        return
-      } catch (e: Exception) {
-        attempt.put("success", false).put("error", e.message ?: "")
-        attempts.put(attempt)
-        Log.w(TAG, "PLEX_OPEN_ATTEMPT failed url=$url err=${e.message}")
-      }
-    }
-
-    // Final fallback — launch Plex without resetting its task stack.
-    try {
-      val launch = pm.getLaunchIntentForPackage(pkg)
-      if (launch == null) {
-        call.reject("PLEX_LAUNCH_INTENT_MISSING")
-        return
-      }
-      // SINGLE_TOP keeps an existing Plex foregrounded without a restart.
-      // NEW_TASK only when starting from non-activity context.
-      launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-      if (needsNewTask) launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      Log.w(TAG, "PLEX_OPEN_ATTEMPT all deep links failed → bringing Plex to foreground (no task clear)")
-      launchCtx.startActivity(launch)
-      call.resolve(JSObject().put("method", "package_launch").put("attempted", attempts))
-    } catch (e: Exception) {
-      Log.e(TAG, "openPlexItem fallback failed", e)
-      call.reject("Could not open Plex: ${e.message}")
-    }
-  }
-
 
   @PluginMethod
   fun isSpeechRecognitionAvailable(call: PluginCall) {
