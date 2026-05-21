@@ -12,13 +12,10 @@ import SsoConsume from "./pages/SsoConsume";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
-import { useDynamicBackground } from "@/hooks/useDynamicBackground";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const { backgroundUrl } = useDynamicBackground();
-
   // NOTE: Android back-button is handled exclusively in `src/hooks/useNavigation.ts`
   // (which scopes back behavior to the current view). Adding a second listener
   // here used to fight that handler and produced extra D-pad/back work that
@@ -66,13 +63,7 @@ const App = () => {
         <div 
           data-app-scroll-root
           className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
-          style={backgroundUrl ? {
-            backgroundImage: `url(${backgroundUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed'
-          } : {
+          style={{
             background: 'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)'
           }}
         >
