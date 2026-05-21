@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
+import DownloadProgress from '@/components/DownloadProgress';
+
 import { useAppData } from '@/hooks/useAppData';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
