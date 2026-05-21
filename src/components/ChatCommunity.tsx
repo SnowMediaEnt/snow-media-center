@@ -271,6 +271,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     requestAnimationFrame(snapTop);
     window.setTimeout(snapTop, 120);
     window.setTimeout(snapTop, 320);
+    window.setTimeout(snapTop, 700);
   }, []);
 
   useEffect(() => {
@@ -1086,7 +1087,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           '[data-focus-id="ai-input"]'
         ) as HTMLElement | null;
         if (input) {
-          input.focus({ preventScroll: true });
+          containerRef.current?.focus({ preventScroll: true });
           input.scrollIntoView({ block: 'center', behavior: 'smooth' });
         } else {
           containerRef.current?.focus({ preventScroll: true });
