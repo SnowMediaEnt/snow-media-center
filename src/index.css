@@ -280,6 +280,23 @@
   /* Height is controlled inline by the component (compact vs thick). */
 }
 
+.native-low-memory .news-ticker-track,
+.native-low-memory .media-bar-track {
+  animation: none !important;
+  transform: none !important;
+}
+
+.native-low-memory .home-focus-surface,
+.native-low-memory .home-focus-surface[data-focused="true"] {
+  will-change: auto;
+  transform: none;
+  transition: none;
+}
+
+.native-low-memory .home-focus-surface[data-focused="true"] {
+  box-shadow: 0 0 14px hsl(var(--brand-gold) / 0.5);
+}
+
 .news-ticker-track {
   display: inline-flex;
   /* No gap — duplicated copies must sit flush so a -50% translate lands

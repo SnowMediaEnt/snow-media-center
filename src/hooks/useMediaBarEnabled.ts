@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
+import { isNativePlatform } from '@/utils/platform';
 
 const KEY = 'snow-media-bar-enabled';
 const EVENT = 'snow-media-bar-enabled-changed';
+const isLikelyLowMemoryAndroid = () => {
+  if (!isNativePlatform()) return false;
+  const ua = navigator.userAgent || '';
+  return /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(ua);
+};
 
 export const readMediaBarEnabled = (): boolean => {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw === null) return true; // default ON
+    if (raw === null) return !isLikelyLowMemoryAndroid();
     return raw === '1' || raw === 'true';
   } catch {
-    return true;
+    return !isLikelyLowMemoryAndroid();
   }
 };
 

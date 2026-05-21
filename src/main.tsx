@@ -6,6 +6,11 @@ import { isNativePlatform, getPlatform } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
 
+const nativeLowMemory = isNativePlatform() && /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(navigator.userAgent);
+if (nativeLowMemory) {
+  document.documentElement.classList.add('native-low-memory');
+}
+
 // Startup diagnostics for debugging Android issues
 const logStartupDiagnostics = async () => {
   const platform = getPlatform();
