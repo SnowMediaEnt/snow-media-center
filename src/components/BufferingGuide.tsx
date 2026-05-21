@@ -140,6 +140,7 @@ const BufferingGuide = ({
   const [reportTitle, setReportTitle] = useState('');
   const [reportDevice, setReportDevice] = useState<string | null>(null);
   const [showAnonConfirm, setShowAnonConfirm] = useState(false);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [showVpnSkipConfirm, setShowVpnSkipConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -746,11 +747,7 @@ const BufferingGuide = ({
 
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
-      toast({
-        title: 'Sign in required',
-        description: 'Please sign in via Chat & Community to submit a ticket.',
-        variant: 'destructive',
-      });
+      setShowSignInPrompt(true);
       return;
     }
     try {
