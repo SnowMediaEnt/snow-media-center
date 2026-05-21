@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
+import DownloadProgress from '@/components/DownloadProgress';
+
 import { useAppData } from '@/hooks/useAppData';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
@@ -38,8 +40,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const { apps } = useAppData();
   const { toast } = useToast();
+
 
   // Minimal launch / download handlers for the buffering guide. Full
   // install + progress UX still lives in Main Apps — we route downloads
@@ -61,6 +65,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }, [toast]);
 
   const openAppSettings = useCallback(async (app: AppData) => {
+
     try {
       const { Capacitor } = await import('@capacitor/core');
       if (!Capacitor.isNativePlatform()) return;
@@ -72,11 +77,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     }
   }, []);
 
-  const downloadApp = useCallback(() => {
-    setShowGuide(false);
-    toast({ title: 'Open Main Apps', description: 'Install the app from the Main Apps screen.' });
-    onNavigate?.('apps');
-  }, [onNavigate, toast]);
+  // Download in place (mirrors Main Apps) so the user stays inside the
+  // Buffering Guide and doesn't lose their progress mid-flow.
+  const downloadApp = useCallback((app: AppData) => {
+    setDownloadingApp(app);
+  }, []);
+
 
 
   // Back navigation is owned by child components/overlays so that pressing Back
@@ -331,6 +337,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
         />
       )}
+      {downloadingApp && (
+        <DownloadProgress
+          app={downloadingApp}
+          onClose={() => setDownloadingApp(null)}
+          onComplete={() => setDownloadingApp(null)}
+        />
+      )}
+
     </div>
   );
 };

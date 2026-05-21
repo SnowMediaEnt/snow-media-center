@@ -399,15 +399,32 @@ const BufferingGuide = ({
   useEffect(() => {
     let cancelled = false;
     const check = (pkg: string, setter: (b: boolean | null) => void) => {
-      setter(null);
       AppManager.isInstalled({ packageName: pkg })
         .then((r) => { if (!cancelled) setter(!!r.installed); })
         .catch(() => { if (!cancelled) setter(false); });
     };
-    check(VPN_INFO.ipvanish.pkg, setIpvanishLive);
-    check(VPN_INFO.surfshark.pkg, setSurfsharkLive);
-    return () => { cancelled = true; };
+    const recheck = () => {
+      check(VPN_INFO.ipvanish.pkg, setIpvanishLive);
+      check(VPN_INFO.surfshark.pkg, setSurfsharkLive);
+    };
+    recheck();
+    // Re-check whenever the user returns from an external action (Play Store,
+    // installer permission screen, etc.) so the "Install" button flips to
+    // "Open" without forcing them to re-enter the step.
+    const onFocus = () => recheck();
+    const onVisibility = () => { if (document.visibilityState === 'visible') recheck(); };
+    const onResume = () => recheck();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('app-resumed', onResume as EventListener);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('app-resumed', onResume as EventListener);
+    };
   }, [step]);
+
 
   const ipvanishInstalled =
     !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true;
