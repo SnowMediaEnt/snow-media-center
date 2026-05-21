@@ -27,6 +27,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [focusedElement, setFocusedElement] = useState<'back' | 'signin' | 'cart' | string>('back');
   const [detailFocusedElement, setDetailFocusedElement] = useState<string>('detail-back');
+  const backButtonRef = useRef<HTMLButtonElement>(null);
   
   const cartItems = cart.items;
   const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.cartQuantity), 0);
@@ -238,7 +239,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'Enter':
         case ' ':
-          if (focusedElement === 'back') onBack();
+          if (focusedElement === 'back') { console.log('[MediaStore] Enter on Back → onBack()'); onBack(); backButtonRef.current?.click(); }
           else if (focusedElement === 'signin') navigate('/auth');
           else if (focusedElement === 'cart') handleCheckout();
           else if (focusedElement.startsWith('category-')) {
@@ -534,6 +535,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
             <Button 
+              ref={backButtonRef}
               onClick={onBack}
               variant="gold" 
               size="lg"
