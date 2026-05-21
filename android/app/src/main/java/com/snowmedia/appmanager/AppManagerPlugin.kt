@@ -405,10 +405,39 @@ class AppManagerPlugin : Plugin() {
   private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
   private var voiceTimeoutRunnable: Runnable? = null
 
+  // FireTV / Amazon devices: Alexa owns the mic, so the direct
+  // SpeechRecognizer API hears silence. The system speech-intent
+  // dialog (RecognizerIntent.ACTION_RECOGNIZE_SPEECH) gets populated
+  // by the Alexa remote-mic button instead, so we keep that path
+  // for Amazon hardware only.
+  private fun isFireTvDevice(): Boolean {
+    return try {
+      val pm = context.packageManager
+      val isFire = pm.hasSystemFeature("amazon.hardware.fire_tv") ||
+        pm.hasSystemFeature("amazon.software.fireos") ||
+        Build.MANUFACTURER.equals("Amazon", ignoreCase = true) ||
+        Build.BRAND.equals("Amazon", ignoreCase = true)
+      Log.d(TAG, "isFireTvDevice=$isFire manufacturer=${Build.MANUFACTURER} brand=${Build.BRAND}")
+      isFire
+    } catch (e: Exception) {
+      Log.w(TAG, "isFireTvDevice check failed", e)
+      false
+    }
+  }
+
   @PluginMethod
   fun startVoiceInput(call: PluginCall) {
     if (voiceListening || pendingVoiceCall != null) {
       call.reject("VOICE_RECOGNIZER_BUSY", "VOICE_RECOGNIZER_BUSY")
+      return
+    }
+
+    // On FireTV, route through the system speech-intent dialog so the
+    // Alexa remote-mic button can fill in the transcription. Direct
+    // SpeechRecognizer fails on FireTV because Alexa hijacks the mic.
+    if (isFireTvDevice()) {
+      Log.d(TAG, "FireTV detected — using RecognizerIntent activity flow")
+      startRecognizerIntentFlow(call)
       return
     }
 
@@ -434,6 +463,63 @@ class AppManagerPlugin : Plugin() {
 
     startSpeechRecognizerSession(call)
   }
+
+  // ---- FireTV path: system speech-intent dialog (Alexa-fillable) ----
+  private fun startRecognizerIntentFlow(call: PluginCall) {
+    try {
+      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toString())
+        putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+      }
+      pendingVoiceCall = call
+      voiceListening = true
+      saveCall(call)
+      startActivityForResult(call, intent, "voiceIntentResult")
+    } catch (e: ActivityNotFoundException) {
+      Log.e(TAG, "RecognizerIntent activity not found", e)
+      pendingVoiceCall = null
+      voiceListening = false
+      call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
+    } catch (e: Exception) {
+      Log.e(TAG, "RecognizerIntent launch failed", e)
+      pendingVoiceCall = null
+      voiceListening = false
+      call.reject("NATIVE_VOICE_UNAVAILABLE", e.message ?: "NATIVE_VOICE_UNAVAILABLE")
+    }
+  }
+
+  @ActivityCallback
+  private fun voiceIntentResult(call: PluginCall, result: ActivityResult) {
+    voiceListening = false
+    pendingVoiceCall = null
+    try {
+      val resultCode = result.resultCode
+      val data = result.data
+      if (resultCode == Activity.RESULT_OK && data != null) {
+        val matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+        val text = matches?.firstOrNull()?.trim().orEmpty()
+        Log.d(TAG, "RecognizerIntent (FireTV) returned text=$text")
+        if (text.isNotBlank()) {
+          call.resolve(JSObject().put("text", text))
+        } else {
+          call.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+        }
+      } else if (resultCode == Activity.RESULT_CANCELED) {
+        Log.d(TAG, "RecognizerIntent (FireTV) cancelled by user")
+        call.reject("VOICE_CANCELLED", "VOICE_CANCELLED")
+      } else {
+        Log.w(TAG, "RecognizerIntent (FireTV) unexpected resultCode=$resultCode")
+        call.reject("EMPTY_SPEECH", "EMPTY_SPEECH")
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "voiceIntentResult handling failed", e)
+      call.reject("NATIVE_VOICE_UNAVAILABLE", e.message ?: "NATIVE_VOICE_UNAVAILABLE")
+    }
+  }
+
 
   private fun startSpeechRecognizerSession(call: PluginCall) {
     pendingVoiceCall = call
