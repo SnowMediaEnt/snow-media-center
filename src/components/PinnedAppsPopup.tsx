@@ -29,6 +29,11 @@ type CapacitorListenerHandle = { remove?: () => void };
 const isHardwareBackKey = (e: KeyboardEvent) =>
   e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4;
 
+const iconFallback = (name: string) => {
+  const letter = encodeURIComponent((name || '?').trim().charAt(0).toUpperCase() || '?');
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23334155'/%3E%3Ctext x='48' y='58' text-anchor='middle' font-family='Arial,sans-serif' font-size='40' font-weight='700' fill='%23ffffff'%3E${letter}%3C/text%3E%3C/svg%3E`;
+};
+
 const PinnedAppsPopup = ({ 
   pinnedApps, 
   onLaunchApp, 
@@ -183,6 +188,7 @@ const PinnedAppsPopup = ({
 
   const openSelector = (slotIndex: number | null = null) => {
     setEditingSlotIndex(slotIndex);
+    setSelectorFocusIndex(0);
     setShowAppSelector(true);
   };
 
