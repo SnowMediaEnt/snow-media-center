@@ -643,17 +643,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
           <Button 
-            onClick={() => {
-              if (!user) {
-                toast({
-                  title: "Sign in required",
-                  description: "Please sign in to create a support ticket.",
-                  variant: "destructive",
-                });
-                return;
-              }
-              setView('create');
-            }}
+            onClick={() => setView('create')}
+            data-tv-focus-id="new-ticket"
+            className="bg-blue-600 hover:bg-blue-700 "
+          >
+
             data-tv-focus-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 "
           >
