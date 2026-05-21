@@ -179,6 +179,26 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }, [supportFocus.containerRef]);
 
   useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlHeight = html.style.height;
+    const previousBodyHeight = body.style.height;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.height = '100dvh';
+    body.style.height = '100dvh';
+    scrollSupportToRealTop();
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      html.style.height = previousHtmlHeight;
+      body.style.height = previousBodyHeight;
+    };
+  }, [scrollSupportToRealTop]);
+
+  useEffect(() => {
     if (showSpeedTest || showGuide || helpView !== 'menu' || childFocusActive) return;
     const id = supportFocus.currentFocusId;
     if (id === 'support-back' || id?.startsWith('tab-')) {
@@ -232,7 +252,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }
 
   return (
-    <div ref={supportFocus.containerRef} className="tv-scroll-container tv-safe text-white h-dvh overflow-y-auto overscroll-contain">
+    <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-6">
