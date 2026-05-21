@@ -893,8 +893,64 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           </Card>
         </div>
       </div>
+
+      <Dialog open={accountPromptOpen} onOpenChange={setAccountPromptOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>Create an account?</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              We'll use <strong className="text-white">{pendingAccountEmail}</strong> so you can receive replies to your ticket in-app. Set a password (and optional name) below, or skip.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm text-slate-300 mb-1 block">Name (optional)</label>
+              <Input
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="off"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-slate-300 mb-1 block">Password</label>
+              <Input
+                type="password"
+                value={accountPassword}
+                onChange={(e) => setAccountPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAccountPromptOpen(false);
+                setAccountName('');
+                setAccountPassword('');
+                setPendingAccountEmail('');
+              }}
+              disabled={creatingAccount}
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleCreateAccountFromPrompt}
+              disabled={creatingAccount || accountPassword.length < 6}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {creatingAccount ? 'Creating...' : 'Create account'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 };
 
 export default SupportTicketSystem;
