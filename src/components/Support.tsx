@@ -16,6 +16,7 @@ import BufferingGuide from '@/components/BufferingGuide';
 import DownloadProgress from '@/components/DownloadProgress';
 
 import { useAppData } from '@/hooks/useAppData';
+import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
