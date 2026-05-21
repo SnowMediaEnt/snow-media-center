@@ -439,7 +439,6 @@ const BufferingGuide = ({
     }
     if (canNext && stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
   };
-  };
   const goBack = () => {
     if (stepIndex > 0) setStepIndex((i) => i - 1);
   };
