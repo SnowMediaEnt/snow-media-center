@@ -42,14 +42,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
   const [focusedElement, setFocusedElement] = useState(0);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [referralQr, setReferralQr] = useState<string | null>(null);
   const [showServicesEditor, setShowServicesEditor] = useState(false);
   const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
 
-  const [referralQr, setReferralQr] = useState<string | null>(null);
-  const dashboardScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const url = wixReferrals?.referralUrl;
