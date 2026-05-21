@@ -611,7 +611,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                     isSelected 
                       ? 'bg-brand-gold border-brand-gold text-white' 
                       : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                  } ${focusedElement === `category-${category.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] scale-105' : ''}`}
+                  } ${focusedElement === `category-${category.id}` ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)] scale-105' : ''}`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {category.name}
