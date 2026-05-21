@@ -411,7 +411,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-tv-focus-id="create-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+              className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tickets
@@ -525,7 +525,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 variant="outline" 
                 size="sm"
                 data-tv-focus-id="ticket-back"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+                className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Tickets
@@ -582,7 +582,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     {ticketMessages.map((message) => (
                       <div key={message.id} className={`p-4 rounded-lg ${
                         message.sender_type === 'user' 
-                          ? 'bg-blue-600/20 ml-8' 
+                          ? 'bg-purple-600/25 ml-8' 
                           : 'bg-slate-700/50 mr-8'
                       }`}>
                         <div className="flex items-center gap-2 mb-2">
@@ -717,7 +717,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               variant="outline" 
               size="sm"
               data-tv-focus-id="list-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+              className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -754,7 +754,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     </CardTitle>
                     <div className="flex items-center gap-2 ml-2">
                       {ticket.user_has_unread && (
-                        <Badge className="bg-blue-600 text-white">New</Badge>
+                        <Badge className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow">New</Badge>
                       )}
                       <Button
                         variant="ghost"
@@ -818,7 +818,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch {} navigate('/auth'); }}
                     variant="outline"
                     data-tv-focus-id="empty-sign-in"
-                    className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+                    className="bg-purple-600/25 hover:bg-purple-500/35 border-purple-400/50 text-white "
                   >
                     <LogIn className="h-4 w-4 mr-2" />
                     Sign In

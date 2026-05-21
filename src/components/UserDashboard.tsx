@@ -323,7 +323,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onCommunityChat}
             size="lg"
             variant="outline"
-            className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 transition-all duration-200 ${
+            className={`bg-purple-600/25 border-purple-500/50 text-white hover:bg-purple-600/30 transition-all duration-200 ${
               focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
             }`}
           >
@@ -562,7 +562,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-green-400">{String(order.total).startsWith('$') ? order.total : `$${order.total}`}</p>
-                          <Badge variant="secondary" className="bg-blue-600 text-white">
+                          <Badge variant="secondary" className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow">
                             {order.status}
                           </Badge>
                         </div>
