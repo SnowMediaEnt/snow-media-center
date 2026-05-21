@@ -60,8 +60,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       console.error('[Support] launch failed:', err);
       toast({ title: 'Launch failed', description: `Could not launch ${app.name}.`, variant: 'destructive' });
     }
-  }, [toast]);
-
   const openAppSettings = useCallback(async (app: AppData) => {
     try {
       const { Capacitor } = await import('@capacitor/core');
@@ -72,14 +70,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     } catch (err) {
       console.error('[Support] openAppSettings failed:', err);
     }
+  }, []);
+
   // Download in place (mirrors Main Apps) so the user stays inside the
   // Buffering Guide and doesn't lose their progress mid-flow.
   const downloadApp = useCallback((app: AppData) => {
     setDownloadingApp(app);
   }, []);
 
-    onNavigate?.('apps');
-  }, [onNavigate, toast]);
 
 
   // Back navigation is owned by child components/overlays so that pressing Back
