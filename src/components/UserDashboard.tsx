@@ -123,6 +123,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
+          } else if (focusedElement === 9) {
+            setFocusedElement(5); // edit -> overview tab
+          } else if (focusedElement === 10) {
+            setFocusedElement(9); // delete -> edit
           }
           break;
         case 'ArrowDown':
@@ -131,7 +135,16 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           } else if (focusedElement >= 2 && focusedElement <= 4) {
             setFocusedElement(5); // action buttons -> first tab
           } else if (focusedElement >= 5 && focusedElement <= 8) {
-            // Scroll the content area down so users can reach Danger Zone, etc.
+            if (activeTab === 'overview') {
+              setFocusedElement(9); // tabs -> edit button
+            } else {
+              const container = dashboardScrollRef.current;
+              if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
+              else window.scrollBy({ top: 300, behavior: 'smooth' });
+            }
+          } else if (focusedElement === 9) {
+            setFocusedElement(10); // edit -> delete
+          } else if (focusedElement === 10) {
             const container = dashboardScrollRef.current;
             if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
             else window.scrollBy({ top: 300, behavior: 'smooth' });
@@ -148,8 +161,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 6) setActiveTab('credits');
           else if (focusedElement === 7) setActiveTab('store');
           else if (focusedElement === 8) setActiveTab('referrals');
+          else if (focusedElement === 9) setShowServicesEditor(true);
+          else if (focusedElement === 10) setShowDeleteConfirm(true);
           break;
-      }
+
     };
 
     window.addEventListener('keydown', handleKeyDown);
