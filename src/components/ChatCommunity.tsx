@@ -753,10 +753,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         return;
       }
 
-      // CRITICAL: Prevent default on navigation keys
+      // CRITICAL: Prevent default on navigation keys; also stop the parent
+      // Support useTVFocus capture-phase listener from firing (otherwise it can
+      // hijack ArrowLeft/Right and move the tab strip while the input/voice
+      // button is focused).
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
         event.stopPropagation();
+        (event as any).stopImmediatePropagation?.();
+      }
+
+      // When leaving the input via D-pad in any direction, blur so the caret
+      // doesn't keep the field "owned" by the OSK on Android.
+      if (isTyping && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        (target as HTMLElement).blur();
       }
 
       const elements = getFocusableElements();
@@ -1500,7 +1510,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               />
               <div
                 data-focus-id="ai-voice"
-                className={`transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)]' : ''}`}
+                className={`inline-flex items-stretch transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}`}
               >
                 <VoiceInput
                   onRecordingStart={() => {
@@ -1516,7 +1526,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
                   onRestoreFocus={restoreAiVoiceFocus}
                   disabled={aiLoading || !user}
-                  className=""
+                  className="h-full"
                 />
               </div>
               <Button 

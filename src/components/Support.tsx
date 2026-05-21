@@ -125,11 +125,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // we can't express this in the navigation map directly.
   const focusIntoChild = useCallback((childTab: Tab) => {
     if (childTab === 'ai') {
-      const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
       window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
+      const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
       if (input) {
         input.focus({ preventScroll: true });
-        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return true;
       }
     }
@@ -137,7 +136,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const room = document.querySelector<HTMLElement>('[data-tv-focus-id="room-general"]');
       if (room) {
         room.focus({ preventScroll: true });
-        room.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return true;
       }
     }
