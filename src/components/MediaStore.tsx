@@ -579,7 +579,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               variant="outline"
               size="lg"
               data-focus-id="cart"
-              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
             >
               <ShoppingCart className="w-5 h-5 mr-2" />
               Cart ({cartItems.length})
