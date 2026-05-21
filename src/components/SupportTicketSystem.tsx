@@ -647,10 +647,6 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             data-tv-focus-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 "
           >
-
-            data-tv-focus-id="new-ticket"
-            className="bg-blue-600 hover:bg-blue-700 "
-          >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
           </Button>
