@@ -202,8 +202,6 @@ const PinnedAppsPopup = ({
     };
   }, [showAppSelector]);
 
-  if (!isVisible) return null;
-
   const openSelector = (slotIndex: number | null = null) => {
     setEditingSlotIndex(slotIndex);
     setSelectorFocusIndex(0);
@@ -231,6 +229,8 @@ const PinnedAppsPopup = ({
       onPinApp(installedApp);
     }
   };
+
+  if (!isVisible) return null;
 
   // Build selector list from PHP-synced apps + device-installed apps.
   // Dedupe by lowercased name, then by packageName as a safety net.
