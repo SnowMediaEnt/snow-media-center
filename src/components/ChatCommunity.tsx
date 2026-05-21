@@ -288,6 +288,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       timestamp: new Date(message.created_at),
     })));
     setActiveTab('ai');
+    setFocusIndex(embedded ? 0 : 4);
   };
 
   const handleDeleteAIConversation = async (conversationId: string, e: React.MouseEvent | React.KeyboardEvent) => {
@@ -679,13 +680,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       }));
       return [
         ...header,
+        ...(aiChat.length > 0 ? [{ id: 'message-scroll', type: 'scroll' }] : []),
         { id: 'ai-input', type: 'input' },
         { id: 'ai-voice', type: 'button' },
         { id: 'ai-send', type: 'button' },
         ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded, aiChat.length]);
 
   const focusTextFieldById = useCallback((id: string) => {
     const elements = getFocusableElements();
