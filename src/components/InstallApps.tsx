@@ -209,6 +209,37 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
 
+      // Override: keep D-pad inside an expanded card's action grid so
+      // ArrowDown from Launch lands on Force Stop (not the next app card).
+      if (currentApp && expandedAppId === currentApp.id) {
+        const id = currentApp.id;
+        if (event.key === 'ArrowDown' && focusedElement === `launch-${id}`) {
+          setFocusedElement(`forcestop-${id}` as FocusType);
+          return;
+        }
+        if (event.key === 'ArrowDown' && (focusedElement === `forcestop-${id}` || focusedElement === `cache-${id}`)) {
+          setFocusedElement((focusedElement === `forcestop-${id}` ? `settings-${id}` : `uninstall-${id}`) as FocusType);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          if (focusedElement === `forcestop-${id}` || focusedElement === `cache-${id}`) {
+            setFocusedElement(`launch-${id}` as FocusType);
+            return;
+          }
+          if (focusedElement === `settings-${id}`) { setFocusedElement(`forcestop-${id}` as FocusType); return; }
+          if (focusedElement === `uninstall-${id}`) { setFocusedElement(`cache-${id}` as FocusType); return; }
+        }
+        if (event.key === 'ArrowRight') {
+          if (focusedElement === `forcestop-${id}`) { setFocusedElement(`cache-${id}` as FocusType); return; }
+          if (focusedElement === `settings-${id}`) { setFocusedElement(`uninstall-${id}` as FocusType); return; }
+        }
+        if (event.key === 'ArrowLeft') {
+          if (focusedElement === `cache-${id}`) { setFocusedElement(`forcestop-${id}` as FocusType); return; }
+          if (focusedElement === `uninstall-${id}`) { setFocusedElement(`settings-${id}` as FocusType); return; }
+        }
+      }
+
+
       // Spatial 2D navigation across all visible [data-focus-id] elements
       const focusables = Array.from(
         document.querySelectorAll<HTMLElement>('[data-focus-id]')
@@ -688,6 +719,29 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     <span>{app.size}</span>
                   </div>
                 </div>
+
+                {/* Inline primary action — always visible (Download or Launch) */}
+                {!appExpanded && (
+                  isInstalled ? (
+                    <Button
+                      data-focus-id={`launch-${app.id}`}
+                      onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
+                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Launch
+                    </Button>
+                  ) : (
+                    <Button
+                      data-focus-id={`download-${app.id}`}
+                      onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
+                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </Button>
+                  )
+                )}
 
                 {/* Pin/Unpin Button — only when expanded */}
                 {appExpanded && (
