@@ -26,6 +26,7 @@ import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { supabase } from '@/integrations/supabase/client';
 import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
@@ -133,6 +134,7 @@ const BufferingGuide = ({
   const [speedInput, setSpeedInput] = useState<string>('');
   const [reportTitle, setReportTitle] = useState('');
   const [reportDevice, setReportDevice] = useState<string | null>(null);
+  const [showAnonConfirm, setShowAnonConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -521,15 +523,15 @@ const BufferingGuide = ({
     }
   };
 
-  const submitChannelReport = async () => {
+  const buildChannelReport = () => {
     const title = reportTitle.trim();
     if (!title) {
       toast({ title: 'Enter a title', description: 'Type the channel or movie/show name first.', variant: 'destructive' });
-      return;
+      return null;
     }
     if (!reportDevice) {
       toast({ title: 'Pick a device', description: 'Tell us which device you are watching on.', variant: 'destructive' });
-      return;
+      return null;
     }
     const ts = new Date().toLocaleString();
     const appLabel = state.appType ? APP_LABELS[state.appType] : 'streaming app';
@@ -540,8 +542,57 @@ const BufferingGuide = ({
       `Channel / Title: ${title}`,
       `Reported: ${ts}`,
     ].join('\n');
-    await submitAsTicket(subject, body);
+    return { subject, body };
   };
+
+  const submitChannelReport = async () => {
+    const report = buildChannelReport();
+    if (!report) return;
+    if (!user) {
+      // Show in-guide confirmation (z-index above the guide)
+      setShowAnonConfirm(true);
+      return;
+    }
+    await submitAsTicket(report.subject, report.body);
+  };
+
+  const submitAnonymousChannelReport = async () => {
+    const report = buildChannelReport();
+    if (!report) return;
+    try {
+      setSubmittingTicket(true);
+      const ts = new Date().toLocaleString();
+      await supabase.functions.invoke('send-custom-email', {
+        body: {
+          to: 'support@snowmediaent.com',
+          subject: `[Anonymous Report] ${report.subject}`,
+          html: `
+            <h3>Anonymous Channel/Title Report</h3>
+            <p><em>Submitted from Buffering Guide by an unauthenticated user.</em></p>
+            <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 5px; white-space: pre-wrap;">${report.body.replace(/\n/g, '<br>')}</div>
+            <p style="margin-top: 16px; font-size: 12px; color: #666;">Received: ${ts}</p>
+          `,
+          fromName: 'Snow Media Anonymous Report',
+        },
+      });
+      toast({
+        title: 'Report sent',
+        description: 'Thanks! Sign in next time to track it on your account.',
+      });
+      setShowAnonConfirm(false);
+      onClose();
+    } catch (err) {
+      console.error('[BufferingGuide] anonymous report failed', err);
+      toast({
+        title: 'Could not send report',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
 
 
   return (
@@ -799,6 +850,37 @@ const BufferingGuide = ({
             });
           }}
         />
+      )}
+
+      {showAnonConfirm && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
+            <h3 className="text-xl font-semibold text-white mb-3">Send report without signing in?</h3>
+            <p className="text-sm text-white/80 leading-relaxed mb-4">
+              Your report will be submitted to Snow Media support, but it will <strong>not</strong> be saved to your account.
+            </p>
+            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+              Tip: Go back to the Home Screen and tap <strong>Sign In</strong> first so your ticket is saved on your account and you can track replies.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowAnonConfirm(false)}
+                disabled={submittingTicket}
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitAnonymousChannelReport}
+                disabled={submittingTicket}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              >
+                {submittingTicket ? 'Sending…' : 'Send anyway'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
