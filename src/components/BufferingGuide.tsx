@@ -591,21 +591,35 @@ const BufferingGuide = ({
             />
           )}
 
-          {step === 'step1' && (
+          {step === 'step1' && state.step1Choice !== 'one_only' && (
             <Step1
               value={state.step1Choice}
               onSelect={(choice) => {
                 setState((s) => ({ ...s, step1Choice: choice }));
-                if (choice === 'one_only') {
-                  toast({
-                    title: 'Report the channel/title',
-                    description: 'Email the exact channel/title name to support — we\'ll fix it fast.',
-                  });
-                  jumpToSummary();
-                }
+                // Stay on step1; the report form renders below when choice === 'one_only'
+                contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             />
           )}
+
+          {step === 'step1' && state.step1Choice === 'one_only' && (
+            <ReportChannelStep
+              title={reportTitle}
+              device={reportDevice}
+              appLabel={state.appType ? APP_LABELS[state.appType] : 'your app'}
+              submitting={submittingTicket}
+              onTitleChange={setReportTitle}
+              onDeviceChange={setReportDevice}
+              onSubmit={submitChannelReport}
+              onBack={() => {
+                setReportTitle('');
+                setReportDevice(null);
+                setState((s) => ({ ...s, step1Choice: null }));
+                contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+
 
           {step === 'step2' && (
             <Step2
