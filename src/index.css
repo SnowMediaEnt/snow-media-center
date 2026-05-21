@@ -57,12 +57,8 @@
     --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-gold)), hsl(var(--brand-charcoal)));
     --gradient-accent: linear-gradient(135deg, hsl(var(--brand-purple)), hsl(var(--brand-ice)));
     --gradient-snowy: linear-gradient(135deg, hsl(var(--snow-white)), hsl(var(--snow-blue)));
-    --gradient-gold: linear-gradient(135deg, hsl(51 100% 50%), hsl(43 77% 38%));
-
-    --gradient-gold: linear-gradient(135deg, hsl(0 0% 100%), hsl(0 0% 88%));
+    --gradient-gold: linear-gradient(135deg, hsl(44 76% 68%), hsl(39 55% 48%));
     --gradient-blue: linear-gradient(135deg, hsl(267 60% 70%), hsl(267 65% 45%));
-
-    --gradient-blue: linear-gradient(135deg, hsl(194 53% 79%), hsl(207 44% 49%));
     --gradient-silver: linear-gradient(135deg, hsl(0 0% 90%), hsl(0 0% 66%));
     --gradient-purple: linear-gradient(135deg, hsl(248 53% 58%), hsl(267 50% 40%));
     --gradient-navy: linear-gradient(135deg, hsl(214 91% 15%), hsl(214 91% 20%));
