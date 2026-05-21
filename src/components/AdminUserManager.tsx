@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Coins, Plus, Minus, MessageCircle, User as UserIcon, Mail } from 'lucide-react';
+import { Search, Coins, Plus, Minus, MessageCircle, User as UserIcon, Mail, Pencil } from 'lucide-react';
+import UserServicesEditor from '@/components/UserServicesEditor';
+
 
 interface ProfileRow {
   user_id: string;
