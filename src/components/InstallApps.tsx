@@ -67,6 +67,7 @@ type FocusType =
   | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
+  | `forcestop-${string}`
   | `settings-${string}` 
   | `cache-${string}` 
   | `uninstall-${string}`
@@ -169,10 +170,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       }
 
       const categoryApps = getCategoryApps(activeTab);
+      const activeTabFocus = (activeTab === 'featured' ? 'tab-0' : 'tab-1') as FocusType;
+      const firstAppFocus = categoryApps[0] ? (`app-${categoryApps[0].id}` as FocusType) : activeTabFocus;
       const currentAppId = getAppIdFromFocus(focusedElement);
       const currentApp = currentAppId
         ? categoryApps.find((a) => a.id === currentAppId)
         : null;
+      const currentAppIndex = currentApp ? categoryApps.findIndex((a) => a.id === currentApp.id) : -1;
 
       // Enter / Space — behavior unchanged
       if (event.key === 'Enter' || event.key === ' ') {
@@ -209,10 +213,43 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
 
+      // Explicit header/tab/app hand-offs. This prevents spatial navigation from
+      // skipping the Featured/All tabs or landing on visible-but-not-open actions.
+      if (focusedElement === 'back') {
+        if (event.key === 'ArrowRight') { setFocusedElement('refresh'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+      }
+      if (focusedElement === 'refresh') {
+        if (event.key === 'ArrowLeft') { setFocusedElement('back'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(activeTabFocus); return; }
+      }
+      if (focusedElement === 'tab-0') {
+        if (event.key === 'ArrowRight') { setFocusedElement('tab-1'); return; }
+        if (event.key === 'ArrowUp') { setFocusedElement('back'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(firstAppFocus); return; }
+      }
+      if (focusedElement === 'tab-1') {
+        if (event.key === 'ArrowLeft') { setFocusedElement('tab-0'); return; }
+        if (event.key === 'ArrowUp') { setFocusedElement('refresh'); return; }
+        if (event.key === 'ArrowDown') { setFocusedElement(firstAppFocus); return; }
+      }
+      if (focusedElement.startsWith('app-') && currentApp) {
+        if (event.key === 'ArrowUp' && currentAppIndex === 0) { setFocusedElement(activeTabFocus); return; }
+        if (event.key === 'ArrowDown' && expandedAppId === currentApp.id) {
+          const isInstalled = !!appStatuses.get(currentApp.id)?.installed;
+          setFocusedElement((isInstalled ? `launch-${currentApp.id}` : `download-${currentApp.id}`) as FocusType);
+          return;
+        }
+      }
+
       // Override: keep D-pad inside an expanded card's action grid so
       // ArrowDown from Launch lands on Force Stop (not the next app card).
       if (currentApp && expandedAppId === currentApp.id) {
         const id = currentApp.id;
+        if (event.key === 'ArrowUp' && (focusedElement === `launch-${id}` || focusedElement === `download-${id}` || focusedElement === `pin-${id}`)) {
+          setFocusedElement(`app-${id}` as FocusType);
+          return;
+        }
         if (event.key === 'ArrowDown' && focusedElement === `launch-${id}`) {
           setFocusedElement(`forcestop-${id}` as FocusType);
           return;
