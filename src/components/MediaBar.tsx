@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
+import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -44,7 +45,6 @@ const STORAGE_KEY = 'snow-media-bar-cache-v4';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
-const IS_LOW_MEMORY_NATIVE = isNativePlatform() && /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(navigator.userAgent);
 
 const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
   plex: null, // hidden per design
@@ -70,37 +70,103 @@ const isHardwareBackKey = (e: KeyboardEvent) =>
 
 const PLEX_ANDROID_PACKAGE = 'com.plexapp.android';
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
+const OFFSET_QS = 'viewOffset=0&offset=0&t=0';
 
-const extractRatingKey = (key?: string): string | undefined => {
-  if (!key) return undefined;
-  const m = String(key).match(/\/library\/metadata\/(\d+)/);
-  return m?.[1];
+const getRatingKey = (item: MediaItem): string | undefined => {
+  if (item.ratingKey) return String(item.ratingKey);
+  const keyMatch = item.key?.match(/\/library\/metadata\/(\d+)/);
+  if (keyMatch?.[1]) return keyMatch[1];
+  return item.id?.match(/^plex-(\d+)$/)?.[1];
 };
 
-type ValidatedPlexItem = MediaItem & { ratingKey: string; metadataKey: string; metadataType: number };
-const PLEX_ANDROID_PACKAGE_LAUNCH = 'com.plexapp.android';
+const getMetadataKey = (item: MediaItem): string | undefined => {
+  const ratingKey = getRatingKey(item);
+  return ratingKey ? `/library/metadata/${ratingKey}` : item.key;
+};
 
-// Deep links aren't reliably routing to the exact item, so just launch
-// the Plex app and let the user pick from there. This also lets the feed
-// drop all the heavy metadata fields and load posters faster.
-const openPlexApp = async (item: MediaItem) => {
+const getMachineIdentifier = (item: MediaItem): string | undefined => item.machineIdentifier;
+
+const getMetadataType = (item: MediaItem): number =>
+  item.metadataType ?? PLEX_METADATA_TYPE[String(item.kind ?? '').toLowerCase()] ?? 1;
+
+const buildPlexPlayLink = (item: MediaItem): string | undefined => {
+  const metadataKey = getMetadataKey(item);
+  if (!metadataKey) return undefined;
+
+  const machineId = item.machineIdentifier;
+  const metadataType = getMetadataType(item);
+  const encodedKey = encodeURIComponent(metadataKey);
+  const serverParam = machineId ? `server=${encodeURIComponent(machineId)}&` : '';
+  return `plex://play/?${serverParam}metadataKey=${encodedKey}&metadataType=${metadataType}&${OFFSET_QS}`;
+};
+
+/**
+ * openPlexItemFromBeginning
+ *
+ * Keep this intentionally simple. Android TV Plex has been crashing on the
+ * web/intent/playMedia routes, so clicks use only Plex's native plex://play
+ * route and fall back to opening Plex Home only if Android cannot resolve it.
+ */
+const openPlexItemFromBeginning = async (item: MediaItem) => {
   const native = isNativePlatform();
-  if (!native) {
-    window.open('https://app.plex.tv/desktop', '_blank', 'noopener,noreferrer');
+  const ratingKey = getRatingKey(item);
+  const metadataKey = getMetadataKey(item);
+  const machineIdentifier = getMachineIdentifier(item);
+  const metadataType = getMetadataType(item);
+  const playLink = buildPlexPlayLink(item);
+
+  const logPayload = {
+    title: item.title,
+    type: item.kind,
+    ratingKey,
+    metadataKey,
+    guid: item.guid,
+    librarySectionID: item.librarySectionID,
+    machineIdentifier,
+    metadataType,
+    duration: item.duration,
+    serverViewOffset: item.viewOffset, // what Plex thinks; we override to 0
+    generatedPlaybackLink: playLink,
+    startsAtZero: true,
+    fallbackUsed: false,
+    native,
+  };
+  console.info('[MediaBar] openPlexItemFromBeginning', logPayload);
+
+  if (!ratingKey || !playLink) {
+    console.warn('[MediaBar] Missing ratingKey or playLink — cannot deep-link', logPayload);
+    toast({ title: "Can't open this item in Plex", description: 'Missing Plex item info.' });
     return;
   }
-  toast({ title: 'Opening Plex…', description: item.title });
+
+  if (!native) {
+    window.open(item.webLink ?? playLink, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  toast({ title: 'Playing in Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
-    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE_LAUNCH });
+    const { installed } = await AppManager.isInstalled({ packageName: PLEX_ANDROID_PACKAGE });
+    console.info('[MediaBar] Plex installed check', { installed });
+    if (!installed) {
+      toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
+      return;
+    }
 
+    console.info('[MediaBar] Plex native play attempt', { ...logPayload, generatedIntent: playLink });
+    await AppManager.openUrl({ url: playLink, packageName: PLEX_ANDROID_PACKAGE });
   } catch (err) {
-    const msg = (err as Error)?.message ?? 'Unknown error';
-    toast({ title: "Couldn't open Plex", description: msg });
+    console.warn('[MediaBar] Plex native play failed — opening Plex Home', { ...logPayload, err, fallbackUsed: true });
+    toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
+    try {
+      const { AppManager } = await import('@/capacitor/AppManager');
+      await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
+    } catch (launchErr) {
+      console.warn('[MediaBar] Plex Home fallback failed:', launchErr);
+    }
   }
 };
-
-
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const cached = useMemo(readCache, []);
@@ -117,10 +183,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       setLiveDialog(item);
       return;
     }
-    openPlexApp(item);
-
+    openPlexItemFromBeginning(item);
   };
-
 
   // Fetch
   useEffect(() => {
@@ -132,20 +196,14 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         if (error) throw error;
         const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
         if (next.length) {
-          // Keep multiple pages even on low-memory boxes so left/right paging
-          // actually has somewhere to go. 32 items = 4 pages of 8.
-          const safeItems = IS_LOW_MEMORY_NATIVE ? next.slice(0, 32) : next;
-          setItems(safeItems);
-          writeCache(safeItems);
+          setItems(next);
+          writeCache(next);
         }
-
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       }
     };
-    // Slow initial load on low-memory Android boxes so the home screen
-    // settles before we hit the network + decode posters.
-    const t = window.setTimeout(load, IS_LOW_MEMORY_NATIVE ? 6000 : 1500);
+    const t = window.setTimeout(load, 1500);
     const i = window.setInterval(load, REFRESH_MS);
     return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
   }, []);
@@ -243,7 +301,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     let cancelled = false;
     (async () => {
       try {
-        const { App: CapApp } = await import('@capacitor/app');
         listener = await CapApp.addListener('backButton', () => {
           setLiveDialog(null);
         });
@@ -300,11 +357,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
-                const clickable =
-                  item.source === 'sports' ||
-                  !!item.ratingKey ||
-                  !!item.deepLink ||
-                  !!item.webLink;
+                const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
                 const isFocused = active && idx === focusIdx;
                 return (
                   <button
@@ -314,7 +367,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
-
                     className={`flex flex-col bg-black/40 rounded-md overflow-hidden text-left min-w-0 transition-transform duration-150 ${
                       isFocused
                         ? 'scale-110 shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))] will-change-transform'
@@ -327,7 +379,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                           src={item.poster}
                           alt=""
                           loading="lazy"
-                          decoding="async"
                           className="w-full h-full object-cover"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
@@ -451,9 +502,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
-
   );
 });
 

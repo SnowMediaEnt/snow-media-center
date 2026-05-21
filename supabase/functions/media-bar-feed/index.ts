@@ -130,6 +130,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
       ? `mv|${titleKey}|${m.year ?? ''}`
       : `sh|${titleKey}`;
 
+  const metadataType = PLEX_METADATA_TYPE[String(m.type ?? '').toLowerCase()] ?? 1;
   return {
     id: `plex-${ratingKey}`,
     source: 'plex',
@@ -137,15 +138,23 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
     poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
-    // Deep-link metadata intentionally omitted — Plex deep links weren't
-    // reliably routing to the exact item, and dropping these fields makes
-    // the JSON payload much smaller so posters render faster on slow boxes.
+    ratingKey,
+    key: m.key,
+    guid: m.guid,
+    machineIdentifier: PLEX_MACHINE_ID || undefined,
+    librarySectionID: m.librarySectionID,
+    metadataType,
+    duration: typeof m.duration === 'number' ? m.duration : undefined,
+    viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
+    // Playback-first native deep link — keep Android path on plex://play only.
+    androidLink: plexPlayScheme(ratingKey, m.type),
+    deepLink: plexPlayScheme(ratingKey, m.type),
+    webLink: plexWebPlayLink(ratingKey),
     _seriesKey: m.grandparentRatingKey ? `series-${m.grandparentRatingKey}` : undefined,
     _dedupeKey: dedupeKey.toLowerCase(),
     _is4k: is4k,
   };
 };
-
 
 const fetchMachineId = async () => {
   if (PLEX_MACHINE_ID || !PLEX_URL || !PLEX_TOKEN) return;
