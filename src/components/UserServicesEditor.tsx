@@ -257,95 +257,35 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                 </div>
               </div>
 
-              {services.length === 0 && (
-                <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-700 rounded-md">
-                  No services yet. Pick one above to track its expiration date.
-                </p>
+              {services.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-400 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> Expiration date (so we can warn you before it expires)
+                  </Label>
+                  {services.map(s => {
+                    const days = daysUntil(s.expiration_date);
+                    let statusBadge: React.ReactNode = null;
+                    if (days !== null) {
+                      if (days < 0) statusBadge = <Badge className="bg-red-600 text-white">Expired {Math.abs(days)}d ago</Badge>;
+                      else if (days === 0) statusBadge = <Badge className="bg-amber-500 text-black">Expires today</Badge>;
+                      else if (days <= 7) statusBadge = <Badge className="bg-amber-500 text-black">In {days}d</Badge>;
+                      else statusBadge = <Badge className="bg-emerald-600 text-white">{days}d left</Badge>;
+                    }
+                    return (
+                      <div key={s.id} className="flex items-center gap-2 rounded-md bg-slate-800/50 border border-slate-700 px-3 py-2">
+                        <span className="text-white font-medium text-sm w-24 flex-shrink-0">{s.service_name || s.service_type}</span>
+                        <Input
+                          type="date"
+                          value={s.expiration_date || ''}
+                          onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
+                          className="bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
+                        />
+                        {statusBadge}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-
-              <div className="space-y-4">
-                {services.map(s => {
-                  const days = daysUntil(s.expiration_date);
-                  let statusBadge: React.ReactNode = null;
-                  if (days !== null) {
-                    if (days < 0) statusBadge = <Badge className="bg-red-600 text-white">Expired {Math.abs(days)}d ago</Badge>;
-                    else if (days === 0) statusBadge = <Badge className="bg-amber-500 text-black">Expires today</Badge>;
-                    else if (days <= 7) statusBadge = <Badge className="bg-amber-500 text-black">In {days}d</Badge>;
-                    else statusBadge = <Badge className="bg-emerald-600 text-white">{days}d left</Badge>;
-                  }
-                  return (
-                    <div key={s.id} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 flex items-center gap-2">
-                          <span className="text-white font-semibold text-base">{s.service_name || s.service_type}</span>
-                          {statusBadge}
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeService(s.id)}
-                          className="bg-red-600/20 hover:bg-red-600/40 border-red-500/50 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(248,113,113,0.7)] focus-visible:z-10 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs text-slate-400 mb-1 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" /> Expiration date
-                          </Label>
-                          <Input
-                            type="date"
-                            value={s.expiration_date || ''}
-                            onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
-                            className="bg-slate-900 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-slate-400 mb-1">Status</Label>
-                          <select
-                            value={s.renewal_status || 'active'}
-                            onChange={(e) => updateService(s.id, { renewal_status: e.target.value })}
-                            className="w-full h-10 rounded-md bg-slate-900 border border-slate-600 text-white px-3 outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
-                          >
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label className="text-xs text-slate-400 mb-2 block">
-                          Apps this service runs on (we'll show a popup when you launch them)
-                        </Label>
-                        <div className="flex flex-wrap gap-2">
-                          {COMMON_IPTV_APPS.map(app => {
-                            const active = s.tied_apps.includes(app);
-                            return (
-                              <button
-                                key={app}
-                                type="button"
-                                onClick={() => toggleTiedApp(s.id, app)}
-                                className={`px-3 py-1 rounded-full text-sm transition-all outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_18px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
-                                  active
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                }`}
-                              >
-                                {app}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </section>
           </div>
         )}
