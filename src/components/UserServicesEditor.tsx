@@ -352,11 +352,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
           <Button variant="outline" onClick={onClose} disabled={saving}
-            className="bg-slate-700 hover:bg-slate-600 border-slate-600 text-white">
+            className="bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(148,163,184,0.7)] transition-all">
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving || loading}
-            className="bg-blue-600 hover:bg-blue-700">
+            className="bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.8)] transition-all">
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
