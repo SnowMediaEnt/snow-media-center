@@ -417,7 +417,6 @@ const PinnedAppsPopup = ({
                 );
               } else {
 
-              } else {
                 // Empty slot - show add button
                 return (
                   <button
