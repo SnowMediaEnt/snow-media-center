@@ -90,8 +90,8 @@ const STREAMING_PKG: Record<Exclude<AppType, null>, string | null> = {
 const VPN_INFO = {
   ipvanish: {
     label: 'IPVanish',
-    pkg: 'com.ixonn.ipvanish',
-    pkgCandidates: ['com.ixonn.ipvanish', 'com.ixolus.ipvanish', 'com.ipvanish.vpn', 'com.ipvanish.android'],
+    pkg: 'com.ixolit.ipvanish',
+    pkgCandidates: ['com.ixolit.ipvanish', 'com.ixonn.ipvanish', 'com.ixolus.ipvanish', 'com.ipvanish.vpn', 'com.ipvanish.android'],
     downloaderCode: '805133',
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
@@ -421,7 +421,7 @@ const BufferingGuide = ({
   const [ipvanishLive, setIpvanishLive] = useState<boolean | null>(null);
   const [surfsharkLive, setSurfsharkLive] = useState<boolean | null>(null);
 
-  const { isAppNameInstalled, refresh: refreshInstalledApps } = useDeviceInstalledApps();
+  const { isPackageInstalled, isAppNameInstalled, resolvePackageName, refresh: refreshInstalledApps } = useDeviceInstalledApps();
 
 
   useEffect(() => {
@@ -460,9 +460,15 @@ const BufferingGuide = ({
 
 
   const ipvanishInstalled =
-    !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true || isAppNameInstalled('IPVanish');
+    !!appStatuses.get(ipvanishApp.id)?.installed ||
+    ipvanishLive === true ||
+    VPN_INFO.ipvanish.pkgCandidates.some((pkg) => isPackageInstalled(pkg)) ||
+    isAppNameInstalled('IPVanish');
   const surfsharkInstalled =
-    !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true || isAppNameInstalled('Surfshark');
+    !!appStatuses.get(surfsharkApp.id)?.installed ||
+    surfsharkLive === true ||
+    VPN_INFO.surfshark.pkgCandidates.some((pkg) => isPackageInstalled(pkg)) ||
+    isAppNameInstalled('Surfshark');
 
 
 
@@ -994,7 +1000,9 @@ const BufferingGuide = ({
               }}
               onLaunchVpn={(c) => {
                 setState((s) => ({ ...s, vpnChoice: c }));
-                launchPackage(VPN_INFO[c].pkg);
+                const app = c === 'ipvanish' ? ipvanishApp : surfsharkApp;
+                const packageName = resolvePackageName(app?.name, VPN_INFO[c].pkg) || VPN_INFO[c].pkg;
+                launchPackage(packageName);
               }}
               onRunSpeedTest={() => setShowSpeedTest(true)}
               onVpnSpeedOk={(ok) => {
