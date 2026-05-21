@@ -205,17 +205,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
       'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
-  const tvFocus = useTVFocus({
-    initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back',
-    navigation: tvNavigation,
-    onBack: handleSystemBack,
-  });
 
-  useEffect(() => {
-    const id = view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-input' : 'list-back';
-    const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
-    return () => window.clearTimeout(timer);
-  }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
 
     aiConversations.forEach((_, index) => {
       map[`ai-history-${index}`] = {
