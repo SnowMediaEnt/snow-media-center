@@ -271,7 +271,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   };
 
-  };
+
 
   const handleSendReply = async () => {
     if (!selectedTicketId || !replyMessage.trim()) return;
