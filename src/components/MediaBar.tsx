@@ -116,11 +116,20 @@ const validatePlexLaunchItem = (item: MediaItem): ValidatedPlexItem | null => {
 };
 
 /**
- * Build the Plex deep-link launch order per spec:
- *   1. HTTPS preplay/details (Plex Android registers app links for app.plex.tv)
- *   2. HTTPS preplay/details with encoded key
- *   3. plex:// autoplay
- *   4. plex:// autoplay encoded
+ * Build the Plex deep-link launch order.
+ *
+ * IMPORTANT: We deliberately use plex:// URIs ONLY — never the
+ * https://app.plex.tv/desktop/... web-client URLs. Plex Android claims those
+ * web links via Android App Links, but its handler does not parse the
+ * `#!/...` SPA fragment, so the app just opens to Home — and because the
+ * handler activity has its own task affinity, every click cold-starts Plex
+ * (splash screen again). The plex:// scheme is what the native player
+ * actually deep-links on, and lets an already-running Plex receive the new
+ * intent via onNewIntent() instead of being recreated.
+ *
+ *   1. plex://preplay  (documented playback deep link — opens the item page)
+ *   2. plex://server/{machineId}/... (alternate library route)
+ *   3. plex://play     (autoplay fallback)
  * Only after ALL of these resolveActivity-fail does the plugin fall back to
  * a non-clearing package launch.
  */
@@ -128,12 +137,14 @@ const buildPlexLaunchCandidates = (item: ValidatedPlexItem): string[] => {
   const { ratingKey, metadataKey, machineIdentifier } = item;
   const rawKey = metadataKey;
   const encKey = encodeURIComponent(metadataKey);
+  const encServer = encodeURIComponent(machineIdentifier);
 
   return [
-    `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${rawKey}`,
-    `https://app.plex.tv/desktop/#!/server/${machineIdentifier}/details?key=${encKey}`,
+    `plex://preplay/?metadataKey=${encKey}&server=${encServer}`,
+    `plex://preplay/?metadataKey=${rawKey}&server=${machineIdentifier}`,
+    `plex://server/${machineIdentifier}/library/metadata/${ratingKey}`,
+    `plex://play/?metadataKey=${encKey}&server=${encServer}`,
     `plex://play/?metadataKey=${rawKey}&server=${machineIdentifier}`,
-    `plex://play/?metadataKey=${encKey}&server=${encodeURIComponent(machineIdentifier)}`,
   ];
 };
 
