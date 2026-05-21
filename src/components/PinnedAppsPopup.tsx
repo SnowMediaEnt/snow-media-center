@@ -91,15 +91,33 @@ const PinnedAppsPopup = ({
         e.stopPropagation();
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
-      } else if (e.key === 'Enter' || e.key === ' ') {
+      } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
         e.preventDefault();
         e.stopPropagation();
+        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = setTimeout(() => {
+          longPressTimerRef.current = null;
+          openSelector(pinnedApps[focusedIndex] ? focusedIndex : null);
+        }, 650);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
         buttonsRef.current[focusedIndex]?.click();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
   }, [isVisible, focusedIndex, pinnedApps.length, onFocusChange, onExitFocus, showAppSelector]);
 
   // Auto-focus first item when selector opens (once)
