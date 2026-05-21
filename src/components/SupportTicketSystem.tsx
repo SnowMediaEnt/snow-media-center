@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+
 import { 
   ArrowLeft, 
   Plus, 
@@ -43,11 +45,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+  const [accountPromptOpen, setAccountPromptOpen] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [pendingAccountEmail, setPendingAccountEmail] = useState('');
 
 
-  const { user } = useAuth();
+  const { user, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
 
 
   const {
@@ -211,17 +219,19 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
 
-    // Guest path: email-only, no DB ticket (no account = no replies)
+    // Guest path: email optional (anonymous allowed)
     if (!user) {
       const email = guestEmail.trim();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const hasEmail = email.length > 0;
+      if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         toast({
-          title: "Email required",
-          description: "Enter a valid email so we know who sent the ticket.",
+          title: "Invalid email",
+          description: "Please enter a valid email or leave it blank to send anonymously.",
           variant: "destructive",
         });
         return;
       }
+      const fromLabel = hasEmail ? email : 'Anonymous guest (no email provided)';
       try {
         await supabase.functions.invoke('send-custom-email', {
           body: {
@@ -230,26 +240,34 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             fromName: 'Snow Media Support System',
             html: `
               <h3>New Guest Support Ticket</h3>
-              <p><strong>From (guest):</strong> ${email}</p>
+              <p><strong>From:</strong> ${fromLabel}</p>
               <p><strong>Subject:</strong> ${newSubject}</p>
               <div style="margin-top:20px;padding:15px;background:#f5f5f5;border-radius:5px;">
                 <p><strong>Message:</strong></p>
                 <p>${newMessage.replace(/\n/g, '<br>')}</p>
               </div>
               <p style="margin-top:20px;font-size:12px;color:#666;">
-                Guest user — no account. Reply directly to ${email}.
+                ${hasEmail ? `Guest user — no account. Reply directly to ${email}.` : 'Anonymous guest — no reply address provided.'}
               </p>
             `,
           },
         });
         toast({
           title: "Ticket sent",
-          description: "We received it. Create an account to get a reply in-app.",
+          description: hasEmail
+            ? "We received it. Create an account to get a reply in-app."
+            : "We received your anonymous ticket. No reply will be possible.",
         });
         setNewSubject('');
         setNewMessage('');
-        setGuestEmail('');
         setView('list');
+        if (hasEmail) {
+          setPendingAccountEmail(email);
+          setGuestEmail('');
+          setAccountPromptOpen(true);
+        } else {
+          setGuestEmail('');
+        }
       } catch (error) {
         console.error('Failed to send guest ticket:', error);
         toast({
@@ -260,6 +278,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       }
       return;
     }
+
 
     try {
       const ticketId = await createTicket(newSubject, newMessage);
@@ -273,6 +292,27 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   };
 
+  const handleCreateAccountFromPrompt = async () => {
+    if (!pendingAccountEmail || !accountPassword.trim() || accountPassword.length < 6) {
+      toast({ title: 'Password too short', description: 'Use at least 6 characters.', variant: 'destructive' });
+      return;
+    }
+    setCreatingAccount(true);
+    try {
+      const { error } = await signUp(pendingAccountEmail, accountPassword, accountName.trim() || undefined);
+      if (error) throw error;
+      toast({ title: 'Account created', description: 'Check your email to confirm, then sign in to see replies.' });
+      setAccountPromptOpen(false);
+      setAccountName('');
+      setAccountPassword('');
+      setPendingAccountEmail('');
+    } catch (e: any) {
+      console.error('Account create failed', e);
+      toast({ title: 'Could not create account', description: e?.message ?? 'Try again later.', variant: 'destructive' });
+    } finally {
+      setCreatingAccount(false);
+    }
+  };
 
 
   const handleSendReply = async () => {
@@ -374,29 +414,25 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {!user && (
                 <>
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <strong>Heads up:</strong> You can send a ticket without an account, but we can't reply back in-app.{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/auth')}
-                      className="underline text-amber-200 hover:text-white"
-                    >
-                      Create an account
-                    </button>{' '}
-                    to receive replies here.
+                    <strong>Heads up:</strong> You can send a ticket anonymously, but we can't reply back. Add your email and we'll offer to create an account so you can get replies in-app.
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">
-                      Your email
+                      Your email <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
                     <Input
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder="you@example.com (leave blank to send anonymously)"
                       enterKeyHint="next"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
                       className="bg-slate-700 border-slate-600 text-white "
                     />
                   </div>
+
                 </>
               )}
               <div>
@@ -413,10 +449,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     }
                   }}
                   enterKeyHint="done"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="Brief description of your issue..."
                   data-tv-focus-id="create-subject"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
+
               </div>
 
               
@@ -853,8 +893,64 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           </Card>
         </div>
       </div>
+
+      <Dialog open={accountPromptOpen} onOpenChange={setAccountPromptOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>Create an account?</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              We'll use <strong className="text-white">{pendingAccountEmail}</strong> so you can receive replies to your ticket in-app. Set a password (and optional name) below, or skip.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-sm text-slate-300 mb-1 block">Name (optional)</label>
+              <Input
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="off"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-slate-300 mb-1 block">Password</label>
+              <Input
+                type="password"
+                value={accountPassword}
+                onChange={(e) => setAccountPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                className="bg-slate-800 border-slate-700 text-white"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAccountPromptOpen(false);
+                setAccountName('');
+                setAccountPassword('');
+                setPendingAccountEmail('');
+              }}
+              disabled={creatingAccount}
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleCreateAccountFromPrompt}
+              disabled={creatingAccount || accountPassword.length < 6}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {creatingAccount ? 'Creating...' : 'Create account'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 };
 
 export default SupportTicketSystem;
