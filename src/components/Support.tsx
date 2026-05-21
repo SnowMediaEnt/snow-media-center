@@ -183,6 +183,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const target = (e as CustomEvent<{ tab?: Tab }>).detail?.tab ?? tab;
       setChildFocusActive(false);
       supportFocus.focusById(`tab-${target}`);
+      // Force the Support scroll container all the way back to the top so the
+      // tab row and Back button aren't clipped behind the safe-area padding.
+      requestAnimationFrame(() => {
+        supportFocus.containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        document.querySelectorAll<HTMLElement>('.tv-scroll-container').forEach((el) =>
+          el.scrollTo({ top: 0, behavior: 'smooth' })
+        );
+      });
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
@@ -192,6 +200,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       window.removeEventListener('support:open-tickets', openTickets);
     };
   }, [supportFocus, tab]);
+
 
 
   // If a Help sub-view is active, render it full-bleed (it has its own header)
