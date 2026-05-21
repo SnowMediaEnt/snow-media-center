@@ -277,10 +277,12 @@ const BufferingGuide = ({
               score -= 1000;
             } else if (activeIsFooter && nav === 'back') {
               score += 1000;
-            } else if (nav === 'next' || nav === 'back') {
-              // From content, slightly deprioritize footer buttons so a
-              // content button at similar distance wins.
-              score += 200;
+            } else if (nav === 'next' && !(el as HTMLButtonElement).disabled) {
+              // From content, prefer the primary Next action over Back when
+              // descending into the footer.
+              score -= 500;
+            } else if (nav === 'back') {
+              score += 500;
             }
           }
 
