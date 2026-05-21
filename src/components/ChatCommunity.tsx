@@ -15,7 +15,6 @@ import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { Capacitor } from '@capacitor/core';
 
 
 interface ChatCommunityProps {
