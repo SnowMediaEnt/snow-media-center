@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { focusTextInputForDpad } from '@/utils/dpadKeyboard';
+import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -186,7 +186,7 @@ export const useTVFocus = ({
         event.preventDefault();
         event.stopPropagation();
         if (typing) {
-          (active ?? target)?.blur();
+          void hideKeyboardForDpad(active ?? target);
           return;
         }
         onBack?.();
@@ -199,7 +199,7 @@ export const useTVFocus = ({
 
       event.preventDefault();
       event.stopPropagation();
-      if (typing && event.key.startsWith('Arrow')) (active ?? target)?.blur();
+      if (typing && event.key.startsWith('Arrow')) void hideKeyboardForDpad(active ?? target);
 
       if (event.key === 'Enter' || event.key === ' ') activate();
       if (event.key === 'ArrowUp') move('up');
