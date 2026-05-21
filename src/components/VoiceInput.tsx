@@ -398,9 +398,14 @@ export const VoiceInput = ({
       console.log('VOICE_NATIVE_RESULT_TEXT:', text);
 
       if (!text) {
-        await showVoiceError('EMPTY_SPEECH', 'native', new Error('I didn’t catch that, try again'));
+        // Fire TV Alexa often consumes the mic so the native recognizer hears nothing.
+        // Auto-fall back to ElevenLabs recording instead of nagging the user.
+        console.warn('VOICE_NATIVE_EMPTY → falling back to ElevenLabs recording');
+        toast({ title: 'Switching to backup mic', description: 'Listening again — speak now.' });
+        await startFallbackRecording('native_fallback');
         return;
       }
+
 
       cleanupAudioSession();
       transitionVoiceState('processing_transcription');
