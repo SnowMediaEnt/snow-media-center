@@ -116,7 +116,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       setLiveDialog(item);
       return;
     }
-    openPlexDirectPlay(item);
+    openPlexApp(item);
+
   };
 
 
