@@ -9,10 +9,11 @@
     /* Snow Media Brand Colors */
     --brand-ice: 267 55% 78%; /* Soft lavender (was light blue) */
     --brand-charcoal: 0 0% 20%; /* #333333 - Dark gray/black */
-    --brand-gold: 0 0% 100%; /* White (was tan/gold) */
+    --brand-gold: 39 31% 60%; /* #c3aa72 - Brown/tan */
     --brand-silver: 0 0% 65%; /* #a6a6a6 - Medium gray */
     --brand-navy: 240 8% 18%; /* Neutral dark (was navy) */
     --brand-purple: 267 60% 45%; /* Richer purple */
+
 
     
     /* Snowy white and blue background when no image selected */
@@ -56,7 +57,8 @@
     --gradient-secondary: linear-gradient(135deg, hsl(var(--brand-gold)), hsl(var(--brand-charcoal)));
     --gradient-accent: linear-gradient(135deg, hsl(var(--brand-purple)), hsl(var(--brand-ice)));
     --gradient-snowy: linear-gradient(135deg, hsl(var(--snow-white)), hsl(var(--snow-blue)));
-    
+    --gradient-gold: linear-gradient(135deg, hsl(51 100% 50%), hsl(43 77% 38%));
+
     --gradient-gold: linear-gradient(135deg, hsl(0 0% 100%), hsl(0 0% 88%));
     --gradient-blue: linear-gradient(135deg, hsl(267 60% 70%), hsl(267 65% 45%));
 
@@ -317,14 +319,14 @@
   transform: translateZ(0);
   will-change: transform;
   transition-property: transform;
-  transition-duration: 130ms;
-  transition-timing-function: ease-out;
-}
-
 .home-focus-surface[data-focused="true"] {
   transform: translateZ(0) scale(1.05);
-  /* Bright gold matches the pinned-apps focus glow used elsewhere and is far
-     more visible than the icy blue on top of the dynamic background. */
+  /* White highlight ring — readable over any dynamic background. */
+  outline: 4px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 0;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.6);
+}
+
   outline: 4px solid hsl(var(--brand-gold) / 0.95);
   outline-offset: 0;
   box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
