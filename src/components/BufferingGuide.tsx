@@ -1798,6 +1798,7 @@ const Summary = ({
     {chosenApp && chosenAppInstalled && chosenAppLabel && (
       <Button
         onClick={onLaunchApp}
+        data-summary-order="1"
         className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
       >
         <Play className="w-4 h-4 mr-2" /> Launch {chosenAppLabel} to Test
@@ -1807,6 +1808,7 @@ const Summary = ({
     <Button
       onClick={onSubmitTicket}
       disabled={submittingTicket}
+      data-summary-order="2"
       className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white"
     >
       <MessageSquare className="w-4 h-4 mr-2" />
@@ -1814,7 +1816,7 @@ const Summary = ({
     </Button>
 
     <div className="flex flex-wrap gap-2">
-      <Button onClick={onRestart} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
+      <Button onClick={onRestart} data-summary-order="3" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/15">
         <RotateCw className="w-4 h-4 mr-2" /> Start Over
       </Button>
     </div>
