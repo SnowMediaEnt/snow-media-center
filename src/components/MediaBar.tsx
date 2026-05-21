@@ -2,7 +2,6 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
-import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -307,6 +306,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     let cancelled = false;
     (async () => {
       try {
+        const { App: CapApp } = await import('@capacitor/app');
         listener = await CapApp.addListener('backButton', () => {
           setLiveDialog(null);
         });
