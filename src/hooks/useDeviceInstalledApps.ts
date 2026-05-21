@@ -90,9 +90,10 @@ export const useDeviceInstalledApps = () => {
     (appName?: string | null) => {
       if (!appName) return false;
       const target = normaliseName(appName);
-      if (!target) return false;
+      if (!target || target.length < 3) return false;
       if (installedNameSet.has(target)) return true;
       for (const installedName of installedNameSet) {
+        if (!installedName || installedName.length < 3) continue;
         if (installedName.includes(target) || target.includes(installedName)) {
           return true;
         }
@@ -123,14 +124,13 @@ export const useDeviceInstalledApps = () => {
       if (fallbackPackage && installedSet.has(fallbackPackage.toLowerCase())) {
         return fallbackPackage;
       }
-      if (appName) {
-        if (target) {
-          const exact = nameToPackage.get(target);
-          if (exact) return exact;
-          for (const [installedName, pkg] of nameToPackage.entries()) {
-            if (installedName.includes(target) || target.includes(installedName)) {
-              return pkg;
-            }
+      if (appName && target && target.length >= 3) {
+        const exact = nameToPackage.get(target);
+        if (exact) return exact;
+        for (const [installedName, pkg] of nameToPackage.entries()) {
+          if (!installedName || installedName.length < 3) continue;
+          if (installedName.includes(target) || target.includes(installedName)) {
+            return pkg;
           }
         }
       }
@@ -139,6 +139,7 @@ export const useDeviceInstalledApps = () => {
     },
     [installedSet, nameToPackage]
   );
+
 
   return {
     installedApps,
