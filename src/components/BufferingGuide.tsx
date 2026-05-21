@@ -527,10 +527,47 @@ const BufferingGuide = ({
     return () => window.removeEventListener('keydown', handler, true);
   }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice]);
 
+  // Capacitor native back button — intercept so the global navigation
+  // handler doesn't pop us all the way out to the Home Screen. Always
+  // step back inside the guide first, and only close when on the intro.
+  useEffect(() => {
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        handle = await App.addListener('backButton', () => {
+          if (cancelled) return;
+          if (showSpeedTest) return;
+          if (step === 'step1' && state.step1Choice === 'one_only') {
+            setReportTitle('');
+            setReportDevice(null);
+            setState((s) => ({ ...s, step1Choice: null }));
+            justWentBackRef.current = true;
+            return;
+          }
+          if (stepIndex > 0) {
+            justWentBackRef.current = true;
+            setStepIndex((i) => i - 1);
+          } else {
+            onClose();
+          }
+        });
+      } catch {
+        // Web / non-Capacitor — keydown handler covers Escape/Backspace.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      handle?.remove?.();
+    };
+  }, [stepIndex, showSpeedTest, step, state.step1Choice, onClose]);
+
   // Scroll content to top on step change
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [stepIndex]);
+
 
   const goNext = () => {
     // On the VPN step, allow advancing even if the VPN flow isn't complete,
