@@ -207,11 +207,17 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           
         case 'ArrowDown':
           if (focusedElement === 'back') {
-            // From back, go to cart (skip signin for simpler navigation)
-            setFocusedElement('cart');
+            // From back, drop straight into the categories row
+            if (categoryIds.length > 0) {
+              setFocusedElement(categoryIds[0]);
+            } else if (filteredProducts.length > 0) {
+              setFocusedElement(`product-${filteredProducts[0].id}`);
+            }
           } else if (focusedElement === 'signin') {
-            // From signin, go to cart
-            setFocusedElement('cart');
+            // From signin, drop into categories
+            if (categoryIds.length > 0) {
+              setFocusedElement(categoryIds[0]);
+            }
           } else if (focusedElement === 'cart') {
             // From cart, go to categories
             if (categoryIds.length > 0) {
@@ -544,7 +550,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             }}
             variant="gold"
             size="lg"
-            className={focusedElement === 'back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}
+            className={focusedElement === 'back' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
@@ -562,7 +568,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 variant="outline"
                 size="sm"
                 data-focus-id="signin"
-                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
               >
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
@@ -573,7 +579,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               variant="outline"
               size="lg"
               data-focus-id="cart"
-              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
+              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
             >
               <ShoppingCart className="w-5 h-5 mr-2" />
               Cart ({cartItems.length})
@@ -605,7 +611,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                     isSelected 
                       ? 'bg-brand-gold border-brand-gold text-white' 
                       : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                  } ${focusedElement === `category-${category.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] scale-105' : ''}`}
+                  } ${focusedElement === `category-${category.id}` ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)] scale-105' : ''}`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {category.name}

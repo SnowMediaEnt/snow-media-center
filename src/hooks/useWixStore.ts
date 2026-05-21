@@ -96,14 +96,43 @@ const mockProducts: WixProduct[] = [
   }
 ];
 
+const PRODUCTS_CACHE_KEY = 'wixStore:products:v1';
+const PRODUCTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const readProductsCache = (): WixProduct[] | null => {
+  try {
+    const raw = sessionStorage.getItem(PRODUCTS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { ts: number; products: WixProduct[] };
+    if (!parsed?.products || !Array.isArray(parsed.products)) return null;
+    if (Date.now() - (parsed.ts || 0) > PRODUCTS_CACHE_TTL_MS) return null;
+    return parsed.products;
+  } catch {
+    return null;
+  }
+};
+
+const writeProductsCache = (products: WixProduct[]) => {
+  try {
+    sessionStorage.setItem(
+      PRODUCTS_CACHE_KEY,
+      JSON.stringify({ ts: Date.now(), products })
+    );
+  } catch {
+    // ignore — sessionStorage may be unavailable / quota exceeded
+  }
+};
+
 export const useWixStore = () => {
-  const [products, setProducts] = useState<WixProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Hydrate synchronously from cache so the store renders instantly on re-entry.
+  const cached = typeof window !== 'undefined' ? readProductsCache() : null;
+  const [products, setProducts] = useState<WixProduct[]>(cached ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = async () => {
     console.log('[WixStore] Starting product fetch...');
-    setLoading(true);
+    // Only show the skeleton when we have nothing on screen yet.
     setError(null);
     
     try {
@@ -143,13 +172,15 @@ export const useWixStore = () => {
         ribbon: product.ribbon || product.customTextFields?.ribbon || ''
       }));
 
-      setProducts(transformedProducts.length > 0 ? transformedProducts : mockProducts);
+      const next = transformedProducts.length > 0 ? transformedProducts : mockProducts;
+      setProducts(next);
+      writeProductsCache(next);
       console.log('[WixStore] Products set successfully');
     } catch (err) {
       console.error('[WixStore] Error loading products:', err);
       setError(err instanceof Error ? err.message : 'Failed to load products');
-      // Fall back to mock products on error
-      setProducts(mockProducts);
+      // Only fall back to mock products if we have nothing cached on screen.
+      setProducts((prev) => (prev.length > 0 ? prev : mockProducts));
     } finally {
       setLoading(false);
     }
@@ -195,7 +226,7 @@ export const useWixStore = () => {
       setLoading(prev => {
         if (prev) {
           console.warn('[WixStore] Safety timeout - loading took too long, showing fallback');
-          setProducts(mockProducts);
+          setProducts((p) => (p.length > 0 ? p : mockProducts));
           return false;
         }
         return prev;
