@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -21,10 +21,11 @@ interface SettingsProps {
 type SettingsFocus =
   | 'back'
   | 'tab-media'
+  | 'tab-ui'
   | 'tab-updates'
   | 'tab-alerts'
   | 'media-content'
-  | 'updates-content-bar-toggle'
+  | 'ui-content-bar-toggle'
   | 'updates-content'
   | 'alerts-content';
 
@@ -52,20 +53,10 @@ const Settings = ({ onBack }: SettingsProps) => {
         return;
       }
 
-      if (focusedElement === 'updates-content-bar-toggle') {
+      if (focusedElement === 'ui-content-bar-toggle') {
         if (event.key === 'ArrowUp') {
           event.preventDefault(); event.stopPropagation();
-          setFocusedElement('tab-updates');
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          event.preventDefault(); event.stopPropagation();
-          setFocusedElement('updates-content');
-          setTimeout(() => {
-            const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
-            btn?.focus();
-            btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          }, 30);
+          setFocusedElement('tab-ui');
           return;
         }
         if (event.key === 'Enter' || event.key === ' ') {
@@ -75,28 +66,13 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault(); event.stopPropagation();
-          setFocusedElement('tab-updates');
+          setFocusedElement('tab-ui');
           return;
         }
         return;
       }
 
       if (focusedElement === 'updates-content') {
-        if (event.key === 'ArrowUp') {
-          const active = document.activeElement as HTMLElement | null;
-          if (active?.matches('[data-app-updater-btn="check"]') ||
-              active?.matches('[data-app-updater-btn="download"]')) {
-            event.preventDefault();
-            event.stopPropagation();
-            (active as HTMLElement).blur();
-            setFocusedElement('updates-content-bar-toggle');
-            setTimeout(() => {
-              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
-              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            }, 30);
-          }
-          return;
-        }
         if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault();
           event.stopPropagation();
@@ -119,7 +95,6 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         return;
       }
-
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
@@ -140,12 +115,13 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const tabs: SettingsFocus[] = isAdmin
-        ? ['tab-media', 'tab-updates', 'tab-alerts']
-        : ['tab-media', 'tab-updates'];
+        ? ['tab-media', 'tab-ui', 'tab-updates', 'tab-alerts']
+        : ['tab-media', 'tab-ui', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
       const tabValueFor = (f: SettingsFocus): string | null => {
         if (f === 'tab-media') return 'media';
+        if (f === 'tab-ui') return 'ui';
         if (f === 'tab-updates') return 'updates';
         if (f === 'tab-alerts') return 'alerts';
         return null;
@@ -176,11 +152,18 @@ const Settings = ({ onBack }: SettingsProps) => {
             setFocusedElement('tab-media');
           } else if (focusedElement === 'tab-media' && activeTab === 'media') {
             setMediaManagerActive(true);
-          } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
-            setFocusedElement('updates-content-bar-toggle');
+          } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
+            setFocusedElement('ui-content-bar-toggle');
             setTimeout(() => {
-              const card = document.querySelector('[data-settings-focus="updates-content-bar-toggle"]') as HTMLElement | null;
+              const card = document.querySelector('[data-settings-focus="ui-content-bar-toggle"]') as HTMLElement | null;
               card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }, 30);
+          } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
+            setFocusedElement('updates-content');
+            setTimeout(() => {
+              const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
+              btn?.focus();
+              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
@@ -190,6 +173,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         case ' ':
           if (focusedElement === 'back') onBack();
           else if (focusedElement === 'tab-media') setActiveTab('media');
+          else if (focusedElement === 'tab-ui') setActiveTab('ui');
           else if (focusedElement === 'tab-updates') setActiveTab('updates');
           else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
           break;
@@ -232,7 +216,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     setFocusedElement('tab-media');
   };
 
-  const tabColsClass = isAdmin ? 'grid-cols-4' : 'grid-cols-2';
+  const tabColsClass = isAdmin ? 'grid-cols-5' : 'grid-cols-3';
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white" style={{ paddingTop: '2vh' }}>
