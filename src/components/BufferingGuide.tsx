@@ -1023,16 +1023,6 @@ const BufferingGuide = ({
             ) : (
               <span className="w-[88px]" />
             )}
-            {step === 'step1' && (
-              <Button
-                onClick={() => setStepIndex(STEPS.indexOf('step4'))}
-                variant="outline"
-                title="Already tried a VPN? Jump straight to the VPN step."
-                className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
-              >
-                Already did VPN → Skip to VPN
-              </Button>
-            )}
           </div>
 
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
