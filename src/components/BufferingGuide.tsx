@@ -851,6 +851,37 @@ const BufferingGuide = ({
           }}
         />
       )}
+
+      {showAnonConfirm && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
+            <h3 className="text-xl font-semibold text-white mb-3">Send report without signing in?</h3>
+            <p className="text-sm text-white/80 leading-relaxed mb-4">
+              Your report will be submitted to Snow Media support, but it will <strong>not</strong> be saved to your account.
+            </p>
+            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+              Tip: Go back to the Home Screen and tap <strong>Sign In</strong> first so your ticket is saved on your account and you can track replies.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowAnonConfirm(false)}
+                disabled={submittingTicket}
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitAnonymousChannelReport}
+                disabled={submittingTicket}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              >
+                {submittingTicket ? 'Sending…' : 'Send anyway'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
