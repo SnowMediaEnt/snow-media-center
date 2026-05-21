@@ -771,7 +771,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 {!appExpanded && (
                   isInstalled ? (
                     <Button
-                      onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
+                      onClick={(e) => { e.stopPropagation(); setExpandedAppId(app.id); setFocusedElement(`app-${app.id}` as FocusType); }}
                       tabIndex={-1}
                       className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-primary hover:bg-primary/80 text-primary-foreground"
                     >
@@ -780,7 +780,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     </Button>
                   ) : (
                     <Button
-                      onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
+                      onClick={(e) => { e.stopPropagation(); setExpandedAppId(app.id); setFocusedElement(`app-${app.id}` as FocusType); }}
                       tabIndex={-1}
                       className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-brand-ice hover:bg-brand-ice/80 text-white"
                     >
