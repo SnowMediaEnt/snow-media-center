@@ -99,7 +99,7 @@ const HomeActionCard = memo(({
           width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
           aspectRatio: '1 / 1'
         }}>
-          <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
+          <ButtonIcon className={`${button.variant === 'gold' ? 'text-brand-charcoal' : 'text-brand-gold'} drop-shadow-xl w-full h-full`} />
         </div>
         <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
           {button.title}
@@ -305,7 +305,7 @@ const Index = () => {
       }
       
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
-      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') { // Android back button
         event.preventDefault();
         event.stopPropagation();
 
