@@ -178,7 +178,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
   const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
-  const [debugItem, setDebugItem] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sports = live TV. Plex/TMDB items = deep link into Plex.
@@ -374,11 +373,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                     key={item.id}
                     type="button"
                     onClick={() => clickable && handleClick(item)}
-                    onContextMenu={(e) => {
-                      if (item.source === 'sports') return;
-                      e.preventDefault();
-                      setDebugItem(item);
-                    }}
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
@@ -519,41 +513,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!debugItem} onOpenChange={(o) => !o && setDebugItem(null)}>
-        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-[hsl(var(--brand-gold))]">Plex item debug</DialogTitle>
-          </DialogHeader>
-          {debugItem && (() => {
-            const v = validatePlexLaunchItem(debugItem);
-            const playUrl = v ? buildPlexPlayUrl(v) : null;
-            return (
-              <pre className="text-[11px] leading-snug whitespace-pre-wrap break-all bg-black/40 p-3 rounded max-h-[60vh] overflow-auto">
-{JSON.stringify({
-  title: debugItem.title,
-  type: debugItem.kind,
-  ratingKey: v?.ratingKey ?? null,
-  key: debugItem.key ?? null,
-  metadataKey: v?.metadataKey ?? null,
-  machineIdentifier: v?.machineIdentifier ?? null,
-  guid: debugItem.guid ?? null,
-  librarySectionID: debugItem.librarySectionID ?? null,
-  playUrl,
-}, null, 2)}
-              </pre>
-            );
-          })()}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
-              onClick={() => setDebugItem(null)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
 
   );
