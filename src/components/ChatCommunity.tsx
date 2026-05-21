@@ -762,7 +762,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
         event.stopPropagation();
-        (event as any).stopImmediatePropagation?.();
+        event.stopImmediatePropagation?.();
       }
 
       // When leaving the input via D-pad in any direction, blur so the caret
