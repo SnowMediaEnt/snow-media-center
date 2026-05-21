@@ -144,6 +144,7 @@ const BufferingGuide = ({
   const step: StepKey = STEPS[stepIndex];
 
   const anonConfirmRef = useRef<HTMLDivElement>(null);
+  const vpnSkipConfirmRef = useRef<HTMLDivElement>(null);
 
   // Collect focusable buttons/links/inputs inside the modal
   const getFocusables = (): HTMLElement[] => {
