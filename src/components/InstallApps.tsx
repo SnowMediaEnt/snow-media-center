@@ -793,6 +793,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   </>
                 )}
               </div>
+              )}
             </div>
           </Card>
         );
