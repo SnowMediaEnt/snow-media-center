@@ -828,12 +828,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const elements = getFocusableElements();
       const maxIndex = elements.length - 1;
       const contentStartIndex = embedded ? 0 : 4;
+      const aiMessageScrollIndex = elements.findIndex(e => e.id === 'message-scroll');
+      const aiInputIndex = elements.findIndex(e => e.id === 'ai-input');
+      const firstAiHistoryIndex = elements.findIndex(e => e.id === 'ai-history-0');
 
       // Handle message scrolling when focused on the scroll element
       const scrollMessages = (direction: 'up' | 'down') => {
-        if (messagesContainerRef.current) {
+        const scrollContainer = activeTab === 'ai' ? aiChatContainerRef.current : messagesContainerRef.current;
+        if (scrollContainer) {
           const scrollAmount = 100;
-          messagesContainerRef.current.scrollBy({
+          scrollContainer.scrollBy({
             top: direction === 'down' ? scrollAmount : -scrollAmount,
             behavior: 'smooth',
           });
@@ -842,13 +846,19 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
+          if (activeTab === 'ai' && currentFocusId === 'message-scroll') {
+            const container = aiChatContainerRef.current;
+            const atBottom = !container || container.scrollTop + container.clientHeight >= container.scrollHeight - 12;
+            if (atBottom && aiInputIndex !== -1) setFocusIndex(aiInputIndex);
+            else scrollMessages('down');
+            return;
+          }
           // From the input bar, voice, or send buttons, jump down to the first
           // saved chat (the three input-row controls sit on the same row, so
           // Down should leave the row entirely, not cycle within it).
           if (currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send') {
-            const historyIndex = elements.findIndex(e => e.id === 'ai-history-0');
-            if (historyIndex !== -1) {
-              setFocusIndex(historyIndex);
+            if (firstAiHistoryIndex !== -1) {
+              setFocusIndex(firstAiHistoryIndex);
               return;
             }
             // No saved chats — stay put in embedded mode instead of bouncing back to tabs.
@@ -880,6 +890,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
+          if (activeTab === 'ai' && currentFocusId === 'ai-input' && aiMessageScrollIndex !== -1) {
+            setFocusIndex(aiMessageScrollIndex);
+            return;
+          }
+          if (activeTab === 'ai' && currentFocusId === 'message-scroll') {
+            const container = aiChatContainerRef.current;
+            const atTop = !container || container.scrollTop <= 12;
+            if (embedded && atTop) {
+              void hideKeyboardForDpad(active ?? target);
+              setEmbeddedFocusActive(false);
+              forceSupportScrollTop();
+              window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
+            } else if (atTop && !embedded) {
+              setFocusIndex(activeTab === 'admin' ? 1 : activeTab === 'community' ? 2 : 3);
+            } else {
+              scrollMessages('up');
+            }
+            return;
+          }
           if (embedded && (focusIndex === 0 || currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send')) {
             void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
