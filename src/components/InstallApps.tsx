@@ -79,6 +79,7 @@ interface ContextMenuState {
 const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => void; apps: AppData[]; onNavigateToChat?: () => void }) => {
   const [appStatuses, setAppStatuses] = useState<Map<string, { installed: boolean }>>(new Map());
   const [focusedElement, setFocusedElement] = useState<FocusType>('back');
+  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('featured');
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
@@ -151,6 +152,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           event.keyCode === 4 || event.which === 4 || event.code === 'GoBack') {
         event.preventDefault();
         event.stopPropagation();
+        // If an app is expanded, collapse it first and return focus to the card
+        if (expandedAppId) {
+          const id = expandedAppId;
+          setExpandedAppId(null);
+          setFocusedElement(`app-${id}` as FocusType);
+          return;
+        }
         onBack();
         return;
       }
@@ -188,9 +196,12 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         } else if (focusedElement.startsWith('cache-') && currentApp) handleAutoClearCache(currentApp);
         else if (focusedElement.startsWith('uninstall-') && currentApp) handleUninstall(currentApp);
         else if (focusedElement.startsWith('app-') && currentApp) {
+          // Expand the card to reveal action buttons; focus first inner action.
           const isInstalled = !!appStatuses.get(currentApp.id)?.installed;
-          if (isInstalled) setFocusedElement(`launch-${currentApp.id}` as FocusType);
-          else handleDownload(currentApp);
+          setExpandedAppId(currentApp.id);
+          const firstFocus = isInstalled ? `launch-${currentApp.id}` : `download-${currentApp.id}`;
+          // Defer until buttons render
+          setTimeout(() => setFocusedElement(firstFocus as FocusType), 0);
         }
         return;
       }
@@ -247,7 +258,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp, toast]);
+  }, [focusedElement, activeTab, onBack, apps, getCategoryApps, getAppButtons, appStatuses, isPinned, refreshDeviceApps, pendingAlert, contextMenu.app, downloadingApp, toast, expandedAppId]);
 
   // Scroll focused element into view
   useEffect(() => {
@@ -615,11 +626,16 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         const appFocused = isFocused(`app-${app.id}`);
         const appIsPinned = isPinned(app.id);
         
+        const appExpanded = expandedAppId === app.id;
         return (
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
+            onClick={() => {
+              if (appExpanded) return; // clicks on inner buttons handled separately
+              setExpandedAppId(app.id);
+              setFocusedElement(`app-${app.id}` as FocusType);
+            }}
             className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
@@ -670,32 +686,36 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   </div>
                 </div>
 
-                {/* Pin/Unpin Button */}
-                <Button
-                  data-focus-id={`pin-${app.id}`}
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (appIsPinned) {
-                      handleUnpinApp(app.id, app.name);
-                    } else {
-                      handlePinApp(app);
-                    }
-                  }}
-                  className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
-                    appIsPinned 
-                      ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
-                      : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
-                  }`}
-                  title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
-                >
-                  <Pin className={`w-5 h-5 ${appIsPinned ? 'fill-current' : ''}`} />
-                </Button>
+                {/* Pin/Unpin Button — only when expanded */}
+                {appExpanded && (
+                  <Button
+                    data-focus-id={`pin-${app.id}`}
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (appIsPinned) {
+                        handleUnpinApp(app.id, app.name);
+                      } else {
+                        handlePinApp(app);
+                      }
+                    }}
+                    className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
+                      appIsPinned 
+                        ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
+                        : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
+                    }`}
+                    title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
+                  >
+                    <Pin className={`w-5 h-5 ${appIsPinned ? 'fill-current' : ''}`} />
+                  </Button>
+                )}
               </div>
               
-              {/* Action Buttons - each individually focusable */}
+              {/* Action Buttons - only rendered when card is expanded */}
+              {appExpanded && (
               <div className="space-y-2">
+
 
                 {!isInstalled && (
                   <Button 
@@ -773,6 +793,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   </>
                 )}
               </div>
+              )}
             </div>
           </Card>
         );
