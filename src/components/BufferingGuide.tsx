@@ -26,6 +26,8 @@ import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
+
 import { supabase } from '@/integrations/supabase/client';
 import { MessageSquare } from 'lucide-react';
 
@@ -89,6 +91,7 @@ const VPN_INFO = {
   ipvanish: {
     label: 'IPVanish',
     pkg: 'com.ixonn.ipvanish',
+    pkgCandidates: ['com.ixonn.ipvanish', 'com.ixolus.ipvanish', 'com.ipvanish.vpn', 'com.ipvanish.android'],
     downloaderCode: '805133',
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
@@ -98,6 +101,7 @@ const VPN_INFO = {
   surfshark: {
     label: 'Surfshark',
     pkg: 'com.surfshark.vpnclient.android',
+    pkgCandidates: ['com.surfshark.vpnclient.android', 'com.surfshark.android.tv'],
     downloaderCode: '3829522',
     signupUrl: 'https://surfshark.com',
     matchKeys: ['surfshark'],
@@ -105,6 +109,7 @@ const VPN_INFO = {
     fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=Surfshark.apk',
   },
 } as const;
+
 
 const BufferingGuide = ({
   onClose,
@@ -410,28 +415,35 @@ const BufferingGuide = ({
       category: 'support',
     } as AppData;
   };
-
   const ipvanishApp = useMemo(() => buildVpnApp('ipvanish'), [apps]);
   const surfsharkApp = useMemo(() => buildVpnApp('surfshark'), [apps]);
 
   const [ipvanishLive, setIpvanishLive] = useState<boolean | null>(null);
   const [surfsharkLive, setSurfsharkLive] = useState<boolean | null>(null);
 
+  const { isAppNameInstalled, refresh: refreshInstalledApps } = useDeviceInstalledApps();
+
+
   useEffect(() => {
     let cancelled = false;
-    const check = (pkg: string, setter: (b: boolean | null) => void) => {
-      AppManager.isInstalled({ packageName: pkg })
-        .then((r) => { if (!cancelled) setter(!!r.installed); })
-        .catch(() => { if (!cancelled) setter(false); });
+    const checkAny = async (pkgs: readonly string[], setter: (b: boolean | null) => void) => {
+      try {
+        for (const pkg of pkgs) {
+          try {
+            const r = await AppManager.isInstalled({ packageName: pkg });
+            if (cancelled) return;
+            if (r?.installed) { setter(true); return; }
+          } catch { /* try next */ }
+        }
+        if (!cancelled) setter(false);
+      } catch { if (!cancelled) setter(false); }
     };
     const recheck = () => {
-      check(VPN_INFO.ipvanish.pkg, setIpvanishLive);
-      check(VPN_INFO.surfshark.pkg, setSurfsharkLive);
+      checkAny(VPN_INFO.ipvanish.pkgCandidates, setIpvanishLive);
+      checkAny(VPN_INFO.surfshark.pkgCandidates, setSurfsharkLive);
+      refreshInstalledApps();
     };
     recheck();
-    // Re-check whenever the user returns from an external action (Play Store,
-    // installer permission screen, etc.) so the "Install" button flips to
-    // "Open" without forcing them to re-enter the step.
     const onFocus = () => recheck();
     const onVisibility = () => { if (document.visibilityState === 'visible') recheck(); };
     const onResume = () => recheck();
@@ -444,13 +456,16 @@ const BufferingGuide = ({
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('app-resumed', onResume as EventListener);
     };
-  }, [step]);
+  }, [step, refreshInstalledApps]);
 
 
   const ipvanishInstalled =
-    !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true;
+    !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true || isAppNameInstalled('IPVanish');
   const surfsharkInstalled =
-    !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true;
+    !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true || isAppNameInstalled('Surfshark');
+
+
+
 
   // Backward-compatible single-choice values used by diagnosis/script
   const vpnApp: AppData | undefined =
@@ -460,13 +475,23 @@ const BufferingGuide = ({
     state.vpnChoice === 'surfshark' ? surfsharkInstalled :
     state.vpnChoice === 'ipvanish' ? ipvanishInstalled : false;
 
+  // When entering step4, auto-select IPVanish so the Install/Open button is
+  // immediately reachable (no need to click the VPN tab first).
+  useEffect(() => {
+    if (step === 'step4' && !state.vpnChoice) {
+      setState((s) => ({ ...s, vpnChoice: 'ipvanish' }));
+    }
+  }, [step, state.vpnChoice]);
+
   // After choosing a VPN, put D-pad focus directly on the Install/Open action.
   useEffect(() => {
-    if (showSpeedTest || step !== 'step4' || !state.vpnChoice) return;
+    if (showSpeedTest || step !== 'step4') return;
+    const choice = state.vpnChoice ?? 'ipvanish';
     const t = setTimeout(() => {
       const target = rootRef.current?.querySelector<HTMLElement>(
-        `[data-vpn-primary-action="${state.vpnChoice}"]`
+        `[data-vpn-primary-action="${choice}"]`
       );
+
       if (target) {
         target.focus();
         lastFocusedRef.current = target;
