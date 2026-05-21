@@ -1518,12 +1518,13 @@ const Step4 = ({
           <span className="block mt-1 text-amber-200/90">Note: VPN does <strong>not</strong> work with VibezTV.</span>
         </div>
 
-      </div>
-
-      {/* Side-by-side picker */}
-      <div className="grid grid-cols-2 gap-2">
-        <ChoiceButton active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
+        <ChoiceButton dataVpnChoice="ipvanish" active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
           <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
+        </ChoiceButton>
+        <ChoiceButton dataVpnChoice="surfshark" active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
+          <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
+        </ChoiceButton>
+
         </ChoiceButton>
         <ChoiceButton active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
           <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
