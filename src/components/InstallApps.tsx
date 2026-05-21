@@ -642,11 +642,16 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     src={app.icon || '/icons/default.png'} 
                     alt={`${app.name} icon`}
                     className="w-full h-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    {...({ fetchpriority: 'high' } as Record<string, string>)}
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                     }}
                   />
+
                 </div>
                 
                 <div className="flex-1 min-w-0">
