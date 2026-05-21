@@ -137,7 +137,26 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
   const lastTicketId = tickets.length > 0 ? `ticket-${tickets.length - 1}` : emptyActionId;
 
+  const hideNativeKeyboard = async () => {
+    try {
+      if (typeof document !== 'undefined') {
+        const active = document.activeElement as HTMLElement | null;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          active.blur();
+        }
+      }
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Keyboard } = await import('@capacitor/keyboard');
+        await Keyboard.hide();
+      }
+    } catch (e) {
+      // best-effort
+    }
+  };
+
   const handleSystemBack = () => {
+    void hideNativeKeyboard();
     if (view === 'ticket') {
       setView('list');
       setSelectedTicketId(null);
@@ -154,6 +173,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
     onBack();
   };
+
 
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
     if (view === 'create') {
