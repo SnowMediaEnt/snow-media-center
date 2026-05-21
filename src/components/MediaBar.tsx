@@ -92,7 +92,8 @@ const openPlexApp = async (item: MediaItem) => {
   toast({ title: 'Opening Plex…', description: item.title });
   try {
     const { AppManager } = await import('@/capacitor/AppManager');
-    await AppManager.launchApp({ packageName: PLEX_ANDROID_PACKAGE_LAUNCH });
+    await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE_LAUNCH });
+
   } catch (err) {
     const msg = (err as Error)?.message ?? 'Unknown error';
     toast({ title: "Couldn't open Plex", description: msg });
