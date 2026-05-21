@@ -11,6 +11,7 @@ import ApkCacheViewer from '@/components/ApkCacheViewer';
 import AdminAIPanel from '@/components/AdminAIPanel';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 interface SettingsProps {
   onBack: () => void;
@@ -185,20 +186,8 @@ const Settings = ({ onBack }: SettingsProps) => {
   }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, setMediaBarEnabledState]);
 
   useEffect(() => {
-    const scrollAllToTop = () => {
-      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      document
-        .querySelectorAll<HTMLElement>('.tv-scroll-container')
-        .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
-    };
-
     if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
-      const topAnchor = document.getElementById('settings-top');
-      topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      scrollAllToTop();
+      snapAllTVScrollToTop([containerRef.current]);
       return;
     }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 interface SpatialNavOptions {
   enabled?: boolean;
@@ -67,11 +68,16 @@ export const useSpatialNavigation = ({
     const target = elements.find(e => e.id === id);
     if (target) {
       target.element.setAttribute('data-focused', 'true');
-      target.element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'nearest',
-      });
+      const scroller = target.element.closest('.tv-scroll-container') as HTMLElement | null;
+      if (/(^|-)back($|-)/i.test(id) && scroller) {
+        snapAllTVScrollToTop([scroller]);
+      } else {
+        target.element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest',
+        });
+      }
       currentFocusRef.current = id;
     }
   }, [getElements]);

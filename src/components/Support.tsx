@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -46,7 +46,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [showSpeedTest, setShowSpeedTest] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
-  const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
   const { resolvePackageName, isPackageInstalled } = useDeviceInstalledApps();
   const { toast } = useToast();
@@ -174,7 +173,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
 
   const scrollSupportToRealTop = useCallback(() => {
-    supportTopRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
     snapAllTVScrollToTop([supportFocus.containerRef.current]);
   }, [supportFocus.containerRef]);
 
@@ -253,7 +251,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
   return (
     <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
-      <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
       <div className="max-w-6xl mx-auto pb-28" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}>
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center w-full justify-start">

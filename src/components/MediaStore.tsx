@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
+import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 interface MediaStoreProps {
   onBack: () => void;
 }
@@ -285,20 +286,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
   const restoreTopScroll = (which: 'list' | 'detail' = 'list') => {
     const container = which === 'detail' ? detailContainerRef.current : containerRef.current;
-    const anchor = which === 'detail' ? detailTopAnchorRef.current : topAnchorRef.current;
-    const scrollTargets = [
-      container,
-      document.scrollingElement as HTMLElement | null,
-      document.documentElement,
-      document.body,
-      document.querySelector('[data-app-scroll-root]') as HTMLElement | null,
-    ];
-    scrollTargets.forEach((t) => { if (t) t.scrollTo({ top: 0, left: 0, behavior: 'auto' }); });
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    requestAnimationFrame(() => {
-      anchor?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
-      scrollTargets.forEach((t) => { if (t) t.scrollTop = 0; });
-    });
+    snapAllTVScrollToTop([container, document.querySelector('[data-app-scroll-root]') as HTMLElement | null]);
   };
 
   // Scroll focused element into view for TV navigation - always keep selector visible
