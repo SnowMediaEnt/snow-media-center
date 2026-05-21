@@ -126,18 +126,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const focusIntoChild = useCallback((childTab: Tab) => {
     if (childTab === 'ai') {
       window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
-      const input = document.querySelector<HTMLElement>('[data-focus-id="ai-input"]');
-      if (input) {
-        input.focus({ preventScroll: true });
-        return true;
-      }
+      return true;
     }
     if (childTab === 'community') {
-      const room = document.querySelector<HTMLElement>('[data-tv-focus-id="room-general"]');
-      if (room) {
-        room.focus({ preventScroll: true });
-        return true;
-      }
+      window.dispatchEvent(new CustomEvent('community-chat:focus-room'));
+      return true;
     }
     return false;
   }, []);
@@ -170,6 +163,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     navigation: supportNavigation,
     onBack,
     enabled: supportFocusActive,
+    scrollBlock: 'nearest',
   });
 
 
