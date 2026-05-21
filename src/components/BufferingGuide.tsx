@@ -952,19 +952,31 @@ const BufferingGuide = ({
       {/* Footer */}
       <div className="flex-shrink-0 px-4 py-2 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          {stepIndex > 0 ? (
-            <Button
-              onClick={goBack}
-              variant="outline"
-              data-guide-nav="back"
-              className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+          <div className="flex items-center gap-2">
+            {stepIndex > 0 ? (
+              <Button
+                onClick={goBack}
+                variant="outline"
+                data-guide-nav="back"
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              </Button>
+            ) : (
+              <span className="w-[88px]" />
+            )}
+            {step === 'step1' && (
+              <Button
+                onClick={() => setStepIndex(STEPS.indexOf('step4'))}
+                variant="outline"
+                title="Already tried a VPN? Jump straight to the VPN step."
+                className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+              >
+                Already did VPN → Skip to VPN
+              </Button>
+            )}
+          </div>
 
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
-            </Button>
-          ) : (
-            <span className="w-[88px]" />
-          )}
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
