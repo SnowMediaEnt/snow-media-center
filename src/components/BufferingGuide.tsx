@@ -135,6 +135,7 @@ const BufferingGuide = ({
   const [reportTitle, setReportTitle] = useState('');
   const [reportDevice, setReportDevice] = useState<string | null>(null);
   const [showAnonConfirm, setShowAnonConfirm] = useState(false);
+  const [showVpnSkipConfirm, setShowVpnSkipConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -143,11 +144,14 @@ const BufferingGuide = ({
   const step: StepKey = STEPS[stepIndex];
 
   const anonConfirmRef = useRef<HTMLDivElement>(null);
+  const vpnSkipConfirmRef = useRef<HTMLDivElement>(null);
 
   // Collect focusable buttons/links/inputs inside the modal
   const getFocusables = (): HTMLElement[] => {
     const scope: HTMLElement | null =
-      showAnonConfirm && anonConfirmRef.current ? anonConfirmRef.current : rootRef.current;
+      (showVpnSkipConfirm && vpnSkipConfirmRef.current) ? vpnSkipConfirmRef.current :
+      (showAnonConfirm && anonConfirmRef.current) ? anonConfirmRef.current :
+      rootRef.current;
     if (!scope) return [];
     const nodes = scope.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -171,6 +175,19 @@ const BufferingGuide = ({
     }, 50);
     return () => clearTimeout(t);
   }, [showAnonConfirm]);
+
+  useEffect(() => {
+    if (!showVpnSkipConfirm) return;
+    const t = setTimeout(() => {
+      const btn = vpnSkipConfirmRef.current?.querySelector<HTMLButtonElement>(
+        '[data-vpn-skip-primary="true"]'
+      ) || vpnSkipConfirmRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])');
+      btn?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [showVpnSkipConfirm]);
+
+
 
 
   // D-pad / Arrow key navigation between focusables
@@ -430,6 +447,12 @@ const BufferingGuide = ({
   }, [stepIndex]);
 
   const goNext = () => {
+    // On the VPN step, allow advancing even if the VPN flow isn't complete,
+    // but warn the user first with an info popup explaining ISP throttling.
+    if (step === 'step4' && !canNext) {
+      setShowVpnSkipConfirm(true);
+      return;
+    }
     if (canNext && stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
   };
   const goBack = () => {
@@ -845,7 +868,7 @@ const BufferingGuide = ({
           {step !== 'summary' ? (
             <Button
               onClick={goNext}
-              disabled={!canNext}
+              disabled={!canNext && step !== 'step4'}
               data-guide-nav="next"
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
             >
@@ -894,6 +917,39 @@ const BufferingGuide = ({
                 className="bg-cyan-600 hover:bg-cyan-500 text-white"
               >
                 {submittingTicket ? 'Sending…' : 'Send anyway'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVpnSkipConfirm && (
+        <div ref={vpnSkipConfirmRef} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
+            <h3 className="text-xl font-semibold text-white mb-3">Skip the VPN step?</h3>
+            <p className="text-sm text-white/85 leading-relaxed mb-3">
+              Heads up: Your internet provider can slow you down during peak hours — or for no clear reason at all. In 2026, ISP throttling is the <strong>#1 cause of buffering</strong>.
+            </p>
+            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+              If nothing has worked up to this point, installing and turning on a VPN will more than likely fix it. You can still continue if you'd rather skip for now.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowVpnSkipConfirm(false)}
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
+                Go back
+              </Button>
+              <Button
+                data-vpn-skip-primary="true"
+                onClick={() => {
+                  setShowVpnSkipConfirm(false);
+                  if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
+                }}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              >
+                Next <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>
