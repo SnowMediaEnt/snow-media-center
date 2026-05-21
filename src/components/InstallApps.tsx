@@ -695,7 +695,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               </div>
               
               {/* Action Buttons - each individually focusable */}
-              <div className="space-y-4">
+              <div className="space-y-2">
+
                 {!isInstalled && (
                   <Button 
                     data-focus-id={`download-${app.id}`}
