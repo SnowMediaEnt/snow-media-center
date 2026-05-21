@@ -479,10 +479,7 @@ const BufferingGuide = ({
       toast({ title: 'Copied!', description: 'Results copied to clipboard.' });
     } catch {
       toast({ title: 'Copy failed', description: 'Select the text manually.', variant: 'destructive' });
-    }
-  };
-
-  const submitAsTicket = async () => {
+  const submitAsTicket = async (overrideSubject?: string, overrideBody?: string) => {
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
       toast({
@@ -495,16 +492,17 @@ const BufferingGuide = ({
     try {
       setSubmittingTicket(true);
       const ts = new Date().toLocaleString();
-      const subject = `Buffering Walkthrough Results — ${ts}`;
-      const body = `${supportScript}\n\nSaved: ${ts}`;
+      const subject = overrideSubject ?? `Buffering Walkthrough Results — ${ts}`;
+      const body = overrideBody ?? `${supportScript}\n\nSaved: ${ts}`;
       await createTicket(subject, body);
       toast({
         title: 'Ticket submitted',
-        description: 'Opening Chat & Community → My Tickets.',
+        description: 'Opening Support → Tickets.',
       });
       onClose();
       // Defer nav slightly so the modal unmounts cleanly first
       setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('support:open-tickets'));
         onNavigateToChat?.();
       }, 50);
     } catch (err) {
@@ -515,6 +513,32 @@ const BufferingGuide = ({
         variant: 'destructive',
       });
     } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
+  const submitChannelReport = async () => {
+    const title = reportTitle.trim();
+    if (!title) {
+      toast({ title: 'Enter a title', description: 'Type the channel or movie/show name first.', variant: 'destructive' });
+      return;
+    }
+    if (!reportDevice) {
+      toast({ title: 'Pick a device', description: 'Tell us which device you are watching on.', variant: 'destructive' });
+      return;
+    }
+    const ts = new Date().toLocaleString();
+    const appLabel = state.appType ? APP_LABELS[state.appType] : 'streaming app';
+    const subject = `Broken channel/title in ${appLabel}: ${title}`;
+    const body = [
+      `App: ${appLabel}`,
+      `Device: ${reportDevice}`,
+      `Channel / Title: ${title}`,
+      `Reported: ${ts}`,
+    ].join('\n');
+    await submitAsTicket(subject, body);
+  };
+
       setSubmittingTicket(false);
     }
   };
