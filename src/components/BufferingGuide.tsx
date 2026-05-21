@@ -140,6 +140,7 @@ const BufferingGuide = ({
   const [reportTitle, setReportTitle] = useState('');
   const [reportDevice, setReportDevice] = useState<string | null>(null);
   const [showAnonConfirm, setShowAnonConfirm] = useState(false);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [showVpnSkipConfirm, setShowVpnSkipConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -746,11 +747,7 @@ const BufferingGuide = ({
 
     console.log('[BufferingGuide] Submit ticket clicked', { hasUser: !!user });
     if (!user) {
-      toast({
-        title: 'Sign in required',
-        description: 'Please sign in via Chat & Community to submit a ticket.',
-        variant: 'destructive',
-      });
+      setShowSignInPrompt(true);
       return;
     }
     try {
@@ -1159,6 +1156,39 @@ const BufferingGuide = ({
                 className="bg-cyan-600 hover:bg-cyan-500 text-white"
               >
                 {submittingTicket ? 'Sending…' : 'Send anyway'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSignInPrompt && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-[0_0_40px_8px_hsl(190_80%_50%/0.25)]">
+            <h3 className="text-xl font-semibold text-white mb-3">Sign in to submit a ticket</h3>
+            <p className="text-sm text-white/85 leading-relaxed mb-3">
+              You need an account to submit a support ticket so our team can <strong>reply back to you</strong> and you can track the conversation.
+            </p>
+            <p className="text-sm text-cyan-200 leading-relaxed mb-6">
+              Close this guide, then sign in or create a free account from the Home Screen and try again.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowSignInPrompt(false)}
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowSignInPrompt(false);
+                  onClose();
+                }}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                autoFocus
+              >
+                Close guide
               </Button>
             </div>
           </div>
