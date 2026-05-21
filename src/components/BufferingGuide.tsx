@@ -539,9 +539,6 @@ const BufferingGuide = ({
     await submitAsTicket(subject, body);
   };
 
-      setSubmittingTicket(false);
-    }
-  };
 
   return (
     <div
