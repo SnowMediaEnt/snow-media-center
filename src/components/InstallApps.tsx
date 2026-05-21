@@ -687,7 +687,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-ice shadow-[0_0_26px_rgba(255,255,255,0.75),0_0_52px_rgba(161,213,220,0.45)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-3 pb-10 px-2">
@@ -707,7 +707,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               setExpandedAppId(app.id);
               setFocusedElement(`app-${app.id}` as FocusType);
             }}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02] shadow-[0_0_26px_rgba(255,255,255,0.7),0_0_54px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -761,18 +761,18 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 {!appExpanded && (
                   isInstalled ? (
                     <Button
-                      data-focus-id={`launch-${app.id}`}
                       onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
-                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                      tabIndex={-1}
+                      className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-primary hover:bg-primary/80 text-primary-foreground"
                     >
                       <Play className="w-4 h-4 mr-1" />
                       Launch
                     </Button>
                   ) : (
                     <Button
-                      data-focus-id={`download-${app.id}`}
                       onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
-                      className={`flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                      tabIndex={-1}
+                      className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-brand-ice hover:bg-brand-ice/80 text-white"
                     >
                       <Download className="w-4 h-4 mr-1" />
                       Download
