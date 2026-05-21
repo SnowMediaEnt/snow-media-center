@@ -319,7 +319,8 @@ const PinnedAppsPopup = ({
               
               if (pinnedApp) {
                 const fullApp = apps.find(a => a.id === pinnedApp.id);
-                
+                const installed = isPinnedAppInstalled(pinnedApp);
+
                 return (
                   <button
                     key={pinnedApp.id}
@@ -328,6 +329,10 @@ const PinnedAppsPopup = ({
                       e.stopPropagation();
                       if (longPressTriggeredRef.current) {
                         longPressTriggeredRef.current = false;
+                        return;
+                      }
+                      if (!installed) {
+                        onInstallApp(pinnedApp);
                         return;
                       }
                       onLaunchApp(asLaunchableApp(pinnedApp, fullApp));
@@ -377,16 +382,16 @@ const PinnedAppsPopup = ({
                         }
                       }
                     }}
-                    title="Tap to launch · Hold to change"
+                    title={installed ? 'Tap to launch · Hold to change' : 'Not installed — tap to download · Hold to change'}
                     className={`
-                      flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
-                      border-2 border-slate-600 hover:border-brand-ice/50 
+                      relative flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
+                      border-2 ${installed ? 'border-slate-600 hover:border-brand-ice/50' : 'border-slate-700/70 hover:border-amber-500/60'}
                       transition-all duration-150 group cursor-pointer
                       ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
+                      <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
@@ -398,13 +403,20 @@ const PinnedAppsPopup = ({
                             target.src = iconFallback(pinnedApp.name);
                           }}
                         />
+                        {!installed && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <Download className="w-5 h-5 text-amber-300 drop-shadow" />
+                          </div>
+                        )}
                       </div>
-                      <span className="text-xs text-white text-center font-medium line-clamp-1 w-full">
-                        {pinnedApp.name}
+                      <span className={`text-xs text-center font-medium line-clamp-1 w-full ${installed ? 'text-white' : 'text-amber-200/90'}`}>
+                        {installed ? pinnedApp.name : 'Install'}
                       </span>
                     </div>
                   </button>
                 );
+              } else {
+
               } else {
                 // Empty slot - show add button
                 return (
