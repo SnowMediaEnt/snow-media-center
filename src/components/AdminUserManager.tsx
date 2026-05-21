@@ -23,7 +23,9 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
   const [users, setUsers] = useState<ProfileRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [editingUser, setEditingUser] = useState<ProfileRow | null>(null);
+
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   const fetchUsers = async () => {
