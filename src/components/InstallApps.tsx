@@ -608,7 +608,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="space-y-7 pb-10 px-2 sm:px-4">
+    <div className="space-y-3 pb-10 px-2">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
@@ -635,9 +635,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               });
             }}
           >
-            <div className="p-5 sm:p-6">
-              <div className="flex items-start gap-5 mb-5">
-                <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className="p-3">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-11 h-11 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img 
                     src={app.icon || '/icons/default.png'} 
                     alt={`${app.name} icon`}
@@ -655,17 +655,17 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <h3 className="text-xl font-bold text-white">{app.name}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-white truncate">{app.name}</h3>
                     {appIsPinned && (
-                      <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30">📌 Pinned</Badge>
+                      <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30 text-[10px] px-1.5 py-0">📌</Badge>
                     )}
                     {app.featured && (
-                      <Badge className="bg-green-600 text-white">Featured</Badge>
+                      <Badge className="bg-green-600 text-white text-[10px] px-1.5 py-0">Featured</Badge>
                     )}
                   </div>
-                  <p className="text-slate-400 text-sm mb-2 line-clamp-2">{app.description}</p>
-                  <div className="flex gap-2 text-xs text-slate-500">
+                  <p className="text-slate-400 text-xs line-clamp-1">{app.description}</p>
+                  <div className="flex gap-2 text-[11px] text-slate-500">
                     <span>{app.size}</span>
                   </div>
                 </div>
@@ -695,12 +695,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               </div>
               
               {/* Action Buttons - each individually focusable */}
-              <div className="space-y-4">
+              <div className="space-y-2">
+
                 {!isInstalled && (
                   <Button 
                     data-focus-id={`download-${app.id}`}
                     onClick={() => handleDownload(app)}
-                    className={`w-full transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                    className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Download
@@ -712,18 +713,18 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     <Button 
                       data-focus-id={`launch-${app.id}`}
                       onClick={() => attemptLaunch(app)}
-                      className={`w-full transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
+                      className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Launch
                     </Button>
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         data-focus-id={`forcestop-${app.id}`}
                         onClick={() => handleForceStop(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
                         title="Opens system App Info – tap Force Stop"
                       >
                         <StopCircle className="w-4 h-4 mr-1" />
@@ -734,7 +735,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`cache-${app.id}`}
                         onClick={() => handleAutoClearCache(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
                         title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -751,7 +752,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                           handleOpenAppSettings(app);
                         }}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
                         title="Opens system App Info – tap Storage → Clear data"
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -763,7 +764,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         data-focus-id={`uninstall-${app.id}`}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Uninstall
@@ -781,7 +782,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   return (
     <div className="tv-scroll-container tv-safe">
-        <div className="max-w-5xl mx-auto pb-16">
+        <div className="max-w-2xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <Button 
