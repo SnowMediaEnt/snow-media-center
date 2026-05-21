@@ -162,6 +162,18 @@ const Index = () => {
     return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
   }, [showEasterEgg, isInPopup, isInMediaBar]);
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
+
+  // Resume post-auth view (e.g., returning from /auth after Sign In on the Tickets page)
+  useEffect(() => {
+    try {
+      const target = sessionStorage.getItem('post_auth_view');
+      if (target) {
+        sessionStorage.removeItem('post_auth_view');
+        navigateTo(target as any);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { backgroundUrl, hasBackground } = useDynamicBackground('home');
   const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();

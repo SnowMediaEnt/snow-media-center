@@ -802,7 +802,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </Button>
                 {!user && (
                   <Button
-                    onClick={() => navigate('/auth')}
+                    onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch {} navigate('/auth'); }}
                     variant="outline"
                     data-tv-focus-id="empty-sign-in"
                     className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
