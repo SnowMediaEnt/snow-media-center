@@ -415,28 +415,31 @@ const BufferingGuide = ({
       category: 'support',
     } as AppData;
   };
-
-  const ipvanishApp = useMemo(() => buildVpnApp('ipvanish'), [apps]);
-  const surfsharkApp = useMemo(() => buildVpnApp('surfshark'), [apps]);
-
   const [ipvanishLive, setIpvanishLive] = useState<boolean | null>(null);
   const [surfsharkLive, setSurfsharkLive] = useState<boolean | null>(null);
 
+  const { isAppNameInstalled, refresh: refreshInstalledApps } = useDeviceInstalledApps();
+
   useEffect(() => {
     let cancelled = false;
-    const check = (pkg: string, setter: (b: boolean | null) => void) => {
-      AppManager.isInstalled({ packageName: pkg })
-        .then((r) => { if (!cancelled) setter(!!r.installed); })
-        .catch(() => { if (!cancelled) setter(false); });
+    const checkAny = async (pkgs: readonly string[], setter: (b: boolean | null) => void) => {
+      try {
+        for (const pkg of pkgs) {
+          try {
+            const r = await AppManager.isInstalled({ packageName: pkg });
+            if (cancelled) return;
+            if (r?.installed) { setter(true); return; }
+          } catch { /* try next */ }
+        }
+        if (!cancelled) setter(false);
+      } catch { if (!cancelled) setter(false); }
     };
     const recheck = () => {
-      check(VPN_INFO.ipvanish.pkg, setIpvanishLive);
-      check(VPN_INFO.surfshark.pkg, setSurfsharkLive);
+      checkAny(VPN_INFO.ipvanish.pkgCandidates, setIpvanishLive);
+      checkAny(VPN_INFO.surfshark.pkgCandidates, setSurfsharkLive);
+      refreshInstalledApps();
     };
     recheck();
-    // Re-check whenever the user returns from an external action (Play Store,
-    // installer permission screen, etc.) so the "Install" button flips to
-    // "Open" without forcing them to re-enter the step.
     const onFocus = () => recheck();
     const onVisibility = () => { if (document.visibilityState === 'visible') recheck(); };
     const onResume = () => recheck();
@@ -449,8 +452,13 @@ const BufferingGuide = ({
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('app-resumed', onResume as EventListener);
     };
-  }, [step]);
+  }, [step, refreshInstalledApps]);
 
+
+  const ipvanishInstalled =
+    !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true || isAppNameInstalled('IPVanish');
+  const surfsharkInstalled =
+    !!appStatuses.get(surfsharkApp.id)?.installed || surfsharkLive === true || isAppNameInstalled('Surfshark');
 
   const ipvanishInstalled =
     !!appStatuses.get(ipvanishApp.id)?.installed || ipvanishLive === true;
