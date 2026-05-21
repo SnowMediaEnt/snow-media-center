@@ -171,10 +171,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
 
   useEffect(() => {
-    if (showSpeedTest || showGuide || helpView !== 'menu') return;
+    if (showSpeedTest || showGuide || helpView !== 'menu' || childFocusActive) return;
     const timer = window.setTimeout(() => supportFocus.focusById(`tab-${tab}`), 80);
     return () => window.clearTimeout(timer);
-  }, [helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
+  }, [childFocusActive, helpView, showGuide, showSpeedTest, supportFocus.focusById, tab]);
 
   // Listen for "escape up" requests from embedded child components so they
   // can hand focus back to the Support tab row via the D-pad.
