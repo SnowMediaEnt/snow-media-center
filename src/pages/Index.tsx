@@ -503,6 +503,8 @@ const Index = () => {
               maxWidth: 'min(50vw, 32rem)',
             }}
           >
+            <ServiceExpirationBanner onOpenDashboard={() => navigateTo('user')} />
+
             {/* Admin Button - only show for admins */}
             {isAdmin && (
               <Button
