@@ -1010,7 +1010,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded]);
+  }, [focusIndex, currentFocusId, getFocusableElements, onBack, onNavigate, activeTab, sendAiMessage, tickets, selectedTicket, showNewTicketForm, handleViewTicket, handleCloseTicket, handleCreateTicket, handleSendReply, stopVoicePlayback, embedded, focusTextFieldById, leaveTextFieldById, forceSupportScrollTop]);
 
   // Move D-pad highlight WITHOUT focusing native text inputs (which would
   // auto-open the on-screen keyboard). Keyboard only opens when user presses OK/Enter.
@@ -1035,9 +1035,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const active = document.activeElement as HTMLElement | null;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active !== el) {
       active.blur();
-      if (Capacitor.isNativePlatform()) {
-        import('@capacitor/keyboard').then(({ Keyboard }) => Keyboard.hide().catch(() => {})).catch(() => {});
-      }
+      void hideKeyboardForDpad(active);
     }
 
     if (isTextInputFocus) {
