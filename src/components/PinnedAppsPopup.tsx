@@ -337,12 +337,14 @@ const PinnedAppsPopup = ({
                     <div className="flex flex-col items-center gap-1.5">
                       <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
                         <img 
-                          src={pinnedApp.icon} 
+                          src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain p-1"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = 'https://via.placeholder.com/48?text=' + pinnedApp.name.charAt(0);
+                            target.src = iconFallback(pinnedApp.name);
                           }}
                         />
                       </div>
@@ -454,12 +456,14 @@ const PinnedAppsPopup = ({
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden">
                       <img 
-                        src={app.icon} 
+                          src={app.icon || iconFallback(app.name)} 
                         alt={`${app.name} icon`}
-                        className="w-full h-full object-cover"
+                          className="w-full h-full object-contain p-1"
+                          loading="lazy"
+                          decoding="async"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = 'https://via.placeholder.com/48?text=' + app.name.charAt(0);
+                            target.src = iconFallback(app.name);
                         }}
                       />
                     </div>
