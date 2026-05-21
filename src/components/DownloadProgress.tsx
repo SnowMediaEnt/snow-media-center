@@ -20,18 +20,21 @@ interface DownloadProgressProps {
   };
   onClose: () => void;
   onComplete: () => void;
+  /** If provided, skip downloading and jump straight to the install prompt
+   *  using this already-downloaded APK URI. Used for resume-after-100%. */
+  prefetchedPath?: string;
 }
 
 type DownloadState = 'downloading' | 'complete' | 'installing' | 'installed' | 'error';
 type FocusedButton = 'install' | 'later' | 'open' | 'close';
 
-const DownloadProgress = ({ app, onClose, onComplete }: DownloadProgressProps) => {
-  const [progress, setProgress] = useState(0);
+const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: DownloadProgressProps) => {
+  const [progress, setProgress] = useState(prefetchedPath ? 100 : 0);
   const [downloadSpeed, setDownloadSpeed] = useState('0 KB/s');
   const [downloaded, setDownloaded] = useState('0 MB');
-  const [state, setState] = useState<DownloadState>('downloading');
+  const [state, setState] = useState<DownloadState>(prefetchedPath ? 'complete' : 'downloading');
   const [errorMessage, setErrorMessage] = useState('');
-  const [filePath, setFilePath] = useState('');
+  const [filePath, setFilePath] = useState(prefetchedPath || '');
   const [focusedButton, setFocusedButton] = useState<FocusedButton>('install');
   const { toast } = useToast();
   
