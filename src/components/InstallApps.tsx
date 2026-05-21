@@ -635,7 +635,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'scale-[1.02] shadow-[0_0_0_4px_hsl(var(--brand-gold)/0.9),0_0_24px_hsl(var(--brand-gold)/0.45)] z-10' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-transparent overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'scale-[1.02] shadow-[0_0_0_4px_hsl(var(--brand-gold)/0.9),0_0_24px_hsl(var(--brand-gold)/0.45)] z-10' : ''}`}
 
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
