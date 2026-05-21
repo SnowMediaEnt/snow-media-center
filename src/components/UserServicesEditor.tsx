@@ -249,7 +249,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       const { data: existingSvc } = await supabase
         .from('customer_services').select('id').eq('customer_id', customerId);
       const keepIds = new Set(services.filter(s => !s.id.startsWith('new-')).map(s => s.id));
-      const removeSvc = (existingSvc || []).filter((s: any) => !keepIds.has(s.id)).map((s: any) => s.id);
+      const removeSvc = ((existingSvc || []) as Pick<UserService, 'id'>[]).filter((s) => !keepIds.has(s.id)).map((s) => s.id);
       if (removeSvc.length) {
         await supabase.from('customer_services').delete().in('id', removeSvc);
       }
@@ -258,8 +258,8 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       window.dispatchEvent(new CustomEvent('userServicesRefresh'));
       onSaved?.();
       onClose();
-    } catch (e: any) {
-      toast({ title: 'Save failed', description: e.message || String(e), variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Save failed', description: getErrorMessage(e), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
