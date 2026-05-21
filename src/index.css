@@ -7,12 +7,13 @@
 @layer base {
   :root {
     /* Snow Media Brand Colors */
-    --brand-ice: 189 37% 80%; /* #a1d5dc - Light blue/teal from logo */
+    --brand-ice: 267 55% 78%; /* Soft lavender (was light blue) */
     --brand-charcoal: 0 0% 20%; /* #333333 - Dark gray/black */
-    --brand-gold: 39 31% 60%; /* #c3aa72 - Brown/tan */
+    --brand-gold: 0 0% 100%; /* White (was tan/gold) */
     --brand-silver: 0 0% 65%; /* #a6a6a6 - Medium gray */
-    --brand-navy: 214 91% 15%; /* #092145 - Dark navy */
-    --brand-purple: 296 89% 20%; /* #600468 - Purple */
+    --brand-navy: 240 8% 18%; /* Neutral dark (was navy) */
+    --brand-purple: 267 60% 45%; /* Richer purple */
+
     
     /* Snowy white and blue background when no image selected */
     --snow-blue: 220 60% 85%; /* Light snowy blue */
