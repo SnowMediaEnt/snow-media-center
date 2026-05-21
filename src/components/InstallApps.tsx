@@ -478,7 +478,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Launch] ${app.name} → ${packageName}`);
-      try { trackAppLaunch(app.name); } catch {}
+      try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
       
       toast({
@@ -502,7 +502,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const attemptLaunch = useCallback((app: AppData) => {
     const alert = getAlertForApp(app.name);
     if (alert) {
-      try { trackAlertShown(alert.title || app.name); } catch {}
+      try { trackAlertShown(alert.title || app.name); } catch { void 0; }
       setPendingAlert({ alert, app });
       return;
     }
