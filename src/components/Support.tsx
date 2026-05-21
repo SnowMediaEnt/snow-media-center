@@ -258,18 +258,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
 
           <TabsContent value="help" className="mt-0">
-            <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+            <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
               <Button
                 onClick={() => setShowSpeedTest(true)}
                 variant="outline"
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-speedtest"
-                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 justify-start text-xl py-8 shadow-md"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
               >
-                <Gauge className="w-7 h-7 mr-4" />
-                Speedtest
-                <span className="ml-auto text-sm text-cyan-100">
+                <Gauge className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Speedtest</span>
+                <span className="text-sm text-cyan-100 justify-self-end">
                   Test your internet speed
                 </span>
               </Button>
@@ -279,11 +279,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-guide"
-                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 justify-start text-xl py-8 shadow-md"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
               >
-                <LifeBuoy className="w-7 h-7 mr-4" />
-                Buffering Guide
-                <span className="ml-auto text-sm text-purple-100">
+                <LifeBuoy className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Buffering Guide</span>
+                <span className="text-sm text-purple-100 justify-self-end">
                   Step-by-step buffering fixes
                 </span>
               </Button>
@@ -293,11 +293,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-videos"
-                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 justify-start text-xl py-8 shadow-md"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
               >
-                <Video className="w-7 h-7 mr-4" />
-                Support Videos
-                <span className="ml-auto text-sm text-blue-100">
+                <Video className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Support Videos</span>
+                <span className="text-sm text-blue-100 justify-self-end">
                   Tutorials and walkthroughs
                 </span>
               </Button>
@@ -307,16 +307,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-tickets"
-                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 justify-start text-xl py-8 shadow-md"
+                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
               >
-                <MessageCircle className="w-7 h-7 mr-4" />
-                Submit a Ticket
-                <span className="ml-auto text-sm text-orange-100">
+                <MessageCircle className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Submit a Ticket</span>
+                <span className="text-sm text-orange-100 justify-self-end">
                   Contact Snow Media Support
                 </span>
               </Button>
             </div>
           </TabsContent>
+
 
           <TabsContent value="ai" className="mt-0">
             <Suspense fallback={null}>
