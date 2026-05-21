@@ -852,7 +852,7 @@ const BufferingGuide = ({
           {step !== 'summary' ? (
             <Button
               onClick={goNext}
-              disabled={!canNext}
+              disabled={!canNext && step !== 'step4'}
               data-guide-nav="next"
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white disabled:opacity-40"
             >
