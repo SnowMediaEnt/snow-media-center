@@ -563,6 +563,37 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
   };
 
+  /** Opens App Info and prompts the user to tap Force Stop. */
+  const handleForceStop = useCallback(async (app: AppData) => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({ title: WEB_UNSUPPORTED_MSG, variant: 'destructive' });
+      return;
+    }
+    const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
+    try {
+      const { installed } = await AppManager.isInstalled({ packageName });
+      if (!installed) {
+        toast({
+          title: 'App not installed',
+          description: `${app.name} isn't installed, so there's nothing to force stop.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      await AppManager.openAppSettings({ packageName });
+      toast({
+        title: "Tap 'Force Stop'",
+        description: `Opening ${app.name} system info…`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Force Stop Failed',
+        description: isWebUnsupportedError(err) ? WEB_UNSUPPORTED_MSG : `Could not open ${app.name} App Info.`,
+        variant: 'destructive',
+      });
+    }
+  }, [resolvePackageName, toast]);
+
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
     if (!Capacitor.isNativePlatform()) {
