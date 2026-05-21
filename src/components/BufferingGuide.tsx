@@ -465,17 +465,35 @@ const BufferingGuide = ({
       }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         if (document.querySelector('[data-download-progress="true"]')) return;
+        // Don't hijack Backspace while typing in a text field — only
+        // ESC and the Android remote BACK key (keyCode 4) should navigate.
+        const tgt = e.target as HTMLElement | null;
+        const inField = tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA');
+        if (e.key === 'Backspace' && inField) return;
         e.preventDefault();
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
         if (showSpeedTest) return; // SpeedTest handles its own
-        if (stepIndex > 0) setStepIndex((i) => i - 1);
-        else onClose();
+        // If we're inside the "report broken channel" sub-view, pop back to
+        // the Step 1 yes/no choice instead of jumping to the intro screen.
+        if (step === 'step1' && state.step1Choice === 'one_only') {
+          setReportTitle('');
+          setReportDevice(null);
+          setState((s) => ({ ...s, step1Choice: null }));
+          justWentBackRef.current = true;
+          return;
+        }
+        if (stepIndex > 0) {
+          justWentBackRef.current = true;
+          setStepIndex((i) => i - 1);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [stepIndex, onClose, showSpeedTest]);
+  }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice]);
 
   // Scroll content to top on step change
   useEffect(() => {
@@ -492,7 +510,18 @@ const BufferingGuide = ({
     if (canNext && stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
   };
   const goBack = () => {
-    if (stepIndex > 0) setStepIndex((i) => i - 1);
+    // Pop the report sub-view first, otherwise step back one.
+    if (step === 'step1' && state.step1Choice === 'one_only') {
+      setReportTitle('');
+      setReportDevice(null);
+      setState((s) => ({ ...s, step1Choice: null }));
+      justWentBackRef.current = true;
+      return;
+    }
+    if (stepIndex > 0) {
+      justWentBackRef.current = true;
+      setStepIndex((i) => i - 1);
+    }
   };
 
   const jumpToSummary = () => setStepIndex(STEPS.length - 1);
