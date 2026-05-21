@@ -268,6 +268,35 @@ const BufferingGuide = ({
         return;
       }
 
+      // Explicit override: ArrowDown from a VPN choice tab should always
+      // land on the Install/Open button below it (regardless of spatial
+      // scoring vs. QR link). ArrowUp from that button returns to the
+      // currently active VPN tab.
+      if (key === 'ArrowDown') {
+        const vpnChoice = activeEl.getAttribute('data-vpn-choice');
+        if (vpnChoice) {
+          const btn = document.querySelector<HTMLElement>('[data-vpn-primary-action]');
+          if (btn) {
+            btn.focus();
+            lastFocusedRef.current = btn;
+            btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+      if (key === 'ArrowUp' && activeEl.hasAttribute('data-vpn-primary-action')) {
+        const activeTab = document.querySelector<HTMLElement>(
+          '[data-vpn-choice][data-guide-choice-active="true"]'
+        ) || document.querySelector<HTMLElement>('[data-vpn-choice]');
+        if (activeTab) {
+          activeTab.focus();
+          lastFocusedRef.current = activeTab;
+          activeTab.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
+      }
+
+
       const cur = activeEl.getBoundingClientRect();
       const curCx = cur.left + cur.width / 2;
       const curCy = cur.top + cur.height / 2;
@@ -1179,11 +1208,13 @@ const ChoiceButton = ({
   onClick,
   children,
   className = '',
+  dataVpnChoice,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   className?: string;
+  dataVpnChoice?: 'ipvanish' | 'surfshark';
 }) => (
   <Button
     onClick={(e) => {
@@ -1197,6 +1228,7 @@ const ChoiceButton = ({
     }}
     data-guide-choice="true"
     data-guide-choice-active={active ? 'true' : 'false'}
+    data-vpn-choice={dataVpnChoice}
     variant="outline"
     className={`w-full justify-start text-left h-auto py-3 px-4 font-semibold transition-all duration-200 !text-white whitespace-normal break-words ${
       active
@@ -1207,6 +1239,7 @@ const ChoiceButton = ({
     {children}
   </Button>
 );
+
 
 const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType) => void }) => (
   <Card className="bg-white/5 border-white/10 p-3 space-y-2">
@@ -1513,18 +1546,17 @@ const Step4 = ({
           tap <strong>Quick Connect</strong>, then try your channel or movie/show again.
           <span className="block mt-1 text-amber-200/90">Note: VPN does <strong>not</strong> work with VibezTV.</span>
         </div>
-
       </div>
 
-      {/* Side-by-side picker */}
       <div className="grid grid-cols-2 gap-2">
-        <ChoiceButton active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
+        <ChoiceButton dataVpnChoice="ipvanish" active={activeChoice === 'ipvanish'} onClick={() => onChooseVpn('ipvanish')}>
           <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> IPVanish
         </ChoiceButton>
-        <ChoiceButton active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
+        <ChoiceButton dataVpnChoice="surfshark" active={activeChoice === 'surfshark'} onClick={() => onChooseVpn('surfshark')}>
           <ShieldCheck className="w-4 h-4 mr-2 text-cyan-300" /> Surfshark
         </ChoiceButton>
       </div>
+
 
       <VpnSection
         choice={activeChoice}
