@@ -158,193 +158,91 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
-      
+
       const categoryApps = getCategoryApps(activeTab);
       const currentAppId = getAppIdFromFocus(focusedElement);
-      const currentAppIdx = currentAppId
-        ? categoryApps.findIndex((a) => a.id === currentAppId)
-        : -1;
-      const currentApp = currentAppIdx >= 0 ? categoryApps[currentAppIdx] : null;
-      const buttons = currentApp ? getAppButtons(currentApp) : [];
-      const isInstalled = !!currentApp && appStatuses.get(currentApp.id)?.installed;
+      const currentApp = currentAppId
+        ? categoryApps.find((a) => a.id === currentAppId)
+        : null;
 
-      switch (event.key) {
-        case 'ArrowLeft':
-          if (focusedElement === 'refresh') setFocusedElement('back');
-
-          else if (focusedElement === 'tab-1') setFocusedElement('tab-0');
-          else if (focusedElement === 'tab-0') setFocusedElement('back');
-          else if (currentApp && isInstalled) {
-            // Within action row: settings ← cache ← uninstall
-            if (focusedElement === `cache-${currentApp.id}`) {
-              setFocusedElement(`settings-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `uninstall-${currentApp.id}`) {
-              setFocusedElement(`cache-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `settings-${currentApp.id}` || focusedElement === `launch-${currentApp.id}`) {
-              setFocusedElement(`app-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `pin-${currentApp.id}`) {
-              setFocusedElement(`app-${currentApp.id}` as FocusType);
-            }
-          } else if (currentApp) {
-            setFocusedElement(`app-${currentApp.id}` as FocusType);
-          }
-          break;
-          
-        case 'ArrowRight':
-          if (focusedElement === 'back') setFocusedElement('refresh');
-          
-          else if (focusedElement === 'tab-0') setFocusedElement('tab-1');
-          else if (currentApp) {
-            if (focusedElement === `app-${currentApp.id}`) {
-              // App card → Pin button (top-right of card)
-              setFocusedElement(`pin-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `pin-${currentApp.id}`) {
-              // No-op (already at right edge of header row)
-            } else if (isInstalled) {
-              // Within action row: settings → cache → uninstall
-              if (focusedElement === `settings-${currentApp.id}`) {
-                setFocusedElement(`cache-${currentApp.id}` as FocusType);
-              } else if (focusedElement === `cache-${currentApp.id}`) {
-                setFocusedElement(`uninstall-${currentApp.id}` as FocusType);
-              }
-            }
-          }
-          break;
-          
-        case 'ArrowUp':
-          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'guide' || focusedElement === 'refresh') {
-            // Stay
-          } else if (focusedElement.startsWith('tab-')) {
-            setFocusedElement('back');
-          } else if (focusedElement.startsWith('pin-') && currentApp) {
-            // From pin go up to previous card or tabs
-            if (currentAppIdx > 0) {
-              setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
-            } else {
-              setFocusedElement('tab-0');
-            }
-          } else if (currentApp && isInstalled) {
-            // From action row, go to launch; from launch go to app card; from app card go to pin (above)
-            if (focusedElement === `settings-${currentApp.id}` ||
-                focusedElement === `cache-${currentApp.id}` ||
-                focusedElement === `uninstall-${currentApp.id}`) {
-              setFocusedElement(`launch-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `launch-${currentApp.id}`) {
-              setFocusedElement(`app-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `app-${currentApp.id}`) {
-              if (currentAppIdx > 0) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
-              } else {
-                setFocusedElement('tab-0');
-              }
-            }
-          } else if (currentApp) {
-            // Not installed: just card ↔ download
-            if (focusedElement === `download-${currentApp.id}`) {
-              setFocusedElement(`app-${currentApp.id}` as FocusType);
-            } else if (focusedElement === `app-${currentApp.id}`) {
-              if (currentAppIdx > 0) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx - 1].id}` as FocusType);
-              } else {
-                setFocusedElement('tab-0');
-              }
-            }
-          }
-          break;
-          
-        case 'ArrowDown':
-          if (focusedElement === 'back' || focusedElement === 'speedtest' || focusedElement === 'guide' || focusedElement === 'refresh') {
-            setFocusedElement('tab-0');
-          } else if (focusedElement.startsWith('tab-')) {
-            if (categoryApps.length > 0) {
-              setFocusedElement(`app-${categoryApps[0].id}` as FocusType);
-            }
-          } else if (currentApp) {
-            // Default behavior: ArrowDown moves between APP CARDS, never enters
-            // the action row. To open Launch / Clear Cache / Uninstall, the
-            // user explicitly presses Enter on the card (or uses long-press
-            // for the context menu). This matches the user's request:
-            // "if we press down to go through the apps it should go through
-            // each one until a container is selected".
-            if (focusedElement === `pin-${currentApp.id}`) {
-              // From the pin star, drop straight to next app card
-              if (currentAppIdx + 1 < categoryApps.length) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
-              }
-            } else if (focusedElement === `app-${currentApp.id}`) {
-              if (currentAppIdx + 1 < categoryApps.length) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
-              }
-            } else if (isInstalled) {
-              // User is *already inside* the action row (entered via Enter on card).
-              // launch → settings (first of bottom row), bottom row → next app
-              if (focusedElement === `launch-${currentApp.id}`) {
-                setFocusedElement(`settings-${currentApp.id}` as FocusType);
-              } else if (currentAppIdx + 1 < categoryApps.length) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
-              }
-            } else if (focusedElement === `download-${currentApp.id}`) {
-              if (currentAppIdx + 1 < categoryApps.length) {
-                setFocusedElement(`app-${categoryApps[currentAppIdx + 1].id}` as FocusType);
-              }
-            }
-          }
-          break;
-          
-        case 'Enter':
-        case ' ':
-          if (focusedElement === 'back') {
-            onBack();
-          } else if (focusedElement === 'speedtest') {
-            setShowSpeedTest(true);
-          } else if (focusedElement === 'guide') {
-            setShowGuide(true);
-          } else if (focusedElement === 'refresh') {
-            (async () => {
-              await refreshDeviceApps();
-              refreshAllStatuses();
-              toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
-            })();
-          } else if (focusedElement === 'tab-0') {
-            setActiveTab('featured');
-          } else if (focusedElement === 'tab-1') {
-            setActiveTab('all');
-          } else if (focusedElement.startsWith('pin-') && currentApp) {
-            if (isPinned(currentApp.id)) {
-              handleUnpinApp(currentApp.id, currentApp.name);
-            } else {
-              handlePinApp(currentApp);
-            }
-          } else if (focusedElement.startsWith('download-') && currentApp) {
-            handleDownload(currentApp);
-          } else if (focusedElement.startsWith('launch-') && currentApp) {
-            attemptLaunch(currentApp);
-          } else if (focusedElement.startsWith('settings-') && currentApp) {
-            // "Clear Data" button → open App Info (data clearing requires manual tap, by design)
-            toast({
-              title: "Tap 'Storage' → 'Clear data'",
-              description: `Opening ${currentApp.name} system info…`,
-            });
-            handleOpenAppSettings(currentApp);
-          } else if (focusedElement.startsWith('cache-') && currentApp) {
-            // "Clear Cache" button → open App Info so the user can clear it manually.
-            handleAutoClearCache(currentApp);
-          } else if (focusedElement.startsWith('uninstall-') && currentApp) {
-            handleUninstall(currentApp);
-          } else if (focusedElement.startsWith('app-') && currentApp) {
-            // Pressing Enter on the app CARD now "enters" the container so the
-            // user can choose between Launch / Clear Cache / Uninstall via the
-            // D-pad. Pressing Enter again on Launch actually launches the app.
-            // (If the app isn't installed yet, there's only one action — Download —
-            // so trigger it directly.)
-            if (isInstalled) {
-              setFocusedElement(`launch-${currentApp.id}` as FocusType);
-            } else {
-              handleDownload(currentApp);
-            }
-          }
-          break;
+      // Enter / Space — behavior unchanged
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (focusedElement === 'back') onBack();
+        else if (focusedElement === 'refresh') {
+          (async () => {
+            await refreshDeviceApps();
+            refreshAllStatuses();
+            toast({ title: 'Refreshing…', description: 'Re-scanning installed apps.' });
+          })();
+        } else if (focusedElement === 'tab-0') setActiveTab('featured');
+        else if (focusedElement === 'tab-1') setActiveTab('all');
+        else if (focusedElement.startsWith('pin-') && currentApp) {
+          if (isPinned(currentApp.id)) handleUnpinApp(currentApp.id, currentApp.name);
+          else handlePinApp(currentApp);
+        } else if (focusedElement.startsWith('download-') && currentApp) handleDownload(currentApp);
+        else if (focusedElement.startsWith('launch-') && currentApp) attemptLaunch(currentApp);
+        else if (focusedElement.startsWith('forcestop-') && currentApp) handleForceStop(currentApp);
+        else if (focusedElement.startsWith('settings-') && currentApp) {
+          toast({ title: "Tap 'Storage' → 'Clear data'", description: `Opening ${currentApp.name} system info…` });
+          handleOpenAppSettings(currentApp);
+        } else if (focusedElement.startsWith('cache-') && currentApp) handleAutoClearCache(currentApp);
+        else if (focusedElement.startsWith('uninstall-') && currentApp) handleUninstall(currentApp);
+        else if (focusedElement.startsWith('app-') && currentApp) {
+          const isInstalled = !!appStatuses.get(currentApp.id)?.installed;
+          if (isInstalled) setFocusedElement(`launch-${currentApp.id}` as FocusType);
+          else handleDownload(currentApp);
+        }
+        return;
       }
+
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+
+      // Spatial 2D navigation across all visible [data-focus-id] elements
+      const focusables = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-focus-id]')
+      ).filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      });
+      if (focusables.length === 0) return;
+
+      const currentEl = focusables.find((el) => el.dataset.focusId === focusedElement) || focusables[0];
+      const cur = currentEl.getBoundingClientRect();
+      const curCx = cur.left + cur.width / 2;
+      const curCy = cur.top + cur.height / 2;
+
+      const key = event.key;
+      const inDirection = focusables
+        .filter((el) => el !== currentEl)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return { el, r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+        })
+        .filter(({ r }) => {
+          if (key === 'ArrowDown') return r.top > cur.top + 4;
+          if (key === 'ArrowUp') return r.bottom < cur.bottom - 4;
+          if (key === 'ArrowRight') return r.left > cur.left + 4;
+          if (key === 'ArrowLeft') return r.right < cur.right - 4;
+          return false;
+        });
+
+      const scored = inDirection
+        .map(({ el, cx, cy }) => {
+          const dx = cx - curCx;
+          const dy = cy - curCy;
+          const score =
+            (key === 'ArrowUp' || key === 'ArrowDown')
+              ? Math.abs(dy) + Math.abs(dx) * 2
+              : Math.abs(dx) + Math.abs(dy) * 2;
+          return { el, score };
+        })
+        .sort((a, b) => a.score - b.score);
+
+      const next = scored[0]?.el;
+      if (next?.dataset.focusId) {
+        setFocusedElement(next.dataset.focusId as FocusType);
+      }
+
     };
 
     window.addEventListener('keydown', handleKeyDown);
