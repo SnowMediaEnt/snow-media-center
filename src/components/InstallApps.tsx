@@ -605,7 +605,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-white/90 shadow-[0_0_24px_rgba(255,255,255,0.55)] z-10' : '';
+
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-7 pb-10 px-2 sm:px-4">
