@@ -12,7 +12,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 interface MediaManagerProps {
   onBack: () => void;
@@ -296,8 +295,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const isTopButton = focusedElement === 'back';
 
     if (isTopButton) {
-      snapAllTVScrollToTop();
-      return;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document
+        .querySelectorAll<HTMLElement>('.tv-scroll-container')
+        .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
     }
 
     const el = document.querySelector(`[data-focus-id="${focusedElement}"]`) as HTMLElement;

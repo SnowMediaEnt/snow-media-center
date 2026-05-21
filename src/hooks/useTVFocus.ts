@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -80,7 +79,7 @@ export const useTVFocus = ({
     const isBackTop = /(^|-)back($|-)/i.test(id);
     const scroller = target.closest('.tv-scroll-container') as HTMLElement | null;
     if (isBackTop && scroller) {
-      snapAllTVScrollToTop([scroller]);
+      scroller.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       target.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
     }

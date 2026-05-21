@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, ArrowLeft, Clock, Loader2, AlertCircle } from 'lucide-react';
 import { useVimeoVideos } from '@/hooks/useVimeoVideos';
-import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 interface SupportVideosProps {
   onBack: () => void;
@@ -21,10 +20,26 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   const topAnchorRef = useRef<HTMLDivElement>(null);
 
   const restoreTopScroll = () => {
-    snapAllTVScrollToTop([
+    const scrollTargets = [
       containerRef.current,
+      document.scrollingElement as HTMLElement | null,
+      document.documentElement,
+      document.body,
       document.querySelector('[data-app-scroll-root]') as HTMLElement | null,
-    ]);
+    ];
+
+    scrollTargets.forEach((target) => {
+      if (target) target.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+    requestAnimationFrame(() => {
+      topAnchorRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+      scrollTargets.forEach((target) => {
+        if (target) target.scrollTop = 0;
+      });
+    });
   };
 
   // TV Remote Navigation with video controls
