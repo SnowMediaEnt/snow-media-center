@@ -323,7 +323,11 @@ const BufferingGuide = ({
       contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     }, 80);
     return () => clearTimeout(t);
-  }, [stepIndex, showSpeedTest, state.step1Choice]);
+    // Only depend on a derived "sub-view key" so picking a Step1 answer
+    // (null → 'all_buffer') doesn't yank focus back to the first option.
+    // Re-fire only on real step changes or when entering/leaving the
+    // 'one_only' report sub-view.
+  }, [stepIndex, showSpeedTest, state.step1Choice === 'one_only']);
 
 
   // Track last-focused element inside the modal so D-pad can resume after focus loss
