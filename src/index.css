@@ -328,6 +328,21 @@
   box-shadow: 0 0 24px hsl(var(--brand-gold) / 0.55);
 }
 
+/* Per-button focus tint overrides (header Sign In / Settings / Dashboard) */
+.home-focus-surface.focus-tint-grey[data-focused="true"] {
+  outline-color: #333333 !important;
+  box-shadow: 0 0 24px rgba(51, 51, 51, 0.65) !important;
+}
+.home-focus-surface.focus-tint-white[data-focused="true"] {
+  outline-color: #ffffff !important;
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.85) !important;
+}
+.home-focus-surface.focus-tint-black[data-focused="true"] {
+  outline-color: #000000 !important;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.75) !important;
+}
+
+
 
 /* On low-power devices that prefer reduced motion, skip the transform/shadow
    transition entirely so D-pad movement never has to wait on a paint. */
