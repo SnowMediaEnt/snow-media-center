@@ -427,7 +427,7 @@ const PinnedAppsPopup = ({
           >
             {allSelectableApps.map((app, idx) => {
               const isAppPinned = isPinned(app.id);
-              const canSelect = canPinMore || isAppPinned;
+              const canSelect = editingSlotIndex !== null || canPinMore || isAppPinned;
               const isFocused = selectorFocusIndex === idx;
 
               return (
