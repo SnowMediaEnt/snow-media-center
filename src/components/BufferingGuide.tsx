@@ -123,6 +123,7 @@ const BufferingGuide = ({
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { createTicket } = useSupportTickets(user);
   const [submittingTicket, setSubmittingTicket] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
