@@ -155,11 +155,41 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     onBack();
   };
 
+  const focusTicketField = (id: 'create-email' | 'create-subject' | 'create-message') => {
+    requestAnimationFrame(() => {
+      const el = tvFocus.containerRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-tv-focus-id="${id}"]`);
+      el?.focus({ preventScroll: true });
+      if (el) {
+        try {
+          const end = el.value?.length ?? 0;
+          el.setSelectionRange(end, end);
+        } catch { /* ignore */ }
+      }
+    });
+  };
+
+  const handleTicketFieldKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    nextId?: 'create-subject' | 'create-message'
+  ) => {
+    if (e.key !== 'Enter') return;
+    if (!nextId) {
+      e.currentTarget.blur();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.blur();
+    focusTicketField(nextId);
+  };
+
   const tvNavigation = useMemo<TVFocusNavigationMap>(() => {
     if (view === 'create') {
+      const firstField = user ? 'create-subject' : 'create-email';
       return {
-        'create-back': { down: 'create-subject' },
-        'create-subject': { up: 'create-back', down: 'create-message' },
+        'create-back': { down: firstField },
+        'create-email': { up: 'create-back', down: 'create-subject' },
+        'create-subject': { up: user ? 'create-back' : 'create-email', down: 'create-message' },
         'create-message': { up: 'create-subject', down: 'create-submit' },
         'create-submit': { up: 'create-message', right: 'create-cancel' },
         'create-cancel': { up: 'create-message', left: 'create-submit' },
