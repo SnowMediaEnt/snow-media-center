@@ -776,13 +776,17 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       switch (event.key) {
         case 'ArrowDown':
-          if (['ai-input', 'ai-voice', 'ai-send'].includes(currentFocusId)) {
+          // Only when on the Send button, jump down to the first saved chat.
+          // Letting the typing bar and voice/send buttons step naturally
+          // means users don't skip past the input on a single Down press.
+          if (currentFocusId === 'ai-send') {
             const historyIndex = elements.findIndex(e => e.id === 'ai-history-0');
             if (historyIndex !== -1) {
               setFocusIndex(historyIndex);
               return;
             }
           }
+
           // If focused on message-scroll, scroll down instead of changing focus
           if (currentFocusId === 'message-scroll') {
             scrollMessages('down');
