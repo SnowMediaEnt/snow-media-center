@@ -419,11 +419,12 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                     }`}
                   >
                     <div className="relative w-full aspect-[2/3] bg-black/60 flex-shrink-0">
-                      {item.poster && !IS_LOW_MEMORY_NATIVE ? (
+                      {item.poster ? (
                         <img
                           src={item.poster}
                           alt=""
                           loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
