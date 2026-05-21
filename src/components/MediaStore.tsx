@@ -550,7 +550,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             }}
             variant="gold"
             size="lg"
-            className={focusedElement === 'back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}
+            className={focusedElement === 'back' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Home
