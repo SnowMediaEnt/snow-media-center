@@ -91,8 +91,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
   };
 
   const addServiceByName = (name: string) => {
+  const toggleServiceByName = (name: string) => {
     setServices(prev => {
-      if (prev.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase())) return prev;
+      const existing = prev.find(s => (s.service_name || '').toLowerCase() === name.toLowerCase());
+      if (existing) return prev.filter(s => s.id !== existing.id);
       return [
         ...prev,
         {
@@ -107,17 +109,6 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       ];
     });
   };
-
-  const updateService = (id: string, patch: Partial<UserService>) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
-  };
-
-  const removeService = (id: string) => {
-    setServices(prev => prev.filter(s => s.id !== id));
-  };
-
-  const toggleTiedApp = (id: string, app: string) => {
-    setServices(prev => prev.map(s => {
       if (s.id !== id) return s;
       const has = s.tied_apps.includes(app);
       return { ...s, tied_apps: has ? s.tied_apps.filter(a => a !== app) : [...s.tied_apps, app] };
