@@ -235,25 +235,27 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
                   <Wifi className="w-5 h-5 text-green-300" /> Your Services
                 </h3>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SERVICE_OPTIONS.map(name => {
                     const active = services.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase());
                     return (
                       <Button
                         key={name}
                         type="button"
-                        size="sm"
-                        onClick={() => addServiceByName(name)}
-                        disabled={active}
-                        className={active
-                          ? 'bg-emerald-700 text-white opacity-80 cursor-default'
-                          : 'bg-green-600 hover:bg-green-700 text-white'}
+                        onClick={() => toggleServiceByName(name)}
+                        className={`justify-start text-left h-auto py-3 transition-all duration-200 ${
+                          active
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-lg shadow-blue-500/30'
+                            : 'bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200'
+                        }`}
                       >
-                        <Plus className="w-4 h-4 mr-1" /> {active ? `${name} added` : `Add ${name}`}
+                        <Wifi className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="whitespace-normal">{name}</span>
                       </Button>
                     );
                   })}
                 </div>
+              </div>
               </div>
 
               {services.length === 0 && (
