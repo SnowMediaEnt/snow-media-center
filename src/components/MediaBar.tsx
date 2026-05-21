@@ -168,10 +168,9 @@ const openPlexDirectPlay = async (item: MediaItem) => {
   toast({ title: 'Opening in Plex…', description: item.title });
 
   const { AppManager } = await import('@/capacitor/AppManager');
-  // 1) Preplay first — survives sign-in / user-picker detour and lands on the
-  //    title page so the user can hit Play, instead of being dumped on Home.
+  // 1) Direct play first — user wants the video to auto-play immediately.
   try {
-    await AppManager.openUrl({ url: preplayUrl, packageName: PLEX_ANDROID_PACKAGE });
+    await AppManager.openUrl({ url: playUrl, packageName: PLEX_ANDROID_PACKAGE });
     return;
   } catch (err) {
     const msg = (err as Error)?.message ?? '';
@@ -179,11 +178,12 @@ const openPlexDirectPlay = async (item: MediaItem) => {
       toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
       return;
     }
-    console.warn('[MediaBar] Plex preplay failed, trying direct play', err);
+    console.warn('[MediaBar] Plex direct play failed, falling back to preplay', err);
   }
-  // 2) Direct play fallback.
+  // 2) Preplay fallback — lands on the title's detail page so the user can
+  //    hit Play manually if auto-play was blocked by sign-in / user-picker.
   try {
-    await AppManager.openUrl({ url: playUrl, packageName: PLEX_ANDROID_PACKAGE });
+    await AppManager.openUrl({ url: preplayUrl, packageName: PLEX_ANDROID_PACKAGE });
     return;
   } catch (err) {
     const msg = (err as Error)?.message ?? 'Unknown error';
@@ -195,6 +195,7 @@ const openPlexDirectPlay = async (item: MediaItem) => {
     toast({ title: "Couldn't open Plex", description: msg });
   }
 };
+
 
 
 
