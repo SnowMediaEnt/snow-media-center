@@ -13,6 +13,7 @@ interface PinnedAppsPopupProps {
   pinnedApps: PinnedApp[];
   onLaunchApp: (app: AppData) => void;
   onPinApp: (app: InstalledApp) => void;
+  onReplacePinnedApp: (slotIndex: number, app: InstalledApp) => void;
   onUnpinApp: (appId: string) => void;
   apps: AppData[];
   isVisible: boolean;
@@ -42,6 +43,7 @@ const PinnedAppsPopup = ({
   onExitFocus
 }: PinnedAppsPopupProps) => {
   const [showAppSelector, setShowAppSelector] = useState(false);
+  const [editingSlotIndex, setEditingSlotIndex] = useState<number | null>(null);
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,17 +180,29 @@ const PinnedAppsPopup = ({
 
   if (!isVisible) return null;
 
-  const handleTogglePin = (app: InstalledApp | AppData) => {
+  const openSelector = (slotIndex: number | null = null) => {
+    setEditingSlotIndex(slotIndex);
+    setShowAppSelector(true);
+  };
+
+  const handleSelectApp = (app: InstalledApp | AppData) => {
+    const installedApp: InstalledApp = {
+      id: app.id,
+      name: app.name,
+      icon: 'icon' in app ? app.icon : '',
+      packageName: app.packageName,
+    };
+
+    if (editingSlotIndex !== null) {
+      onReplacePinnedApp(editingSlotIndex, installedApp);
+      setShowAppSelector(false);
+      setEditingSlotIndex(null);
+      return;
+    }
+
     if (isPinned(app.id)) {
       onUnpinApp(app.id);
     } else if (canPinMore) {
-      // Convert AppData to InstalledApp format
-      const installedApp: InstalledApp = {
-        id: app.id,
-        name: app.name,
-        icon: 'icon' in app ? app.icon : '',
-        packageName: app.packageName,
-      };
       onPinApp(installedApp);
     }
   };
