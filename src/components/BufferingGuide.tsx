@@ -142,10 +142,14 @@ const BufferingGuide = ({
 
   const step: StepKey = STEPS[stepIndex];
 
+  const anonConfirmRef = useRef<HTMLDivElement>(null);
+
   // Collect focusable buttons/links/inputs inside the modal
   const getFocusables = (): HTMLElement[] => {
-    if (!rootRef.current) return [];
-    const nodes = rootRef.current.querySelectorAll<HTMLElement>(
+    const scope: HTMLElement | null =
+      showAnonConfirm && anonConfirmRef.current ? anonConfirmRef.current : rootRef.current;
+    if (!scope) return [];
+    const nodes = scope.querySelectorAll<HTMLElement>(
       'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
     return Array.from(nodes).filter((el) => {
@@ -155,6 +159,19 @@ const BufferingGuide = ({
       return rect.width > 0 && rect.height > 0;
     });
   };
+
+  // Auto-focus the confirm dialog when it opens
+  useEffect(() => {
+    if (!showAnonConfirm) return;
+    const t = setTimeout(() => {
+      const btn = anonConfirmRef.current?.querySelector<HTMLButtonElement>(
+        'button:not([disabled])'
+      );
+      btn?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [showAnonConfirm]);
+
 
   // D-pad / Arrow key navigation between focusables
   useEffect(() => {
