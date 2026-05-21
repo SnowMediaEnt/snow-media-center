@@ -125,7 +125,7 @@ const buildPlexPlayUrl = (item: ValidatedPlexItem): string => {
 
 
 
-const openPlexItemFromBeginning = async (item: MediaItem) => {
+const openPlexDirectPlay = async (item: MediaItem) => {
   const native = isNativePlatform();
   const validated = validatePlexLaunchItem(item);
 
@@ -186,7 +186,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       setLiveDialog(item);
       return;
     }
-    openPlexItemFromBeginning(item);
+    openPlexDirectPlay(item);
   };
 
 
