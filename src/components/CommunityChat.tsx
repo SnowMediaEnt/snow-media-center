@@ -35,6 +35,7 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('general');
+  const [embeddedFocusActive, setEmbeddedFocusActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendMessageRef = useRef<() => void>(() => {});
 
@@ -72,6 +73,8 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
     // hand focus in. Otherwise focus auto-drops into "general" the moment the
     // tab mounts, which feels like skipping the Community tab entirely.
     autoFocusOnMount: !embedded,
+    enabled: !embedded || embeddedFocusActive,
+    scrollBlock: 'nearest',
   });
 
 
@@ -109,8 +112,18 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   }, [loadMessages]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [messages]);
+    if (!embedded) messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [embedded, messages]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const handler = () => {
+      setEmbeddedFocusActive(true);
+      requestAnimationFrame(() => tvFocus.focusById('room-general', 'nearest'));
+    };
+    window.addEventListener('community-chat:focus-room', handler);
+    return () => window.removeEventListener('community-chat:focus-room', handler);
+  }, [embedded, tvFocus]);
 
   // sendMessage function
   const handleSendMessage = async () => {
