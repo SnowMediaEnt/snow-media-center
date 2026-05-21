@@ -256,7 +256,6 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                   })}
                 </div>
               </div>
-              </div>
 
               {services.length === 0 && (
                 <p className="text-sm text-slate-400 py-4 text-center border border-dashed border-slate-700 rounded-md">
