@@ -83,7 +83,6 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ app: null, position: { x: 0, y: 0 } });
-  const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const { toast } = useToast();
   const focusedRef = useRef<HTMLElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -609,20 +608,19 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_30px_rgba(255,215,0,0.8),0_0_60px_rgba(161,213,220,0.4)] brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="grid grid-cols-2 gap-3 pb-10 px-2 sm:px-4">
+    <div className="space-y-7 pb-10 px-2 sm:px-4">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
         const appFocused = isFocused(`app-${app.id}`);
         const appIsPinned = isPinned(app.id);
-        const isExpanded = expandedAppId === app.id;
-
+        
         return (
-          <Card
-            key={app.id}
+          <Card 
+            key={app.id} 
             data-focus-id={`app-${app.id}`}
-            onClick={() => setExpandedAppId(isExpanded ? null : app.id)}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_24px_rgba(195,170,114,0.6)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''} ${isExpanded ? 'col-span-2' : ''}`}
+            onClick={() => isInstalled ? attemptLaunch(app) : handleDownload(app)}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-gold scale-[1.02] shadow-[0_0_30px_rgba(255,215,0,0.7),0_0_60px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -633,15 +631,15 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
               e.preventDefault();
               setContextMenu({
                 app,
-                position: { x: e.clientX, y: e.clientY },
+                position: { x: e.clientX, y: e.clientY }
               });
             }}
           >
-            <div className="p-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                  <img
-                    src={app.icon || '/icons/default.png'}
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-5 mb-5">
+                <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img 
+                    src={app.icon || '/icons/default.png'} 
                     alt={`${app.name} icon`}
                     className="w-full h-full object-cover"
                     loading="eager"
@@ -653,130 +651,133 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                       target.style.display = 'none';
                     }}
                   />
+
                 </div>
+                
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-sm font-bold text-white line-clamp-1">{app.name}</h3>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <h3 className="text-xl font-bold text-white">{app.name}</h3>
                     {appIsPinned && (
-                      <span className="text-brand-gold text-xs">📌</span>
+                      <Badge className="bg-brand-gold/20 text-brand-gold border border-brand-gold/30">📌 Pinned</Badge>
+                    )}
+                    {app.featured && (
+                      <Badge className="bg-green-600 text-white">Featured</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-slate-400 text-sm mb-2 line-clamp-2">{app.description}</p>
+                  <div className="flex gap-2 text-xs text-slate-500">
                     <span>{app.size}</span>
-                    {isInstalled && <span className="text-green-400">• Installed</span>}
                   </div>
                 </div>
+
+                {/* Pin/Unpin Button */}
+                <Button
+                  data-focus-id={`pin-${app.id}`}
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (appIsPinned) {
+                      handleUnpinApp(app.id, app.name);
+                    } else {
+                      handlePinApp(app);
+                    }
+                  }}
+                  className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
+                    appIsPinned 
+                      ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
+                      : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
+                  }`}
+                  title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
+                >
+                  <Pin className={`w-5 h-5 ${appIsPinned ? 'fill-current' : ''}`} />
+                </Button>
               </div>
-
-              {isExpanded && (
-                <div className="mt-3 space-y-2 border-t border-slate-600/50 pt-3">
-                  <p className="text-slate-300 text-xs line-clamp-2">{app.description}</p>
-
-                  <div className="flex flex-wrap gap-2">
-                    {!isInstalled && (
-                      <Button
-                        data-focus-id={`download-${app.id}`}
-                        onClick={(e) => { e.stopPropagation(); handleDownload(app); }}
-                        size="sm"
-                        className={`flex-1 transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
-                      >
-                        <Download className="w-3.5 h-3.5 mr-1.5" />
-                        Download
-                      </Button>
-                    )}
-
-                    {isInstalled && (
-                      <>
-                        <Button
-                          data-focus-id={`launch-${app.id}`}
-                          onClick={(e) => { e.stopPropagation(); attemptLaunch(app); }}
-                          size="sm"
-                          className={`flex-1 min-w-[120px] transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
-                        >
-                          <Play className="w-3.5 h-3.5 mr-1.5" />
-                          Launch
-                        </Button>
-                        <Button
-                          data-focus-id={`forcestop-${app.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleForceStop(app); }}
-                          variant="outline"
-                          size="sm"
-                          className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
-                        >
-                          <StopCircle className="w-3.5 h-3.5 mr-1" />
-                          Force Stop
-                        </Button>
-                        <Button
-                          data-focus-id={`cache-${app.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleAutoClearCache(app); }}
-                          variant="outline"
-                          size="sm"
-                          className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        >
-                          <Settings className="w-3.5 h-3.5 mr-1" />
-                          Clear Cache
-                        </Button>
-                        <Button
-                          data-focus-id={`settings-${app.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toast({
-                              title: "Tap 'Storage' → 'Clear data'",
-                              description: `Opening ${app.name} system info…`,
-                            });
-                            handleOpenAppSettings(app);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
-                        >
-                          <Settings className="w-3.5 h-3.5 mr-1" />
-                          Clear Data
-                        </Button>
-                        <Button
-                          data-focus-id={`uninstall-${app.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleUninstall(app); }}
-                          variant="outline"
-                          size="sm"
-                          className={`transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" />
-                          Uninstall
-                        </Button>
-                      </>
-                    )}
-
-                    <Button
-                      data-focus-id={`pin-${app.id}`}
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (appIsPinned) {
-                          handleUnpinApp(app.id, app.name);
-                        } else {
-                          handlePinApp(app);
-                        }
-                      }}
-                      className={`transition-all ${focusRing(`pin-${app.id}`)} ${
-                        appIsPinned
-                          ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20'
-                          : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
-                      }`}
-                      title={appIsPinned ? 'Unpin app' : 'Pin app for quick access'}
+              
+              {/* Action Buttons - each individually focusable */}
+              <div className="space-y-4">
+                {!isInstalled && (
+                  <Button 
+                    data-focus-id={`download-${app.id}`}
+                    onClick={() => handleDownload(app)}
+                    className={`w-full transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 text-white`}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </Button>
+                )}
+                
+                {isInstalled && (
+                  <>
+                    <Button 
+                      data-focus-id={`launch-${app.id}`}
+                      onClick={() => attemptLaunch(app)}
+                      className={`w-full transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 text-primary-foreground`}
                     >
-                      <Pin className={`w-3.5 h-3.5 ${appIsPinned ? 'fill-current' : ''}`} />
+                      <Play className="w-4 h-4 mr-2" />
+                      Launch
                     </Button>
-                  </div>
-                </div>
-              )}
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        data-focus-id={`forcestop-${app.id}`}
+                        onClick={() => handleForceStop(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        title="Opens system App Info – tap Force Stop"
+                      >
+                        <StopCircle className="w-4 h-4 mr-1" />
+                        Force Stop
+                      </Button>
+
+                      <Button
+                        data-focus-id={`cache-${app.id}`}
+                        onClick={() => handleAutoClearCache(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Cache
+                      </Button>
+
+                      <Button
+                        data-focus-id={`settings-${app.id}`}
+                        onClick={() => {
+                          toast({
+                            title: "Tap 'Storage' → 'Clear data'",
+                            description: `Opening ${app.name} system info…`,
+                          });
+                          handleOpenAppSettings(app);
+                        }}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        title="Opens system App Info – tap Storage → Clear data"
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Data
+                      </Button>
+
+
+                      <Button
+                        data-focus-id={`uninstall-${app.id}`}
+                        onClick={() => handleUninstall(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Uninstall
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </Card>
         );
       })}
     </div>
   );
-
 
   return (
     <div className="tv-scroll-container tv-safe">
