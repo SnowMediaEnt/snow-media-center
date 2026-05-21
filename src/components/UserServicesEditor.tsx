@@ -301,7 +301,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                             type="date"
                             value={s.expiration_date || ''}
                             onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
-                            className="bg-slate-900 border-slate-600 text-white"
+                            className="bg-slate-900 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
                           />
                         </div>
                         <div>
