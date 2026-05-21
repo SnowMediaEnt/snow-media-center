@@ -203,18 +203,6 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
     setServices(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
   };
 
-  const removeService = (id: string) => {
-    setServices(prev => prev.filter(s => s.id !== id));
-  };
-
-  const toggleTiedApp = (id: string, app: string) => {
-    setServices(prev => prev.map(s => {
-      if (s.id !== id) return s;
-      const has = s.tied_apps.includes(app);
-      return { ...s, tied_apps: has ? s.tied_apps.filter(a => a !== app) : [...s.tied_apps, app] };
-    }));
-  };
-
   const handleSave = async () => {
     if (!customerId) return;
     setSaving(true);
@@ -222,13 +210,14 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       // --- Devices: diff against DB ---
       const { data: existingDev } = await supabase
         .from('customer_devices').select('id, device_type').eq('customer_id', customerId);
-      const existingTypes = new Set((existingDev || []).map((d: any) => d.device_type));
+      const existingDeviceRows = (existingDev || []) as CustomerDeviceRow[];
+      const existingTypes = new Set(existingDeviceRows.map((d) => d.device_type));
       const newTypes = new Set(devices.map(d => d.device_type));
 
       const toAdd = [...newTypes].filter(t => !existingTypes.has(t));
-      const toRemoveIds = (existingDev || [])
-        .filter((d: any) => !newTypes.has(d.device_type))
-        .map((d: any) => d.id);
+      const toRemoveIds = existingDeviceRows
+        .filter((d) => !newTypes.has(d.device_type))
+        .map((d) => d.id);
 
       if (toAdd.length) {
         await supabase.from('customer_devices').insert(
