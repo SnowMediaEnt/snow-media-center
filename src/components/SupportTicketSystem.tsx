@@ -20,6 +20,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { supabase } from '@/integrations/supabase/client';
+
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -36,10 +38,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
   const [aiNewMessage, setAiNewMessage] = useState('');
   const [aiReplyMessage, setAiReplyMessage] = useState('');
+
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -204,10 +208,59 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     const timer = window.setTimeout(() => tvFocus.focusById(id, 'start'), 90);
     return () => window.clearTimeout(timer);
   }, [selectedAIConversationId, selectedTicketId, tvFocus.focusById, view]);
-
   const handleCreateTicket = async () => {
     if (!newSubject.trim() || !newMessage.trim()) return;
-    
+
+    // Guest path: email-only, no DB ticket (no account = no replies)
+    if (!user) {
+      const email = guestEmail.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast({
+          title: "Email required",
+          description: "Enter a valid email so we know who sent the ticket.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        await supabase.functions.invoke('send-custom-email', {
+          body: {
+            to: 'support@snowmediaent.com',
+            subject: `[Guest Ticket] ${newSubject}`,
+            fromName: 'Snow Media Support System',
+            html: `
+              <h3>New Guest Support Ticket</h3>
+              <p><strong>From (guest):</strong> ${email}</p>
+              <p><strong>Subject:</strong> ${newSubject}</p>
+              <div style="margin-top:20px;padding:15px;background:#f5f5f5;border-radius:5px;">
+                <p><strong>Message:</strong></p>
+                <p>${newMessage.replace(/\n/g, '<br>')}</p>
+              </div>
+              <p style="margin-top:20px;font-size:12px;color:#666;">
+                Guest user — no account. Reply directly to ${email}.
+              </p>
+            `,
+          },
+        });
+        toast({
+          title: "Ticket sent",
+          description: "We received it. Create an account to get a reply in-app.",
+        });
+        setNewSubject('');
+        setNewMessage('');
+        setGuestEmail('');
+        setView('list');
+      } catch (error) {
+        console.error('Failed to send guest ticket:', error);
+        toast({
+          title: "Error",
+          description: "Failed to send ticket. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     try {
       const ticketId = await createTicket(newSubject, newMessage);
       setNewSubject('');
@@ -219,6 +272,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       console.error('Failed to create ticket:', error);
     }
   };
+
+
 
   const handleSendReply = async () => {
     if (!selectedTicketId || !replyMessage.trim()) return;
@@ -316,6 +371,34 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <CardTitle className="text-white">New Support Request</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!user && (
+                <>
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    <strong>Heads up:</strong> You can send a ticket without an account, but we can't reply back in-app.{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/auth')}
+                      className="underline text-amber-200 hover:text-white"
+                    >
+                      Create an account
+                    </button>{' '}
+                    to receive replies here.
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-300 mb-2 block">
+                      Your email
+                    </label>
+                    <Input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      enterKeyHint="next"
+                      className="bg-slate-700 border-slate-600 text-white "
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
                   Subject
@@ -335,6 +418,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   className="bg-slate-700 border-slate-600 text-white "
                 />
               </div>
+
               
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-2 block">
@@ -588,17 +672,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
           <Button 
-            onClick={() => {
-              if (!user) {
-                toast({
-                  title: "Sign in required",
-                  description: "Please sign in to create a support ticket.",
-                  variant: "destructive",
-                });
-                return;
-              }
-              setView('create');
-            }}
+            onClick={() => setView('create')}
             data-tv-focus-id="new-ticket"
             className="bg-blue-600 hover:bg-blue-700 "
           >
@@ -673,27 +747,32 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               <MessageCircle className="h-12 w-12 mx-auto text-slate-500 mb-4" />
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No Support Tickets</h3>
               <p className="text-slate-500 mb-4">
-                {user ? "You haven't created any support tickets yet." : "Sign in to create and view your support tickets."}
+                {user
+                  ? "You haven't created any support tickets yet."
+                  : "You can send a ticket without an account, but replies require signing in."}
               </p>
-              {user ? (
-                <Button 
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <Button
                   onClick={() => setView('create')}
                   data-tv-focus-id="empty-create-ticket"
                   className="bg-blue-600 hover:bg-blue-700 "
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Ticket
+                  {user ? 'Create Your First Ticket' : 'Send a Ticket'}
                 </Button>
-              ) : (
-                <Button 
-                  onClick={() => navigate('/auth')}
-                  data-tv-focus-id="empty-sign-in"
-                  className="bg-blue-600 hover:bg-blue-700 "
-                >
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-              )}
+                {!user && (
+                  <Button
+                    onClick={() => navigate('/auth')}
+                    variant="outline"
+                    data-tv-focus-id="empty-sign-in"
+                    className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Sign In
+                  </Button>
+                )}
+              </div>
+
             </div>
           )}
         </div>
