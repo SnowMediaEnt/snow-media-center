@@ -44,6 +44,7 @@ const STORAGE_KEY = 'snow-media-bar-cache-v4';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
+const IS_LOW_MEMORY_NATIVE = isNativePlatform() && /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(navigator.userAgent);
 
 const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
   plex: null, // hidden per design
@@ -200,8 +201,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         if (error) throw error;
         const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
         if (next.length) {
-          setItems(next);
-          writeCache(next);
+          const safeItems = IS_LOW_MEMORY_NATIVE ? next.slice(0, PAGE_SIZE) : next;
+          setItems(safeItems);
+          writeCache(safeItems);
         }
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
@@ -384,7 +386,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
                     }`}
                   >
                     <div className="relative w-full aspect-[2/3] bg-black/60 flex-shrink-0">
-                      {item.poster ? (
+                      {item.poster && !IS_LOW_MEMORY_NATIVE ? (
                         <img
                           src={item.poster}
                           alt=""
