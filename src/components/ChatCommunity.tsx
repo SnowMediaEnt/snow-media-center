@@ -1218,6 +1218,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
                     placeholder="What do you need help with?"
+                    enterKeyHint="next"
                     data-focus-id="new-subject"
                     className={`bg-slate-800 border-slate-600 text-white transition-all duration-200 ${isFocused('new-subject') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1228,6 +1229,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Describe your issue in detail..."
+                    enterKeyHint="done"
                     data-focus-id="new-message"
                     className={`bg-slate-800 border-slate-600 text-white min-h-32 transition-all duration-200 ${isFocused('new-message') ? 'ring-4 ring-brand-ice' : ''}`}
                   />
@@ -1354,6 +1356,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
                       placeholder="Type your reply..."
+                      enterKeyHint="done"
                       data-focus-id="reply-input"
                       disabled={replySending}
                       className={`bg-slate-800 border-slate-600 text-white flex-1 transition-all duration-200 ${isFocused('reply-input') ? 'ring-4 ring-brand-ice' : ''}`}
