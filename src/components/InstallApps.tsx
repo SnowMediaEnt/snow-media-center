@@ -399,6 +399,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
       console.log(`[Launch] ${app.name} → ${packageName}`);
+      try { trackAppLaunch(app.name); } catch {}
       await AppManager.launch({ packageName });
       
       toast({
