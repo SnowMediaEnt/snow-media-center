@@ -738,7 +738,7 @@ class AppManagerPlugin : Plugin() {
   /** Fuzzy lookup: normalise display labels and find one that contains the name fragment. */
   private fun resolveInstalledPackageByName(name: String): String? {
     val needle = name.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
-    if (needle.isEmpty()) return null
+    if (needle.length < 3) return null
     return try {
       val pm = context.packageManager
       val packages = pm.getInstalledPackages(0)
@@ -747,7 +747,7 @@ class AppManagerPlugin : Plugin() {
         if (ai.packageName == context.packageName) continue
         val label = pm.getApplicationLabel(ai).toString()
           .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
-        if (label.isEmpty()) continue
+        if (label.length < 3) continue
         if (label.contains(needle) || needle.contains(label)) {
           return ai.packageName
         }
@@ -758,6 +758,7 @@ class AppManagerPlugin : Plugin() {
       null
     }
   }
+
 
   // ---------- Cache-clear Accessibility Service bridge ----------
 
