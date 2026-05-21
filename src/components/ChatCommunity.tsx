@@ -763,7 +763,25 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         return;
       }
 
-      if ((event.key === 'Enter' || event.key === ' ') && isTyping) {
+      if (isTyping && event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const inputId = target.getAttribute('data-focus-id') || currentFocusId;
+        if (inputId === 'new-subject') {
+          focusTextFieldById('new-message');
+        } else if (inputId === 'new-message') {
+          leaveTextFieldById('submit-ticket', target);
+        } else if (inputId === 'reply-input') {
+          leaveTextFieldById('reply-send', target);
+        } else if (inputId === 'ai-input') {
+          leaveTextFieldById('ai-send', target);
+        } else {
+          void hideKeyboardForDpad(target);
+        }
+        return;
+      }
+
+      if (isTyping && event.key === ' ') {
         event.preventDefault();
         event.stopPropagation();
         void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
@@ -774,6 +792,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       // We blur the element first to allow D-pad navigation
       if (isTyping && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
         (target as HTMLElement).blur();
+        void hideKeyboardForDpad(target);
       }
 
       // Allow normal typing except arrows
@@ -795,6 +814,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       // doesn't keep the field "owned" by the OSK on Android.
       if (isTyping && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         (target as HTMLElement).blur();
+        void hideKeyboardForDpad(target);
       }
 
       const elements = getFocusableElements();
@@ -853,7 +873,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
         case 'ArrowUp':
           if (embedded && focusIndex === 0) {
+            void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
+            forceSupportScrollTop();
             window.dispatchEvent(new CustomEvent('support:focus-tab', { detail: { tab: 'ai' } }));
             return;
           }
