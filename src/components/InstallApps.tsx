@@ -66,6 +66,7 @@ type FocusType =
   | `pin-${string}`
   | `download-${string}` 
   | `launch-${string}` 
+  | `forcestop-${string}`
   | `settings-${string}` 
   | `cache-${string}` 
   | `uninstall-${string}`
@@ -122,7 +123,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   // Helpers to extract the app id out of a focus token like "launch-<id>".
   const getAppIdFromFocus = (focus: string): string | null => {
-    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'settings-', 'cache-', 'uninstall-'];
+    const prefixes = ['app-', 'pin-', 'download-', 'launch-', 'forcestop-', 'settings-', 'cache-', 'uninstall-'];
     for (const p of prefixes) {
       if (focus.startsWith(p)) return focus.slice(p.length);
     }
