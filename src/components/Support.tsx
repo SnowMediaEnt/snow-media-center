@@ -337,6 +337,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
         />
       )}
+      {downloadingApp && (
+        <DownloadProgress
+          app={downloadingApp}
+          onClose={() => setDownloadingApp(null)}
+          onComplete={() => setDownloadingApp(null)}
+        />
+      )}
+
     </div>
   );
 };
