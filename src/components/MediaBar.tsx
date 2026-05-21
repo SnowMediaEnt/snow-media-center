@@ -124,6 +124,19 @@ const buildPlexPlayUrl = (item: ValidatedPlexItem): string => {
   return `plex://play/?${server}metadataKey=${encKey}&metadataType=${metadataType}&viewOffset=0&offset=0&t=0`;
 };
 
+/**
+ * Per project memory: try plex://preplay first (loads the title's detail page,
+ * which survives Plex's user-picker / sign-in detour) → fall back to
+ * plex://play (direct playback) → final fallback is launching the Plex package.
+ */
+const buildPlexPreplayUrl = (item: ValidatedPlexItem): string => {
+  const { metadataKey, machineIdentifier } = item;
+  const cleanKey = metadataKey.replace(/\/(children|allLeaves|grandchildren|leaves)\/?$/, '');
+  const encKey = encodeURIComponent(cleanKey);
+  const server = machineIdentifier ? `server=${encodeURIComponent(machineIdentifier)}&` : '';
+  return `plex://preplay/?${server}metadataKey=${encKey}`;
+};
+
 
 
 const openPlexDirectPlay = async (item: MediaItem) => {
@@ -144,21 +157,34 @@ const openPlexDirectPlay = async (item: MediaItem) => {
     return;
   }
 
-  const url = buildPlexPlayUrl(validated);
+  const preplayUrl = buildPlexPreplayUrl(validated);
+  const playUrl = buildPlexPlayUrl(validated);
 
   if (!native) {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(preplayUrl, '_blank', 'noopener,noreferrer');
     return;
   }
 
   toast({ title: 'Opening in Plex…', description: item.title });
 
+  const { AppManager } = await import('@/capacitor/AppManager');
+  // 1) Preplay first — survives sign-in / user-picker detour and lands on the
+  //    title page so the user can hit Play, instead of being dumped on Home.
   try {
-    const { AppManager } = await import('@/capacitor/AppManager');
-    await AppManager.openUrl({
-      url,
-      packageName: PLEX_ANDROID_PACKAGE,
-    });
+    await AppManager.openUrl({ url: preplayUrl, packageName: PLEX_ANDROID_PACKAGE });
+    return;
+  } catch (err) {
+    const msg = (err as Error)?.message ?? '';
+    if (msg.includes('PLEX_NOT_INSTALLED')) {
+      toast({ title: 'Plex not installed', description: 'Install Plex to play this title.' });
+      return;
+    }
+    console.warn('[MediaBar] Plex preplay failed, trying direct play', err);
+  }
+  // 2) Direct play fallback.
+  try {
+    await AppManager.openUrl({ url: playUrl, packageName: PLEX_ANDROID_PACKAGE });
+    return;
   } catch (err) {
     const msg = (err as Error)?.message ?? 'Unknown error';
     if (msg.includes('PLEX_NOT_INSTALLED')) {
@@ -168,6 +194,8 @@ const openPlexDirectPlay = async (item: MediaItem) => {
     console.error('[MediaBar] Plex launch unrecoverable error', err);
     toast({ title: "Couldn't open Plex", description: msg });
   }
+};
+
 };
 
 
