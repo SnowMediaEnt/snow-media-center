@@ -414,8 +414,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {!user && (
                 <>
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <strong>Heads up:</strong> You can send a ticket anonymously, but we can't reply back. Add your email and we'll offer to create an account so you can get replies in-app.
+                    <strong>Heads up:</strong> You can submit a ticket without an email, but <strong>you won't get a response unless you sign in or create an account</strong>. Add your email below and we'll offer to create an account so replies show up in-app.
                   </div>
+
                   <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">
                       Your email <span className="text-slate-400 font-normal">(optional)</span>

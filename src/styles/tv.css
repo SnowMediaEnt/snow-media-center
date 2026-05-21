@@ -73,7 +73,37 @@
   z-index: 30;
 }
 
+/* Variant-aware focus glow — blue buttons get purple, gold gets white, purple gets gold */
+[data-tv-focused="true"][class*="bg-blue"],
+[data-tv-focused="true"][class*="--gradient-blue"],
+[data-tv-focused="true"][class*="bg-primary"] {
+  box-shadow:
+    0 0 0 3px hsl(280 90% 65% / 0.98),
+    0 0 18px 4px hsl(280 90% 65% / 0.5) !important;
+  border-color: hsl(280 90% 65% / 0.95) !important;
+}
+
+[data-tv-focused="true"][class*="bg-yellow"],
+[data-tv-focused="true"][class*="bg-amber"],
+[data-tv-focused="true"][class*="--gradient-gold"],
+[data-tv-focused="true"][variant="gold"] {
+  box-shadow:
+    0 0 0 3px hsl(0 0% 100% / 0.98),
+    0 0 18px 4px hsl(0 0% 100% / 0.55) !important;
+  border-color: hsl(0 0% 100% / 0.95) !important;
+}
+
+[data-tv-focused="true"][class*="bg-purple"],
+[data-tv-focused="true"][class*="bg-violet"],
+[data-tv-focused="true"][class*="--gradient-purple"] {
+  box-shadow:
+    0 0 0 3px hsl(45 95% 55% / 0.98),
+    0 0 18px 4px hsl(45 95% 55% / 0.5) !important;
+  border-color: hsl(45 95% 55% / 0.95) !important;
+}
+
 [data-tv-focused="true"]:focus-visible,
 [data-tv-focus-id]:focus-visible {
   outline: none !important;
 }
+
