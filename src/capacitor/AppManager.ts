@@ -73,7 +73,13 @@ const webFallback: AppManagerPlugin = {
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
   async isSpeechRecognitionAvailable() { return { available: false }; },
   async startVoiceInput() { throw new Error(WEB_UNSUPPORTED_MSG); },
-  async cancelVoiceInput() { /* no-op on web */ },
+  async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
+  async openPlexItem({ urls }) {
+    const url = urls?.[0];
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    return { method: 'web', usedUrl: url };
+  },
+
 };
 
 export function isWebUnsupportedError(err: unknown): boolean {
