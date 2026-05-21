@@ -173,12 +173,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     nextId?: 'create-subject' | 'create-message'
   ) => {
     if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
     if (!nextId) {
       e.currentTarget.blur();
       return;
     }
-    e.preventDefault();
-    e.stopPropagation();
     e.currentTarget.blur();
     focusTicketField(nextId);
   };
