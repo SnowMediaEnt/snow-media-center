@@ -10,6 +10,8 @@ import smeLogo from '@/assets/sme-logo.png';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
+import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
+
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName } from '@/utils/downloadApk';
