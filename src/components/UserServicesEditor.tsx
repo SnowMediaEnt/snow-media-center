@@ -42,6 +42,13 @@ const normalizeService = (service: CustomerServiceRow): UserService => ({
 
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
+const formatDateEntry = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+};
+
 const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, displayName, onSaved }: Props) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -228,8 +235,22 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         await supabase.from('customer_devices').delete().in('id', toRemoveIds);
       }
 
-      // --- Services ---
+      // --- Services: diff by service name so newly inserted rows are not immediately deleted ---
+      const { data: existingSvcBefore } = await supabase
+        .from('customer_services')
+        .select('id, service_type, service_name, expiration_date, tied_apps, renewal_status, notes')
+        .eq('customer_id', customerId);
+      const existingServices = (((existingSvcBefore as CustomerServiceRow[]) || []).map(normalizeService));
+      const serviceKey = (service: Pick<UserService, 'service_name' | 'service_type'>) => (service.service_name || service.service_type || '').toLowerCase();
+      const selectedKeys = new Set(services.map(serviceKey));
+
+      const removeSvc = existingServices.filter((s) => !selectedKeys.has(serviceKey(s))).map((s) => s.id);
+      if (removeSvc.length) {
+        await supabase.from('customer_services').delete().in('id', removeSvc);
+      }
+
       for (const s of services) {
+        const existing = existingServices.find((row) => serviceKey(row) === serviceKey(s));
         const payload = {
           customer_id: customerId,
           service_type: s.service_type || 'IPTV',
@@ -239,19 +260,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
           renewal_status: s.renewal_status || 'active',
           notes: s.notes || null,
         };
-        if (s.id.startsWith('new-')) {
-          await supabase.from('customer_services').insert(payload);
+        if (existing) {
+          await supabase.from('customer_services').update(payload).eq('id', existing.id);
         } else {
-          await supabase.from('customer_services').update(payload).eq('id', s.id);
+          await supabase.from('customer_services').insert(payload);
         }
-      }
-      // Delete services removed locally
-      const { data: existingSvc } = await supabase
-        .from('customer_services').select('id').eq('customer_id', customerId);
-      const keepIds = new Set(services.filter(s => !s.id.startsWith('new-')).map(s => s.id));
-      const removeSvc = ((existingSvc || []) as Pick<UserService, 'id'>[]).filter((s) => !keepIds.has(s.id)).map((s) => s.id);
-      if (removeSvc.length) {
-        await supabase.from('customer_services').delete().in('id', removeSvc);
       }
 
       toast({ title: 'Saved', description: 'Your devices and services were updated.' });
