@@ -526,7 +526,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           </DialogHeader>
           {debugItem && (() => {
             const v = validatePlexLaunchItem(debugItem);
-            const candidates = v ? buildPlexLaunchCandidates(v) : null;
+            const playUrl = v ? buildPlexPlayUrl(v) : null;
             return (
               <pre className="text-[11px] leading-snug whitespace-pre-wrap break-all bg-black/40 p-3 rounded max-h-[60vh] overflow-auto">
 {JSON.stringify({
@@ -538,7 +538,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   machineIdentifier: v?.machineIdentifier ?? null,
   guid: debugItem.guid ?? null,
   librarySectionID: debugItem.librarySectionID ?? null,
-  candidates,
+  playUrl,
 }, null, 2)}
               </pre>
             );

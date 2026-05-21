@@ -14,8 +14,8 @@ const CHANGELOG: Record<string, string[]> = {
   '1.0.5': [
     'Content Bar can now be turned off in Settings → Updates — great for older or slower devices',
     'Smoother home screen — news ticker no longer stutters when moving across the bottom buttons',
-    'Plex now opens the movie/show details page (with Play, Resume, info, cast) instead of jumping straight into playback',
-    'Fewer "Webpage could not be loaded" popups when launching Plex on Android',
+    'Plex now uses direct playback again when launching movies from the Content Bar',
+    'Simpler Plex launching with fewer extra handoff attempts on Android',
     'D-pad now reaches the new Content Bar toggle directly from the Updates tab',
   ],
   '1.0.4': [
