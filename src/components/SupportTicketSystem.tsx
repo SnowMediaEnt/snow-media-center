@@ -449,10 +449,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     }
                   }}
                   enterKeyHint="done"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="Brief description of your issue..."
                   data-tv-focus-id="create-subject"
                   className="bg-slate-700 border-slate-600 text-white "
                 />
+
               </div>
 
               
