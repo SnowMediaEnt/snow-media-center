@@ -228,7 +228,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
+          <TabsList className="grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
             <TabsTrigger
               value="help"
               data-support-tv-focus-id="tab-help"
