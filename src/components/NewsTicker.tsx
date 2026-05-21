@@ -153,7 +153,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
   // identical to every other join (no fused/missing items at the seam).
   const tickerText = useMemo(() => `${newsItems.join('   •   ')}   •   `, [newsItems]);
 
-  const trackHeight = compact ? 'h-7' : 'h-[3.25rem] py-1';
+  const trackHeight = compact ? 'h-8' : 'h-[3.75rem] py-1';
   const textSize = compact ? 'text-sm' : 'text-xl';
   const padLeft = compact ? '80px' : '128px';
   const maskStart = compact ? '60px' : '110px';
