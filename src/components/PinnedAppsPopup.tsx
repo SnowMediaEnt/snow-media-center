@@ -53,6 +53,7 @@ const PinnedAppsPopup = ({
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const selectorButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
   const [selectorFocusIndex, setSelectorFocusIndex] = useState(0);
   const { installedApps: deviceApps } = useDeviceInstalledApps();
 
@@ -229,6 +230,20 @@ const PinnedAppsPopup = ({
       onPinApp(installedApp);
     }
   };
+
+  const asLaunchableApp = (pinnedApp: PinnedApp, fullApp?: AppData): AppData => fullApp ?? ({
+    id: pinnedApp.id,
+    name: pinnedApp.name,
+    icon: pinnedApp.icon,
+    packageName: pinnedApp.packageName,
+    version: '1.0',
+    size: '',
+    description: pinnedApp.name,
+    apk: '',
+    downloadUrl: '',
+    featured: false,
+    category: 'main',
+  } as AppData);
 
   if (!isVisible) return null;
 
