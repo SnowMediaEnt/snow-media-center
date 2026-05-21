@@ -390,7 +390,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
@@ -504,7 +504,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -696,7 +696,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
