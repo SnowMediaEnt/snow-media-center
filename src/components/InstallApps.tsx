@@ -357,6 +357,16 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
   }, [focusedElement]);
 
+  // Auto-collapse expanded card when focus moves to a different app card
+  useEffect(() => {
+    if (!expandedAppId) return;
+    const id = getAppIdFromFocus(focusedElement);
+    if (focusedElement.startsWith('app-') && id && id !== expandedAppId) {
+      setExpandedAppId(null);
+    }
+  }, [focusedElement, expandedAppId]);
+
+
   // App status management functions
   const generateAppPackageName = (app: AppData) => app.packageName || generatePackageName(app.name);
 
