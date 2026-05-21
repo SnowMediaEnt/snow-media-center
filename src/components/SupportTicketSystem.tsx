@@ -403,7 +403,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button 
@@ -493,7 +493,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   onClick={handleCreateTicket}
                   disabled={!newSubject.trim() || !newMessage.trim() || loading}
                   data-tv-focus-id="create-submit"
-                  className="bg-blue-600 hover:bg-blue-700 "
+                  className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
                 >
                   {loading ? "Creating..." : "Create Ticket"}
                 </Button>
@@ -516,7 +516,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -614,7 +614,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     onClick={handleSendReply}
                     disabled={!replyMessage.trim() || loading}
                     data-tv-focus-id="ticket-send"
-                    className="bg-blue-600 hover:bg-blue-700 "
+                    className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reply
@@ -708,7 +708,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-800 to-zinc-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -727,7 +727,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           <Button 
             onClick={() => setView('create')}
             data-tv-focus-id="new-ticket"
-            className="bg-blue-600 hover:bg-blue-700 "
+            className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
           >
             <Plus className="h-4 w-4 mr-2" />
             New Ticket
@@ -808,7 +808,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Button
                   onClick={() => setView('create')}
                   data-tv-focus-id="empty-create-ticket"
-                  className="bg-blue-600 hover:bg-blue-700 "
+                  className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg "
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {user ? 'Create Your First Ticket' : 'Send a Ticket'}
@@ -954,7 +954,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             <Button
               onClick={handleCreateAccountFromPrompt}
               disabled={creatingAccount || accountPassword.length < 6}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 shadow-lg"
             >
               {creatingAccount ? 'Creating...' : 'Create account'}
             </Button>
