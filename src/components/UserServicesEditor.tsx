@@ -321,7 +321,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SERVICE_OPTIONS.map(name => {
-                    const active = services.some(s => (s.service_name || '').toLowerCase() === name.toLowerCase());
+                    const active = selectedServiceNames.has(name.toLowerCase());
                     return (
                       <Button
                         key={name}
@@ -347,7 +347,8 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                   <Label className="text-xs text-slate-400 flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> Expiration date (so we can warn you before it expires)
                   </Label>
-                  {services.map(s => {
+                  {services.map((s, index) => {
+                    const inputIndex = firstDateIndex + index;
                     const days = daysUntil(s.expiration_date);
                     let statusBadge: React.ReactNode = null;
                     if (days !== null) {
@@ -360,10 +361,11 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                       <div key={s.id} className="flex items-center gap-2 rounded-md bg-slate-800/50 border border-slate-700 px-3 py-2">
                         <span className="text-white font-medium text-sm w-24 flex-shrink-0">{s.service_name || s.service_type}</span>
                         <Input
+                          ref={setFocusRef(inputIndex)}
                           type="date"
                           value={s.expiration_date || ''}
                           onChange={(e) => updateService(s.id, { expiration_date: e.target.value || null })}
-                          className="bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none focus-visible:scale-105 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] transition-all"
+                          className={`bg-slate-900 border-slate-600 text-white flex-1 outline-none focus:outline-none transition-all ${focusedIndex === inputIndex ? 'scale-105 shadow-[0_0_20px_rgba(96,165,250,0.7)]' : ''}`}
                         />
                         {statusBadge}
                       </div>
@@ -376,12 +378,12 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
         )}
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-700">
-          <Button variant="outline" onClick={onClose} disabled={saving}
-            className="bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(148,163,184,0.7)] transition-all">
+          <Button ref={setFocusRef(cancelIndex)} variant="outline" onClick={onClose} disabled={saving}
+            className={`bg-slate-700 hover:bg-slate-600 border-slate-600 text-white outline-none focus:outline-none transition-all ${focusedIndex === cancelIndex ? 'scale-110 shadow-[0_0_20px_rgba(148,163,184,0.7)] z-10' : ''}`}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || loading}
-            className="bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.8)] transition-all">
+          <Button ref={setFocusRef(saveIndex)} onClick={handleSave} disabled={saving || loading}
+            className={`bg-blue-600 hover:bg-blue-700 outline-none focus:outline-none transition-all ${focusedIndex === saveIndex ? 'scale-110 shadow-[0_0_20px_rgba(96,165,250,0.8)] z-10' : ''}`}>
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
