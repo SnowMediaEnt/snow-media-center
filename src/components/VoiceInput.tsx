@@ -210,7 +210,8 @@ export const VoiceInput = ({
     finishAfterErrorOrCancel('error');
   };
 
-  };
+
+
 
   const cancelVoiceAttempt = (reason: 'button' | 'unmount' | 'back' | 'timeout' = 'button') => {
     console.log(`VOICE_CANCEL: ${reason}`);
