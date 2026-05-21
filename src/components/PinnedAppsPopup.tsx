@@ -314,7 +314,11 @@ const PinnedAppsPopup = ({
                     ref={el => buttonsRef.current[index] = el}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (fullApp) onLaunchApp(fullApp);
+                      if (longPressTriggeredRef.current) {
+                        longPressTriggeredRef.current = false;
+                        return;
+                      }
+                      onLaunchApp(asLaunchableApp(pinnedApp, fullApp));
                     }}
                     onContextMenu={(e) => {
                       // Right-click / long-press fallback: open selector to swap this slot
@@ -324,8 +328,10 @@ const PinnedAppsPopup = ({
                     }}
                     onPointerDown={(e) => {
                       // Long-press (touch / remote OK held) to edit pinned slot
+                      longPressTriggeredRef.current = false;
                       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                       longPressTimerRef.current = setTimeout(() => {
+                        longPressTriggeredRef.current = true;
                         openSelector(index);
                       }, 600);
                     }}
