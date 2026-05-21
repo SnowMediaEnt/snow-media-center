@@ -296,9 +296,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                   return (
                     <Button
                       key={d}
+                      ref={setFocusRef(DEVICE_OPTIONS.indexOf(d))}
                       type="button"
                       onClick={() => toggleDevice(d)}
-                      className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
+                      className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none ${focusedIndex === DEVICE_OPTIONS.indexOf(d) ? focusClass : ''} ${
                         active
                           ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-lg shadow-blue-500/30'
                           : 'bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200'
@@ -324,9 +325,10 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                     return (
                       <Button
                         key={name}
+                        ref={setFocusRef(DEVICE_OPTIONS.length + SERVICE_OPTIONS.indexOf(name))}
                         type="button"
                         onClick={() => toggleServiceByName(name)}
-                        className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(96,165,250,0.7)] focus-visible:z-10 ${
+                        className={`justify-start text-left h-auto py-3 transition-all duration-200 outline-none focus:outline-none ${focusedIndex === DEVICE_OPTIONS.length + SERVICE_OPTIONS.indexOf(name) ? focusClass : ''} ${
                           active
                             ? 'bg-blue-600 hover:bg-blue-700 text-white scale-[1.02] shadow-lg shadow-blue-500/30'
                             : 'bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200'
