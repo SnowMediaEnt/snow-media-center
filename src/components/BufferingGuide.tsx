@@ -140,6 +140,10 @@ const BufferingGuide = ({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  // When the user goes back (footer Back / remote Back), don't re-focus
+  // content — keep focus on the Back button so they can press it again
+  // to pop further without hunting back up.
+  const justWentBackRef = useRef(false);
 
   const step: StepKey = STEPS[stepIndex];
 
