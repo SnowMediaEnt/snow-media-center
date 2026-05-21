@@ -143,6 +143,16 @@ const BufferingGuide = ({
   const [showVpnSkipConfirm, setShowVpnSkipConfirm] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Mark the guide as open globally so the app-wide Capacitor back-button
+  // listener (in useNavigation) skips its goBack() — otherwise BACK pops
+  // Support → Home in addition to closing the guide.
+  useEffect(() => {
+    (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = true;
+    return () => {
+      (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = false;
+    };
+  }, []);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
   // When the user goes back (footer Back / remote Back), don't re-focus
