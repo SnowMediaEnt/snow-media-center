@@ -1312,8 +1312,11 @@ const Step4 = ({
         <div className="mt-3 bg-amber-500/10 border border-amber-500/40 rounded-md p-3 text-xs text-amber-100 leading-relaxed text-left">
           <strong>Heads up — VPN is a paid service.</strong> Free VPNs don't deliver the speed or
           protection we need. Check with <strong>your reseller</strong> for sign-in details, or sign
-          up yourself by scanning the QR code under either option below.
+          up yourself by scanning the QR code under either option below. Once installed, <strong>sign in</strong>,
+          tap <strong>Quick Connect</strong>, then try your channel or movie/show again.
+          <span className="block mt-1 text-amber-200/90">Note: VPN does <strong>not</strong> work with VibezTV.</span>
         </div>
+
       </div>
 
       {/* Side-by-side picker */}
