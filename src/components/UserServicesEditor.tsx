@@ -285,7 +285,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
                           size="sm"
                           variant="outline"
                           onClick={() => removeService(s.id)}
-                          className="bg-red-600/20 hover:bg-red-600/40 border-red-500/50 text-white"
+                          className="bg-red-600/20 hover:bg-red-600/40 border-red-500/50 text-white outline-none focus:outline-none focus-visible:scale-110 focus-visible:shadow-[0_0_20px_rgba(248,113,113,0.7)] focus-visible:z-10 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
