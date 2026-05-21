@@ -407,7 +407,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
             variant="outline" 
             size="lg"
             data-focus-id="detail-back"
-            className={`mb-6 bg-brand-gold text-white hover:bg-brand-gold/80 ${detailFocusedElement === 'detail-back' ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
+            className={`mb-6 bg-brand-gold text-white hover:bg-brand-gold/80 ${detailFocusedElement === 'detail-back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Products
@@ -466,7 +466,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                             <button
                               key={choiceIndex}
                               data-focus-id={`detail-option-${optIndex}-${choiceIndex}`}
-                              className={`bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors ${detailFocusedElement === `detail-option-${optIndex}-${choiceIndex}` ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
+                              className={`bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors ${detailFocusedElement === `detail-option-${optIndex}-${choiceIndex}` ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
                             >
                               {choice.value}
                               {(choice as any).priceModifier && (
@@ -501,7 +501,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   disabled={!selectedProduct.inStock}
                   size="lg"
                   data-focus-id="detail-add-cart"
-                  className={`flex-1 bg-green-600 hover:bg-green-700 text-white text-lg ${detailFocusedElement === 'detail-add-cart' ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900' : ''}`}
+                  className={`flex-1 bg-green-600 hover:bg-green-700 text-white text-lg ${detailFocusedElement === 'detail-add-cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   Add to Cart - ${selectedProduct.price.toFixed(2)}
@@ -547,7 +547,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               }}
               variant="gold" 
               size="lg"
-              className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
+              className={focusedElement === 'back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back to Home
@@ -575,7 +575,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               onClick={() => navigate('/auth')}
               variant="outline"
               size="sm"
-              className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-2 ring-brand-ice' : ''}`}
+              className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
             >
               <LogIn className="w-4 h-4 mr-2" />
               Sign In
@@ -584,7 +584,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           <Button
             variant="outline"
             size="lg"
-            className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-2 ring-brand-ice' : ''}`}
+            className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)]' : ''}`}
           >
             <ShoppingCart className="w-5 h-5 mr-2" />
             Cart ({cartItems.length})
@@ -609,7 +609,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                     isSelected 
                       ? 'bg-brand-gold border-brand-gold text-white' 
                       : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                  } ${focusedElement === `category-${category.id}` ? 'ring-2 ring-brand-ice scale-105' : ''}`}
+                  } ${focusedElement === `category-${category.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] scale-105' : ''}`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {category.name}
@@ -730,7 +730,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   <Card 
                     key={product.id} 
                     data-focus-id={`product-${product.id}`}
-                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+                    className={`bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-300 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_28px_hsl(var(--brand-gold)/0.75)] scale-105' : ''}`}
                   >
                     <div className="relative">
                       <img 
