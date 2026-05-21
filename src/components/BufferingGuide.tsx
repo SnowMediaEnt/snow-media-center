@@ -521,6 +521,8 @@ const BufferingGuide = ({
     } finally {
       setSubmittingTicket(false);
     }
+  };
+
   const buildChannelReport = () => {
     const title = reportTitle.trim();
     if (!title) {
