@@ -58,8 +58,9 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       // Do NOT treat Backspace as back button (it's used for text editing)
       const isAndroidBack = event.keyCode === 4 || event.which === 4;
       const isEscape = event.key === 'Escape';
+      const isBackspace = event.key === 'Backspace' || event.code === 'GoBack';
       
-      if (isEscape || isAndroidBack) {
+      if (isEscape || isBackspace || isAndroidBack) {
         // If viewing a product detail, intercept back to return to grid (stay in store).
         // Use stopImmediatePropagation so the window-level listener in Index.tsx
         // (which would otherwise call goBack() and exit the store) doesn't also fire.
@@ -71,8 +72,10 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
           setDetailFocusedElement('detail-back');
           return;
         }
-        // At top level of store: let Index.tsx handle exit to home (don't call onBack here,
-        // otherwise we'd trigger goBack twice).
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onBack();
         return;
       }
       
