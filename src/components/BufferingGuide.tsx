@@ -1472,11 +1472,11 @@ const QrBlock = ({ value }: { value: string }) => {
     };
   }, [value]);
   return (
-    <div className="bg-white p-2 rounded-md flex-shrink-0">
+    <div className="bg-white p-1.5 rounded-md flex-shrink-0">
       {dataUrl ? (
-        <img src={dataUrl} alt="QR code" className="w-[160px] h-[160px]" />
+        <img src={dataUrl} alt="QR code" className="w-[110px] h-[110px]" />
       ) : (
-        <div className="w-[160px] h-[160px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
+        <div className="w-[110px] h-[110px] flex items-center justify-center text-slate-500 text-xs">Loading…</div>
       )}
     </div>
   );
