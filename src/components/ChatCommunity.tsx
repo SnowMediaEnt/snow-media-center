@@ -1063,6 +1063,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           ? { behavior: 'smooth', block: 'center', inline: 'nearest' }
           : { behavior: 'auto', block: 'nearest', inline: 'nearest' }
       );
+    } else if (currentFocusId.startsWith('ai-history-')) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
 
     const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
