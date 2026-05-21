@@ -205,6 +205,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       'list-back': { right: 'new-ticket', down: firstTicketId },
       'new-ticket': { left: 'list-back', down: 'ai-new-input' },
       'empty-create-ticket': { up: 'list-back', down: 'ai-new-input', right: 'new-ticket' },
+    };
 
 
     aiConversations.forEach((_, index) => {
