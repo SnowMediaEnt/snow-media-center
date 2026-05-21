@@ -46,10 +46,11 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Handle Android back button
-      if (event.key === 'Escape' || event.key === 'Backspace' || 
+      if (event.key === 'Escape' || event.key === 'Backspace' ||
           event.keyCode === 4 || event.which === 4) {
         event.preventDefault();
         event.stopPropagation();
+        (event as any).stopImmediatePropagation?.();
         if (selectedVideo) {
           handleCloseVideo();
         } else {
@@ -57,6 +58,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
         }
         return;
       }
+
       
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
@@ -148,9 +150,10 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [focusedElement, activeTab, selectedVideo, videos, onBack]);
+
 
   // Scroll focused element into view for TV navigation - always keep selector visible
   useEffect(() => {

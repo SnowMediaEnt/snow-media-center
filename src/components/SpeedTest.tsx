@@ -162,7 +162,10 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
         e.preventDefault();
       }
-      if (e.key === 'Escape' || e.key === 'Backspace') {
+      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
         if (abortRef.current) abortRef.current.abort();
         onClose();
         return;
@@ -178,9 +181,11 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
         }
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
   }, [focused, phase, runTest, onClose]);
+
+
 
   // Auto-start on mount
   useEffect(() => {

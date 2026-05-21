@@ -79,35 +79,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }, [onNavigate, toast]);
 
 
-  // Hierarchical back: speedtest/guide overlays handled by their own onClose;
-  // sub-views in Help tab pop back to the menu before exiting Support.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (e.key === 'Backspace' && isTyping) return;
-      if (!(e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.code === 'GoBack')) return;
+  // Back navigation is owned by child components/overlays so that pressing Back
+  // inside a ticket, video, guide step, or speed test only pops one level
+  // instead of exiting Support all the way to the Home screen:
+  //   - SpeedTest        → handles its own Back / onClose
+  //   - BufferingGuide   → steps back one at a time, then onClose
+  //   - SupportVideos    → closes open video, then onBack → menu
+  //   - SupportTicketSystem → pops ticket/AI/create view, then onBack → menu
+  // Only when we're on the Support menu does the parent (Index) take Back to home.
 
-      if (showSpeedTest) {
-        e.preventDefault(); e.stopPropagation();
-        setShowSpeedTest(false);
-        return;
-      }
-      if (showGuide) {
-        e.preventDefault(); e.stopPropagation();
-        setShowGuide(false);
-        return;
-      }
-      if (tab === 'help' && helpView !== 'menu') {
-        e.preventDefault(); e.stopPropagation();
-        setHelpView('menu');
-        return;
-      }
-      // Otherwise let CommunityChat / ChatCommunity / parent handle it
-    };
-    window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [tab, helpView, showSpeedTest, showGuide]);
 
   // Bridge into child components (AI Chat / Community) when pressing Down
   // from those tabs. The child components use different focus systems so
