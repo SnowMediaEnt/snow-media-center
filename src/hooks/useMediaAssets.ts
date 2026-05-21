@@ -64,7 +64,8 @@ export const useMediaAssets = () => {
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${assetType}/${section}/${fileName}`;
+      const filePath = `${user.id}/${assetType}/${section}/${fileName}`;
+
 
       // Upload file to storage
       const { error: uploadError } = await supabase.storage
