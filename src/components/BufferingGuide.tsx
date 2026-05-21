@@ -944,15 +944,15 @@ const BufferingGuide = ({
                 const pkg =
                   chosenApp?.packageName ||
                   (state.appType ? STREAMING_PKG[state.appType] : null);
-                const label = state.appType ? APP_LABELS[state.appType] : (chosenApp?.name || undefined);
-                if (!pkg && !label) {
+                const fallbackLabel = label || chosenApp?.name || undefined;
+                if (!pkg && !fallbackLabel) {
                   toast({
                     title: 'Open Android Settings → Apps',
                     description: 'Find the app, then tap Force Stop and Clear Cache.',
                   });
                   return;
                 }
-                openAppSettings(pkg || '', label);
+                openAppSettings(pkg || '', fallbackLabel);
               }}
               onSelect={(v) => {
                 setState((s) => ({ ...s, didRestartAndCache: v }));
