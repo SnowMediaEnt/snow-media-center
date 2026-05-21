@@ -67,17 +67,38 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   }, [toast]);
 
   const openAppSettings = useCallback(async (app: AppData) => {
-
     try {
       const { Capacitor } = await import('@capacitor/core');
-      if (!Capacitor.isNativePlatform()) return;
+      if (!Capacitor.isNativePlatform()) {
+        toast({ title: 'App Info unavailable', description: 'Only works on Android devices.' });
+        return;
+      }
       const { AppManager } = await import('@/capacitor/AppManager');
-      const packageName = app.packageName || generatePackageName(app.name);
-      await AppManager.openAppSettings({ packageName });
+      // Resolve the REAL installed package (handles aliases like ipvanish, surfshark, dreamstreams).
+      const resolved = resolvePackageName(app.name, app.packageName) || app.packageName || generatePackageName(app.name);
+      const { installed } = await AppManager.isInstalled({ packageName: resolved });
+      if (!installed) {
+        toast({
+          title: 'App not installed',
+          description: `${app.name} isn't installed on this device.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      await AppManager.openAppSettings({ packageName: resolved });
+      toast({
+        title: `Opening ${app.name}`,
+        description: "Tap 'Force Stop', then 'Storage' → 'Clear cache'. Press Back when done.",
+      });
     } catch (err) {
       console.error('[Support] openAppSettings failed:', err);
+      toast({
+        title: 'Could not open App Info',
+        description: `Open Android Settings → Apps → ${app.name} manually.`,
+        variant: 'destructive',
+      });
     }
-  }, []);
+  }, [resolvePackageName, toast]);
 
   // Download in place (mirrors Main Apps) so the user stays inside the
   // Buffering Guide and doesn't lose their progress mid-flow.
