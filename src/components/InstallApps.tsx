@@ -799,8 +799,30 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                       Launch
                     </Button>
                     
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button 
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        data-focus-id={`forcestop-${app.id}`}
+                        onClick={() => handleForceStop(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        title="Opens system App Info – tap Force Stop"
+                      >
+                        <StopCircle className="w-4 h-4 mr-1" />
+                        Force Stop
+                      </Button>
+
+                      <Button
+                        data-focus-id={`cache-${app.id}`}
+                        onClick={() => handleAutoClearCache(app)}
+                        variant="outline"
+                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Clear Cache
+                      </Button>
+
+                      <Button
                         data-focus-id={`settings-${app.id}`}
                         onClick={() => {
                           toast({
@@ -817,18 +839,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         Clear Data
                       </Button>
 
-                      <Button 
-                        data-focus-id={`cache-${app.id}`}
-                        onClick={() => handleAutoClearCache(app)}
-                        variant="outline"
-                        className={`transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
-                        title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
-                      >
-                        <Settings className="w-4 h-4 mr-1" />
-                        Clear Cache
-                      </Button>
-
-                      <Button 
+                      <Button
                         data-focus-id={`uninstall-${app.id}`}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
