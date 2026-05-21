@@ -1,23 +1,50 @@
-# Settings tabs + Home menu order
+# Fix: APK shows old layout even though `version.json` says 1.0.5
 
-## 1. Settings: gold bar follows the cursor
+## What's actually happening
 
-In `src/components/Settings.tsx`, the gold pill is the Tabs "active" state, but Left/Right currently only moves the focus ring — the user has to press Enter to switch the active tab. Make the active tab follow the focused tab so the whole gold bar slides with the cursor as you move between Media Manager → Updates → (App Alerts).
+Your APK is running an **old JavaScript bundle** that was committed to the GitHub repo months ago. The "v1.0.5" label is unrelated — it comes from a tiny static file (`public/version.json`) that just says `"1.0.5"`. The version number didn't change, so the app *looks* up-to-date, but the actual UI code is stale.
 
-- In the `ArrowLeft` / `ArrowRight` handlers (≈ lines 148–155), after setting the new focused tab, also call `setActiveTab` with the matching value (`media` / `updates` / `alerts`).
-- No change needed to the visual styling — `data-[state=active]:bg-brand-gold` already provides the sliding bar; we're just driving it from focus.
+Two things combined to cause this:
 
-## 2. Home: reorder main menu to Main Apps · Support · Store
+1. **Prebuilt web assets are committed to the repo** at `android/app/src/main/assets/public/assets/` (the `index-d9rX3euz.js`, `MediaBar-*.js`, etc. files). These are snapshots of an old build.
+2. **Your last `npm run build` failed** on the Mac mini with the `@swc/core` native binding error. When `npx cap sync android` ran afterward, there was no fresh `dist/` to copy from — so Capacitor kept the **old committed files** inside the Android project and packaged them into the APK.
 
-In `src/pages/Index.tsx`:
+Result: APK installs cleanly, `version.json` still reads 1.0.5, but the UI is whatever was last committed to `android/app/src/main/assets/public/` — the old 4-tile layout, no media bar, etc.
 
-- `buttons` array (≈ lines 427–446): keep Main Apps at index 0, put Support at index 1, Store at index 2.
-- Enter handler (≈ lines 405–411): `1 → support`, `2 → store`.
-- Card click handler (≈ lines 693–695): `1 → support`, `2 → store`.
+## The fix (two parts)
 
-Index 0 (Main Apps) stays put, so the pinned-apps popup logic at lines 371/710 is unaffected. No other code paths reference indices 1 or 2.
+### Part 1 — Make the next build actually succeed on your Mac
 
-## Out of scope
+On the Mac mini, in the project folder:
 
-- No styling, animation, or focus-color changes.
-- No changes to the dashboard / settings / logo header row.
+```bash
+rm -rf node_modules package-lock.json dist
+npm install
+npm run build          # MUST complete without errors — confirm "dist/" appears
+npx cap sync android
+npx cap open android
+```
+
+If `npm run build` errors again, stop and send the full error. Do not run `npx cap sync` on a failed build — that's what got you here.
+
+### Part 2 — Stop committing prebuilt assets so this can't happen again
+
+Add `android/app/src/main/assets/public/` to `.gitignore` and remove the committed copy. After this change, the Android assets folder is always regenerated from a fresh `npm run build` + `npx cap sync android`, so a stale bundle can never sneak into the APK.
+
+I'll also bump `public/version.json` to `1.0.6` so once the real new build lands, you'll see the version change confirm it's the fresh bundle.
+
+## Technical details
+
+- Files to change:
+  - `.gitignore` — add `android/app/src/main/assets/public/`
+  - `public/version.json` — bump to `1.0.6`
+  - `git rm -r --cached android/app/src/main/assets/public/` (you'll run this locally on the Mac after pulling)
+- No source code (React/TS) changes — the current `src/` already has the new layout, media bar, etc. The repo is fine; only the build/packaging pipeline is broken.
+
+## How you'll verify it worked
+
+After Part 1 completes successfully:
+- `android/app/src/main/assets/public/index.html` timestamp is **today**
+- The filenames inside `android/app/src/main/assets/public/assets/` have **different hashes** than the ones currently committed (e.g. `index-d9rX3euz.js` → something new)
+- APK is back around ~25 MB
+- App shows the new layout with media bar, and version reads `1.0.6`
