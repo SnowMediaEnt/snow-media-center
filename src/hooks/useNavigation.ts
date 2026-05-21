@@ -117,8 +117,16 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     const setupBackHandler = async () => {
       try {
         backButtonHandler = await CapApp.addListener('backButton', ({ canGoBack }) => {
+          // If an overlay (BufferingGuide, SpeedTest, etc.) just handled this
+          // back press, do not also pop the underlying view — otherwise a
+          // single Back press leaks through both handlers and skips Support
+          // straight to Home.
+          const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
+          if (Date.now() - handledAt < 350) {
+            return;
+          }
           console.log('Capacitor back button pressed, current view:', navigationState.currentView, 'canGoBack:', canGoBack);
-          
+
           // Handle back navigation based on current view
           if (navigationState.currentView !== 'home') {
             // If we're not on home, go back one step
@@ -139,6 +147,7 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
             }
           }
         });
+
       } catch (error) {
         console.log('Capacitor not available, using fallback back handling');
       }
