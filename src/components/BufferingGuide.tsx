@@ -289,18 +289,24 @@ const BufferingGuide = ({
   // Auto-focus the first focusable element when step changes
   useEffect(() => {
     if (showSpeedTest) return;
+    // Snap content to top BEFORE focusing so focus() doesn't scroll us to a
+    // button further down the page (Submit Ticket on the summary step).
+    contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     const t = setTimeout(() => {
       const focusables = getFocusables();
       // Prefer first focusable inside the content area (skip header Close button)
       const contentFocusables = focusables.filter((el) => contentRef.current?.contains(el));
       const target = contentFocusables[0] || focusables[0];
       if (target) {
-        target.focus();
+        target.focus({ preventScroll: true });
         lastFocusedRef.current = target;
       }
+      // Re-assert scroll-to-top after focus in case anything tried to scroll.
+      contentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     }, 80);
     return () => clearTimeout(t);
   }, [stepIndex, showSpeedTest]);
+
 
   // Track last-focused element inside the modal so D-pad can resume after focus loss
   useEffect(() => {
@@ -872,7 +878,8 @@ const BufferingGuide = ({
               onClick={goBack}
               variant="outline"
               data-guide-nav="back"
-              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+
             >
               <ArrowLeft className="w-4 h-4 mr-2" /> Back
             </Button>
