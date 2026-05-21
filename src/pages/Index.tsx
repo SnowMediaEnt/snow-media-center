@@ -161,7 +161,7 @@ const Index = () => {
     }
     return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
   }, [showEasterEgg, isInPopup, isInMediaBar]);
-  const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
+  const { currentView, navigateTo, goBack, resetNavigation, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
 
   // Resume post-auth view (e.g., returning from /auth after Sign In on the Tickets page)
   useEffect(() => {
@@ -474,7 +474,7 @@ const Index = () => {
       {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
       <Suspense fallback={<RouteFallback />}>
         {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('support')} />}
-        {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
+        {currentView === 'store' && <MediaStore onBack={() => resetNavigation()} />}
         {currentView === 'support' && <Support onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
         {currentView === 'support-videos' && <SupportVideos onBack={() => goBack()} />}
         {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
