@@ -1111,7 +1111,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     if (!embedded || activeTab !== 'ai') return;
     const handler = () => {
       setEmbeddedFocusActive(true);
-      setFocusIndex(0); // ai-input is index 0 in embedded AI elements
+      const elements = getFocusableElements();
+      const inputIndex = elements.findIndex((el) => el.id === 'ai-input');
+      setFocusIndex(inputIndex !== -1 ? inputIndex : 0);
       requestAnimationFrame(() => {
         const input = containerRef.current?.querySelector(
           '[data-focus-id="ai-input"]'
@@ -1126,7 +1128,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     };
     window.addEventListener('chat-community:focus-ai-input', handler);
     return () => window.removeEventListener('chat-community:focus-ai-input', handler);
-  }, [activeTab, embedded]);
+  }, [activeTab, embedded, getFocusableElements]);
 
   return (
     <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
