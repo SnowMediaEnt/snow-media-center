@@ -863,6 +863,92 @@ const IntroStep = ({ value, onSelect }: { value: AppType; onSelect: (t: AppType)
   </Card>
 );
 
+const DEVICE_OPTIONS: string[] = [
+  'Amazon Fire TV / Firestick',
+  'Android TV / Google TV',
+  'Android Phone or Tablet',
+  'Set-Top Box (X96 / T95 / etc.)',
+  'Other',
+];
+
+const ReportChannelStep = ({
+  title,
+  device,
+  appLabel,
+  submitting,
+  onTitleChange,
+  onDeviceChange,
+  onSubmit,
+  onBack,
+}: {
+  title: string;
+  device: string | null;
+  appLabel: string;
+  submitting: boolean;
+  onTitleChange: (v: string) => void;
+  onDeviceChange: (v: string) => void;
+  onSubmit: () => void;
+  onBack: () => void;
+}) => (
+  <Card className="bg-white/5 border-white/10 p-5 space-y-5">
+    <div>
+      <h2 className="text-xl font-semibold text-white">Report the broken channel/title</h2>
+      <p className="text-sm text-white/70 mt-1">
+        Tell us the exact channel or movie/show name in <strong>{appLabel}</strong> and which device you're using.
+        We'll open a Support Ticket for you.
+      </p>
+    </div>
+
+    <div className="space-y-2">
+      <label className="text-sm text-white/80">Channel or movie/show name</label>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
+        placeholder="e.g. ESPN HD, The Bear S03E01"
+        className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-cyan-400"
+      />
+    </div>
+
+    <div className="space-y-2">
+      <label className="text-sm text-white/80">Which device are you watching on?</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {DEVICE_OPTIONS.map((d) => (
+          <ChoiceButton key={d} active={device === d} onClick={() => onDeviceChange(d)}>
+            {d}
+          </ChoiceButton>
+        ))}
+      </div>
+    </div>
+
+    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+      <Button
+        onClick={onBack}
+        variant="outline"
+        className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" /> Change answer
+      </Button>
+      <Button
+        onClick={onSubmit}
+        disabled={submitting || !title.trim() || !device}
+        className="bg-gradient-to-r from-orange-500 to-red-600 text-white disabled:opacity-40 flex-1"
+      >
+        <MessageSquare className="w-4 h-4 mr-2" />
+        {submitting ? 'Submitting…' : 'Submit Ticket'}
+      </Button>
+    </div>
+  </Card>
+);
+
+
+
 const Step1 = ({ value, onSelect }: { value: Step1Choice; onSelect: (c: Step1Choice) => void }) => (
   <Card className="bg-white/5 border-white/10 p-5 space-y-4">
     <div>
