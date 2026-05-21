@@ -108,6 +108,8 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
   }, [state]);
 
   useEffect(() => {
+    // If we already have a finished APK on disk, skip the network entirely.
+    if (prefetchedPath) return;
     let isMounted = true;
     let progressListener: any = null;
     
