@@ -218,6 +218,27 @@ const BufferingGuide = ({
       e.preventDefault();
       e.stopPropagation();
 
+      // On the summary step there's a long recap that users want to read.
+      // If the content area can still scroll in the pressed direction,
+      // scroll it FIRST instead of yanking focus up to the header Close.
+      if (step === 'summary' && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        const scroller = contentRef.current;
+        if (scroller) {
+          const canScrollUp = scroller.scrollTop > 4;
+          const canScrollDown =
+            scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 4;
+          if (key === 'ArrowUp' && canScrollUp) {
+            scroller.scrollBy({ top: -Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' });
+            return;
+          }
+          if (key === 'ArrowDown' && canScrollDown) {
+            scroller.scrollBy({ top: Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' });
+            return;
+          }
+        }
+      }
+
+
       // Spatial 2D navigation based on bounding rects
       const docActive = document.activeElement as HTMLElement | null;
       let activeEl: HTMLElement | null =
@@ -527,10 +548,47 @@ const BufferingGuide = ({
     return () => window.removeEventListener('keydown', handler, true);
   }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice]);
 
+  // Capacitor native back button — intercept so the global navigation
+  // handler doesn't pop us all the way out to the Home Screen. Always
+  // step back inside the guide first, and only close when on the intro.
+  useEffect(() => {
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        handle = await App.addListener('backButton', () => {
+          if (cancelled) return;
+          if (showSpeedTest) return;
+          if (step === 'step1' && state.step1Choice === 'one_only') {
+            setReportTitle('');
+            setReportDevice(null);
+            setState((s) => ({ ...s, step1Choice: null }));
+            justWentBackRef.current = true;
+            return;
+          }
+          if (stepIndex > 0) {
+            justWentBackRef.current = true;
+            setStepIndex((i) => i - 1);
+          } else {
+            onClose();
+          }
+        });
+      } catch {
+        // Web / non-Capacitor — keydown handler covers Escape/Backspace.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      handle?.remove?.();
+    };
+  }, [stepIndex, showSpeedTest, step, state.step1Choice, onClose]);
+
   // Scroll content to top on step change
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [stepIndex]);
+
 
   const goNext = () => {
     // On the VPN step, allow advancing even if the VPN flow isn't complete,
@@ -952,19 +1010,31 @@ const BufferingGuide = ({
       {/* Footer */}
       <div className="flex-shrink-0 px-4 py-2 border-t border-white/10 bg-black/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          {stepIndex > 0 ? (
-            <Button
-              onClick={goBack}
-              variant="outline"
-              data-guide-nav="back"
-              className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+          <div className="flex items-center gap-2">
+            {stepIndex > 0 ? (
+              <Button
+                onClick={goBack}
+                variant="outline"
+                data-guide-nav="back"
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white focus-visible:bg-white/10 focus-visible:text-white active:bg-white/10 active:text-white"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              </Button>
+            ) : (
+              <span className="w-[88px]" />
+            )}
+            {step === 'step1' && (
+              <Button
+                onClick={() => setStepIndex(STEPS.indexOf('step4'))}
+                variant="outline"
+                title="Already tried a VPN? Jump straight to the VPN step."
+                className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
+              >
+                Already did VPN → Skip to VPN
+              </Button>
+            )}
+          </div>
 
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
-            </Button>
-          ) : (
-            <span className="w-[88px]" />
-          )}
           <span className="text-xs text-white/70 truncate hidden sm:block select-none pointer-events-none">
             Submit a Ticket in Chat &amp; Community
           </span>
