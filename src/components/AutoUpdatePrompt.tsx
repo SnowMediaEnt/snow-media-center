@@ -206,9 +206,11 @@ const AutoUpdatePrompt = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[125] bg-black/85 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[2147483000] bg-black/85 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
+      data-autoupdate-dialog="true"
+      onClick={(e) => e.stopPropagation()}
     >
       <Card className="w-full max-w-md bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 relative shadow-2xl">
         <Button
