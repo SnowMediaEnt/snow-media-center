@@ -145,7 +145,25 @@ const Settings = ({ onBack }: SettingsProps) => {
           }
           break;
         case 'ArrowUp':
-          if (currentTabIdx >= 0) setFocusedElement('back');
+          if (currentTabIdx >= 0) {
+            setFocusedElement('back');
+          } else if (focusedElement === 'updates-content') {
+            const active = document.activeElement as HTMLElement | null;
+            const inApkCache = active?.closest('[data-apk-cache-root]');
+            if (inApkCache) {
+              const checkBtn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
+              if (checkBtn) {
+                checkBtn.focus();
+                checkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                break;
+              }
+            }
+            setFocusedElement('tab-updates');
+          } else if (focusedElement === 'ui-content-bar-toggle') {
+            setFocusedElement('tab-ui');
+          } else if (focusedElement === 'alerts-content') {
+            setFocusedElement('tab-alerts');
+          }
           break;
         case 'ArrowDown':
           if (focusedElement === 'back') {
