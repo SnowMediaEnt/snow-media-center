@@ -406,7 +406,7 @@ const PinnedAppsPopup = ({
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
+                      <div className={`relative w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
