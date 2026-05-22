@@ -328,7 +328,7 @@ const PinnedAppsPopup = ({
           </div>
           
           {/* 4 Equal Slots Grid */}
-          <div className="grid grid-cols-4 gap-2" style={{ width: 'min(90vw, 320px)' }}>
+          <div className="grid grid-cols-4 gap-3 sm:gap-4" style={{ width: 'min(92vw, clamp(360px, 38vw, 560px))' }}>
             {slots.map((pinnedApp, index) => {
               const isFocused = focusedIndex === index;
               
@@ -406,7 +406,7 @@ const PinnedAppsPopup = ({
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className={`relative w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
+                      <div className={`relative w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
                           alt={`${pinnedApp.name} icon`}
@@ -449,7 +449,7 @@ const PinnedAppsPopup = ({
                     `}
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
                         <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-gold transition-colors" />
                       </div>
                       <span className="text-xs text-slate-500 group-hover:text-brand-gold transition-colors">
