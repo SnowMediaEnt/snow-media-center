@@ -33,6 +33,7 @@ const ApkCacheViewer = () => {
   const [totalBytes, setTotalBytes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busyName, setBusyName] = useState<string | null>(null);
+  const cacheBusy = loading || busyName !== null;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,7 +57,21 @@ const ApkCacheViewer = () => {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (cacheBusy) return;
+    const active = document.activeElement as HTMLElement | null;
+    const root = document.querySelector('[data-apk-cache-root]');
+    if (!root || (active && root.contains(active) && !active.hasAttribute('disabled'))) return;
+
+    requestAnimationFrame(() => {
+      const first = document.querySelector<HTMLElement>('[data-apk-cache-first]');
+      first?.focus();
+      first?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [cacheBusy, files.length]);
+
   const deleteOne = async (name: string) => {
+    if (cacheBusy) return;
     setBusyName(name);
     try {
       const { deleted } = await AppManager.deleteCachedApk({ name });
@@ -77,6 +92,7 @@ const ApkCacheViewer = () => {
   };
 
   const installOne = async (file: CachedApkInfo) => {
+    if (cacheBusy) return;
     setBusyName(file.name);
     try {
       await AppManager.installApk({ filePath: file.path });
@@ -101,7 +117,7 @@ const ApkCacheViewer = () => {
 
 
   const deleteAll = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || cacheBusy) return;
     setLoading(true);
     try {
       for (const f of files) {
