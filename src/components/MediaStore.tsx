@@ -321,7 +321,7 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
 
     const el = document.querySelector(`[data-focus-id="${focusId}"]`) as HTMLElement;
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [focusedElement, detailFocusedElement, selectedProduct]);
 
 

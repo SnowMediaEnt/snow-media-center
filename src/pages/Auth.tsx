@@ -143,7 +143,7 @@ const Auth = () => {
     };
     const el = document.getElementById(idMap[focusedElement]);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       // Auto-focus input fields so user can type immediately
       if (el.tagName === 'INPUT' && document.activeElement !== el) {
         (el as HTMLInputElement).focus();

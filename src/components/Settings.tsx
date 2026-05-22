@@ -88,7 +88,7 @@ const Settings = ({ onBack }: SettingsProps) => {
             const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
             if (apkBtn) {
               apkBtn.focus();
-              apkBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              apkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }
           }
           return;
@@ -156,14 +156,14 @@ const Settings = ({ onBack }: SettingsProps) => {
             setFocusedElement('ui-content-bar-toggle');
             setTimeout(() => {
               const card = document.querySelector('[data-settings-focus="ui-content-bar-toggle"]') as HTMLElement | null;
-              card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
             setTimeout(() => {
               const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
               btn?.focus();
-              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              btn?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
@@ -203,7 +203,7 @@ const Settings = ({ onBack }: SettingsProps) => {
     }
 
     const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;

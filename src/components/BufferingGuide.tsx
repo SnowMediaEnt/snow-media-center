@@ -276,7 +276,7 @@ const BufferingGuide = ({
           if (target && target !== docActiveNow) {
             target.focus();
             lastFocusedRef.current = target;
-            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           }
           return;
         }
@@ -294,7 +294,7 @@ const BufferingGuide = ({
       }
       if (!activeEl) {
         focusables[0]?.focus();
-        focusables[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        focusables[0]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         return;
       }
 
@@ -309,7 +309,7 @@ const BufferingGuide = ({
           if (btn) {
             btn.focus();
             lastFocusedRef.current = btn;
-            btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             return;
           }
         }
@@ -321,7 +321,7 @@ const BufferingGuide = ({
         if (activeTab) {
           activeTab.focus();
           lastFocusedRef.current = activeTab;
-          activeTab.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          activeTab.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           return;
         }
       }
@@ -415,7 +415,7 @@ const BufferingGuide = ({
             next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           }
         } else {
-          next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       }
 

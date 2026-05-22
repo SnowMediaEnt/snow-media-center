@@ -499,7 +499,7 @@ const PinnedAppsPopup = ({
               setSelectorFocusIndex(next);
               const btn = selectorButtonsRef.current[next];
               btn?.focus();
-              btn?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              btn?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }}
           >
             {allSelectableApps.map((app, idx) => {

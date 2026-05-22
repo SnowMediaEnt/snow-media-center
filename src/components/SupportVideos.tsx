@@ -168,7 +168,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
     if (!el) return;
 
     // Use scrollIntoView for reliable cross-browser scrolling
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [focusedElement]);
 
   const handleVideoClick = (embedUrl: string) => {

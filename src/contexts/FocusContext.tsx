@@ -155,7 +155,7 @@ export const FocusProvider: React.FC<FocusProviderProps> = ({
     if (element?.ref.current) {
       element.ref.current.scrollIntoView({
         behavior: 'auto',
-        block: 'center',
+        block: 'nearest',
         inline: 'nearest',
       });
     }

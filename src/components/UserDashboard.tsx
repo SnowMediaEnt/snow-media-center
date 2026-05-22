@@ -186,7 +186,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     }
     const id = setTimeout(() => {
       const tab = document.querySelector('[role="tab"][data-state="active"]') as HTMLElement | null;
-      tab?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      tab?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
     return () => clearTimeout(id);
   }, [activeTab]);
@@ -196,7 +196,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     if (focusedElement !== 9 && focusedElement !== 10) return;
     const id = setTimeout(() => {
       const el = document.querySelector(`[data-dash-focus="true"]`) as HTMLElement | null;
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
     return () => clearTimeout(id);
   }, [focusedElement]);

@@ -711,7 +711,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
         focusTarget.focus({ preventScroll: true });
         if (!embedded) {
-          focusTarget.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+          focusTarget.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
         }
       }
     });

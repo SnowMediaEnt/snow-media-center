@@ -218,7 +218,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                   if (e.key === 'ArrowDown') {
                     const next = focusedIdx < 0 ? 0 : Math.min(focusedIdx + 1, msgs.length - 1);
                     msgs[next].focus();
-                    msgs[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    msgs[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   } else if (e.key === 'ArrowUp') {
                     if (focusedIdx <= 0) {
                       // exit upward releases focus back to scroll container
@@ -228,7 +228,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                     }
                     const next = focusedIdx - 1;
                     msgs[next].focus();
-                    msgs[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    msgs[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   } else if (e.key === 'PageDown') {
                     container.scrollBy({ top: container.clientHeight * 0.8, behavior: 'smooth' });
                   } else if (e.key === 'PageUp') {
@@ -359,7 +359,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
                 else if (e.key === 'ArrowUp') next = idx - cols;
                 if (next >= 0 && next < cards.length) {
                   cards[next].focus();
-                  cards[next].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  cards[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 }
               }}
             >
