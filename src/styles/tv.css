@@ -1,21 +1,47 @@
-/* TV-safe area padding for overscan - 5% margins for TV screens */
+/* TV-safe area padding for overscan and D-pad scroll alignment.
+   The scroll-padding is critical: scrollIntoView({ block: "nearest" })
+   should reveal the real top/bottom safe area, not stop with the first
+   button flush against the viewport edge. */
+:root {
+  --tv-safe-block: max(env(safe-area-inset-top), clamp(1.25rem, 5dvh, 5rem));
+  --tv-safe-inline: max(env(safe-area-inset-left), clamp(1.25rem, 5dvw, 6rem));
+  --tv-focus-scroll-margin-block: clamp(0.75rem, 2dvh, 2.5rem);
+  --tv-focus-scroll-margin-inline: clamp(0.75rem, 2dvw, 2.5rem);
+}
+
 .tv-safe { 
-  padding: 24px; 
+  padding: var(--tv-safe-block) var(--tv-safe-inline); 
 }
 
 /* Desktop/TV screens - increase safe area */
 @media (min-width: 1280px) { 
   .tv-safe { 
     /* 5% padding for standard TV overscan */
-    padding: 5vh 5vw; 
+    padding: var(--tv-safe-block) var(--tv-safe-inline); 
   } 
 }
 
 /* 4K screens need more generous safe areas */
 @media (min-width: 1920px) and (min-height: 1080px) {
   .tv-safe {
-    padding: 5vh 5vw;
+    padding: var(--tv-safe-block) var(--tv-safe-inline);
   }
+}
+
+[data-app-scroll-root],
+.tv-safe-scroll,
+.tv-scroll-container {
+  scroll-padding-block: var(--tv-safe-block);
+  scroll-padding-inline: var(--tv-safe-inline);
+}
+
+[data-tv-focus-id],
+[data-focus-id],
+[data-settings-focus],
+[data-support-tv-focus-id],
+[data-dash-focus] {
+  scroll-margin-block: var(--tv-focus-scroll-margin-block);
+  scroll-margin-inline: var(--tv-focus-scroll-margin-inline);
 }
 
 /* Focus styles for TV navigation */
