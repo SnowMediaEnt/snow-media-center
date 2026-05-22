@@ -49,7 +49,17 @@ export async function downloadApkToCache(
   if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
     downloadUrl = `https://${downloadUrl}`;
   }
-  
+
+  // Cache-bust the APK URL so Cloudflare / Hostwinds / WebView cache can't
+  // hand us yesterday's binary when the publisher just replaced the file.
+  try {
+    const u = new URL(downloadUrl);
+    u.searchParams.set('ts', String(Date.now()));
+    downloadUrl = u.toString();
+  } catch {
+    downloadUrl += (downloadUrl.includes('?') ? '&' : '?') + 'ts=' + Date.now();
+  }
+
   console.log('[APK] Final download URL:', downloadUrl);
 
   // Report initial progress
