@@ -449,7 +449,7 @@ const PinnedAppsPopup = ({
                     `}
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
                         <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-gold transition-colors" />
                       </div>
                       <span className="text-xs text-slate-500 group-hover:text-brand-gold transition-colors">
