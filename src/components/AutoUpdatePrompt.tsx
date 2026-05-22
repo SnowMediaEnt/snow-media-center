@@ -99,15 +99,48 @@ const AutoUpdatePrompt = () => {
     };
   }, [currentVersion, currentVersionCode, isLoading]);
 
-  // Auto-focus primary button
+  // Auto-focus primary button + trap focus/back so background D-pad can't steal it
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => {
+    const focusPrimary = () => {
       const btn = document.querySelector<HTMLButtonElement>('[data-autoupdate-primary="true"]');
       btn?.focus();
-    }, 80);
-    return () => clearTimeout(t);
-  }, [open]);
+    };
+    const t1 = setTimeout(focusPrimary, 80);
+    const t2 = setTimeout(focusPrimary, 300);
+    const t3 = setTimeout(focusPrimary, 800);
+
+    // If something else grabs focus while the modal is open, pull it back.
+    const onFocusIn = (e: FocusEvent) => {
+      const dialog = document.querySelector('[data-autoupdate-dialog="true"]');
+      if (dialog && e.target instanceof Node && !dialog.contains(e.target)) {
+        focusPrimary();
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+
+    // Swallow Back/Escape at capture phase so it doesn't bubble to global nav
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'GoBack' || (e as any).keyCode === 4) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!installing) {
+          if (info?.version) {
+            try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ }
+          }
+          setOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+      document.removeEventListener('focusin', onFocusIn);
+      window.removeEventListener('keydown', onKey, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, installing, info?.version]);
 
   const snooze = () => {
     if (info?.version) {
@@ -173,9 +206,11 @@ const AutoUpdatePrompt = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[125] bg-black/85 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[2147483000] bg-black/85 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
+      data-autoupdate-dialog="true"
+      onClick={(e) => e.stopPropagation()}
     >
       <Card className="w-full max-w-md bg-gradient-to-br from-blue-900 to-slate-900 border-blue-500/40 p-6 relative shadow-2xl">
         <Button
