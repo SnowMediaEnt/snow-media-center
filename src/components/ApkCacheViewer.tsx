@@ -33,6 +33,7 @@ const ApkCacheViewer = () => {
   const [totalBytes, setTotalBytes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busyName, setBusyName] = useState<string | null>(null);
+  const cacheBusy = loading || busyName !== null;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,7 +57,21 @@ const ApkCacheViewer = () => {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (cacheBusy) return;
+    const active = document.activeElement as HTMLElement | null;
+    const root = document.querySelector('[data-apk-cache-root]');
+    if (!root || (active && root.contains(active) && !active.hasAttribute('disabled'))) return;
+
+    requestAnimationFrame(() => {
+      const first = document.querySelector<HTMLElement>('[data-apk-cache-first]');
+      first?.focus();
+      first?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [cacheBusy, files.length]);
+
   const deleteOne = async (name: string) => {
+    if (cacheBusy) return;
     setBusyName(name);
     try {
       const { deleted } = await AppManager.deleteCachedApk({ name });
@@ -77,6 +92,7 @@ const ApkCacheViewer = () => {
   };
 
   const installOne = async (file: CachedApkInfo) => {
+    if (cacheBusy) return;
     setBusyName(file.name);
     try {
       await AppManager.installApk({ filePath: file.path });
@@ -101,7 +117,7 @@ const ApkCacheViewer = () => {
 
 
   const deleteAll = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || cacheBusy) return;
     setLoading(true);
     try {
       for (const f of files) {
@@ -156,7 +172,6 @@ const ApkCacheViewer = () => {
         <div className="flex gap-2">
           <Button
             onClick={refresh}
-            disabled={loading}
             variant="outline"
             size="sm"
             data-apk-cache-first
@@ -172,13 +187,12 @@ const ApkCacheViewer = () => {
             }}
             className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-gold focus:scale-110 focus:outline-none transition-all"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           {files.length > 0 && (
             <Button
               onClick={deleteAll}
-              disabled={loading}
               variant="outline"
               size="sm"
               data-apk-clear-all
@@ -235,7 +249,6 @@ const ApkCacheViewer = () => {
                   }
                 }}
                 onClick={() => installOne(f)}
-                disabled={busyName === f.name}
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-4 focus:ring-brand-gold focus:scale-110 transition-all"
                 title="Install this APK"
@@ -260,7 +273,6 @@ const ApkCacheViewer = () => {
                   }
                 }}
                 onClick={() => deleteOne(f.name)}
-                disabled={busyName === f.name}
                 variant="outline"
                 size="sm"
                 className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:outline-none focus:ring-4 focus:ring-red-300 focus:scale-110 transition-all"
