@@ -172,7 +172,6 @@ const ApkCacheViewer = () => {
         <div className="flex gap-2">
           <Button
             onClick={refresh}
-            disabled={loading}
             variant="outline"
             size="sm"
             data-apk-cache-first
@@ -188,13 +187,12 @@ const ApkCacheViewer = () => {
             }}
             className="bg-blue-600/20 border-blue-500/50 text-blue-200 hover:bg-blue-600/30 focus:ring-4 focus:ring-brand-gold focus:scale-110 focus:outline-none transition-all"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           {files.length > 0 && (
             <Button
               onClick={deleteAll}
-              disabled={loading}
               variant="outline"
               size="sm"
               data-apk-clear-all
@@ -251,7 +249,6 @@ const ApkCacheViewer = () => {
                   }
                 }}
                 onClick={() => installOne(f)}
-                disabled={busyName === f.name}
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-4 focus:ring-brand-gold focus:scale-110 transition-all"
                 title="Install this APK"
@@ -276,7 +273,6 @@ const ApkCacheViewer = () => {
                   }
                 }}
                 onClick={() => deleteOne(f.name)}
-                disabled={busyName === f.name}
                 variant="outline"
                 size="sm"
                 className="bg-red-600/20 border-red-500/50 text-red-200 hover:bg-red-600/30 focus:outline-none focus:ring-4 focus:ring-red-300 focus:scale-110 transition-all"
