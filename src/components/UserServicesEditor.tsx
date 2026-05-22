@@ -103,7 +103,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
     setFocusedIndex(0);
     const id = window.setTimeout(() => {
       focusRefs.current[0]?.focus();
-      focusRefs.current[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      focusRefs.current[0]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 75);
     return () => window.clearTimeout(id);
   }, [open, loading]);
@@ -118,7 +118,7 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
     if (!open || loading) return;
     const el = focusRefs.current[focusedIndex];
     el?.focus();
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [focusedIndex, loading, open]);
 
   useEffect(() => {

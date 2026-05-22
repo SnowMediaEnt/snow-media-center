@@ -41,7 +41,7 @@ export const snapAllTVScrollToTop = (extraElements: Array<HTMLElement | null | u
       document.documentElement,
       document.body,
       ...extraElements,
-      ...Array.from(document.querySelectorAll<HTMLElement>('.tv-scroll-container, .tv-safe-scroll')),
+      ...Array.from(document.querySelectorAll<HTMLElement>('[data-app-scroll-root], .tv-scroll-container, .tv-safe-scroll')),
     ]);
     elements.forEach(snapElement);
   };

@@ -138,7 +138,7 @@ const ApkCacheViewer = () => {
     const el = document.querySelector(sel) as HTMLElement | null;
     if (el) {
       el.focus();
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   };
 
@@ -160,7 +160,7 @@ const ApkCacheViewer = () => {
             variant="outline"
             size="sm"
             data-apk-cache-first
-            onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+            onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
             onKeyDown={(e) => {
               if (e.key === 'ArrowRight' && files.length > 0) {
                 e.preventDefault();
@@ -182,7 +182,7 @@ const ApkCacheViewer = () => {
               variant="outline"
               size="sm"
               data-apk-clear-all
-              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowLeft') {
                   e.preventDefault();
@@ -220,7 +220,7 @@ const ApkCacheViewer = () => {
               </div>
               <Button
                 data-apk-row-install={idx}
-                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowRight') {
                     e.preventDefault();
@@ -245,7 +245,7 @@ const ApkCacheViewer = () => {
               </Button>
               <Button
                 data-apk-row-delete={idx}
-                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+                onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowLeft') {
                     e.preventDefault();

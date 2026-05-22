@@ -308,7 +308,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     el.scrollIntoView({
       behavior: 'smooth',
-      block: 'center',
+      block: 'nearest',
       inline: 'nearest',
     });
   }, [focusedElement]);
