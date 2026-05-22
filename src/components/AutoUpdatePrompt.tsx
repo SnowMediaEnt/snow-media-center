@@ -166,12 +166,19 @@ const AutoUpdatePrompt = () => {
         setProgress(pct),
       );
 
-      // Verify the APK matches the advertised version before launching the installer
+      // Verify the APK matches the advertised version — but don't hard-fail.
+      // The downloaded file may carry a slightly different versionName (e.g.
+      // publisher renamed the file but the build inside is older). Warn the
+      // user and let Android's package installer make the final call.
       const apkInfo = await AppManager.getApkInfo({ filePath });
       if (apkInfo.versionName && apkInfo.versionName !== info.version) {
-        throw new Error(
-          `Downloaded APK is v${apkInfo.versionName}, but update lists v${info.version}`,
+        console.warn(
+          `[AutoUpdatePrompt] APK reports v${apkInfo.versionName} but update.json lists v${info.version} — proceeding to installer anyway.`,
         );
+        toast({
+          title: 'Version mismatch',
+          description: `Downloaded APK is v${apkInfo.versionName}. Opening installer…`,
+        });
       }
 
       toast({

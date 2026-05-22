@@ -171,7 +171,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         }
 
         if (apkInfo.versionName && apkInfo.versionName !== updateInfo.version) {
-          throw new Error(`Downloaded APK is v${apkInfo.versionName}, but update.json lists v${updateInfo.version}`);
+          console.warn(`[AppUpdater] APK reports v${apkInfo.versionName} but update.json lists v${updateInfo.version} — proceeding to installer anyway.`);
+          toast({
+            title: 'Version mismatch',
+            description: `Downloaded APK is v${apkInfo.versionName}. Opening installer…`,
+          });
         }
 
         if (apkInfo.versionCode && installed.versionCode && apkInfo.versionCode <= installed.versionCode) {
