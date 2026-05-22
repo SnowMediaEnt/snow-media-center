@@ -93,6 +93,33 @@ const Settings = ({ onBack }: SettingsProps) => {
           }
           return;
         }
+        if (event.key === 'ArrowUp') {
+          const active = document.activeElement as HTMLElement | null;
+          const inApkCache = !!active?.closest('[data-apk-cache-root]');
+          if (inApkCache) {
+            event.preventDefault();
+            event.stopPropagation();
+            const checkBtn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
+            if (checkBtn) {
+              checkBtn.focus();
+              checkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+            return;
+          }
+          // Already on AppUpdater button — go back up to the tab row.
+          if (active?.matches('[data-app-updater-btn="check"]') ||
+              active?.matches('[data-app-updater-btn="download"]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            setFocusedElement('tab-updates');
+            return;
+          }
+          // Fallback: any other focus inside updates content — go to tab row.
+          event.preventDefault();
+          event.stopPropagation();
+          setFocusedElement('tab-updates');
+          return;
+        }
         return;
       }
       const target = event.target as HTMLElement;
