@@ -104,6 +104,7 @@ export const useAuth = () => {
 
       // Sync to Wix in background (non-blocking)
       if (!error && data.user) {
+        try { trackEvent('sign_up', 'auth', { email }); } catch { void 0; }
         syncUserToWix(email, fullName);
       }
       
