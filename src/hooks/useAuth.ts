@@ -163,6 +163,7 @@ export const useAuth = () => {
 
   const signOut = async () => {
     console.log('[Auth] Signing out');
+    try { trackEvent('sign_out', 'auth'); } catch { void 0; }
     const { error } = await supabase.auth.signOut();
     return { error };
   };
