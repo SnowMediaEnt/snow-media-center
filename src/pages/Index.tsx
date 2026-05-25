@@ -26,6 +26,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { InstalledApp } from '@/data/installedApps';
+import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
 const InstallApps = lazy(() => import('@/components/InstallApps'));
