@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
+import { trackEvent } from '@/lib/analytics';
 
 const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
 
