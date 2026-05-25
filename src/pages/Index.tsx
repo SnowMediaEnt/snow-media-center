@@ -215,6 +215,7 @@ const Index = () => {
         app.package_name ||
         generatePackageName(app.name);
       console.log(`[PinnedLaunch] ${app.name} → ${packageName}`);
+      try { trackAppLaunch(app.name); trackEvent('pinned_app_launched', 'apps', { app: app.name, packageName }); } catch { void 0; }
       await AppManager.launch({ packageName });
       toast({
         title: 'Launching App',
