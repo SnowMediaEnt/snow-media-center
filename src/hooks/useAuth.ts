@@ -138,6 +138,7 @@ export const useAuth = () => {
       }
       
       console.log('[Auth] SignIn success:', data.user?.email);
+      try { trackEvent('sign_in', 'auth', { method: 'password', email: data.user?.email }); } catch { void 0; }
 
       // Fire-and-forget Wix credit sync
       if (data.user?.email) {
