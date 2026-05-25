@@ -26,6 +26,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { InstalledApp } from '@/data/installedApps';
+import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
 const InstallApps = lazy(() => import('@/components/InstallApps'));
@@ -214,6 +215,7 @@ const Index = () => {
         app.package_name ||
         generatePackageName(app.name);
       console.log(`[PinnedLaunch] ${app.name} → ${packageName}`);
+      try { trackAppLaunch(app.name); trackEvent('pinned_app_launched', 'apps', { app: app.name, packageName }); } catch { void 0; }
       await AppManager.launch({ packageName });
       toast({
         title: 'Launching App',
@@ -255,6 +257,11 @@ const Index = () => {
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
+  // Track screen views for analytics
+  useEffect(() => {
+    try { trackScreenView(currentView || 'home'); } catch { void 0; }
+  }, [currentView]);
+
 
   // Show exit toast on home screen
   useEffect(() => {

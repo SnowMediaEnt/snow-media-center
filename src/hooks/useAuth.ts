@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady } from '@/utils/storage';
 import { Capacitor } from '@capacitor/core';
+import { trackEvent } from '@/lib/analytics';
 
 const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
 
@@ -103,6 +104,7 @@ export const useAuth = () => {
 
       // Sync to Wix in background (non-blocking)
       if (!error && data.user) {
+        try { trackEvent('sign_up', 'auth', { email }); } catch { void 0; }
         syncUserToWix(email, fullName);
       }
       
@@ -137,6 +139,7 @@ export const useAuth = () => {
       }
       
       console.log('[Auth] SignIn success:', data.user?.email);
+      try { trackEvent('sign_in', 'auth', { method: 'password', email: data.user?.email }); } catch { void 0; }
 
       // Fire-and-forget Wix credit sync
       if (data.user?.email) {
@@ -160,6 +163,7 @@ export const useAuth = () => {
 
   const signOut = async () => {
     console.log('[Auth] Signing out');
+    try { trackEvent('sign_out', 'auth'); } catch { void 0; }
     const { error } = await supabase.auth.signOut();
     return { error };
   };
