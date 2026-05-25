@@ -232,9 +232,16 @@ export const initAnalytics = () => {
 
       // Listen for auth changes to attach user_id to subsequent events
       safe(() => {
-        supabase.auth.onAuthStateChange((_event, session) => {
+        supabase.auth.onAuthStateChange((event, session) => {
+          const prevUserId = userId;
           userId = session?.user?.id ?? null;
           if (userId) void upsertDevice();
+          if (event === 'SIGNED_IN' && userId && userId !== prevUserId) {
+            trackEvent('user_signed_in', 'auth', { email: session?.user?.email });
+          }
+          if (event === 'SIGNED_OUT') {
+            trackEvent('user_signed_out', 'auth');
+          }
         });
       });
 
