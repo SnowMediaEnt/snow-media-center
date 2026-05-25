@@ -257,6 +257,11 @@ const Index = () => {
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
+  // Track screen views for analytics
+  useEffect(() => {
+    try { trackScreenView(currentView || 'home'); } catch { void 0; }
+  }, [currentView]);
+
 
   // Show exit toast on home screen
   useEffect(() => {
