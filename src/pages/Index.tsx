@@ -398,16 +398,22 @@ const Index = () => {
 
 
         case 'ArrowUp':
-          // If on Main Apps (button 0), go into the pinned apps popup
+          // If on Main Apps (button 0), open the pinned apps popup first
           if (focusedButton === 0 && !isInPopup) {
             setIsInPopup(true);
             setPopupFocusIndex(0);
             return;
           }
 
-          if (focusedButton >= 0 && mediaBarEnabled) {
-            setFocusedButton(-99);
-            setIsInMediaBar(true);
+          if (focusedButton >= 0) {
+            if (mediaBarEnabled) {
+              setFocusedButton(-99);
+              setIsInMediaBar(true);
+            } else {
+              // No content bar — jump directly to the top row.
+              // Left/middle cards land on Sign In / Dashboard, right card on Settings.
+              setFocusedButton(focusedButton === 2 ? -1 : -2);
+            }
           }
           break;
 
