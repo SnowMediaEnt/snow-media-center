@@ -399,22 +399,24 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   };
 
   const handleDelete = async (id: string, filePath: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-    
+    // Note: window.confirm is unreliable on Android TV WebViews — proceed directly.
     try {
       await deleteAsset(id, filePath);
       toast({
         title: "Asset deleted",
-        description: `${name} has been deleted successfully.`,
+        description: `${name} has been deleted.`,
       });
-    } catch (error) {
+      window.dispatchEvent(new Event('backgroundRefresh'));
+    } catch (error: any) {
+      console.error('[MediaManager] Delete failed:', error);
       toast({
         title: "Delete failed",
-        description: "Failed to delete asset. Please try again.",
+        description: error?.message || "Failed to delete asset. Please try again.",
         variant: "destructive",
       });
     }
   };
+
 
   const handleGenerateImage = async () => {
     if (!generatePrompt.trim()) {
