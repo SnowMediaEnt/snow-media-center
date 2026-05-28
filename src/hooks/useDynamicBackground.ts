@@ -47,6 +47,18 @@ export const useDynamicBackground = (section: string = 'home') => {
     const handleBackgroundRefresh = () => fetchBackgrounds();
     window.addEventListener('backgroundRefresh', handleBackgroundRefresh);
 
+    // Refetch when the tab/app regains focus so signed-out viewers
+    // pick up deactivations they couldn't receive via realtime (RLS).
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchBackgrounds();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleBackgroundRefresh);
+
+    // Periodic poll fallback (60s) — covers anon clients where realtime
+    // UPDATE/DELETE events are filtered out by RLS.
+    const pollId = setInterval(fetchBackgrounds, 60000);
+
     channelRef.current = supabase
       .channel('media_assets_changes')
       .on(
@@ -63,12 +75,16 @@ export const useDynamicBackground = (section: string = 'home') => {
 
     return () => {
       window.removeEventListener('backgroundRefresh', handleBackgroundRefresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleBackgroundRefresh);
+      clearInterval(pollId);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
   }, [fetchBackgrounds]);
+
 
   // Local rotation — no network traffic
   useEffect(() => {
