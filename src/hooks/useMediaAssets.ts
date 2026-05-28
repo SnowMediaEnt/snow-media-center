@@ -144,14 +144,20 @@ export const useMediaAssets = () => {
 
   const deleteAsset = async (id: string, filePath: string) => {
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('media-assets')
-        .remove([filePath]);
+      // Try to delete from storage, but don't block DB removal if it fails
+      // (file may already be gone, or owned by another user)
+      try {
+        const { error: storageError } = await supabase.storage
+          .from('media-assets')
+          .remove([filePath]);
+        if (storageError) {
+          console.warn('[MediaAssets] Storage delete failed, continuing with DB delete:', storageError);
+        }
+      } catch (storageErr) {
+        console.warn('[MediaAssets] Storage delete threw, continuing:', storageErr);
+      }
 
-      if (storageError) throw storageError;
-
-      // Delete from database
+      // Delete from database (this is what matters for the UI)
       const { error: deleteError } = await supabase
         .from('media_assets')
         .delete()
@@ -160,7 +166,6 @@ export const useMediaAssets = () => {
       if (deleteError) throw deleteError;
       await fetchAssets();
       // Notify background hook so the active background clears immediately
-      // (realtime DELETE events can be missed under RLS or stale subscriptions)
       window.dispatchEvent(new Event('backgroundRefresh'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete asset';
@@ -168,6 +173,7 @@ export const useMediaAssets = () => {
       throw err;
     }
   };
+
 
   const getActiveAssets = (assetType?: MediaAsset['asset_type'], section?: string) => {
     return assets.filter(asset => {
