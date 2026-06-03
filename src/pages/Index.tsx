@@ -21,7 +21,7 @@ import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useToast } from '@/hooks/use-toast';
-import { useDynamicBackground } from '@/hooks/useDynamicBackground';
+
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
@@ -79,12 +79,13 @@ const HomeActionCard = memo(({
       data-focused={isFocused ? 'true' : 'false'}
       data-home-card={index}
       className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
+        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full
         ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
         ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
         ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
         ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
       `}
+
       onClick={onActivate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -102,9 +103,10 @@ const HomeActionCard = memo(({
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
         </div>
-        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
+        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
           {button.title}
         </h3>
+
         {layoutMode === 'grid' && (
           <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
             {button.description}
@@ -175,7 +177,7 @@ const Index = () => {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const { backgroundUrl, hasBackground } = useDynamicBackground('home');
+  
   const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
@@ -517,23 +519,8 @@ const Index = () => {
       {/* Home screen content */}
       {currentView === 'home' && (
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
-          {/* Dynamic background image or fallback gradient */}
-          {hasBackground ? (
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-500 [.native-low-memory_&]:transition-none"
-              style={{ backgroundImage: `url(${backgroundUrl})` }}
-            />
-          ) : (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
-              <div className="absolute inset-0 opacity-30">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.4),transparent_30%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(135,206,235,0.3),transparent_40%)]" />
-              </div>
-            </>
-          )}
-          {/* Dark overlay for text readability when using custom background */}
-          {hasBackground && <div className="absolute inset-0 bg-black/30" />}
+          {/* Background is provided by App.tsx (single static gradient on all devices). */}
+
 
           {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
               doesn't crop the buttons or overlap them with the clock. */}
@@ -730,12 +717,13 @@ const Index = () => {
               const effectiveLayout: 'grid' | 'row' = 'row';
               return (
             <div 
-              className="justify-center w-full mx-auto flex flex-nowrap"
+              className="justify-center items-stretch w-full mx-auto flex flex-nowrap"
               style={{ 
                 gap: 'clamp(2rem, 5vw, 6rem)',
                 maxWidth: '95vw'
               }}
             >
+
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
                 const activateCard = () => {
@@ -758,7 +746,7 @@ const Index = () => {
                 // Wrap Main Apps card (index 0) with pinned apps popup
                 if (index === 0) {
                   return (
-                    <div key={index} className="relative">
+                    <div key={index} className="relative h-full">
                       <PinnedAppsPopup
                         pinnedApps={pinnedApps}
                         apps={apps}
@@ -791,7 +779,7 @@ const Index = () => {
                   );
                 }
                 
-                return <div key={index}>{cardContent}</div>;
+                return <div key={index} className="h-full">{cardContent}</div>;
               })}
             </div>
               );
