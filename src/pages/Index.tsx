@@ -177,7 +177,7 @@ const Index = () => {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const { backgroundUrl, hasBackground } = useDynamicBackground('home');
+  
   const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
