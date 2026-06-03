@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, SERVICE_WARN_DAYS, type UserService } from '@/hooks/useUserServices';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 export interface AppAlert {
   id: string;
@@ -98,12 +99,12 @@ export const useAppAlerts = () => {
       )
       .subscribe();
 
-    // Re-fetch every 60s as a safety net
-    const interval = setInterval(fetchAlerts, 60_000);
+    // Re-fetch every 60s as a safety net (paused while backgrounded)
+    const cancelInterval = setPausableInterval(fetchAlerts, 60_000);
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(interval);
+      cancelInterval();
     };
   }, [fetchAlerts]);
 

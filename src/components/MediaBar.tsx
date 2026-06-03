@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
+import { setPausableInterval } from '@/utils/pausableInterval';
 import {
   Dialog,
   DialogContent,
@@ -204,8 +205,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       }
     };
     const t = window.setTimeout(load, 1500);
-    const i = window.setInterval(load, REFRESH_MS);
-    return () => { cancelled = true; clearTimeout(t); clearInterval(i); };
+    const cancelInterval = setPausableInterval(load, REFRESH_MS);
+    return () => { cancelled = true; clearTimeout(t); cancelInterval(); };
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -222,10 +223,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   // Auto-rotate every 30s (paused on hover/focus/active)
   useEffect(() => {
     if (paused || active || totalPages <= 1) return;
-    const id = window.setInterval(() => {
+    return setPausableInterval(() => {
       setPageIdx((p) => (p + 1) % totalPages);
     }, AUTO_ROTATE_MS);
-    return () => clearInterval(id);
   }, [paused, active, totalPages]);
 
   useEffect(() => {
