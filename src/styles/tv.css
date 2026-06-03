@@ -88,13 +88,18 @@
 }
 
 [data-tv-focused="true"] {
+  /* Phase 6C: drop unconditional outline (some old Android TV WebViews
+     ignore :focus-visible and show a square outline), and let the
+     element keep its own border-radius so the box-shadow ring follows
+     the focused element's actual corner radius (rounded-3xl tiles get
+     a rounded ring on high-DPI Android boxes). */
+  outline: none !important;
   box-shadow:
     0 0 0 3px hsl(var(--brand-ice) / 0.98),
     0 0 18px 4px hsl(var(--brand-ice) / 0.42) !important;
   transform: scale(1.035);
   border-color: hsl(var(--brand-ice) / 0.95) !important;
   filter: brightness(1.08);
-  border-radius: 8px;
   position: relative;
   z-index: 30;
 }
