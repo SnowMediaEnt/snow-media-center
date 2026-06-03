@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
-import { trackAppLaunch } from '@/lib/analytics';
+import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
@@ -309,7 +309,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <TabsContent value="help" className="mt-0">
             <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
               <Button
-                onClick={() => setShowSpeedTest(true)}
+                onClick={() => { try { trackEvent('speed_test_launch', 'tools'); } catch { void 0; } setShowSpeedTest(true); }}
                 variant="outline"
                 size="lg"
                 tabIndex={0}

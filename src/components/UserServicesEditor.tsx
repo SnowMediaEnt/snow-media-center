@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/hooks/use-toast';
 import { Tv, Wifi, Calendar, Smartphone } from 'lucide-react';
 import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from '@/hooks/useUserServices';
+import { trackEvent } from '@/lib/analytics';
 
 const DEVICE_OPTIONS: string[] = [
   'Amazon Fire TV / Firestick',
@@ -268,6 +269,14 @@ const UserServicesEditor = ({ open, onClose, userId, email, adminMode = false, d
       }
 
       toast({ title: 'Saved', description: 'Your devices and services were updated.' });
+      try {
+        trackEvent('renewal_completed', 'renewals', {
+          services: services.map((s) => ({
+            name: s.service_name || s.service_type,
+            expiration_date: s.expiration_date,
+          })),
+        });
+      } catch { void 0; }
       window.dispatchEvent(new CustomEvent('userServicesRefresh'));
       onSaved?.();
       onClose();

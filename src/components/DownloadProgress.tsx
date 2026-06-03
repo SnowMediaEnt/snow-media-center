@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
+import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 
 interface DownloadProgressProps {
   app: {
@@ -230,6 +231,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       await AppManager.installApk({ filePath });
       
       setState('installed');
+      try { trackEvent('install', 'apps', { app: app.name }); } catch { void 0; }
       toast({
         title: "Installation Started",
         description: `${app.name} installer opened`,
@@ -273,6 +275,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
   const handleOpenApp = useCallback(async () => {
     try {
       const packageName = app.packageName || `com.${app.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.app`;
+      try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
       onClose();
     } catch (error) {

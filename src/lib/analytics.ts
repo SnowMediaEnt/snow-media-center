@@ -33,6 +33,7 @@ const FLUSH_MS = 5000;
 
 let deviceId: string = "";
 let sessionId: string | null = null;
+let sessionStartMs: number | null = null;
 let userId: string | null = null;
 let started = false;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -167,6 +168,7 @@ export const trackCrash = (message: string, stack?: string, component?: string) 
 
 const startSession = async () => {
   sessionId = uuid();
+  sessionStartMs = Date.now();
   const row = {
     session_id: sessionId,
     device_id: deviceId,
@@ -197,8 +199,11 @@ const upsertDevice = async () => {
 
 const endSession = () => {
   if (!sessionId) return;
-  // Best-effort end timestamp; do not block
-  const payload = { ended_at: new Date().toISOString() } as any;
+  const durationSeconds = sessionStartMs
+    ? Math.max(0, Math.round((Date.now() - sessionStartMs) / 1000))
+    : null;
+  const payload: any = { ended_at: new Date().toISOString() };
+  if (durationSeconds !== null) payload.duration_seconds = durationSeconds;
   safe(() => {
     void supabase.from("analytics_sessions").update(payload).eq("session_id", sessionId!);
   });
@@ -297,7 +302,12 @@ export const trackScreenView = (screen: string) =>
   trackEvent("screen_view", "navigation", { screen });
 export const trackButtonClick = (label: string, screen?: string) =>
   trackEvent("button_click", "interaction", { label, screen });
-export const trackAppLaunch = (app: string) =>
+export const trackAppLaunch = (app: string) => {
   trackEvent("app_launched", "apps", { app });
+  try {
+    const slug = (app || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (slug) trackEvent(`${slug}_launch`, "apps", { app });
+  } catch {}
+};
 export const trackAlertShown = (title: string) =>
   trackEvent("alert_shown", "alerts", { title });

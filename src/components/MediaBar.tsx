@@ -5,6 +5,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { trackAppLaunch } from '@/lib/analytics';
 import {
   Dialog,
   DialogContent,
@@ -156,12 +157,14 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
     }
 
     console.info('[MediaBar] Plex native play attempt', { ...logPayload, generatedIntent: playLink });
+    try { trackAppLaunch('Plex'); } catch { void 0; }
     await AppManager.openUrl({ url: playLink, packageName: PLEX_ANDROID_PACKAGE });
   } catch (err) {
     console.warn('[MediaBar] Plex native play failed — opening Plex Home', { ...logPayload, err, fallbackUsed: true });
     toast({ title: "Couldn't start playback", description: 'Opening Plex instead.' });
     try {
       const { AppManager } = await import('@/capacitor/AppManager');
+      try { trackAppLaunch('Plex'); } catch { void 0; }
       await AppManager.launch({ packageName: PLEX_ANDROID_PACKAGE });
     } catch (launchErr) {
       console.warn('[MediaBar] Plex Home fallback failed:', launchErr);
