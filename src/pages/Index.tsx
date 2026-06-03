@@ -519,23 +519,8 @@ const Index = () => {
       {/* Home screen content */}
       {currentView === 'home' && (
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
-          {/* Dynamic background image or fallback gradient */}
-          {hasBackground ? (
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-500 [.native-low-memory_&]:transition-none"
-              style={{ backgroundImage: `url(${backgroundUrl})` }}
-            />
-          ) : (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-blue-100/30 to-blue-200/20" />
-              <div className="absolute inset-0 opacity-30">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.4),transparent_30%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(135,206,235,0.3),transparent_40%)]" />
-              </div>
-            </>
-          )}
-          {/* Dark overlay for text readability when using custom background */}
-          {hasBackground && <div className="absolute inset-0 bg-black/30" />}
+          {/* Background is provided by App.tsx (single static gradient on all devices). */}
+
 
           {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
               doesn't crop the buttons or overlap them with the clock. */}
