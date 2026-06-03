@@ -33,6 +33,7 @@ const FLUSH_MS = 5000;
 
 let deviceId: string = "";
 let sessionId: string | null = null;
+let sessionStartMs: number | null = null;
 let userId: string | null = null;
 let started = false;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
