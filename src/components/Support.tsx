@@ -309,7 +309,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <TabsContent value="help" className="mt-0">
             <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
               <Button
-                onClick={() => setShowSpeedTest(true)}
+                onClick={() => { try { trackEvent('speed_test_launch', 'tools'); } catch { void 0; } setShowSpeedTest(true); }}
                 variant="outline"
                 size="lg"
                 tabIndex={0}
