@@ -104,7 +104,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   // Download in place (mirrors Main Apps) so the user stays inside the
   // Buffering Guide and doesn't lose their progress mid-flow.
