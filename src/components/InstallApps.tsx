@@ -632,7 +632,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
     try {
-      const { installed } = await AppManager.isInstalled({ packageName });
+      const installed = isPackageInstalled(packageName);
       if (!installed) {
         toast({
           title: "App not installed",
