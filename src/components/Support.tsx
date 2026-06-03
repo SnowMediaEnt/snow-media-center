@@ -82,8 +82,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const { AppManager } = await import('@/capacitor/AppManager');
       // Resolve the REAL installed package (handles aliases like ipvanish, surfshark, dreamstreams).
       const resolved = resolvePackageName(app.name, app.packageName) || app.packageName || generatePackageName(app.name);
-      const { installed } = await AppManager.isInstalled({ packageName: resolved });
-      if (!installed) {
+      // Phase 6A: use the cached installed-apps set — no per-click native isInstalled call.
+      if (!isPackageInstalled(resolved)) {
         toast({
           title: 'App not installed',
           description: `${app.name} isn't installed on this device.`,
