@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { App as CapApp } from "@capacitor/app";
 import Index from "./pages/Index";
@@ -18,7 +18,7 @@ import { initAnalytics } from "@/lib/analytics";
 try { initAnalytics(); } catch {}
 
 
-const queryClient = new QueryClient();
+
 
 const App = () => {
   // NOTE: Android back-button is handled exclusively in `src/hooks/useNavigation.ts`
@@ -63,34 +63,32 @@ const App = () => {
   }, []);
   
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div 
-          data-app-scroll-root
-          className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
-          style={{
-            background: 'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)'
-          }}
-        >
-          <div className="min-h-dvh bg-black/20">
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/qr-login" element={<QRLogin />} />
-                <Route path="/sso" element={<SsoConsume />} />
-                <Route path="/admin/knowledge" element={<AdminKnowledge />} />
-                <Route path="/welcome" element={<Welcome />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </div>
+    <TooltipProvider>
+      <div 
+        data-app-scroll-root
+        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
+        style={{
+          background: 'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)'
+        }}
+      >
+        <div className="min-h-dvh bg-black/20">
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/qr-login" element={<QRLogin />} />
+              <Route path="/sso" element={<SsoConsume />} />
+              <Route path="/admin/knowledge" element={<AdminKnowledge />} />
+              <Route path="/welcome" element={<Welcome />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
         </div>
-      </TooltipProvider>
-    </QueryClientProvider>
+      </div>
+    </TooltipProvider>
   );
 };
 
