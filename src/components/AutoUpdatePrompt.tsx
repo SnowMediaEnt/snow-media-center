@@ -78,10 +78,11 @@ const AutoUpdatePrompt = () => {
         // little "update available" triangle via useUpdateCheck) can react
         // without running its own timer/fetch.
         try {
-          window.dispatchEvent(
-            new CustomEvent('smc:update-info', { detail: { version: data.version } })
-          );
+          const __info = { version: data.version, versionCode: data.versionCode ?? null };
+          (window as any).__smcUpdateInfo = __info;
+          window.dispatchEvent(new CustomEvent('smc:update-info', { detail: __info }));
         } catch { /* ignore */ }
+
 
         const newerByCode =
           !!data.versionCode && !!currentVersionCode && data.versionCode > currentVersionCode;
