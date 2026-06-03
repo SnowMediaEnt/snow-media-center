@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { generatePackageName } from '@/utils/downloadApk';
 import type { AppData } from '@/hooks/useAppData';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
-import { trackAppLaunch } from '@/lib/analytics';
+import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
