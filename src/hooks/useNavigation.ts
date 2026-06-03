@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { App as CapApp } from '@capacitor/app';
 
 interface NavigationState {
@@ -110,46 +110,65 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     setLastBackPressTime(0);
   }, [initialView]);
 
-  // Capacitor back button handling for Android TV
+  // ──────────────────────────────────────────────────────────────────────────
+  // Phase 6B.1: register the native backButton listener ONCE per mount.
+  // Previously this effect depended on currentView / lastBackPressTime /
+  // backPressCount / goBack / onRootBack, so every navigation tore the native
+  // listener down and re-added it (154 add/remove calls / 60s on device).
+  // We now keep all changing values in refs and read them from the single
+  // long-lived handler — behavior is identical.
+  // ──────────────────────────────────────────────────────────────────────────
+  const currentViewRef = useRef(navigationState.currentView);
+  const lastBackPressTimeRef = useRef(lastBackPressTime);
+  const backPressCountRef = useRef(backPressCount);
+  const goBackRef = useRef(goBack);
+  const onRootBackRef = useRef(onRootBack);
+
+  useEffect(() => { currentViewRef.current = navigationState.currentView; }, [navigationState.currentView]);
+  useEffect(() => { lastBackPressTimeRef.current = lastBackPressTime; }, [lastBackPressTime]);
+  useEffect(() => { backPressCountRef.current = backPressCount; }, [backPressCount]);
+  useEffect(() => { goBackRef.current = goBack; }, [goBack]);
+  useEffect(() => { onRootBackRef.current = onRootBack; }, [onRootBack]);
+
   useEffect(() => {
     let backButtonHandler: CapacitorListenerHandle | undefined;
-    
+    let cancelled = false;
+
     const setupBackHandler = async () => {
       try {
-        backButtonHandler = await CapApp.addListener('backButton', ({ canGoBack }) => {
+        const handle = await CapApp.addListener('backButton', ({ canGoBack }) => {
           // If an overlay (BufferingGuide, SpeedTest, etc.) just handled this
-          // back press, do not also pop the underlying view — otherwise a
-          // single Back press leaks through both handlers and skips Support
-          // straight to Home.
+          // back press, do not also pop the underlying view.
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
           const guideOpen = (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen === true;
           if (guideOpen || Date.now() - handledAt < 350) {
             return;
           }
 
-          console.log('Capacitor back button pressed, current view:', navigationState.currentView, 'canGoBack:', canGoBack);
+          const currentView = currentViewRef.current;
+          console.log('Capacitor back button pressed, current view:', currentView, 'canGoBack:', canGoBack);
 
-          // Handle back navigation based on current view
-          if (navigationState.currentView !== 'home') {
-            // If we're not on home, go back one step
-            goBack();
+          if (currentView !== 'home') {
+            goBackRef.current?.();
           } else {
-            if (onRootBack?.()) {
+            if (onRootBackRef.current?.()) {
               return;
             }
             // We're on home - implement double-press to exit
             const now = Date.now();
-            if (now - lastBackPressTime < 2000 && backPressCount === 1) {
-              // Double press detected within 2 seconds - exit app
+            if (now - lastBackPressTimeRef.current < 2000 && backPressCountRef.current === 1) {
               CapApp.exitApp();
             } else {
-              // First press - set counter and timer
               setLastBackPressTime(now);
               setBackPressCount(1);
             }
           }
         });
-
+        if (cancelled) {
+          handle?.remove?.();
+        } else {
+          backButtonHandler = handle;
+        }
       } catch (error) {
         console.log('Capacitor not available, using fallback back handling');
       }
@@ -158,11 +177,12 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     setupBackHandler();
 
     return () => {
+      cancelled = true;
       if (backButtonHandler?.remove) {
         backButtonHandler.remove();
       }
     };
-  }, [navigationState.currentView, lastBackPressTime, backPressCount, goBack, onRootBack]);
+  }, []);
 
   // Reset back press count after timeout
   useEffect(() => {
