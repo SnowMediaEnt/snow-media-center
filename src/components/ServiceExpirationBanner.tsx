@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useMyUserServices, findUrgentService, daysUntil } from '@/hooks/useUserServices';
+import { trackEvent } from '@/lib/analytics';
 
 interface Props {
   onOpenDashboard?: () => void;
@@ -8,6 +10,20 @@ interface Props {
 const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
   const { services } = useMyUserServices();
   const urgent = findUrgentService(services);
+  const reportedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!urgent) return;
+    if (reportedRef.current === urgent.id) return;
+    reportedRef.current = urgent.id;
+    try {
+      trackEvent('renewal_reminder_open', 'renewals', {
+        service: urgent.service_name || urgent.service_type,
+        days: daysUntil(urgent.expiration_date),
+      });
+    } catch { void 0; }
+  }, [urgent]);
+
   if (!urgent) return null;
 
   const days = daysUntil(urgent.expiration_date);
@@ -20,10 +36,20 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
     else { msg = `${name} expires in ${days} day${days === 1 ? '' : 's'}.`; }
   }
 
+  const handleClick = () => {
+    try {
+      trackEvent('renewal_reminder_click', 'renewals', {
+        service: urgent.service_name || urgent.service_type,
+        days,
+      });
+    } catch { void 0; }
+    onOpenDashboard?.();
+  };
+
   return (
     <button
       type="button"
-      onClick={onOpenDashboard}
+      onClick={handleClick}
       className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg transition-all hover:scale-105 ${
         critical
           ? 'bg-red-600 text-white shadow-red-500/40'
