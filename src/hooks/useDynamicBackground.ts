@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 /**
  * Fetches background assets ONCE per section + realtime change, then rotates
  * through them client-side every 30s without hitting Supabase each tick.
+ *
+ * Refresh triggers (kept minimal):
+ *  - mount
+ *  - Supabase realtime channel on `media_assets`
+ *  - explicit `backgroundRefresh` window event (fired after admin mutations)
+ *  - app/tab resume (one lightweight refetch when coming back to foreground)
  */
 export const useDynamicBackground = (section: string = 'home') => {
   const [backgrounds, setBackgrounds] = useState<string[]>([]);
@@ -47,17 +54,12 @@ export const useDynamicBackground = (section: string = 'home') => {
     const handleBackgroundRefresh = () => fetchBackgrounds();
     window.addEventListener('backgroundRefresh', handleBackgroundRefresh);
 
-    // Refetch when the tab/app regains focus so signed-out viewers
-    // pick up deactivations they couldn't receive via realtime (RLS).
+    // One lightweight refresh-on-resume covers signed-out viewers who miss
+    // RLS-filtered realtime UPDATE/DELETE events.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') fetchBackgrounds();
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleBackgroundRefresh);
-
-    // Periodic poll fallback (60s) — covers anon clients where realtime
-    // UPDATE/DELETE events are filtered out by RLS.
-    const pollId = setInterval(fetchBackgrounds, 60000);
 
     channelRef.current = supabase
       .channel('media_assets_changes')
@@ -76,8 +78,6 @@ export const useDynamicBackground = (section: string = 'home') => {
     return () => {
       window.removeEventListener('backgroundRefresh', handleBackgroundRefresh);
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleBackgroundRefresh);
-      clearInterval(pollId);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -86,13 +86,16 @@ export const useDynamicBackground = (section: string = 'home') => {
   }, [fetchBackgrounds]);
 
 
-  // Local rotation — no network traffic
+  // Local rotation — no network traffic. Pauses when app is backgrounded
+  // to avoid wasted GPU/CPU on Android TV / STB devices.
   useEffect(() => {
     if (backgrounds.length <= 1) return;
-    const id = setInterval(() => {
+    const lowMem = typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('native-low-memory');
+    const rotateMs = lowMem ? 120000 : 30000; // slow rotation on low-memory boxes
+    return setPausableInterval(() => {
       setRotationIndex(prev => (prev + 1) % backgrounds.length);
-    }, 30000);
-    return () => clearInterval(id);
+    }, rotateMs);
   }, [backgrounds.length]);
 
   const currentBackground = backgrounds[rotationIndex] ?? null;
@@ -103,4 +106,3 @@ export const useDynamicBackground = (section: string = 'home') => {
     refresh: fetchBackgrounds,
   };
 };
-
