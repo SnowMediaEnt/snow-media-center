@@ -539,7 +539,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       console.log(`[Uninstall Settings] ${app.name} → ${packageName}`);
       // Verify the package is actually installed first — otherwise some Android
       // versions open SMC's own App Info page instead of the target.
-      const { installed } = await AppManager.isInstalled({ packageName });
+      const installed = isPackageInstalled(packageName);
       if (!installed) {
         toast({
           title: "App not installed",
