@@ -152,10 +152,17 @@ const BufferingGuide = ({
   // Support → Home in addition to closing the guide.
   useEffect(() => {
     (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = true;
+    try { trackEvent('buffering_guide_start', 'support'); } catch { void 0; }
     return () => {
       (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (STEPS[stepIndex] === 'summary') {
+      try { trackEvent('buffering_guide_complete', 'support'); } catch { void 0; }
+    }
+  }, [stepIndex]);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
