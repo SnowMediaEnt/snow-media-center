@@ -275,6 +275,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
   const handleOpenApp = useCallback(async () => {
     try {
       const packageName = app.packageName || `com.${app.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.app`;
+      try { trackAppLaunch(app.name); } catch { void 0; }
       await AppManager.launch({ packageName });
       onClose();
     } catch (error) {
