@@ -732,12 +732,13 @@ const Index = () => {
               const effectiveLayout: 'grid' | 'row' = 'row';
               return (
             <div 
-              className="justify-center w-full mx-auto flex flex-nowrap"
+              className="justify-center items-stretch w-full mx-auto flex flex-nowrap"
               style={{ 
                 gap: 'clamp(2rem, 5vw, 6rem)',
                 maxWidth: '95vw'
               }}
             >
+
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
                 const activateCard = () => {
