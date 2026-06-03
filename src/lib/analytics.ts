@@ -302,7 +302,12 @@ export const trackScreenView = (screen: string) =>
   trackEvent("screen_view", "navigation", { screen });
 export const trackButtonClick = (label: string, screen?: string) =>
   trackEvent("button_click", "interaction", { label, screen });
-export const trackAppLaunch = (app: string) =>
+export const trackAppLaunch = (app: string) => {
   trackEvent("app_launched", "apps", { app });
+  try {
+    const slug = (app || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (slug) trackEvent(`${slug}_launch`, "apps", { app });
+  } catch {}
+};
 export const trackAlertShown = (title: string) =>
   trackEvent("alert_shown", "alerts", { title });
