@@ -257,12 +257,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusedElement, updateAvailable]);
 
-  // Auto-check on mount and periodically
+  // Auto-check on mount (single one-shot). Periodic polling lives in
+  // AutoUpdatePrompt — the single source of truth for update checks.
   useEffect(() => {
     if (autoCheck) {
       checkForUpdates();
-      const interval = setInterval(checkForUpdates, 180000);
-      return () => clearInterval(interval);
     }
   }, [autoCheck]);
 
