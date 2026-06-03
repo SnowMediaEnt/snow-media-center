@@ -30,6 +30,7 @@ import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 import { supabase } from '@/integrations/supabase/client';
+import { trackEvent } from '@/lib/analytics';
 import { MessageSquare } from 'lucide-react';
 
 interface BufferingGuideProps {
