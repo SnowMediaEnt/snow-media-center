@@ -102,9 +102,10 @@ const HomeActionCard = memo(({
         }}>
           <ButtonIcon className="text-white drop-shadow-xl w-full h-full" />
         </div>
-        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
+        <h3 className="font-bold mb-1 text-white leading-tight text-shadow-strong font-quicksand min-h-[2.5em] flex items-center justify-center" style={{ fontSize: 'clamp(0.875rem, 1.5vw, 1.75rem)' }}>
           {button.title}
         </h3>
+
         {layoutMode === 'grid' && (
           <p className="text-white/95 leading-tight text-shadow-soft font-nunito" style={{ fontSize: 'clamp(0.75rem, 1vw, 1.25rem)' }}>
             {button.description}
