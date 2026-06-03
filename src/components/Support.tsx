@@ -82,8 +82,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const { AppManager } = await import('@/capacitor/AppManager');
       // Resolve the REAL installed package (handles aliases like ipvanish, surfshark, dreamstreams).
       const resolved = resolvePackageName(app.name, app.packageName) || app.packageName || generatePackageName(app.name);
-      const { installed } = await AppManager.isInstalled({ packageName: resolved });
-      if (!installed) {
+      // Phase 6A: use the cached installed-apps set — no per-click native isInstalled call.
+      if (!isPackageInstalled(resolved)) {
         toast({
           title: 'App not installed',
           description: `${app.name} isn't installed on this device.`,
@@ -104,7 +104,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   // Download in place (mirrors Main Apps) so the user stays inside the
   // Buffering Guide and doesn't lose their progress mid-flow.

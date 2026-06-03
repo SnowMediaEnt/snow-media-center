@@ -531,21 +531,16 @@ const BufferingGuide = ({
 
   useEffect(() => {
     let cancelled = false;
-    const checkAny = async (pkgs: readonly string[], setter: (b: boolean | null) => void) => {
-      try {
-        for (const pkg of pkgs) {
-          try {
-            const r = await AppManager.isInstalled({ packageName: pkg });
-            if (cancelled) return;
-            if (r?.installed) { setter(true); return; }
-          } catch { /* try next */ }
-        }
-        if (!cancelled) setter(false);
-      } catch { if (!cancelled) setter(false); }
+    const checkAny = (pkgs: readonly string[], setter: (b: boolean | null) => void) => {
+      // Phase 6A: use the cached installed set — no per-package native call.
+      if (cancelled) return;
+      const found = pkgs.some((pkg) => isPackageInstalled(pkg));
+      setter(found);
     };
     const recheck = () => {
       checkAny(VPN_INFO.ipvanish.pkgCandidates, setIpvanishLive);
       checkAny(VPN_INFO.surfshark.pkgCandidates, setSurfsharkLive);
+      // Debounced refresh of the shared cache (no-op inside the debounce window).
       refreshInstalledApps();
     };
     recheck();
@@ -561,7 +556,7 @@ const BufferingGuide = ({
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('app-resumed', onResume as EventListener);
     };
-  }, [step, refreshInstalledApps]);
+  }, [step, refreshInstalledApps, isPackageInstalled]);
 
 
   const ipvanishInstalled =

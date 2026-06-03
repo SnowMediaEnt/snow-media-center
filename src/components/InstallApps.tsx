@@ -374,16 +374,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const checkInstallStatus = useCallback(async (app: AppData): Promise<boolean> => {
     try {
       const packageName = generateAppPackageName(app);
-      // 1) Bulk-scan by package name (works when DB has real package_name).
+      // Phase 6A: rely entirely on the shared cached enumeration. The two
+      // bulk-scan checks (by package name and by display name) cover every
+      // catalog app without making a native call per app.
       if (isPackageInstalled(packageName)) return true;
-      // 2) Bulk-scan by display name — covers every app in the catalog,
-      //    even ones without a known package_name in the database.
       if (isAppNameInstalled(app.name)) return true;
-      // 3) Per-package fallback (covers devices where QUERY_ALL_PACKAGES is blocked).
-      if (Capacitor.isNativePlatform()) {
-        const { installed } = await AppManager.isInstalled({ packageName });
-        return installed;
-      }
       return false;
     } catch (error) {
       console.error('Error checking install status:', error);
@@ -544,7 +539,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       console.log(`[Uninstall Settings] ${app.name} → ${packageName}`);
       // Verify the package is actually installed first — otherwise some Android
       // versions open SMC's own App Info page instead of the target.
-      const { installed } = await AppManager.isInstalled({ packageName });
+      const installed = isPackageInstalled(packageName);
       if (!installed) {
         toast({
           title: "App not installed",
@@ -606,7 +601,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
     try {
-      const { installed } = await AppManager.isInstalled({ packageName });
+      const installed = isPackageInstalled(packageName);
       if (!installed) {
         toast({
           title: 'App not installed',
@@ -627,7 +622,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
@@ -637,7 +632,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     }
     const packageName = resolvePackageName(app.name, app.packageName) || generateAppPackageName(app);
     try {
-      const { installed } = await AppManager.isInstalled({ packageName });
+      const installed = isPackageInstalled(packageName);
       if (!installed) {
         toast({
           title: "App not installed",
@@ -663,7 +658,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   /** Walks every installed app from our catalog and auto-clears each one's cache. */
 
