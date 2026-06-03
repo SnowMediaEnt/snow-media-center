@@ -153,14 +153,14 @@ export const useTVFocus = ({
 
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;
-    const timer = window.setTimeout(() => {
+    const rafId = requestAnimationFrame(() => {
       const elements = getElements();
       const wanted = initialFocusId && elements.some((el) => getId(el) === initialFocusId)
         ? initialFocusId
         : getId(elements[0]);
       focusById(wanted, 'nearest');
-    }, 80);
-    return () => window.clearTimeout(timer);
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [enabled, autoFocusOnMount, focusById, getElements, getId, initialFocusId]);
 
 

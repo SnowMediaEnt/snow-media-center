@@ -6,7 +6,12 @@ import { isNativePlatform, getPlatform } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
 
-const nativeLowMemory = isNativePlatform() && /Android [6-9]\b|AFT|X96|T95|TX3|TV BOX|Fire TV|Amlogic/i.test(navigator.userAgent);
+// Low-memory by actual RAM, not by box brand.
+// navigator.deviceMemory is approximate GiB (0.25–8) in Chromium WebViews.
+const dm = (navigator as any).deviceMemory;
+const lowRam = typeof dm === 'number' && dm > 0 && dm <= 2;          // genuine 1–2 GB boxes
+const ancientAndroid = /Android [4-7]\b/i.test(navigator.userAgent);  // very old OS fallback
+const nativeLowMemory = isNativePlatform() && (lowRam || ancientAndroid);
 if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
 }

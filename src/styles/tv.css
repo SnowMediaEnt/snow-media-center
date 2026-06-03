@@ -54,7 +54,7 @@
 .tv-safe-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 /* TV scroll container - fills viewport with proper safe areas */
@@ -63,14 +63,14 @@
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   /* Ensure content can be scrolled to */
   padding-bottom: 10vh;
 }
 
 /* Focused element highlight for TV navigation */
 .tv-focus-highlight {
-  transition: all 0.2s ease-out;
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
 }
 
 .tv-focus-highlight:focus,
@@ -84,7 +84,7 @@
    Only the active managed element receives data-tv-focused="true". */
 [data-tv-focus-id] {
   outline: none;
-  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, border-color 0.18s ease-out, filter 0.18s ease-out;
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out, border-color 0.1s ease-out, filter 0.1s ease-out;
 }
 
 [data-tv-focused="true"] {

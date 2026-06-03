@@ -234,9 +234,8 @@ export const useSpatialNavigation = ({
     if (enabled && initialFocusId) {
       setVisualFocus(initialFocusId);
     } else if (enabled) {
-      // Small delay to let elements render
-      const timer = setTimeout(focusFirst, 100);
-      return () => clearTimeout(timer);
+      const rafId = requestAnimationFrame(focusFirst);
+      return () => cancelAnimationFrame(rafId);
     }
   }, [enabled, initialFocusId, setVisualFocus, focusFirst]);
 

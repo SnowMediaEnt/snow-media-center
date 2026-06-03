@@ -202,7 +202,7 @@
   /* TV Focus States */
   .tv-focusable {
     outline: none;
-    transition: all 0.2s ease-in-out;
+    transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
     border-radius: 8px;
   }
 
@@ -215,7 +215,7 @@
 
   .tv-focus-ring {
     outline: none;
-    transition: all 0.15s ease-in-out;
+    transition: outline 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
   }
 
   .tv-focus-ring:focus {
