@@ -658,7 +658,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   /** Walks every installed app from our catalog and auto-clears each one's cache. */
 
