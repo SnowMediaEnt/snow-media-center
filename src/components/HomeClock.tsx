@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useUpdateCheck } from '@/hooks/useUpdateCheck';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 interface HomeClockProps {
   version: string;
@@ -17,8 +18,9 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
   const { updateAvailable, latestVersion } = useUpdateCheck(version);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    // 1s clock — pause while app is backgrounded so we don't re-render
+    // every second on devices that aren't even visible.
+    return setPausableInterval(() => setNow(new Date()), 1000);
   }, []);
 
   return (

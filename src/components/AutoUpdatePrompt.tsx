@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 interface UpdateInfo {
   version: string;
@@ -50,8 +51,8 @@ const AutoUpdatePrompt = () => {
   useEffect(() => {
     if (isLoading) return;
     const enabled = localStorage.getItem(AUTO_UPDATE_KEY);
-    if (enabled === 'false') return; // user opted out
-    if (!isNativePlatform()) return; // only meaningful inside the installed app
+    const optedOut = enabled === 'false';
+    const isNative = isNativePlatform();
 
     let cancelled = false;
     const check = async () => {
@@ -60,7 +61,7 @@ const AutoUpdatePrompt = () => {
         const res = await robustFetch(url, {
           timeout: 15000,
           retries: 2,
-          useCorsProxy: false,
+          useCorsProxy: !isNative,
           headers: { Accept: 'application/json' },
         });
         const text = await res.text();
@@ -73,10 +74,23 @@ const AutoUpdatePrompt = () => {
         }
         if (!data?.version || !data?.downloadUrl) return;
 
+        // Broadcast the latest known version so other UI (e.g. HomeClock's
+        // little "update available" triangle via useUpdateCheck) can react
+        // without running its own timer/fetch.
+        try {
+          window.dispatchEvent(
+            new CustomEvent('smc:update-info', { detail: { version: data.version } })
+          );
+        } catch { /* ignore */ }
+
         const newerByCode =
           !!data.versionCode && !!currentVersionCode && data.versionCode > currentVersionCode;
         const newerByName = data.version !== currentVersion && isVersionNewer(data.version, currentVersion);
         if (!newerByCode && !newerByName) return;
+
+        // The actual install/prompt flow only makes sense inside the installed app.
+        if (!isNative) return;
+        if (optedOut) return;
 
         const snoozed = localStorage.getItem(SNOOZE_KEY);
         if (snoozed === data.version) return; // user said "Later" for this exact version
@@ -89,13 +103,13 @@ const AutoUpdatePrompt = () => {
       }
     };
 
-    // Run shortly after launch, then hourly
+    // Run shortly after launch, then hourly (paused while app is backgrounded).
     const t = setTimeout(check, 4000);
-    const interval = setInterval(check, 60 * 60 * 1000);
+    const cancelInterval = setPausableInterval(check, 60 * 60 * 1000);
     return () => {
       cancelled = true;
       clearTimeout(t);
-      clearInterval(interval);
+      cancelInterval();
     };
   }, [currentVersion, currentVersionCode, isLoading]);
 

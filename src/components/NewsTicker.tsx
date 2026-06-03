@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 const FALLBACK_NEWS = [
   '🚀 New streaming app update available',
@@ -139,12 +140,12 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
       timeoutId = window.setTimeout(fetchRSSFeed, isNative ? 2500 : 1500);
     }
 
-    const refreshInterval = window.setInterval(fetchRSSFeed, refreshMs);
+    const cancelInterval = setPausableInterval(fetchRSSFeed, refreshMs);
 
     return () => {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
-      clearInterval(refreshInterval);
+      cancelInterval();
     };
   }, [cached?.updatedAt, isNative, refreshMs]);
 

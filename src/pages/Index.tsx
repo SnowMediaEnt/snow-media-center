@@ -509,7 +509,7 @@ const Index = () => {
           {/* Dynamic background image or fallback gradient */}
           {hasBackground ? (
             <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-500"
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-500 [.native-low-memory_&]:transition-none"
               style={{ backgroundImage: `url(${backgroundUrl})` }}
             />
           ) : (

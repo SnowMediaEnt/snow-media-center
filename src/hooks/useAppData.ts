@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch, isOnline } from '@/utils/network';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 export interface AppData {
   id: string;
@@ -321,8 +322,9 @@ export const useAppData = () => {
       });
     }, 25000);
 
-    // Poll every 5 minutes (was 60s) — Supabase realtime already covers most updates
-    const interval = setInterval(() => {
+    // Poll every 5 minutes (was 60s) — Supabase realtime already covers most updates.
+    // Pauses while the app is backgrounded.
+    const cancelInterval = setPausableInterval(() => {
       console.log('[AppData] Polling for updates...');
       fetchApps();
     }, 5 * 60 * 1000);
@@ -335,7 +337,7 @@ export const useAppData = () => {
 
     return () => {
       clearTimeout(safetyTimeout);
-      clearInterval(interval);
+      cancelInterval();
       window.removeEventListener('online', handleOnline);
     };
   }, []);

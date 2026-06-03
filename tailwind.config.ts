@@ -20,11 +20,13 @@ export default {
 		extend: {
 			fontFamily: {
 				'nunito': ['Nunito', 'sans-serif'],
-				'quicksand': ['Quicksand', 'sans-serif'],
 				'montserrat': ['Montserrat', 'sans-serif'],
-				'poppins': ['Poppins', 'sans-serif'],
-				'roboto-condensed': ['Roboto Condensed', 'sans-serif'],
-				'raleway': ['Raleway', 'sans-serif'],
+				// Legacy aliases — kept so existing class names render in Montserrat
+				// after Quicksand/Poppins/etc were removed in Phase 2 perf trim.
+				'quicksand': ['Montserrat', 'sans-serif'],
+				'poppins': ['Montserrat', 'sans-serif'],
+				'roboto-condensed': ['Montserrat', 'sans-serif'],
+				'raleway': ['Montserrat', 'sans-serif'],
 				'snow-media': ['Montserrat', 'sans-serif'],
 				'center': ['Montserrat', 'sans-serif'],
 			},
