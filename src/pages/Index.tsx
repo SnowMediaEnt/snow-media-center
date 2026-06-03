@@ -79,12 +79,13 @@ const HomeActionCard = memo(({
       data-focused={isFocused ? 'true' : 'false'}
       data-home-card={index}
       className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl
+        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full
         ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
         ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
         ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
         ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
       `}
+
       onClick={onActivate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
