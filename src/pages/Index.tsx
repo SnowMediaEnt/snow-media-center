@@ -794,7 +794,7 @@ const Index = () => {
                   );
                 }
                 
-                return <div key={index}>{cardContent}</div>;
+                return <div key={index} className="h-full">{cardContent}</div>;
               })}
             </div>
               );
