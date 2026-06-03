@@ -260,6 +260,17 @@ const Index = () => {
   // Track screen views for analytics
   useEffect(() => {
     try { trackScreenView(currentView || 'home'); } catch { void 0; }
+    try {
+      const map: Record<string, string> = {
+        store: 'store_open',
+        support: 'support_open',
+        community: 'community_open',
+        chat: 'ai_chatbot_open',
+        'ai-conversations': 'ai_chatbot_open',
+      };
+      const ev = map[currentView as string];
+      if (ev) trackEvent(ev, 'navigation', { view: currentView });
+    } catch { void 0; }
   }, [currentView]);
 
 
