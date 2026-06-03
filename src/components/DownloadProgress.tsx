@@ -231,6 +231,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
       await AppManager.installApk({ filePath });
       
       setState('installed');
+      try { trackEvent('install', 'apps', { app: app.name }); } catch { void 0; }
       toast({
         title: "Installation Started",
         description: `${app.name} installer opened`,
