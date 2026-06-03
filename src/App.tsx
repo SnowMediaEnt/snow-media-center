@@ -62,14 +62,21 @@ const App = () => {
     };
   }, []);
   
+  // On low-memory native devices (older Android / STB / FireTV) skip the
+  // multi-stop gradient that paints across the whole viewport — a flat
+  // brand color reduces continuous GPU work.
+  const lowMem = typeof document !== 'undefined' &&
+    document.documentElement.classList.contains('native-low-memory');
+  const rootBackground = lowMem
+    ? '#0b1020'
+    : 'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)';
+
   return (
     <TooltipProvider>
       <div 
         data-app-scroll-root
         className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
-        style={{
-          background: 'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)'
-        }}
+        style={{ background: rootBackground }}
       >
         <div className="min-h-dvh bg-black/20">
           <Toaster />
