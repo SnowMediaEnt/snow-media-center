@@ -761,7 +761,7 @@ const Index = () => {
                 // Wrap Main Apps card (index 0) with pinned apps popup
                 if (index === 0) {
                   return (
-                    <div key={index} className="relative">
+                    <div key={index} className="relative h-full">
                       <PinnedAppsPopup
                         pinnedApps={pinnedApps}
                         apps={apps}
