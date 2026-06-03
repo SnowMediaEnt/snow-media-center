@@ -622,7 +622,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         variant: 'destructive',
       });
     }
-  }, [resolvePackageName, toast]);
+  }, [resolvePackageName, isPackageInstalled, toast]);
 
   /** Opens App Info so the user can manually clear this app's cache. */
   const handleAutoClearCache = useCallback(async (app: AppData) => {
