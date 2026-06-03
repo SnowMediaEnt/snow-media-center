@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/hooks/use-toast';
 import { Tv, Wifi, Calendar, Smartphone } from 'lucide-react';
 import { ensureCustomerRow, daysUntil, type UserDevice, type UserService } from '@/hooks/useUserServices';
+import { trackEvent } from '@/lib/analytics';
 
 const DEVICE_OPTIONS: string[] = [
   'Amazon Fire TV / Firestick',
