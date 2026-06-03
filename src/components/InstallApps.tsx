@@ -374,16 +374,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const checkInstallStatus = useCallback(async (app: AppData): Promise<boolean> => {
     try {
       const packageName = generateAppPackageName(app);
-      // 1) Bulk-scan by package name (works when DB has real package_name).
+      // Phase 6A: rely entirely on the shared cached enumeration. The two
+      // bulk-scan checks (by package name and by display name) cover every
+      // catalog app without making a native call per app.
       if (isPackageInstalled(packageName)) return true;
-      // 2) Bulk-scan by display name — covers every app in the catalog,
-      //    even ones without a known package_name in the database.
       if (isAppNameInstalled(app.name)) return true;
-      // 3) Per-package fallback (covers devices where QUERY_ALL_PACKAGES is blocked).
-      if (Capacitor.isNativePlatform()) {
-        const { installed } = await AppManager.isInstalled({ packageName });
-        return installed;
-      }
       return false;
     } catch (error) {
       console.error('Error checking install status:', error);
