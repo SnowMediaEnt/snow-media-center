@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
 import { downloadApkToCache, generateFileName, cleanupOldApks } from '@/utils/downloadApk';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
+import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 
 interface DownloadProgressProps {
   app: {
