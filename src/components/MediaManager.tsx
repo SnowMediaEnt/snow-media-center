@@ -404,7 +404,6 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         title: "Asset deleted",
         description: `${name} has been deleted.`,
       });
-      window.dispatchEvent(new Event('backgroundRefresh'));
     } catch (error: any) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
