@@ -93,4 +93,4 @@ const PinnedAppsBar = ({
   );
 };
 
-export default PinnedAppsBar;
+export default memo(PinnedAppsBar);
