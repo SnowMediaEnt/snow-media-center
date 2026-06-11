@@ -132,9 +132,6 @@ export const useMediaAssets = () => {
 
       if (updateError) throw updateError;
       await fetchAssets();
-      
-      // Dispatch event for instant background refresh
-      window.dispatchEvent(new CustomEvent('backgroundRefresh'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update asset';
       setError(errorMessage);
@@ -165,8 +162,6 @@ export const useMediaAssets = () => {
 
       if (deleteError) throw deleteError;
       await fetchAssets();
-      // Notify background hook so the active background clears immediately
-      window.dispatchEvent(new Event('backgroundRefresh'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete asset';
       setError(errorMessage);

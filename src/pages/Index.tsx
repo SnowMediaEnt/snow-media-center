@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy } from 'lucide-react';
@@ -312,18 +312,63 @@ const Index = () => {
     return () => clearTimeout(t);
   }, [logoClickCount]);
 
-  // Handle keyboard navigation for TV remote
+  // Handle keyboard navigation for TV remote.
+  // Phase 7 Fix 3: register ONCE; read changing values through refs so every
+  // keypress doesn't tear down + re-register the native key listener.
+  const focusedButtonRef = useRef(focusedButton);
+  const currentViewRef = useRef(currentView);
+  const userRef = useRef(user);
+  const isInPopupRef = useRef(isInPopup);
+  const isInMediaBarRef = useRef(isInMediaBar);
+  const showEasterEggRef = useRef(showEasterEgg);
+  const mediaBarEnabledRef = useRef(mediaBarEnabled);
+  const navigateToRef = useRef(navigateTo);
+  const goBackRef = useRef(goBack);
+  const navigateRef = useRef(navigate);
+  const handleLogoActivateRef = useRef(handleLogoActivate);
+
+  useEffect(() => { focusedButtonRef.current = focusedButton; }, [focusedButton]);
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { isInPopupRef.current = isInPopup; }, [isInPopup]);
+  useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
+  useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
+  useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
+  useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
+  useEffect(() => { goBackRef.current = goBack; }, [goBack]);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
+  useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Skip navigation handling when user is typing in an input or textarea
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-      
+
       // Allow Backspace when typing
       if (event.key === 'Backspace' && isTyping) {
         return; // Let the default behavior happen
       }
-      
+
+      const currentView = currentViewRef.current;
+      const focusedButton = focusedButtonRef.current;
+      const isInPopup = isInPopupRef.current;
+      const isInMediaBar = isInMediaBarRef.current;
+      const showEasterEgg = showEasterEggRef.current;
+      const mediaBarEnabled = mediaBarEnabledRef.current;
+      const user = userRef.current;
+
+      // Compute the open-dialog check at most once per keypress
+      let dialogOpenChecked = false;
+      let dialogOpen = false;
+      const hasOpenDialog = () => {
+        if (!dialogOpenChecked) {
+          dialogOpen = !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+          dialogOpenChecked = true;
+        }
+        return dialogOpen;
+      };
+
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
       if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
@@ -334,7 +379,7 @@ const Index = () => {
             setShowEasterEgg(false);
             return;
           }
-          if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) {
+          if (hasOpenDialog()) {
             return;
           }
           if (isInPopup) {
@@ -348,13 +393,13 @@ const Index = () => {
             return;
           }
         }
-        
+
         if (currentView !== 'home') {
-          goBack();
+          goBackRef.current();
           return;
         }
       }
-      
+
       if (currentView !== 'home') {
         return; // Let individual components handle their own navigation
       }
@@ -440,38 +485,38 @@ const Index = () => {
         case ' ':
           if (focusedButton === -3) {
             // Easter egg: 7 clicks on the logo reveals the hidden image
-            handleLogoActivate();
+            handleLogoActivateRef.current();
           } else if (focusedButton === -2) {
             // Navigate to auth or user dashboard
             if (user) {
-              navigateTo('user');
+              navigateToRef.current('user');
             } else {
-              navigate('/auth');
+              navigateRef.current('/auth');
             }
           } else if (focusedButton === -1) {
             // Navigate to settings
-            navigateTo('settings');
+            navigateToRef.current('settings');
           } else if (focusedButton === 0) {
-            navigateTo('apps');
+            navigateToRef.current('apps');
           } else if (focusedButton === 1) {
-            navigateTo('support');
+            navigateToRef.current('support');
           } else if (focusedButton === 2) {
-            navigateTo('store');
+            navigateToRef.current('store');
           }
           break;
-          
+
         case 'Escape':
         case 'Backspace':
           // Only reached on home view (non-home returned earlier above).
           // Triggers the double-press-to-exit flow in useNavigation.
-          goBack();
+          goBackRef.current();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedButton, layoutMode, currentView, user, navigate, navigateTo, goBack, isInPopup, isInMediaBar, showEasterEgg, handleLogoActivate, mediaBarEnabled]);
+  }, []);
 
   const buttons = useMemo(() => [
     {

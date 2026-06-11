@@ -16,6 +16,20 @@ if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
 }
 
+// While the user is D-pad navigating, add html.nav-active so index.css can
+// pause the news-ticker/media-bar marquees — continuous marquee compositing
+// competes with focus transitions on Amlogic/Mali GPUs and drops frames.
+// Resumes 600ms after the last keypress.
+let navIdleTimer: number | undefined;
+window.addEventListener('keydown', (e) => {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  document.documentElement.classList.add('nav-active');
+  window.clearTimeout(navIdleTimer);
+  navIdleTimer = window.setTimeout(() => {
+    document.documentElement.classList.remove('nav-active');
+  }, 600);
+}, { capture: true, passive: true });
+
 // Startup diagnostics for debugging Android issues
 const logStartupDiagnostics = async () => {
   const platform = getPlatform();

@@ -285,6 +285,15 @@
   transform: none !important;
 }
 
+/* Pause both marquees while the user is actively D-pad navigating, so focus
+   transitions never compete with continuous compositor animation (Amlogic/
+   Mali boxes drop frames when both run). main.tsx toggles html.nav-active;
+   the marquees resume ~600ms after the last keypress. */
+html.nav-active .news-ticker-track,
+html.nav-active .media-bar-track {
+  animation-play-state: paused !important;
+}
+
 .native-low-memory .home-focus-surface,
 .native-low-memory .home-focus-surface[data-focused="true"] {
   will-change: auto;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Smartphone, Store, Video, MessageCircle, Sparkles } from 'lucide-react';
@@ -216,4 +216,4 @@ const WelcomePopup = () => {
   );
 };
 
-export default WelcomePopup;
+export default memo(WelcomePopup);

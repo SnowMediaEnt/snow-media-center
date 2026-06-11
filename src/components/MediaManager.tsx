@@ -386,9 +386,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         title: currentStatus ? "Asset deactivated" : "Asset activated",
         description: `Asset is now ${!currentStatus ? 'active' : 'inactive'}.`,
       });
-      
-      // Force immediate background refresh by dispatching a custom event
-      window.dispatchEvent(new CustomEvent('backgroundRefresh'));
+    
     } catch (error) {
       toast({
         title: "Failed to update",
@@ -406,7 +404,6 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         title: "Asset deleted",
         description: `${name} has been deleted.`,
       });
-      window.dispatchEvent(new Event('backgroundRefresh'));
     } catch (error: any) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
