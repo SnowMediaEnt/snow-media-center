@@ -111,4 +111,4 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
   );
 };
 
-export default AppAlertDialog;
+export default memo(AppAlertDialog);
