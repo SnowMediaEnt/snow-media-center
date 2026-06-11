@@ -216,4 +216,4 @@ const WelcomePopup = () => {
   );
 };
 
-export default WelcomePopup;
+export default memo(WelcomePopup);
