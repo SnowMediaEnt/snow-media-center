@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy } from 'lucide-react';
