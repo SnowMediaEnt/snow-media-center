@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
