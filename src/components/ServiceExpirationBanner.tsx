@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useMyUserServices, findUrgentService, daysUntil } from '@/hooks/useUserServices';
 import { trackEvent } from '@/lib/analytics';
