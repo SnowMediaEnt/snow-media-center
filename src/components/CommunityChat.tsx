@@ -181,13 +181,15 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
               Back to Home
             </Button>
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Community Chat</h1>
-              <p className="text-xl text-blue-200">Connect with other Snow Media users</p>
+              <h1 className="text-4xl font-bold text-white mb-2">In-App Community Chat</h1>
+              <p className="text-xl text-blue-200">
+                Real-time chat between Snow Media users — separate from our website Blog & Forum.
+              </p>
             </div>
           </div>
           <div className="flex items-center space-x-2 bg-blue-600/20 border border-blue-500/50 rounded-lg px-3 py-2">
             <Users className="w-4 h-4 text-blue-400" />
-            <span className="text-blue-400 text-sm">Community</span>
+            <span className="text-blue-400 text-sm">In-App Only</span>
           </div>
         </div>
         )}
