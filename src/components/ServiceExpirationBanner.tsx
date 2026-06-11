@@ -64,4 +64,4 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
   );
 };
 
-export default ServiceExpirationBanner;
+export default memo(ServiceExpirationBanner);
