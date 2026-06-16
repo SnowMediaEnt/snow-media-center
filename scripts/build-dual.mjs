@@ -246,6 +246,8 @@ if (typeof structuredClone === 'undefined') {
   // Global SyntaxError -> swap to legacy.
   window.addEventListener('error', function (e) {
     var msg = (e && e.message) ? e.message : '';
+    var src = (e && e.filename) ? ' @ ' + e.filename + ':' + (e.lineno||'?') + ':' + (e.colno||'?') : '';
+    lastError = (msg + src) || lastError;
     if (/Unexpected token|SyntaxError/i.test(msg)) {
       if (window.__SMC_BUNDLE__ === 'modern') loadLegacy(msg);
       else showFallback(msg);
