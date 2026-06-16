@@ -1,0 +1,124 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/legacy/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Android TV / STB tuning -->
+    <meta name="theme-color" content="#000000">
+    <meta name="msapplication-navbutton-color" content="#000000">
+    
+    <title>Snow Media Center</title>
+    
+    <!-- Google Fonts -->
+    <!-- Preconnect to icon/APK host so image requests don't pay TLS per request -->
+    <link rel="preconnect" href="https://snowmediaapps.com" crossorigin>
+    <link rel="dns-prefetch" href="https://snowmediaapps.com">
+
+    <!-- Google Fonts — trimmed to only families/weights actually used (Montserrat + Nunito) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&family=Nunito:wght@400;500;700&display=swap" rel="stylesheet">
+
+    
+    <script>
+      // Polyfill structuredClone for older Android WebViews (FireTV, older STBs)
+      if (typeof structuredClone === 'undefined') {
+        window.structuredClone = function(obj) {
+          return JSON.parse(JSON.stringify(obj));
+        };
+      }
+    </script>
+    <style>
+      /* Prevent Android TV scaling issues */
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      
+      /* Force specific dimensions for Android TV */
+      @media screen and (min-width: 1920px) {
+        html {
+          font-size: 16px;
+        }
+        
+        body {
+          zoom: 1;
+          transform: scale(1);
+          transform-origin: 0 0;
+        }
+      }
+      
+      /* Firestick specific fixes */
+      @media (max-height: 1080px) and (min-width: 1920px) {
+        #root {
+          height: 100vh;
+          max-height: 100vh;
+          overflow-y: auto;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/legacy/assets/index-BabpDeCV.js"></script>
+    <link rel="modulepreload" crossorigin href="/legacy/assets/react-B-UqpLAY.js">
+    <link rel="modulepreload" crossorigin href="/legacy/assets/supabase-BAhhms_q.js">
+    <link rel="stylesheet" crossorigin href="/legacy/assets/index-bUEUw8N0.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div style="padding:24px;font-family:sans-serif;color:#fff;background:#000;text-align:center;">
+        Snow Media Center requires JavaScript to be enabled.
+      </div>
+    </noscript>
+    <div id="smc-fallback" style="display:none;position:fixed;inset:0;background:#000;color:#fff;font-family:sans-serif;padding:32px;text-align:center;z-index:99999;">
+      <h1 style="font-size:28px;margin:48px 0 16px;">App update required</h1>
+      <p style="font-size:18px;max-width:640px;margin:0 auto 12px;line-height:1.4;">
+        Your device's system WebView is too old to run Snow Media Center.
+      </p>
+      <p style="font-size:16px;max-width:640px;margin:0 auto;line-height:1.4;opacity:0.85;">
+        Please update "Android System WebView" and "Google Chrome" from the Play Store,
+        then restart the app. If you're on an Android TV / STB without the Play Store,
+        sideload a newer WebView build.
+      </p>
+      <p id="smc-fallback-detail" style="font-size:12px;opacity:0.6;margin-top:24px;word-break:break-word;"></p>
+    </div>
+    <script>
+      // ES5-safe startup watchdog. If the main module bundle throws a syntax
+      // error (e.g. `??` / `?.` on WebView 66) or simply never mounts React,
+      // show a readable message instead of a white screen.
+      (function () {
+        var shown = false;
+        function showFallback(detail) {
+          if (shown) return;
+          var root = document.getElementById('root');
+          if (root && root.childNodes && root.childNodes.length > 0) return;
+          var el = document.getElementById('smc-fallback');
+          if (!el) return;
+          el.style.display = 'block';
+          if (detail) {
+            var d = document.getElementById('smc-fallback-detail');
+            if (d) d.textContent = String(detail).slice(0, 300);
+          }
+          shown = true;
+        }
+        window.addEventListener('error', function (e) {
+          var msg = e && e.message ? e.message : '';
+          if (/Unexpected token|SyntaxError/i.test(msg)) {
+            showFallback(msg);
+          }
+        });
+        setTimeout(function () { showFallback(''); }, 8000);
+      })();
+    </script>
+  </body>
+</html>
