@@ -18,10 +18,17 @@ html,body{width:100%;height:100%;margin:0;padding:0;background:#000;overflow-x:h
 #smc-fallback .label{display:inline-block;min-width:130px;opacity:.7}
 </style>
 <script>
-// Polyfill for very old Android WebViews
-if (typeof structuredClone === 'undefined') {
-  window.structuredClone = function(o){ return JSON.parse(JSON.stringify(o)); };
-}
+(function () {
+  if (typeof window !== 'undefined') {
+    if (typeof window.globalThis === 'undefined') window.globalThis = window;
+    if (typeof window.structuredClone === 'undefined') {
+      window.structuredClone = function (o) { return JSON.parse(JSON.stringify(o)); };
+    }
+  }
+  if (typeof self !== 'undefined' && typeof self.globalThis === 'undefined') {
+    self.globalThis = self;
+  }
+})();
 </script>
 </head>
 <body>
