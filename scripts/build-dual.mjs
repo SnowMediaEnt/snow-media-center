@@ -115,9 +115,11 @@ const loader = `<!doctype html>
 <title>Snow Media Center</title>
 <style>
 html,body{width:100%;height:100%;margin:0;padding:0;background:#000;overflow-x:hidden;-webkit-text-size-adjust:100%}
-#smc-fallback{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#000;color:#fff;font-family:sans-serif;padding:32px;text-align:center;z-index:99999}
-#smc-fallback h1{font-size:28px;margin:48px 0 16px}
-#smc-fallback p{font-size:16px;max-width:640px;margin:0 auto 12px;line-height:1.4}
+#smc-fallback{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#000;color:#fff;font-family:sans-serif;padding:32px;text-align:center;z-index:99999;overflow:auto}
+#smc-fallback h1{font-size:26px;margin:48px 0 16px}
+#smc-fallback p{font-size:15px;max-width:680px;margin:0 auto 10px;line-height:1.4}
+#smc-fallback .row{font-size:13px;opacity:.9;margin:6px auto;max-width:680px;word-break:break-word;text-align:left;background:#111;border:1px solid #222;border-radius:6px;padding:8px 12px}
+#smc-fallback .label{display:inline-block;min-width:130px;opacity:.7}
 </style>
 <script>
 // Polyfill for very old Android WebViews
@@ -130,10 +132,12 @@ if (typeof structuredClone === 'undefined') {
 <div id="root"></div>
 <noscript><div style="padding:24px;font-family:sans-serif;color:#fff;background:#000;text-align:center;">Snow Media Center requires JavaScript to be enabled.</div></noscript>
 <div id="smc-fallback">
-  <h1>App update required</h1>
-  <p>Your device's system WebView is too old to run Snow Media Center.</p>
-  <p style="opacity:.85">Please update "Android System WebView" and "Google Chrome" from the Play Store, then restart the app.</p>
-  <p id="smc-fallback-detail" style="font-size:12px;opacity:.6;margin-top:24px;word-break:break-word;"></p>
+  <h1>Snow Media Center could not start</h1>
+  <p>The app failed to boot in this WebView. Diagnostic details:</p>
+  <div class="row"><span class="label">Selected bundle:</span> <span id="smc-fb-bundle">-</span></div>
+  <div class="row"><span class="label">Fallback reason:</span> <span id="smc-fb-reason">-</span></div>
+  <div class="row"><span class="label">Exact error:</span> <span id="smc-fb-error">-</span></div>
+  <p style="opacity:.6;margin-top:18px">Try updating "Android System WebView" and "Google Chrome" from the Play Store, then restart the app.</p>
 </div>
 <script>
 /* ES5-safe dual-bundle loader. Picks modern or legacy at runtime. */
@@ -142,6 +146,8 @@ if (typeof structuredClone === 'undefined') {
   var LEGACY = ${JSON.stringify(legacyEntry)};
 
   var fallbackShown = false;
+  var lastError = '';
+  function setText(id, v) { var n = document.getElementById(id); if (n) n.textContent = String(v == null || v === '' ? '-' : v).slice(0, 500); }
   function showFallback(detail) {
     if (fallbackShown) return;
     var root = document.getElementById('root');
@@ -149,10 +155,9 @@ if (typeof structuredClone === 'undefined') {
     var el = document.getElementById('smc-fallback');
     if (!el) return;
     el.style.display = 'block';
-    if (detail) {
-      var d = document.getElementById('smc-fallback-detail');
-      if (d) d.textContent = String(detail).slice(0, 300);
-    }
+    setText('smc-fb-bundle', window.__SMC_BUNDLE__);
+    setText('smc-fb-reason', window.__SMC_BUNDLE_REASON__);
+    setText('smc-fb-error', detail || lastError);
     fallbackShown = true;
   }
 
@@ -241,6 +246,8 @@ if (typeof structuredClone === 'undefined') {
   // Global SyntaxError -> swap to legacy.
   window.addEventListener('error', function (e) {
     var msg = (e && e.message) ? e.message : '';
+    var src = (e && e.filename) ? ' @ ' + e.filename + ':' + (e.lineno||'?') + ':' + (e.colno||'?') : '';
+    lastError = (msg + src) || lastError;
     if (/Unexpected token|SyntaxError/i.test(msg)) {
       if (window.__SMC_BUNDLE__ === 'modern') loadLegacy(msg);
       else showFallback(msg);
