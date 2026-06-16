@@ -23,6 +23,11 @@ export default defineConfig(({ mode }) => ({
     ? { drop: ['console', 'debugger'] }
     : undefined,
   build: {
+    // Target older Android System WebView (Chrome 66) found on many Android TV/STB
+    // devices. This ensures syntax like `??` and `?.` is transpiled away so the
+    // production bundle doesn't throw `Unexpected token ?` on launch.
+    target: ['chrome66', 'es2017'],
+    cssTarget: 'chrome66',
     rollupOptions: {
       output: {
         manualChunks: {
