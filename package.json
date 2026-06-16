@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build-dual.mjs",
+    "build:modern": "cross-env-shell SMC_BUNDLE=modern vite build || SMC_BUNDLE=modern vite build",
+    "build:legacy": "cross-env-shell SMC_BUNDLE=legacy vite build || SMC_BUNDLE=legacy vite build",
+    "build:single": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
