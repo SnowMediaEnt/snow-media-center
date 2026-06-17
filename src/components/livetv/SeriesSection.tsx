@@ -194,23 +194,25 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
-        if (e.key === 'ArrowDown') setCategoryIdx(i => Math.min(cats.length - 1, i + 1));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => Math.max(0, i - 1));
+        if (e.key === 'ArrowDown') setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0);
+        else if (e.key === 'ArrowUp') setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setGridIdx(0); setPane('grid'); }
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setPane('grid'); }
         return;
       }
 
       if (paneRef.current === 'grid') {
         const list = visibleSeriesRef.current;
         const i = gridIdxRef.current;
+        if (!list.length) return;
         if (e.key === 'ArrowRight') {
           if ((i + 1) % GRID_COLS !== 0 && i + 1 < list.length) setGridIdx(i + 1);
         } else if (e.key === 'ArrowLeft') {
           if (i % GRID_COLS === 0) setPane('categories');
           else setGridIdx(i - 1);
         } else if (e.key === 'ArrowDown') {
-          setGridIdx(Math.min(list.length - 1, i + GRID_COLS));
+          const next = i + GRID_COLS;
+          setGridIdx(next < list.length ? next : i);
         } else if (e.key === 'ArrowUp') {
           if (i < GRID_COLS) return;
           setGridIdx(i - GRID_COLS);
@@ -234,8 +236,12 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
           setDetailFocus('episodes');
         }
       } else if (focus === 'episodes') {
-        if (e.key === 'ArrowDown') setEpisodeIdx(i => Math.min(eps.length - 1, i + 1));
+        if (e.key === 'ArrowDown') {
+          if (!eps.length) return;
+          setEpisodeIdx(i => (i + 1) % eps.length);
+        }
         else if (e.key === 'ArrowUp') {
+          if (!eps.length) return;
           if (episodeIdxRef.current === 0) setDetailFocus('play');
           else setEpisodeIdx(episodeIdxRef.current - 1);
         }
@@ -254,9 +260,9 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
   }, [isActive, onExitLeft, openSeries, playEpisode]);
 
   const focusedTileRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest' }); }, [gridIdx]);
+  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [gridIdx]);
   const focusedEpRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest' }); }, [episodeIdx]);
+  useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [episodeIdx]);
 
   // Fullscreen episode player with autoplay next
   if (playing) {
@@ -427,7 +433,11 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
 
       <div className="flex-1 min-w-0 overflow-y-auto p-5">
         {loading ? (
-          <div className="h-full flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
+            {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
+            ))}
+          </div>
         ) : visibleSeries.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
         ) : (

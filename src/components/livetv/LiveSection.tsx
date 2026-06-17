@@ -101,13 +101,16 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
   }, [creds, usingMock]);
 
   const visibleCategories = useMemo(() => {
-    const base = [
+    const base: { id: string | number; name: string; count?: number }[] = [
       { id: FAV_ID, name: 'Favorites' },
-      { id: ALL_ID, name: 'All channels' },
+      { id: ALL_ID, name: 'All channels', count: streams.length },
     ];
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name });
+    const counts = new Map<string | number, number>();
+    for (const s of streams) counts.set(s.category_id, (counts.get(s.category_id) || 0) + 1);
+    for (const c of categories) base.push({ id: c.category_id, name: c.category_name, count: counts.get(c.category_id) || 0 });
+    if (base[0].id === FAV_ID) base[0].count = streams.filter(s => favorites.has(s.stream_id)).length;
     return base;
-  }, [categories]);
+  }, [categories, streams, favorites]);
 
   const visibleChannels = useMemo(() => {
     if (searchOpen) {
@@ -241,16 +244,16 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
-        if (e.key === 'ArrowDown') setCategoryIdx(i => Math.min(cats.length - 1, i + 1));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => Math.max(0, i - 1));
+        if (e.key === 'ArrowDown') setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
+        else if (e.key === 'ArrowUp') setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') setPane('channels');
         return;
       }
 
       // pane === 'channels'
-      if (e.key === 'ArrowDown') setChannelIdx(i => Math.min(chans.length - 1, i + 1));
-      else if (e.key === 'ArrowUp') setChannelIdx(i => Math.max(0, i - 1));
+      if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
+      else if (e.key === 'ArrowUp') setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
         const ch = chans[channelIdxRef.current];
@@ -262,7 +265,7 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
   }, [isActive, onExitLeft, focusedChannel, toggleFavorite, changeChannelInFullscreen, playChannel]);
 
   const focusedRowRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [channelIdx, categoryIdx, pane]);
+  useEffect(() => { focusedRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [channelIdx, categoryIdx, pane]);
 
   // Fullscreen player
   const playingStream = streams.find(s => s.stream_id === playingChannelId) || focusedChannel;
@@ -346,14 +349,19 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => { setCategoryIdx(i); setPane('channels'); }}
                   className={`
-                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
-                    ${!isFocused && isSelected ? 'bg-white/10' : ''}
+                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
+                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
+                    ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
                 >
                   {c.id === FAV_ID && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                  <span className="font-nunito truncate flex-1 text-brand-ice">{c.name}</span>
+                  <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
+                  {c.count != null && c.count > 0 && (
+                    <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
+                      {c.count}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -407,7 +415,18 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          {visibleChannels.length === 0 ? (
+          {loading && visibleChannels.length === 0 ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
+                <div className="w-8 h-4 rounded bg-white/10" />
+                <div className="w-14 h-14 rounded-lg bg-white/10" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/2 rounded bg-white/10" />
+                  <div className="h-3 w-2/3 rounded bg-white/5" />
+                </div>
+              </div>
+            ))
+          ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
               {searchOpen ? (searchQuery ? 'No channels match your search.' : 'Type above to search channels.') : 'No channels in this category.'}
             </div>

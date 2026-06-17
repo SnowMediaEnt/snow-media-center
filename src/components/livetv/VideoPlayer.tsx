@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
 
 interface VideoPlayerProps {
   src: string | null;
@@ -24,6 +24,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
   const [loading, setLoading] = useState(false);
+  const [fatal, setFatal] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Keep volume in sync
   useEffect(() => {
@@ -34,6 +36,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
     const video = videoRef.current;
     if (!video || !src) return;
     retriesRef.current = 0;
+    setFatal(null);
 
     let cancelled = false;
 
@@ -112,13 +115,17 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
 
     const scheduleRetry = () => {
       if (cancelled) return;
-      if (retriesRef.current >= maxRetries) return;
+      if (retriesRef.current >= maxRetries) {
+        setLoading(false);
+        setFatal('Stream unavailable. Check your connection and try again.');
+        return;
+      }
       retriesRef.current += 1;
       const delay = Math.min(8000, 500 * 2 ** retriesRef.current);
       setTimeout(() => { if (!cancelled) attach(); }, delay);
     };
 
-    const onPlaying = () => setLoading(false);
+    const onPlaying = () => { setLoading(false); setFatal(null); };
     const onWaiting = () => setLoading(true);
     video.addEventListener('playing', onPlaying);
     video.addEventListener('waiting', onWaiting);
@@ -133,7 +140,13 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       teardownRef.current = null;
       try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
     };
-  }, [src, maxRetries, onError]);
+  }, [src, maxRetries, onError, retryNonce]);
+
+  const handleRetry = useCallback(() => {
+    retriesRef.current = 0;
+    setFatal(null);
+    setRetryNonce(n => n + 1);
+  }, []);
 
   return (
     <div className={`relative bg-black overflow-hidden ${className || ''}`}>
@@ -144,9 +157,23 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
         autoPlay
         muted={false}
       />
-      {loading && (
+      {loading && !fatal && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+        </div>
+      )}
+      {fatal && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
+          <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
+          <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+          <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{fatal}</p>
+          <button
+            onClick={handleRetry}
+            autoFocus
+            className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+          >
+            <RotateCw className="w-4 h-4" /> Retry
+          </button>
         </div>
       )}
       {!src && (
