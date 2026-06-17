@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 
 // Globally-persisted, admin-controlled feature flags stored in
 // public.feature_flags. Reads are public; writes are admin-only via RLS.
