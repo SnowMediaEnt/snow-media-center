@@ -36,6 +36,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
     const video = videoRef.current;
     if (!video || !src) return;
     retriesRef.current = 0;
+    setFatal(null);
 
     let cancelled = false;
 
