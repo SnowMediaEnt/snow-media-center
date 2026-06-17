@@ -369,6 +369,29 @@ const Settings = ({ onBack }: SettingsProps) => {
                 />
               </div>
             </Card>
+
+            {isAdmin && (
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Player (Live TV)</h3>
+                      <p className="text-sm text-white/70 mt-1">
+                        Global kill-switch for the Player section (Live TV, Movies & Series).
+                        When off, the Player card is hidden on every device.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={playerEnabled}
+                    onCheckedChange={togglePlayer}
+                    aria-label="Toggle Player section globally"
+                    className="mt-1"
+                  />
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6 space-y-4">
