@@ -7,6 +7,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle } from '@/utils/idle';
 
 interface UpdateInfo {
   version: string;
