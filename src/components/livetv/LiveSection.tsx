@@ -244,16 +244,16 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
-        if (e.key === 'ArrowDown') setCategoryIdx(i => Math.min(cats.length - 1, i + 1));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => Math.max(0, i - 1));
+        if (e.key === 'ArrowDown') setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
+        else if (e.key === 'ArrowUp') setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') setPane('channels');
         return;
       }
 
       // pane === 'channels'
-      if (e.key === 'ArrowDown') setChannelIdx(i => Math.min(chans.length - 1, i + 1));
-      else if (e.key === 'ArrowUp') setChannelIdx(i => Math.max(0, i - 1));
+      if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
+      else if (e.key === 'ArrowUp') setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
         const ch = chans[channelIdxRef.current];
