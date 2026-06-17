@@ -187,8 +187,26 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive, onExitLeft, openMovie, playMovie]);
 
-  const focusedTileRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [gridIdx]);
+  // --- Virtualize grid by rows ---
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const rowCount = Math.ceil(visibleMovies.length / GRID_COLS);
+  // Row height: poster aspect 2/3, plus title (~3rem). Container is fluid; estimate ~ 280px.
+  const ROW_H = 280;
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => ROW_H,
+    overscan: 3,
+  });
+
+  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
+
+  useEffect(() => {
+    if (!visibleMovies.length) return;
+    const row = Math.floor(gridIdx / GRID_COLS);
+    rowVirtualizer.scrollToIndex(row, { align: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridIdx, visibleMovies.length]);
 
   // Fullscreen player
   if (playing) {
