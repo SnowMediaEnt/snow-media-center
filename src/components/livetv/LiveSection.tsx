@@ -631,7 +631,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
               {virtualItems.map(v => {
                 const s = visibleChannels[v.index];
                 if (!s) return null;
-                const isFocused = isActive && pane === 'channels' && v.index === channelIdx;
+                const isFocused = isActive && pane === 'channels' && v.index === safeChannelIdx;
                 return (
                   <div
                     key={v.key}
