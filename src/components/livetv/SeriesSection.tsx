@@ -32,11 +32,12 @@ const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
 const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [series, setSeries] = useState<XtreamSeries[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
+  const [loadingCat, setLoadingCat] = useState<string | null>(null);
 
   const [pane, setPane] = useState<Pane>('categories');
-  const [categoryIdx, setCategoryIdx] = useState(0);
+  const [categoryIdx, setCategoryIdx] = useState(1);
   const [gridIdx, setGridIdx] = useState(0);
 
   // Detail
@@ -59,18 +60,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setCategoriesLoading(true);
     (async () => {
       try {
-        const [cats, list] = await Promise.all([
-          getSeriesCategories(creds).catch(() => [] as XtreamCategory[]),
-          getSeries(creds).catch(() => [] as XtreamSeries[]),
-        ]);
+        const cats = await getSeriesCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
-        setSeries(list);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setCategoriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -78,18 +75,45 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Series' }];
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name });
+    for (const c of categories) base.push({ id: String(c.category_id), name: c.category_name });
     return base;
   }, [categories]);
 
+  useEffect(() => {
+    if (categoryIdx >= visibleCategories.length) setCategoryIdx(Math.max(0, visibleCategories.length - 1));
+  }, [visibleCategories.length, categoryIdx]);
+
+  const currentCat = visibleCategories[categoryIdx];
+
+  useEffect(() => {
+    if (!currentCat) return;
+    if (seriesByCat.has(currentCat.id)) return;
+    let cancelled = false;
+    const key = currentCat.id;
+    setLoadingCat(key);
+    const p = key === ALL_ID ? getSeries(creds) : getSeries(creds, key);
+    p.then(list => {
+      if (cancelled) return;
+      setSeriesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+    }).catch(() => {
+      if (cancelled) return;
+      setSeriesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
+    }).finally(() => {
+      if (cancelled) return;
+      setLoadingCat(prev => prev === key ? null : prev);
+    });
+    return () => { cancelled = true; };
+  }, [currentCat, creds, seriesByCat]);
+
   const visibleSeries = useMemo(() => {
-    const cat = visibleCategories[categoryIdx];
-    if (!cat) return [];
-    if (cat.id === ALL_ID) return series;
-    return series.filter(s => s.category_id === cat.id);
-  }, [visibleCategories, categoryIdx, series]);
+    if (!currentCat) return [];
+    return seriesByCat.get(currentCat.id) || [];
+  }, [currentCat, seriesByCat]);
+
+  const seriesLoading = currentCat && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id));
 
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
+
 
   const seasons = seriesInfo?.seasons || [];
   const currentSeasonNumber = seasons[seasonIdx]?.season_number;
