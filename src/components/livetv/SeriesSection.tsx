@@ -434,32 +434,39 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   return (
     <div className="flex-1 min-h-0 flex">
-      <div className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <div className="space-y-1">
+          {categoriesLoading && categories.length === 0 && (
+            <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+            </div>
+          )}
           {visibleCategories.map((c, i) => {
             const isFocused = isActive && pane === 'categories' && categoryIdx === i;
             const isSelected = categoryIdx === i;
+            const isLoadingThis = loadingCat === c.id;
             return (
               <div
                 key={c.id}
                 data-focused={isFocused ? 'true' : 'false'}
                 onClick={() => { setCategoryIdx(i); setGridIdx(0); setPane('grid'); }}
                 className={`
-                  px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
+                  flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
                   ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
                   ${!isFocused && isSelected ? 'bg-white/10' : ''}
                   ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                 `}
               >
-                {c.name}
+                <span className="flex-1 truncate">{c.name}</span>
+                {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
               </div>
             );
           })}
         </div>
       </div>
 
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5">
-        {loading ? (
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5 bg-black/30">
+        {seriesLoading && visibleSeries.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
               <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
@@ -467,6 +474,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
           </div>
         ) : visibleSeries.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
+
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
             {rowVirtualizer.getVirtualItems().map(vr => {
