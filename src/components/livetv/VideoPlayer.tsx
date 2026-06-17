@@ -223,7 +223,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
             hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, fireTracks);
             hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, fireTracks);
             hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, fireTracks);
-            hls.on(Hls.Events.AUDIO_TRACK_SWITCH, fireTracks);
+            hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, fireTracks);
             hls.on(Hls.Events.ERROR, (_evt, data) => {
               if (data.fatal) {
                 onError?.(`HLS ${data.type}: ${data.details}`);
