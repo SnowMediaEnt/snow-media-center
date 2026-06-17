@@ -604,38 +604,38 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     return (
       <div className="fixed inset-0 z-[60] bg-black text-white">
         <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
-          <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
+          <VideoPlayer
+            src={streamUrl}
+            volume={volume}
+            className="w-full h-full"
+            onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
+            onPlayStateChange={(paused) => setIsPaused(paused)}
+            onTracksChanged={() => setTracksTick(t => t + 1)}
+          />
         </Suspense>
-        {showInfoPanel && playingStream && (
-          <div className="absolute left-0 right-0 bottom-0 p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in">
-            <div className="flex items-start gap-4 max-w-5xl mx-auto">
-              <div className="w-20 h-20 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {playingStream.stream_icon ? (
-                  <img src={playingStream.stream_icon} alt="" className="w-full h-full object-contain" />
-                ) : (
-                  <Tv className="w-10 h-10 text-brand-ice/60" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-quicksand font-bold text-white truncate">
-                  {playingStream.num ? `${playingStream.num} · ` : ''}{playingStream.name}
-                </h2>
-                {playingNowNext?.now && (
-                  <>
-                    <p className="text-brand-ice/90 font-nunito truncate">{playingNowNext.now.title}</p>
-                    <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
-                    </div>
-                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
-                      {formatTime(playingNowNext.now.start)} – {formatTime(playingNowNext.now.end)}
-                    </p>
-                  </>
-                )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-2">
-                  Up / Down: change channel · Left / Right: volume ({Math.round(volume * 100)}%) · Back: exit
-                </p>
-              </div>
-            </div>
+        <PlayerControlBar
+          visible={barVisible}
+          focus={barFocus}
+          isPaused={isPaused}
+          controller={videoControllerRef.current}
+          tracksTick={tracksTick}
+          categoryName={currentCat?.name}
+          channelLogo={playingStream?.stream_icon}
+          channelNum={playingStream?.num}
+          channelName={playingStream?.name}
+          nowTitle={playingNowNext?.now?.title}
+          nowStart={playingNowNext?.now?.start}
+          nowEnd={playingNowNext?.now?.end}
+          nextTitle={playingNowNext?.next?.title}
+          subMenuOpen={subMenuOpen}
+          audioMenuOpen={audioMenuOpen}
+          subMenuFocus={subMenuFocus}
+          audioMenuFocus={audioMenuFocus}
+        />
+        {/* Volume hint while bar is hidden */}
+        {!barVisible && (
+          <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
+            Vol {Math.round(volume * 100)}%
           </div>
         )}
       </div>
