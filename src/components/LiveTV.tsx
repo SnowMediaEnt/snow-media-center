@@ -165,7 +165,7 @@ const Player = memo(({ onBack }: Props) => {
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex">
         {/* Pane 1 — Sections */}
-        <div className={`w-44 flex-shrink-0 border-r border-white/10 p-3 space-y-2 ${pane === 'sections' ? 'bg-white/5' : ''}`}>
+        <div className={`w-44 flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 ${pane === 'sections' ? 'bg-white/5' : ''}`}>
           {SECTIONS.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
