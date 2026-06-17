@@ -34,6 +34,108 @@
         };
       }
     </script>
+    <script>
+      // Boot-error catcher for old WebViews — ES5-safe, no dependencies
+      (function() {
+        var errors = [];
+        var panel = null;
+        var mounted = false;
+
+        function checkMounted() {
+          var root = document.getElementById('root');
+          mounted = root && root.childNodes && root.childNodes.length > 0;
+          return mounted;
+        }
+
+        function render() {
+          if (checkMounted()) return;
+          if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'boot-error-panel';
+            var style = 'position:fixed;inset:0;z-index:99999;background:#111;color:#eee;font-family:monospace;font-size:16px;padding:24px;overflow:auto;';
+            panel.setAttribute('style', style);
+
+            var heading = document.createElement('div');
+            heading.setAttribute('style', 'color:#ff4444;font-size:22px;font-weight:bold;margin-bottom:16px;');
+            heading.appendChild(document.createTextNode('\u26A0 App failed to start'));
+            panel.appendChild(heading);
+
+            if (document.body) {
+              document.body.appendChild(panel);
+            } else {
+              // body not ready yet, wait for DOMContentLoaded
+              document.addEventListener('DOMContentLoaded', function() {
+                if (!panel.parentNode && document.body) document.body.appendChild(panel);
+              });
+            }
+          }
+
+          // clear and rebuild so order is correct
+          while (panel.childNodes.length > 1) {
+            panel.removeChild(panel.lastChild);
+          }
+
+          for (var i = 0; i < errors.length; i++) {
+            var err = errors[i];
+            var block = document.createElement('div');
+            block.setAttribute('style', 'border-top:1px solid #444;padding-top:12px;margin-top:12px;white-space:pre-wrap;word-break:break-word;');
+
+            var msg = document.createElement('div');
+            msg.setAttribute('style', 'color:#ff8888;margin-bottom:4px;');
+            msg.appendChild(document.createTextNode(err.message || 'Unknown error'));
+            block.appendChild(msg);
+
+            if (err.source || err.lineno || err.colno) {
+              var loc = document.createElement('div');
+              loc.setAttribute('style', 'color:#aaa;font-size:14px;margin-bottom:4px;');
+              var locText = (err.source || '') + (err.lineno ? ':' + err.lineno : '') + (err.colno ? ':' + err.colno : '');
+              loc.appendChild(document.createTextNode(locText));
+              block.appendChild(loc);
+            }
+
+            if (err.stack) {
+              var st = document.createElement('div');
+              st.setAttribute('style', 'color:#ccc;font-size:14px;');
+              st.appendChild(document.createTextNode(err.stack));
+              block.appendChild(st);
+            }
+
+            panel.appendChild(block);
+          }
+        }
+
+        function handler(event) {
+          if (checkMounted()) return;
+          var err = {};
+          if (event && event.reason) {
+            // unhandledrejection
+            var reason = event.reason;
+            err.message = (reason && reason.message) ? reason.message : String(reason);
+            err.stack = (reason && reason.stack) ? reason.stack : '';
+          } else if (event && event.error) {
+            // error event
+            var e = event.error;
+            err.message = (e && e.message) ? e.message : String(e);
+            err.stack = (e && e.stack) ? e.stack : '';
+            err.source = event.filename || '';
+            err.lineno = event.lineno || 0;
+            err.colno = event.colno || 0;
+          } else if (event && event.message) {
+            err.message = event.message;
+            err.source = event.filename || '';
+            err.lineno = event.lineno || 0;
+            err.colno = event.colno || 0;
+          } else {
+            err.message = 'Unknown error';
+          }
+          errors.push(err);
+          render();
+        }
+
+        window.addEventListener('error', handler);
+        window.addEventListener('unhandledrejection', handler);
+      })();
+    </script>
     <style>
       /* Prevent Android TV scaling issues */
       html, body {
