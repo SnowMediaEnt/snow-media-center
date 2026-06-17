@@ -112,6 +112,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   const seriesLoading = currentCat && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id));
 
+  // Reset grid focus when switching category.
+  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
 
 
