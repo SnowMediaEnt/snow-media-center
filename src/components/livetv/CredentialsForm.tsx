@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tv, Loader2 } from 'lucide-react';
-import { authenticateAny, saveCreds, SERVERS, type XtreamCreds, type XtreamServer } from '@/lib/xtream';
+import { authenticateRouted, pickServerForUsername, saveCreds, type XtreamCreds, type XtreamServer } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -26,9 +26,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
       return;
     }
     setTesting(true);
-    setProbingServer(null);
+    const routedServer = pickServerForUsername(username);
+    setProbingServer(routedServer);
     try {
-      const result = await authenticateAny(username, password, (s) => setProbingServer(s));
+      const result = await authenticateRouted(username, password, (s) => setProbingServer(s));
       if (!result.ok || !result.creds) {
         toast({
           title: 'Could not sign in',
@@ -129,7 +130,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         </div>
 
         <p className="text-brand-ice/50 text-xs font-nunito mt-6">
-          We try {SERVERS.map(s => s.label).join(' and ')} automatically and use whichever one accepts your login.
+          Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
           Your credentials are stored only on this device.
         </p>
       </form>
