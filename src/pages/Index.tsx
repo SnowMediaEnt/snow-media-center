@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 
@@ -182,6 +183,13 @@ const Index = () => {
   const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
+  const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
+  // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
+  useEffect(() => {
+    if (!playerEnabled) {
+      setFocusedButton(b => (b === 3 ? 2 : b));
+    }
+  }, [playerEnabled]);
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
@@ -323,6 +331,7 @@ const Index = () => {
   const isInMediaBarRef = useRef(isInMediaBar);
   const showEasterEggRef = useRef(showEasterEgg);
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
+  const playerEnabledRef = useRef(playerEnabled);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
@@ -335,6 +344,7 @@ const Index = () => {
   useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
+  useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
@@ -426,7 +436,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = 3; // apps (0), support (1), store (2), livetv (3)
+      const maxButtons = playerEnabledRef.current ? 3 : 2;
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -503,7 +513,7 @@ const Index = () => {
             navigateToRef.current('support');
           } else if (focusedButton === 2) {
             navigateToRef.current('store');
-          } else if (focusedButton === 3) {
+          } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
           }
           break;
@@ -521,32 +531,17 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const buttons = useMemo(() => [
-    {
-      icon: Smartphone,
-      title: 'Main Apps',
-      description: 'Download APKs & Streaming Tools',
-      variant: 'blue' as const
-    },
-    {
-      icon: LifeBuoy,
-      title: 'Support',
-      description: 'Help, AI Chat & Community',
-      variant: 'gold' as const
-    },
-    {
-      icon: Store,
-      title: 'Snow Media Store',
-      description: 'Visit Official Store',
-      variant: 'purple' as const
-    },
-    {
-      icon: Tv,
-      title: 'Player',
-      description: 'Live TV, Movies & Series',
-      variant: 'navy' as const
+  const buttons = useMemo(() => {
+    const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
+      { icon: Smartphone, title: 'Main Apps', description: 'Download APKs & Streaming Tools', variant: 'blue' },
+      { icon: LifeBuoy, title: 'Support', description: 'Help, AI Chat & Community', variant: 'gold' },
+      { icon: Store, title: 'Snow Media Store', description: 'Visit Official Store', variant: 'purple' },
+    ];
+    if (playerEnabled) {
+      list.push({ icon: Tv, title: 'Player', description: 'Live TV, Movies & Series', variant: 'navy' });
     }
-  ], []);
+    return list;
+  }, [playerEnabled]);
 
   
   return (

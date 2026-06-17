@@ -13,14 +13,12 @@ import {
   type XtreamVodStream,
   type XtreamVodInfo,
 } from '@/lib/xtream';
-import { MOCK_VOD_CATEGORIES, MOCK_VOD_STREAMS, mockVodInfo } from '@/lib/mockLiveTV';
 import PosterCard from './PosterCard';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
 }
@@ -29,10 +27,10 @@ type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 
-const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_VOD_CATEGORIES);
-  const [movies, setMovies] = useState<XtreamVodStream[]>(MOCK_VOD_STREAMS);
-  const [loading, setLoading] = useState(false);
+const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [movies, setMovies] = useState<XtreamVodStream[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [pane, setPane] = useState<Pane>('categories');
   const [categoryIdx, setCategoryIdx] = useState(0);
@@ -49,11 +47,6 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
   // Fetch
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_VOD_CATEGORIES);
-      setMovies(MOCK_VOD_STREAMS);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -69,7 +62,7 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Movies' }];
@@ -91,31 +84,23 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
     setSelectedMovie(m);
     setMovieInfo(null);
     setPane('detail');
-    if (!creds || usingMock) {
-      setMovieInfo(mockVodInfo(m));
-      return;
-    }
     setInfoLoading(true);
     try {
       const info = await getVodInfo(creds, m.stream_id);
       setMovieInfo(info);
     } catch {
-      setMovieInfo(mockVodInfo(m));
+      setMovieInfo(null);
     } finally {
       setInfoLoading(false);
     }
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const playMovie = useCallback(() => {
     if (!selectedMovie) return;
-    if (!creds || usingMock) {
-      // Demo mode — nothing to play
-      return;
-    }
     const ext = movieInfo?.movie_data?.container_extension || selectedMovie.container_extension || 'mp4';
     const url = buildMovieUrl(creds, selectedMovie.stream_id, ext);
     setPlaying({ url, title: selectedMovie.name });
-  }, [creds, usingMock, selectedMovie, movieInfo]);
+  }, [creds, selectedMovie, movieInfo]);
 
   // Keyboard
   const paneRef = useRef(pane);
@@ -253,10 +238,9 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
               onClick={playMovie}
               autoFocus
               className="tv-focusable home-focus-surface text-lg px-8 py-6"
-              disabled={!creds || usingMock}
             >
               <Play className="w-5 h-5 mr-2 fill-current" />
-              {usingMock || !creds ? 'Sign in to play' : 'Play Movie'}
+              Play Movie
             </Button>
           </div>
         </div>

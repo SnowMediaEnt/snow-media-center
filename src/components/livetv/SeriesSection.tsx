@@ -14,14 +14,12 @@ import {
   type XtreamSeriesInfo,
   type XtreamEpisode,
 } from '@/lib/xtream';
-import { MOCK_SERIES_CATEGORIES, MOCK_SERIES, mockSeriesInfo } from '@/lib/mockLiveTV';
 import PosterCard from './PosterCard';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
 }
@@ -31,10 +29,10 @@ const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
-const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_SERIES_CATEGORIES);
-  const [series, setSeries] = useState<XtreamSeries[]>(MOCK_SERIES);
-  const [loading, setLoading] = useState(false);
+const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [series, setSeries] = useState<XtreamSeries[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [pane, setPane] = useState<Pane>('categories');
   const [categoryIdx, setCategoryIdx] = useState(0);
@@ -60,11 +58,6 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
 
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_SERIES_CATEGORIES);
-      setSeries(MOCK_SERIES);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -80,7 +73,7 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Series' }];
@@ -111,32 +104,27 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
     setEpisodeIdx(0);
     setDetailFocus('episodes');
     setPane('detail');
-    if (!creds || usingMock) {
-      setSeriesInfo(mockSeriesInfo(s));
-      return;
-    }
     setInfoLoading(true);
     try {
       const info = await getSeriesInfo(creds, s.series_id);
       setSeriesInfo(info);
     } catch {
-      setSeriesInfo(mockSeriesInfo(s));
+      setSeriesInfo(null);
     } finally {
       setInfoLoading(false);
     }
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const playEpisode = useCallback((index: number) => {
     const ep = episodes[index];
     if (!ep || !selectedSeries) return;
-    if (!creds || usingMock) return;
     const url = buildEpisodeUrl(creds, ep.id, ep.container_extension || 'mp4');
     setPlaying({
       url,
       title: `${selectedSeries.name} · S${currentSeasonNumber}E${ep.episode_num} · ${ep.title}`,
       episodeIdx: index,
     });
-  }, [episodes, selectedSeries, creds, usingMock, currentSeasonNumber]);
+  }, [episodes, selectedSeries, creds, currentSeasonNumber]);
 
   // Refs
   const paneRef = useRef(pane);
@@ -329,10 +317,10 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
                 onClick={() => { if (episodes.length) { setEpisodeIdx(0); playEpisode(0); } }}
                 data-focused={detailFocus === 'play' ? 'true' : 'false'}
                 className={`tv-focusable home-focus-surface ${detailFocus === 'play' ? 'ring-2 ring-brand-gold scale-105' : ''}`}
-                disabled={!creds || usingMock || !episodes.length}
+                disabled={!episodes.length}
               >
                 <Play className="w-4 h-4 mr-2 fill-current" />
-                {usingMock || !creds ? 'Sign in to play' : 'Play S1·E1'}
+                Play S1·E1
               </Button>
               <label className="flex items-center gap-2 text-sm font-nunito text-brand-ice cursor-pointer">
                 <input

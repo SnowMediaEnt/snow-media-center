@@ -17,14 +17,12 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
-import { MOCK_CATEGORIES, MOCK_STREAMS, mockEpgFor } from '@/lib/mockLiveTV';
 import ChannelRow from './ChannelRow';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
   onBack: () => void;
@@ -40,10 +38,10 @@ const formatTime = (ms?: number) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_CATEGORIES);
-  const [streams, setStreams] = useState<XtreamLiveStream[]>(MOCK_STREAMS);
-  const [loading, setLoading] = useState(false);
+const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [streams, setStreams] = useState<XtreamLiveStream[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,14 +71,9 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
   const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
   const [, forceEpgTick] = useState(0);
 
-  // Load server data (or use mocks)
+  // Load server data
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_CATEGORIES);
-      setStreams(MOCK_STREAMS);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -98,7 +91,7 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base: { id: string | number; name: string; count?: number }[] = [
@@ -135,11 +128,6 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
     if (!focusedChannel) return;
     const id = focusedChannel.stream_id;
     if (epgCacheRef.current.has(id)) return;
-    if (usingMock || !creds) {
-      epgCacheRef.current.set(id, mockEpgFor(focusedChannel));
-      forceEpgTick(t => t + 1);
-      return;
-    }
     let cancelled = false;
     (async () => {
       try {
@@ -153,14 +141,14 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
       }
     })();
     return () => { cancelled = true; };
-  }, [focusedChannel, creds, usingMock]);
+  }, [focusedChannel, creds]);
 
   const focusedNowNext = focusedChannel ? epgCacheRef.current.get(focusedChannel.stream_id) : undefined;
 
   const streamUrl = useMemo(() => {
-    if (!playingChannelId || usingMock || !creds) return null;
+    if (!playingChannelId) return null;
     return buildLiveStreamUrl(creds, playingChannelId);
-  }, [playingChannelId, usingMock, creds]);
+  }, [playingChannelId, creds]);
 
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     setPlayingChannelId(stream.stream_id);
@@ -373,13 +361,13 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/20">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {focusedChannel && !usingMock && creds ? (
+            {focusedChannel ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
                 <VideoPlayer src={buildLiveStreamUrl(creds, focusedChannel.stream_id)} volume={0} className="w-full h-full" />
               </Suspense>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
-                {usingMock ? 'Preview available after sign in' : 'No channel selected'}
+                No channel selected
               </div>
             )}
           </div>
