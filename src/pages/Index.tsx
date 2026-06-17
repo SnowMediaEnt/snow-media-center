@@ -523,32 +523,17 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const buttons = useMemo(() => [
-    {
-      icon: Smartphone,
-      title: 'Main Apps',
-      description: 'Download APKs & Streaming Tools',
-      variant: 'blue' as const
-    },
-    {
-      icon: LifeBuoy,
-      title: 'Support',
-      description: 'Help, AI Chat & Community',
-      variant: 'gold' as const
-    },
-    {
-      icon: Store,
-      title: 'Snow Media Store',
-      description: 'Visit Official Store',
-      variant: 'purple' as const
-    },
-    {
-      icon: Tv,
-      title: 'Player',
-      description: 'Live TV, Movies & Series',
-      variant: 'navy' as const
+  const buttons = useMemo(() => {
+    const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
+      { icon: Smartphone, title: 'Main Apps', description: 'Download APKs & Streaming Tools', variant: 'blue' },
+      { icon: LifeBuoy, title: 'Support', description: 'Help, AI Chat & Community', variant: 'gold' },
+      { icon: Store, title: 'Snow Media Store', description: 'Visit Official Store', variant: 'purple' },
+    ];
+    if (playerEnabled) {
+      list.push({ icon: Tv, title: 'Player', description: 'Live TV, Movies & Series', variant: 'navy' });
     }
-  ], []);
+    return list;
+  }, [playerEnabled]);
 
   
   return (
