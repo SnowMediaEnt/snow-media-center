@@ -134,8 +134,120 @@ const CREDS_KEY = 'snow-livetv-creds-v1';
 const FAVS_KEY = 'snow-livetv-favs-v1';
 const LAST_CHANNEL_KEY = 'snow-livetv-last-channel-v1';
 const VOLUME_KEY = 'snow-livetv-volume-v1';
+const PLAYER_ACCOUNT_KEY = 'snow-player-account-v1';
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, '');
+
+// --- Xtream user_info (typed, partial — server returns extra fields too) ----
+
+export interface XtreamUserInfo {
+  username?: string;
+  password?: string;
+  auth?: number | string | boolean;
+  status?: string;          // 'Active' | 'Expired' | 'Disabled' | 'Banned' | 'Trial'
+  exp_date?: string | number | null; // unix seconds (string most often) — null on lifetime lines
+  is_trial?: string | number | boolean;
+  active_cons?: string | number;
+  created_at?: string | number;
+  max_connections?: string | number;
+  allowed_output_formats?: string[];
+  message?: string;
+}
+
+// --- Local Player Account record -------------------------------------------
+
+export interface PlayerAccount {
+  serverLabel: string;
+  host: string;
+  username: string;
+  password: string;
+  output: 'm3u8' | 'ts';
+  expDate: number | null;       // unix seconds
+  status: string;               // raw status string from panel
+  isTrial: boolean;
+  maxConnections: number | null;
+  activeCons: number | null;
+  lastCheckedAt: number;        // ms epoch
+}
+
+const toNumberOrNull = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const toBool = (v: unknown): boolean => {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v === 1;
+  if (typeof v === 'string') return v === '1' || v.toLowerCase() === 'true';
+  return false;
+};
+
+export const buildPlayerAccount = (
+  server: XtreamServer,
+  creds: XtreamCreds,
+  ui: XtreamUserInfo | undefined,
+): PlayerAccount => ({
+  serverLabel: server.label,
+  host: creds.host,
+  username: creds.username,
+  password: creds.password,
+  output: creds.output,
+  expDate: toNumberOrNull(ui?.exp_date),
+  status: String(ui?.status ?? ''),
+  isTrial: toBool(ui?.is_trial),
+  maxConnections: toNumberOrNull(ui?.max_connections),
+  activeCons: toNumberOrNull(ui?.active_cons),
+  lastCheckedAt: Date.now(),
+});
+
+export async function loadPlayerAccount(): Promise<PlayerAccount | null> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { value } = await Preferences.get({ key: PLAYER_ACCOUNT_KEY });
+    if (value) return JSON.parse(value) as PlayerAccount;
+  } catch { /* not native */ }
+  try {
+    const raw = localStorage.getItem(PLAYER_ACCOUNT_KEY);
+    if (raw) return JSON.parse(raw) as PlayerAccount;
+  } catch { /* ignore */ }
+  return null;
+}
+
+export async function savePlayerAccount(acc: PlayerAccount): Promise<void> {
+  const json = JSON.stringify(acc);
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.set({ key: PLAYER_ACCOUNT_KEY, value: json });
+  } catch { /* not native */ }
+  try { localStorage.setItem(PLAYER_ACCOUNT_KEY, json); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); } catch { /* ignore */ }
+}
+
+export async function clearPlayerAccount(): Promise<void> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.remove({ key: PLAYER_ACCOUNT_KEY });
+  } catch { /* not native */ }
+  try { localStorage.removeItem(PLAYER_ACCOUNT_KEY); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); } catch { /* ignore */ }
+}
+
+/** Convert a unix-seconds exp_date to ms epoch (or null). */
+export function expDateToMs(expDate: number | null | undefined): number | null {
+  if (expDate === null || expDate === undefined) return null;
+  if (!Number.isFinite(expDate) || expDate <= 0) return null;
+  return Math.floor(expDate) * 1000;
+}
+
+/** Whole days until the player account expires. Negative = expired. */
+export function daysUntilExp(account: Pick<PlayerAccount, 'expDate'> | null | undefined): number | null {
+  const ms = expDateToMs(account?.expDate ?? null);
+  if (ms === null) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((ms - today.getTime()) / 86400000);
+}
 
 export const normalizeCreds = (c: XtreamCreds): XtreamCreds => ({
   ...c,
