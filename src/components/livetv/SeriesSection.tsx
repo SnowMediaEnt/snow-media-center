@@ -542,23 +542,3 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
 SeriesSection.displayName = 'SeriesSection';
 export default SeriesSection;
-
-/**
- * Tiny helper that finds the active <video> element in the page and forwards
- * its `ended` event. Used by the fullscreen episode player to drive autoplay
- * without modifying VideoPlayer.
- */
-const PlaybackEndedWatcher = ({ onEnded }: { onEnded: () => void }) => {
-  useEffect(() => {
-    const handle = () => onEnded();
-    const attach = () => {
-      const v = document.querySelector('video');
-      if (!v) { window.setTimeout(attach, 300); return; }
-      v.addEventListener('ended', handle);
-      return () => v.removeEventListener('ended', handle);
-    };
-    const detach = attach();
-    return () => { if (typeof detach === 'function') detach(); };
-  }, [onEnded]);
-  return null;
-};
