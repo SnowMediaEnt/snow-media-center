@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
 
 interface VideoPlayerProps {
   src: string | null;
