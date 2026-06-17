@@ -428,7 +428,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = 3; // apps (0), support (1), store (2), livetv (3)
+      const maxButtons = playerEnabled ? 3 : 2; // apps (0), support (1), store (2), livetv (3)
 
       switch (event.key) {
         case 'ArrowLeft':
