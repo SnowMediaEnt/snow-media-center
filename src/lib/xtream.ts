@@ -431,6 +431,7 @@ export interface AuthProbeResult {
   server?: XtreamServer;
   creds?: XtreamCreds;
   info?: any;
+  userInfo?: XtreamUserInfo;
   error?: string;
 }
 
@@ -440,6 +441,9 @@ export async function authenticateRouted(
   password: string,
   onProgress?: (server: XtreamServer) => void,
 ): Promise<AuthProbeResult> {
+  const u = username.trim();
+  const p = password.trim();
+  if (!u || !p) return { ok: false, error: 'Missing username or password' };
   const u = username.trim();
   const p = password.trim();
   if (!u || !p) return { ok: false, error: 'Missing username or password' };
