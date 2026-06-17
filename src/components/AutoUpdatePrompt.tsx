@@ -105,12 +105,12 @@ const AutoUpdatePrompt = () => {
       }
     };
 
-    // Run shortly after launch, then hourly (paused while app is backgrounded).
-    const t = setTimeout(check, 4000);
+    // Run when the browser is idle, then hourly (paused while backgrounded).
+    const cancelIdle = runWhenIdle(() => { void check(); }, 4000);
     const cancelInterval = setPausableInterval(check, 60 * 60 * 1000);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      cancelIdle();
       cancelInterval();
     };
   }, [currentVersion, currentVersionCode, isLoading]);
