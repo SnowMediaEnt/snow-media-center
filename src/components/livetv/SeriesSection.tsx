@@ -14,14 +14,12 @@ import {
   type XtreamSeriesInfo,
   type XtreamEpisode,
 } from '@/lib/xtream';
-import { MOCK_SERIES_CATEGORIES, MOCK_SERIES, mockSeriesInfo } from '@/lib/mockLiveTV';
 import PosterCard from './PosterCard';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
 }
@@ -31,10 +29,10 @@ const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
-const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_SERIES_CATEGORIES);
-  const [series, setSeries] = useState<XtreamSeries[]>(MOCK_SERIES);
-  const [loading, setLoading] = useState(false);
+const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [series, setSeries] = useState<XtreamSeries[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [pane, setPane] = useState<Pane>('categories');
   const [categoryIdx, setCategoryIdx] = useState(0);
