@@ -236,8 +236,12 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
           setDetailFocus('episodes');
         }
       } else if (focus === 'episodes') {
-        if (e.key === 'ArrowDown') setEpisodeIdx(i => Math.min(eps.length - 1, i + 1));
+        if (e.key === 'ArrowDown') {
+          if (!eps.length) return;
+          setEpisodeIdx(i => (i + 1) % eps.length);
+        }
         else if (e.key === 'ArrowUp') {
+          if (!eps.length) return;
           if (episodeIdxRef.current === 0) setDetailFocus('play');
           else setEpisodeIdx(episodeIdxRef.current - 1);
         }
