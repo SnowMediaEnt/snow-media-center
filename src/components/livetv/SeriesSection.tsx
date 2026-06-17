@@ -58,11 +58,6 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_SERIES_CATEGORIES);
-      setSeries(MOCK_SERIES);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -78,7 +73,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Series' }];
@@ -109,32 +104,27 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     setEpisodeIdx(0);
     setDetailFocus('episodes');
     setPane('detail');
-    if (!creds || usingMock) {
-      setSeriesInfo(mockSeriesInfo(s));
-      return;
-    }
     setInfoLoading(true);
     try {
       const info = await getSeriesInfo(creds, s.series_id);
       setSeriesInfo(info);
     } catch {
-      setSeriesInfo(mockSeriesInfo(s));
+      setSeriesInfo(null);
     } finally {
       setInfoLoading(false);
     }
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const playEpisode = useCallback((index: number) => {
     const ep = episodes[index];
     if (!ep || !selectedSeries) return;
-    if (!creds || usingMock) return;
     const url = buildEpisodeUrl(creds, ep.id, ep.container_extension || 'mp4');
     setPlaying({
       url,
       title: `${selectedSeries.name} · S${currentSeasonNumber}E${ep.episode_num} · ${ep.title}`,
       episodeIdx: index,
     });
-  }, [episodes, selectedSeries, creds, usingMock, currentSeasonNumber]);
+  }, [episodes, selectedSeries, creds, currentSeasonNumber]);
 
   // Refs
   const paneRef = useRef(pane);
