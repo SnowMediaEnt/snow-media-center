@@ -621,7 +621,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
           ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-center px-6">
               {searchOpen
-                ? (searchQuery ? 'No channels match your search.' : 'Type above to search channels you have already opened.')
+                ? (searchQuery
+                    ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')
+                    : (allChannelsLoading ? 'Loading channel catalog…' : 'Type above to search all channels.'))
                 : currentCat?.id === FAV_ID
                   ? 'No favorites yet. Press F on a channel to add it.'
                   : 'No channels in this category.'}
