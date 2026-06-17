@@ -371,7 +371,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
               <div
                 key={c.id}
                 data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => { setCategoryIdx(i); setGridIdx(0); setPane('grid'); }}
+                onClick={() => {
+                  userMovedRef.current = true;
+                  if (c.id === ALL_ID) allOptedInRef.current = true;
+                  setCategoryIdx(i); setGridIdx(0); setPane('grid');
+                }}
                 className={`
                   flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
                   ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
