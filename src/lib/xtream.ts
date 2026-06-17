@@ -261,6 +261,13 @@ export async function authenticate(c: XtreamCreds): Promise<any> {
   return httpGetJson(buildBase(c, {}), 15000);
 }
 
+export function pickServerForUsername(username: string): XtreamServer {
+  const u = username.trim();
+  return u.includes('@')
+    ? SERVERS.find(s => s.label === 'Vibez') || SERVERS[1]
+    : SERVERS.find(s => s.label === 'Dreamstreams') || SERVERS[0];
+}
+
 export interface AuthProbeResult {
   ok: boolean;
   server?: XtreamServer;
@@ -269,8 +276,8 @@ export interface AuthProbeResult {
   error?: string;
 }
 
-/** Try each SERVER in order; return the first that authenticates. */
-export async function authenticateAny(
+/** Authenticate against exactly one server routed by username format. */
+export async function authenticateRouted(
   username: string,
   password: string,
   onProgress?: (server: XtreamServer) => void,
@@ -279,32 +286,34 @@ export async function authenticateAny(
   const p = password.trim();
   if (!u || !p) return { ok: false, error: 'Missing username or password' };
 
-  let lastErr: string | undefined;
-  for (const server of SERVERS) {
-    onProgress?.(server);
-    const creds = normalizeCreds({
-      host: server.host,
-      username: u,
-      password: p,
-      output: 'm3u8',
-      serverLabel: server.label,
-    });
-    try {
-      const info: any = await authenticate(creds);
-      const ui = info?.user_info;
-      const auth = ui?.auth;
-      const status = String(ui?.status || '').toLowerCase();
-      const authed = auth === 1 || auth === '1' || auth === true;
-      const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
-      if (authed && !disabled) {
-        return { ok: true, server, creds, info };
-      }
-      lastErr = `Server ${server.label} rejected the login.`;
-    } catch (e) {
-      lastErr = `Server ${server.label} unreachable.`;
+  const server = pickServerForUsername(u);
+  onProgress?.(server);
+
+  const creds = normalizeCreds({
+    host: server.host,
+    username: u,
+    password: p,
+    output: 'm3u8',
+    serverLabel: server.label,
+  });
+
+  try {
+    const info: any = await authenticate(creds);
+    const ui = info?.user_info;
+    const auth = ui?.auth;
+    const status = String(ui?.status || '').toLowerCase();
+    const authed = auth === 1 || auth === '1' || auth === true;
+    const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
+    if (authed && !disabled) {
+      return { ok: true, server, creds, info };
     }
+    return { ok: false, error: 'Invalid username or password.' };
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
+    };
   }
-  return { ok: false, error: lastErr || 'Invalid username or password' };
 }
 
 // --- Live -------------------------------------------------------------------
