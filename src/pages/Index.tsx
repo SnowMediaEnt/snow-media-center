@@ -184,6 +184,12 @@ const Index = () => {
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
+  // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
+  useEffect(() => {
+    if (!playerEnabled) {
+      setFocusedButton(b => (b === 3 ? 2 : b));
+    }
+  }, [playerEnabled]);
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
