@@ -101,13 +101,16 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
   }, [creds, usingMock]);
 
   const visibleCategories = useMemo(() => {
-    const base = [
+    const base: { id: string | number; name: string; count?: number }[] = [
       { id: FAV_ID, name: 'Favorites' },
-      { id: ALL_ID, name: 'All channels' },
+      { id: ALL_ID, name: 'All channels', count: streams.length },
     ];
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name });
+    const counts = new Map<string | number, number>();
+    for (const s of streams) counts.set(s.category_id, (counts.get(s.category_id) || 0) + 1);
+    for (const c of categories) base.push({ id: c.category_id, name: c.category_name, count: counts.get(c.category_id) || 0 });
+    if (base[0].id === FAV_ID) base[0].count = streams.filter(s => favorites.has(s.stream_id)).length;
     return base;
-  }, [categories]);
+  }, [categories, streams, favorites]);
 
   const visibleChannels = useMemo(() => {
     if (searchOpen) {
