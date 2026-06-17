@@ -18,6 +18,8 @@ import {
   type EpgNowNext,
 } from '@/lib/xtream';
 import ChannelRow from './ChannelRow';
+import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
+import type { VideoController } from './VideoPlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -99,6 +101,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   const [fullscreen, setFullscreen] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const infoTimerRef = useRef<number | null>(null);
+
+  // --- Fullscreen control bar (TiviMate-style) ---
+  const videoControllerRef = useRef<VideoController | null>(null);
+  const [barVisible, setBarVisible] = useState(true);
+  const [barFocus, setBarFocus] = useState<BarControlId>('play');
+  const [isPaused, setIsPaused] = useState(false);
+  const [subMenuOpen, setSubMenuOpen] = useState(false);
+  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
+  const [audioMenuFocus, setAudioMenuFocus] = useState(0);
+  const [tracksTick, setTracksTick] = useState(0);
+  const barHideTimerRef = useRef<number | null>(null);
+  const pokeBar = useCallback(() => {
+    setBarVisible(true);
+    if (barHideTimerRef.current) window.clearTimeout(barHideTimerRef.current);
+    barHideTimerRef.current = window.setTimeout(() => {
+      setBarVisible(false);
+      setSubMenuOpen(false);
+      setAudioMenuOpen(false);
+    }, 5000) as unknown as number;
+  }, []);
+  const hideBarNow = useCallback(() => {
+    if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
+    setBarVisible(false);
+    setSubMenuOpen(false);
+    setAudioMenuOpen(false);
+  }, []);
+  // Reset bar state when entering fullscreen or switching channel.
+  useEffect(() => {
+    if (!fullscreen) return;
+    setBarFocus('play');
+    setSubMenuOpen(false);
+    setAudioMenuOpen(false);
+    pokeBar();
+    return () => {
+      if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
+    };
+  }, [fullscreen, playingChannelId, pokeBar]);
 
   const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
   const epgPendingRef = useRef<Set<number>>(new Set());
@@ -350,6 +390,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   const visibleCategoriesRef = useRef(visibleCategories);
   const visibleChannelsRef = useRef(visibleChannels);
   const searchOpenRef = useRef(searchOpen);
+  // Bar refs so the (stable) keydown listener can read live state without rebinding.
+  const barVisibleRef = useRef(barVisible);
+  const barFocusRef = useRef(barFocus);
+  const subMenuOpenRef = useRef(subMenuOpen);
+  const audioMenuOpenRef = useRef(audioMenuOpen);
+  const subMenuFocusRef = useRef(subMenuFocus);
+  const audioMenuFocusRef = useRef(audioMenuFocus);
 
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { categoryIdxRef.current = categoryIdx; }, [categoryIdx]);
@@ -358,6 +405,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleChannelsRef.current = visibleChannels; }, [visibleChannels]);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
+  useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
+  useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
+  useEffect(() => { subMenuOpenRef.current = subMenuOpen; }, [subMenuOpen]);
+  useEffect(() => { audioMenuOpenRef.current = audioMenuOpen; }, [audioMenuOpen]);
+  useEffect(() => { subMenuFocusRef.current = subMenuFocus; }, [subMenuFocus]);
+  useEffect(() => { audioMenuFocusRef.current = audioMenuFocus; }, [audioMenuFocus]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -366,20 +419,118 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
       if (fullscreenRef.current) {
-        if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+        const ctrl = videoControllerRef.current;
+
+        // --- Sub/Audio menus take priority ---
+        if (subMenuOpenRef.current || audioMenuOpenRef.current) {
           e.preventDefault(); e.stopPropagation();
+          pokeBar();
+          const isSub = subMenuOpenRef.current;
+          if (isBack || e.key === 'ArrowLeft') {
+            setSubMenuOpen(false); setAudioMenuOpen(false);
+            return;
+          }
+          if (isSub) {
+            const subs = ctrl?.getSubtitleTracks() ?? [];
+            const min = -1; const max = subs.length - 1;
+            if (e.key === 'ArrowDown') setSubMenuFocus(f => Math.min(max, f + 1));
+            else if (e.key === 'ArrowUp') setSubMenuFocus(f => Math.max(min, f - 1));
+            else if (e.key === 'Enter' || e.key === ' ') {
+              ctrl?.setSubtitleTrack(subMenuFocusRef.current);
+              setTracksTick(t => t + 1);
+              setSubMenuOpen(false);
+            }
+          } else {
+            const auds = ctrl?.getAudioTracks() ?? [];
+            const max = auds.length - 1;
+            if (e.key === 'ArrowDown') setAudioMenuFocus(f => Math.min(max, f + 1));
+            else if (e.key === 'ArrowUp') setAudioMenuFocus(f => Math.max(0, f - 1));
+            else if (e.key === 'Enter' || e.key === ' ') {
+              ctrl?.setAudioTrack(audioMenuFocusRef.current);
+              setTracksTick(t => t + 1);
+              setAudioMenuOpen(false);
+            }
+          }
+          return;
+        }
+
+        // --- Back ---
+        if (isBack) {
+          e.preventDefault(); e.stopPropagation();
+          if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false); setShowInfoPanel(false);
           return;
         }
-        if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); return; }
-        if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); return; }
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => Math.min(1, +(v + 0.05).toFixed(2))); return; }
+
+        // --- Bar is HIDDEN: preserve channel zap + volume, Enter shows bar ---
+        if (!barVisibleRef.current) {
+          if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); pokeBar(); setBarFocus('play'); return; }
+          if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); pokeBar(); setBarFocus('play'); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); pokeBar(); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => Math.min(1, +(v + 0.05).toFixed(2))); pokeBar(); return; }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setBarFocus('play');
+            pokeBar();
+            return;
+          }
+          // Any other key — pop the bar but don't act.
+          pokeBar();
+          return;
+        }
+
+        // --- Bar VISIBLE: navigate the control row ---
+        e.preventDefault();
+        pokeBar();
+        const subs = ctrl?.getSubtitleTracks() ?? [];
+        const auds = ctrl?.getAudioTracks() ?? [];
+        const seekable = !!ctrl?.isSeekable();
+        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio'];
+        const isDisabled = (id: BarControlId): boolean => {
+          if (id === 'rew' || id === 'fwd') return !seekable;
+          if (id === 'cc') return subs.length === 0;
+          if (id === 'audio') return auds.length <= 1;
+          return false;
+        };
+        const moveFocus = (dir: 1 | -1) => {
+          const cur = order.indexOf(barFocusRef.current);
+          for (let step = 1; step <= order.length; step++) {
+            const next = cur + dir * step;
+            if (next < 0 || next >= order.length) return;
+            const cand = order[next];
+            if (!isDisabled(cand)) { setBarFocus(cand); return; }
+          }
+        };
+
+        if (e.key === 'ArrowLeft')  { moveFocus(-1); return; }
+        if (e.key === 'ArrowRight') { moveFocus(+1); return; }
+        if (e.key === 'ArrowUp')    { hideBarNow(); return; }
+        if (e.key === 'ArrowDown')  { /* bar already shown; keep focus */ return; }
         if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setShowInfoPanel(true);
-          if (infoTimerRef.current) window.clearTimeout(infoTimerRef.current);
-          infoTimerRef.current = window.setTimeout(() => setShowInfoPanel(false), 5000) as unknown as number;
+          const id = barFocusRef.current;
+          if (id === 'prev')  changeChannelInFullscreen(-1);
+          else if (id === 'next') changeChannelInFullscreen(+1);
+          else if (id === 'rew')  { ctrl?.seek(-10); }
+          else if (id === 'fwd')  { ctrl?.seek(+10); }
+          else if (id === 'play') {
+            ctrl?.togglePlay();
+            // optimistic — onPlayStateChange will reconcile
+            setIsPaused(p => !p);
+          }
+          else if (id === 'cc') {
+            const cur = subs.findIndex(s => s.active);
+            setSubMenuFocus(cur >= 0 ? cur : -1);
+            setSubMenuOpen(true);
+            setAudioMenuOpen(false);
+          }
+          else if (id === 'audio') {
+            const cur = auds.findIndex(a => a.active);
+            setAudioMenuFocus(cur >= 0 ? cur : 0);
+            setAudioMenuOpen(true);
+            setSubMenuOpen(false);
+          }
+          return;
         }
         return;
       }
@@ -435,7 +586,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, toggleFavorite, changeChannelInFullscreen, playChannel]);
+  }, [isActive, onExitLeft, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId
@@ -453,38 +604,38 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     return (
       <div className="fixed inset-0 z-[60] bg-black text-white">
         <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
-          <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
+          <VideoPlayer
+            src={streamUrl}
+            volume={volume}
+            className="w-full h-full"
+            onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
+            onPlayStateChange={(paused) => setIsPaused(paused)}
+            onTracksChanged={() => setTracksTick(t => t + 1)}
+          />
         </Suspense>
-        {showInfoPanel && playingStream && (
-          <div className="absolute left-0 right-0 bottom-0 p-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in">
-            <div className="flex items-start gap-4 max-w-5xl mx-auto">
-              <div className="w-20 h-20 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {playingStream.stream_icon ? (
-                  <img src={playingStream.stream_icon} alt="" className="w-full h-full object-contain" />
-                ) : (
-                  <Tv className="w-10 h-10 text-brand-ice/60" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-quicksand font-bold text-white truncate">
-                  {playingStream.num ? `${playingStream.num} · ` : ''}{playingStream.name}
-                </h2>
-                {playingNowNext?.now && (
-                  <>
-                    <p className="text-brand-ice/90 font-nunito truncate">{playingNowNext.now.title}</p>
-                    <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
-                    </div>
-                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
-                      {formatTime(playingNowNext.now.start)} – {formatTime(playingNowNext.now.end)}
-                    </p>
-                  </>
-                )}
-                <p className="text-xs text-brand-ice/60 font-nunito mt-2">
-                  Up / Down: change channel · Left / Right: volume ({Math.round(volume * 100)}%) · Back: exit
-                </p>
-              </div>
-            </div>
+        <PlayerControlBar
+          visible={barVisible}
+          focus={barFocus}
+          isPaused={isPaused}
+          controller={videoControllerRef.current}
+          tracksTick={tracksTick}
+          categoryName={currentCat?.name}
+          channelLogo={playingStream?.stream_icon}
+          channelNum={playingStream?.num}
+          channelName={playingStream?.name}
+          nowTitle={playingNowNext?.now?.title}
+          nowStart={playingNowNext?.now?.start}
+          nowEnd={playingNowNext?.now?.end}
+          nextTitle={playingNowNext?.next?.title}
+          subMenuOpen={subMenuOpen}
+          audioMenuOpen={audioMenuOpen}
+          subMenuFocus={subMenuFocus}
+          audioMenuFocus={audioMenuFocus}
+        />
+        {/* Volume hint while bar is hidden */}
+        {!barVisible && (
+          <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
+            Vol {Math.round(volume * 100)}%
           </div>
         )}
       </div>
