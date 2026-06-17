@@ -13,9 +13,22 @@ interface Props {
   onActivate: (index: number) => void;
 }
 
+const formatTime = (ms?: number) => {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate }: Props) => {
   const [iconError, setIconError] = useState(false);
+  const [iconLoaded, setIconLoaded] = useState(false);
   const showIcon = channel.stream_icon && !iconError;
+
+  const now = nowNext?.now;
+  const progress = (() => {
+    if (!now) return 0;
+    return Math.min(100, Math.max(0, ((Date.now() - now.start) / (now.end - now.start)) * 100));
+  })();
 
   return (
     <div
@@ -23,19 +36,31 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
       onClick={() => onActivate(index)}
       onMouseEnter={() => onSelect(index)}
       className={`
-        flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150
-        ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.01] shadow-lg' : 'bg-white/5 hover:bg-white/10'}
+        flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer
+        transition-transform duration-150 will-change-transform
+        ${isFocused
+          ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_18px_2px_rgba(245,200,80,0.35)]'
+          : isPlaying ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}
       `}
     >
+      <span className={`w-8 text-right font-quicksand font-bold tabular-nums text-sm ${isFocused ? 'text-brand-gold' : 'text-brand-ice/60'}`}>
+        {channel.num ?? ''}
+      </span>
+
       <div className="w-14 h-14 rounded-lg bg-black/40 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {showIcon ? (
-          <img
-            src={channel.stream_icon}
-            alt=""
-            loading="lazy"
-            onError={() => setIconError(true)}
-            className="w-full h-full object-contain"
-          />
+          <>
+            {!iconLoaded && <div className="absolute w-14 h-14 rounded-lg bg-white/5 animate-pulse" />}
+            <img
+              src={channel.stream_icon}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onLoad={() => setIconLoaded(true)}
+              onError={() => setIconError(true)}
+              className={`w-full h-full object-contain transition-opacity duration-200 ${iconLoaded ? 'opacity-100' : 'opacity-0'}`}
+            />
+          </>
         ) : (
           <Tv className="w-7 h-7 text-brand-ice/60" />
         )}
@@ -44,19 +69,35 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
-            {channel.num ? `${channel.num}. ` : ''}{channel.name}
+            {channel.name}
           </span>
-          {isFavorite && <Star className="w-4 h-4 text-brand-gold fill-brand-gold flex-shrink-0" />}
           {isPlaying && (
-            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-brand-gold/30 text-brand-gold">
-              <Radio className="w-3 h-3 animate-pulse" /> ON
+            <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
+              <Radio className="w-3 h-3 animate-pulse" /> ON AIR
             </span>
           )}
+          <Star
+            className={`w-4 h-4 ml-auto flex-shrink-0 transition-colors ${
+              isFavorite ? 'text-brand-gold fill-brand-gold' : isFocused ? 'text-brand-ice/40' : 'text-transparent'
+            }`}
+          />
         </div>
-        {nowNext?.now && (
-          <p className="text-xs text-brand-ice/70 truncate font-nunito mt-0.5">
-            Now: {nowNext.now.title}
-          </p>
+        {now ? (
+          <>
+            <p className="text-xs text-brand-ice/70 truncate font-nunito mt-0.5">
+              {now.title}
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-gold/80 rounded-full" style={{ width: `${progress}%` }} />
+              </div>
+              <span className="text-[10px] text-brand-ice/50 font-nunito tabular-nums flex-shrink-0">
+                {formatTime(now.start)}–{formatTime(now.end)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-brand-ice/40 truncate font-nunito mt-0.5 italic">No information</p>
         )}
       </div>
     </div>
