@@ -19,14 +19,31 @@ html,body{width:100%;height:100%;margin:0;padding:0;background:#000;overflow-x:h
 </style>
 <script>
 (function () {
-  if (typeof window !== 'undefined') {
-    if (typeof window.globalThis === 'undefined') window.globalThis = window;
-    if (typeof window.structuredClone === 'undefined') {
-      window.structuredClone = function (o) { return JSON.parse(JSON.stringify(o)); };
-    }
+  var g = typeof globalThis !== "undefined"
+    ? globalThis
+    : typeof window !== "undefined"
+      ? window
+      : typeof self !== "undefined"
+        ? self
+        : this;
+  if (typeof window !== "undefined" && typeof window.globalThis === "undefined") window.globalThis = g;
+  if (typeof self !== "undefined" && typeof self.globalThis === "undefined") self.globalThis = g;
+  if (typeof g.globalThis === "undefined") g.globalThis = g;
+  if (typeof Promise !== "undefined" && typeof Promise.allSettled !== "function") {
+    Promise.allSettled = function (items) {
+      return Promise.all(Array.prototype.map.call(items, function (item) {
+        return Promise.resolve(item).then(function (value) {
+          return { status: "fulfilled", value: value };
+        }, function (reason) {
+          return { status: "rejected", reason: reason };
+        });
+      }));
+    };
   }
-  if (typeof self !== 'undefined' && typeof self.globalThis === 'undefined') {
-    self.globalThis = self;
+  if (typeof g.structuredClone === "undefined") {
+    g.structuredClone = function (o) {
+      return JSON.parse(JSON.stringify(o));
+    };
   }
 })();
 </script>
