@@ -19,9 +19,11 @@ if (nativeLowMemory) {
 }
 
 // While the user is D-pad navigating, add html.nav-active so index.css can
-// pause the news-ticker/media-bar marquees — continuous marquee compositing
+// pause the news-ticker marquee — continuous marquee compositing
 // competes with focus transitions on Amlogic/Mali GPUs and drops frames.
-// Resumes 600ms after the last keypress.
+// Resumes ~950ms after the last keypress (raised from 600ms — the previous
+// window released too early and the ticker resumed mid-navigation, causing
+// the focus jump that users perceived as "jank").
 let navIdleTimer: number | undefined;
 window.addEventListener('keydown', (e) => {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
@@ -29,16 +31,19 @@ window.addEventListener('keydown', (e) => {
   window.clearTimeout(navIdleTimer);
   navIdleTimer = window.setTimeout(() => {
     document.documentElement.classList.remove('nav-active');
-  }, 600);
+  }, 950);
 }, { capture: true, passive: true });
 
-// Startup diagnostics for debugging Android issues
+// Startup diagnostics — log-only, never gate UI. The duplicate Supabase
+// getSession + storage probe that used to live here was removed; useAuth
+// already owns the session lifecycle and the storage adapter logs its own
+// readiness state.
 const logStartupDiagnostics = async () => {
   const platform = getPlatform();
   const isNative = isNativePlatform();
   const online = isOnline();
   const storageReady = isStorageReady();
-  
+
   console.log('='.repeat(60));
   console.log('[STARTUP] Snow Media App Initializing...');
   console.log(`[STARTUP] Platform: ${platform} (native: ${isNative})`);
@@ -47,39 +52,20 @@ const logStartupDiagnostics = async () => {
   console.log(`[STARTUP] User Agent: ${navigator.userAgent.substring(0, 100)}...`);
   console.log(`[STARTUP] Location: ${window.location.href}`);
   console.log('='.repeat(60));
-  
-  // Wait for storage to be ready before proceeding
+
   if (!storageReady) {
     console.log('[STARTUP] Waiting for storage adapter...');
     await waitForStorageReady();
     console.log('[STARTUP] Storage adapter ready!');
   }
-  
-  // Test Supabase connection
-  try {
-    const { supabase } = await import('./integrations/supabase/client');
-    console.log('[STARTUP] Supabase client imported');
-    
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) {
-      console.warn('[STARTUP] Supabase session error:', error.message);
-    } else {
-      console.log(`[STARTUP] Supabase session: ${session ? 'ACTIVE' : 'NONE'}`);
-    }
-  } catch (err) {
-    console.error('[STARTUP] Supabase initialization failed:', err);
-  }
-  
-  console.log('[STARTUP] Diagnostics complete, rendering app...');
+
+  console.log('[STARTUP] Diagnostics complete.');
 };
 
-// Render IMMEDIATELY — do not block first paint on Supabase round-trips or
-// storage probes. Diagnostics run in the background and only log; they never
-// gate the UI. This was the cause of perceived slowness after recent edits.
+// Render IMMEDIATELY — do not block first paint on storage probes.
 createRoot(document.getElementById("root")!).render(<App />);
 
 // Fire-and-forget diagnostics
 logStartupDiagnostics().catch((err) => {
   console.error('[STARTUP] Diagnostics error (non-fatal):', err);
 });
-
