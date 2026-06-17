@@ -9,6 +9,7 @@ import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import ApkCacheViewer from '@/components/ApkCacheViewer';
 import AdminAIPanel from '@/components/AdminAIPanel';
+import PlayerAccountCard from '@/components/PlayerAccountCard';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
@@ -342,6 +343,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="ui" className="mt-6 space-y-4">
+            <PlayerAccountCard />
             <Card
               data-settings-focus="ui-content-bar-toggle"
               className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-transform duration-150 ${
