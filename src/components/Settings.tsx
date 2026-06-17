@@ -11,6 +11,8 @@ import ApkCacheViewer from '@/components/ApkCacheViewer';
 import AdminAIPanel from '@/components/AdminAIPanel';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
+import { useToast } from '@/hooks/use-toast';
 
 interface SettingsProps {
   onBack: () => void;
