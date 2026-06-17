@@ -206,5 +206,6 @@ export const useDeviceInstalledApps = () => {
     loading: snap.loading,
     error: snap.error,
     refresh,
+    ensureLoaded,
   };
 };
