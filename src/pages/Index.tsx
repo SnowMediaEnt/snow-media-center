@@ -27,6 +27,7 @@ import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
+import { useTvLegacyLayout } from '@/utils/tvLayout';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
 const InstallApps = lazy(() => import('@/components/InstallApps'));
@@ -79,7 +80,7 @@ const HomeActionCard = memo(({
       data-focused={isFocused ? 'true' : 'false'}
       data-home-card={index}
       className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full
+        home-action-card home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full
         ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
         ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
         ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
@@ -139,6 +140,11 @@ const Index = () => {
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
+  const isTvLegacy = useTvLegacyLayout();
+  // On Android TV / legacy WebView the device often LIES about innerHeight
+  // (reports 1440 or 2160 while really rendering at 1080). Force the
+  // "normal" sizing bucket so we never trigger the giant clamp() values.
+  const sizeBucket = isTvLegacy ? 1080 : screenHeight;
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { version } = useVersion();
