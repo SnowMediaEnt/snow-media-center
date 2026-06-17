@@ -361,13 +361,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/20">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {focusedChannel && !usingMock && creds ? (
+            {focusedChannel ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
                 <VideoPlayer src={buildLiveStreamUrl(creds, focusedChannel.stream_id)} volume={0} className="w-full h-full" />
               </Suspense>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
-                {usingMock ? 'Preview available after sign in' : 'No channel selected'}
+                No channel selected
               </div>
             )}
           </div>
