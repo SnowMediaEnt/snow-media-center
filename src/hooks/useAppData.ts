@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch, isOnline } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 
 export interface AppData {
   id: string;
