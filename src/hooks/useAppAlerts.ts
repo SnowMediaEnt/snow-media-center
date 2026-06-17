@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, SERVICE_WARN_DAYS, type UserService } from '@/hooks/useUserServices';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 
 export interface AppAlert {
   id: string;
