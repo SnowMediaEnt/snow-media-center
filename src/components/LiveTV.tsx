@@ -107,7 +107,7 @@ const Player = memo(({ onBack }: Props) => {
   // Sign-in screen — shown when no creds OR user opened account form
   if (showCredsForm) {
     return (
-      <div className="min-h-screen text-white">
+      <div className="min-h-screen text-white bg-black/70">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
           <CredentialsForm
             initial={creds}
@@ -123,7 +123,8 @@ const Player = memo(({ onBack }: Props) => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col text-white">
+    <div className="min-h-screen flex flex-col text-white bg-black/70">
+
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -164,7 +165,7 @@ const Player = memo(({ onBack }: Props) => {
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex">
         {/* Pane 1 — Sections */}
-        <div className={`w-44 flex-shrink-0 border-r border-white/10 p-3 space-y-2 ${pane === 'sections' ? 'bg-white/5' : ''}`}>
+        <div className={`w-44 flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 ${pane === 'sections' ? 'bg-white/5' : ''}`}>
           {SECTIONS.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;

@@ -32,11 +32,12 @@ const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
 const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [series, setSeries] = useState<XtreamSeries[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
+  const [loadingCat, setLoadingCat] = useState<string | null>(null);
 
   const [pane, setPane] = useState<Pane>('categories');
-  const [categoryIdx, setCategoryIdx] = useState(0);
+  const [categoryIdx, setCategoryIdx] = useState(1);
   const [gridIdx, setGridIdx] = useState(0);
 
   // Detail
@@ -59,18 +60,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setCategoriesLoading(true);
     (async () => {
       try {
-        const [cats, list] = await Promise.all([
-          getSeriesCategories(creds).catch(() => [] as XtreamCategory[]),
-          getSeries(creds).catch(() => [] as XtreamSeries[]),
-        ]);
+        const cats = await getSeriesCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
-        setSeries(list);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setCategoriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -78,18 +75,45 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Series' }];
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name });
+    for (const c of categories) base.push({ id: String(c.category_id), name: c.category_name });
     return base;
   }, [categories]);
 
+  useEffect(() => {
+    if (categoryIdx >= visibleCategories.length) setCategoryIdx(Math.max(0, visibleCategories.length - 1));
+  }, [visibleCategories.length, categoryIdx]);
+
+  const currentCat = visibleCategories[categoryIdx];
+
+  useEffect(() => {
+    if (!currentCat) return;
+    if (seriesByCat.has(currentCat.id)) return;
+    let cancelled = false;
+    const key = currentCat.id;
+    setLoadingCat(key);
+    const p = key === ALL_ID ? getSeries(creds) : getSeries(creds, key);
+    p.then(list => {
+      if (cancelled) return;
+      setSeriesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+    }).catch(() => {
+      if (cancelled) return;
+      setSeriesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
+    }).finally(() => {
+      if (cancelled) return;
+      setLoadingCat(prev => prev === key ? null : prev);
+    });
+    return () => { cancelled = true; };
+  }, [currentCat, creds, seriesByCat]);
+
   const visibleSeries = useMemo(() => {
-    const cat = visibleCategories[categoryIdx];
-    if (!cat) return [];
-    if (cat.id === ALL_ID) return series;
-    return series.filter(s => s.category_id === cat.id);
-  }, [visibleCategories, categoryIdx, series]);
+    if (!currentCat) return [];
+    return seriesByCat.get(currentCat.id) || [];
+  }, [currentCat, seriesByCat]);
+
+  const seriesLoading = currentCat && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id));
 
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
+
 
   const seasons = seriesInfo?.seasons || [];
   const currentSeasonNumber = seasons[seasonIdx]?.season_number;
@@ -306,7 +330,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     const info = seriesInfo?.info;
     const cover = info?.cover || selectedSeries.cover;
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 text-white">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 text-white bg-black/40">
         <Button variant="white" size="sm" onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} className="tv-focusable home-focus-surface mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
@@ -410,32 +434,39 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   return (
     <div className="flex-1 min-h-0 flex">
-      <div className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <div className="space-y-1">
+          {categoriesLoading && categories.length === 0 && (
+            <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
+            </div>
+          )}
           {visibleCategories.map((c, i) => {
             const isFocused = isActive && pane === 'categories' && categoryIdx === i;
             const isSelected = categoryIdx === i;
+            const isLoadingThis = loadingCat === c.id;
             return (
               <div
                 key={c.id}
                 data-focused={isFocused ? 'true' : 'false'}
                 onClick={() => { setCategoryIdx(i); setGridIdx(0); setPane('grid'); }}
                 className={`
-                  px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
+                  flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
                   ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
                   ${!isFocused && isSelected ? 'bg-white/10' : ''}
                   ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                 `}
               >
-                {c.name}
+                <span className="flex-1 truncate">{c.name}</span>
+                {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
               </div>
             );
           })}
         </div>
       </div>
 
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5">
-        {loading ? (
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5 bg-black/30">
+        {seriesLoading && visibleSeries.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
               <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
@@ -443,6 +474,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
           </div>
         ) : visibleSeries.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
+
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
             {rowVirtualizer.getVirtualItems().map(vr => {
