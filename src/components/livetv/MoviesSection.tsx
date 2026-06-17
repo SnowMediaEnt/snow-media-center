@@ -294,8 +294,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         </div>
       </div>
 
-      {/* Pane 3 — Grid */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-5">
+      {/* Pane 3 — Grid (virtualized by row) */}
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5">
         {loading ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
@@ -305,21 +305,43 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         ) : visibleMovies.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No movies in this category.</div>
         ) : (
-          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
-            {visibleMovies.map((m, i) => {
-              const isFocused = isActive && pane === 'grid' && i === gridIdx;
+          <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            {rowVirtualizer.getVirtualItems().map(vr => {
+              const rowStart = vr.index * GRID_COLS;
+              const rowItems = visibleMovies.slice(rowStart, rowStart + GRID_COLS);
               return (
-                <div key={m.stream_id} ref={isFocused ? focusedTileRef : null}>
-                  <PosterCard
-                    title={m.name}
-                    image={m.stream_icon}
-                    rating={m.rating_5based ? m.rating_5based * 2 : m.rating}
-                    year={m.year}
-                    isFocused={isFocused}
-                    variant="movie"
-                    onFocus={() => { setGridIdx(i); setPane('grid'); }}
-                    onActivate={() => openMovie(m)}
-                  />
+                <div
+                  key={vr.key}
+                  className="grid gap-4"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${vr.start}px)`,
+                    height: ROW_H,
+                    gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
+                    paddingBottom: 16,
+                  }}
+                >
+                  {rowItems.map((m, ci) => {
+                    const i = rowStart + ci;
+                    const isFocused = isActive && pane === 'grid' && i === gridIdx;
+                    return (
+                      <div key={m.stream_id}>
+                        <PosterCard
+                          title={m.name}
+                          image={m.stream_icon}
+                          rating={m.rating_5based ? m.rating_5based * 2 : m.rating}
+                          year={m.year}
+                          isFocused={isFocused}
+                          variant="movie"
+                          onFocus={() => { setGridIdx(i); setPane('grid'); }}
+                          onActivate={() => openMovie(m)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
