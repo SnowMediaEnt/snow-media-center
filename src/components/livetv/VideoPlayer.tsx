@@ -8,6 +8,8 @@ interface VideoPlayerProps {
   /** Auto-retry attempts on fatal errors (IPTV streams drop often). */
   maxRetries?: number;
   onError?: (msg: string) => void;
+  /** Fired when the underlying <video> finishes playback (finite media). */
+  onEnded?: () => void;
 }
 
 type Engine = 'hls' | 'mpegts' | 'native';
@@ -19,7 +21,7 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError, onEnded }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
