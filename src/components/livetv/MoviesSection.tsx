@@ -164,25 +164,27 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
-        if (e.key === 'ArrowDown') setCategoryIdx(i => Math.min(cats.length - 1, i + 1));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => Math.max(0, i - 1));
+        if (e.key === 'ArrowDown') setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0);
+        else if (e.key === 'ArrowUp') setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setGridIdx(0); setPane('grid'); }
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setPane('grid'); }
         return;
       }
 
       if (paneRef.current === 'grid') {
         const list = visibleMoviesRef.current;
         const i = gridIdxRef.current;
+        if (!list.length) return;
         if (e.key === 'ArrowRight') {
           if ((i + 1) % GRID_COLS !== 0 && i + 1 < list.length) setGridIdx(i + 1);
         } else if (e.key === 'ArrowLeft') {
           if (i % GRID_COLS === 0) setPane('categories');
           else setGridIdx(i - 1);
         } else if (e.key === 'ArrowDown') {
-          setGridIdx(Math.min(list.length - 1, i + GRID_COLS));
+          const next = i + GRID_COLS;
+          setGridIdx(next < list.length ? next : i); // stay on last row
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) return; // already on top row
+          if (i < GRID_COLS) return;
           setGridIdx(i - GRID_COLS);
         } else if (e.key === 'Enter' || e.key === ' ') {
           const m = list[i];
