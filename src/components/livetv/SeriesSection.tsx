@@ -327,26 +327,17 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
             volume={volume}
             className="w-full h-full"
             onError={() => { /* let VideoPlayer retry */ }}
+            onEnded={() => {
+              if (!autoplayNextRef.current) { setPlaying(null); return; }
+              const next = playing.episodeIdx + 1;
+              if (next < episodesRef.current.length) playEpisode(next);
+              else setPlaying(null);
+            }}
           />
         </Suspense>
         <div className="absolute top-4 left-4 right-4 text-white font-quicksand font-bold text-lg drop-shadow-lg truncate">
           {playing.title}
         </div>
-        <video
-          // hidden listener video isn't useful; rely on ended via main player
-          // (mpegts/hls won't fire ended on infinite live; episodes are finite mp4/mkv).
-          // We attach an 'ended' listener via the actual <video> in DOM:
-          style={{ display: 'none' }}
-        />
-        {/* Bind to the player's ended event via DOM query */}
-        <PlaybackEndedWatcher
-          onEnded={() => {
-            if (!autoplayNextRef.current) { setPlaying(null); return; }
-            const next = playing.episodeIdx + 1;
-            if (next < episodes.length) playEpisode(next);
-            else setPlaying(null);
-          }}
-        />
       </div>
     );
   }
