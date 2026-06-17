@@ -71,14 +71,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
   const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
   const [, forceEpgTick] = useState(0);
 
-  // Load server data (or use mocks)
+  // Load server data
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_CATEGORIES);
-      setStreams(MOCK_STREAMS);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -96,7 +91,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base: { id: string | number; name: string; count?: number }[] = [
