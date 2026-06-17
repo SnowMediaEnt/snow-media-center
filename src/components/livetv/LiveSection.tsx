@@ -528,7 +528,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
                 <div
                   key={c.id}
                   data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => { setCategoryIdx(i); setPane('channels'); }}
+                  onClick={() => {
+                    userMovedRef.current = true;
+                    if (c.isAll) allOptedInRef.current = true;
+                    setCategoryIdx(i);
+                    setPane('channels');
+                  }}
                   className={`
                     flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
                     ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
