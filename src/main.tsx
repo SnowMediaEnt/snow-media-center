@@ -2,7 +2,6 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import './styles/tv.css'
-import './utils/tvLayout' // side-effect: tags <html> with .is-tv-legacy when needed
 import { isNativePlatform, getPlatform } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
