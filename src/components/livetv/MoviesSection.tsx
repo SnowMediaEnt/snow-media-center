@@ -208,10 +208,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
-        if (e.key === 'ArrowDown') setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0);
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
+        if (e.key === 'ArrowDown') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0); }
+        else if (e.key === 'ArrowUp') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0); }
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setPane('grid'); }
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          userMovedRef.current = true;
+          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          setPane('grid');
+        }
         return;
       }
 
