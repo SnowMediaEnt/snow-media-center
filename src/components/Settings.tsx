@@ -34,6 +34,16 @@ type SettingsFocus =
 const Settings = ({ onBack }: SettingsProps) => {
   const { isAdmin } = useAdminRole();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
+  const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
+  const { toast } = useToast();
+  const togglePlayer = async (next: boolean) => {
+    try {
+      await setFeatureFlag('player_enabled', next);
+      toast({ title: next ? 'Player enabled' : 'Player disabled', description: 'Change applied to all devices.' });
+    } catch (e) {
+      toast({ title: 'Could not update', description: (e as Error).message, variant: 'destructive' });
+    }
+  };
   const [activeTab, setActiveTab] = useState('media');
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
