@@ -7,6 +7,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { useVersion } from '@/hooks/useVersion';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle } from '@/utils/idle';
 
 interface UpdateInfo {
   version: string;
@@ -104,12 +105,12 @@ const AutoUpdatePrompt = () => {
       }
     };
 
-    // Run shortly after launch, then hourly (paused while app is backgrounded).
-    const t = setTimeout(check, 4000);
+    // Run when the browser is idle, then hourly (paused while backgrounded).
+    const cancelIdle = runWhenIdle(() => { void check(); }, 4000);
     const cancelInterval = setPausableInterval(check, 60 * 60 * 1000);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      cancelIdle();
       cancelInterval();
     };
   }, [currentVersion, currentVersionCode, isLoading]);

@@ -13,9 +13,12 @@ import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import { initAnalytics } from "@/lib/analytics";
+import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
 
-// Kick off silent background analytics (non-blocking, swallows all errors)
-try { initAnalytics(); } catch {}
+// Kick off silent background analytics AFTER first interaction (or 3.5s idle
+// fallback) so it never competes with the boot/render path on weak boxes.
+onFirstInteraction(() => { try { initAnalytics(); } catch { /* noop */ } });
+runWhenIdle(() => { try { initAnalytics(); } catch { /* noop */ } }, 3500);
 
 
 

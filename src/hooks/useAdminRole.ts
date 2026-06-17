@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { runWhenIdle } from '@/utils/idle';
 
 export const useAdminRole = () => {
   const { user, loading: authLoading } = useAuth();
@@ -8,10 +9,13 @@ export const useAdminRole = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const checkAdminRole = async () => {
       if (!user) {
-        setIsAdmin(false);
-        setLoading(false);
+        if (!cancelled) {
+          setIsAdmin(false);
+          setLoading(false);
+        }
         return;
       }
 
@@ -23,6 +27,7 @@ export const useAdminRole = () => {
           .eq('role', 'admin')
           .maybeSingle();
 
+        if (cancelled) return;
         if (error) {
           console.error('Error checking admin role:', error);
           setIsAdmin(false);
@@ -30,16 +35,20 @@ export const useAdminRole = () => {
           setIsAdmin(!!data);
         }
       } catch (error) {
+        if (cancelled) return;
         console.error('Error checking admin role:', error);
         setIsAdmin(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (!authLoading) {
-      checkAdminRole();
+      // Phase 7: admin badge is non-critical for first paint — defer to idle.
+      const cancel = runWhenIdle(() => { void checkAdminRole(); }, 2200);
+      return () => { cancelled = true; cancel(); };
     }
+    return () => { cancelled = true; };
   }, [user, authLoading]);
 
   return { isAdmin, loading: loading || authLoading };

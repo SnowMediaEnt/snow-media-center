@@ -28,6 +28,7 @@ import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
+import { runWhenIdle } from '@/utils/idle';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
 const InstallApps = lazy(() => import('@/components/InstallApps'));
@@ -190,9 +191,22 @@ const Index = () => {
       setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
-  const { resolvePackageName } = useDeviceInstalledApps();
+  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
+
+  // Force the deferred native enumeration when the pinned-apps popup opens
+  // (boot path defers it to idle ~800ms; if the user opens the popup first
+  // we want the list ready immediately).
+  useEffect(() => { if (isInPopup) ensureInstalledLoaded(); }, [isInPopup, ensureInstalledLoaded]);
+
+  // Gate the mount of non-critical overlays (WelcomePopup, AutoUpdatePrompt)
+  // until after first-frame idle so their effect chains don't pile onto boot.
+  const [deferredOverlaysReady, setDeferredOverlaysReady] = useState(false);
+  useEffect(() => {
+    const cancel = runWhenIdle(() => setDeferredOverlaysReady(true), 2000);
+    return cancel;
+  }, []);
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
@@ -349,6 +363,16 @@ const Index = () => {
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
+
+  // Stable per-index activation callbacks — referentially constant for the
+  // life of the component so HomeActionCard's React.memo can skip re-renders
+  // on unfocused cards when only `focusedButton` changes.
+  const activateByIndex = useMemo(() => [
+    () => navigateToRef.current('apps'),
+    () => navigateToRef.current('support'),
+    () => navigateToRef.current('store'),
+    () => navigateToRef.current('livetv'),
+  ], []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -776,12 +800,9 @@ const Index = () => {
 
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
-                const activateCard = () => {
-                  if (index === 0) navigateTo('apps');
-                  else if (index === 1) navigateTo('support');
-                  else if (index === 2) navigateTo('store');
-                  else if (index === 3) navigateTo('livetv');
-                };
+                // Stable callback (created once in activateByIndex via useMemo)
+                // — keeps HomeActionCard.memo effective for the unfocused cards.
+                const activateCard = activateByIndex[index];
 
                 const cardContent = (
                   <HomeActionCard
@@ -851,16 +872,21 @@ const Index = () => {
         }}
       />
 
-      {/* First-launch welcome + per-version "What's New" popup */}
-      <Suspense fallback={null}>
-        <WelcomePopup />
-      </Suspense>
+      {/* First-launch welcome + per-version "What's New" popup — mounted only
+          after first-frame idle so its effect chain doesn't pile onto boot. */}
+      {deferredOverlaysReady && (
+        <Suspense fallback={null}>
+          <WelcomePopup />
+        </Suspense>
+      )}
 
       {/* Background auto-update check (native only). On by default; users can
           disable via localStorage key smc-auto-update-enabled = "false". */}
-      <Suspense fallback={null}>
-        <AutoUpdatePrompt />
-      </Suspense>
+      {deferredOverlaysReady && (
+        <Suspense fallback={null}>
+          <AutoUpdatePrompt />
+        </Suspense>
+      )}
     </div>
   );
 };

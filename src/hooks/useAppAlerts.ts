@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, SERVICE_WARN_DAYS, type UserService } from '@/hooks/useUserServices';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 
 export interface AppAlert {
   id: string;
@@ -87,23 +88,30 @@ export const useAppAlerts = () => {
   }, []);
 
   useEffect(() => {
-    fetchAlerts();
+    // Phase 7: defer first fetch off boot path.
+    const cancelIdle = runWhenIdle(() => { void fetchAlerts(); }, 1500);
 
-    // Realtime subscription so alerts appear/disappear instantly
-    const channel = supabase
-      .channel('app_alerts_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'app_alerts' },
-        () => fetchAlerts()
-      )
-      .subscribe();
+    // Realtime subscription — defer the websocket handshake until the user
+    // actually interacts so two channels don't race during boot.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const cancelFirstInteraction = onFirstInteraction(() => {
+      channel = supabase
+        .channel('app_alerts_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'app_alerts' },
+          () => fetchAlerts()
+        )
+        .subscribe();
+    });
 
     // Re-fetch every 60s as a safety net (paused while backgrounded)
     const cancelInterval = setPausableInterval(fetchAlerts, 60_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelIdle();
+      cancelFirstInteraction();
+      if (channel) supabase.removeChannel(channel);
       cancelInterval();
     };
   }, [fetchAlerts]);

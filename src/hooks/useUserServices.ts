@@ -73,22 +73,31 @@ export const ensureCustomerRow = async (
 /**
  * Hook for the signed-in user to read their own devices + services.
  * Used by the Home banner and the app-launch popup matcher.
+ *
+ * Phase 7: module-level singleton — the chain (auth.getUser + customers +
+ * customer_devices + customer_services) runs ONCE shared across every consumer
+ * (useAppAlerts, ServiceExpirationBanner, …). The `userServicesRefresh` event
+ * still triggers an explicit refetch.
  */
-export const useMyUserServices = () => {
-  const [state, setState] = useState<UserServicesState>({
-    customerId: null,
-    devices: [],
-    services: [],
-  });
-  const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
+const EMPTY_STATE: UserServicesState = { customerId: null, devices: [], services: [] };
+
+let svcState: UserServicesState = EMPTY_STATE;
+let svcLoading = true;
+let svcInflight: Promise<void> | null = null;
+let svcHasFetched = false;
+const svcListeners = new Set<() => void>();
+let svcRefreshBound = false;
+
+const runUserServicesFetch = async (): Promise<void> => {
+  if (svcInflight) return svcInflight;
+  svcLoading = true;
+  svcInflight = (async () => {
     try {
       const { data: auth } = await supabase.auth.getUser();
       const user = auth?.user;
       if (!user) {
-        setState({ customerId: null, devices: [], services: [] });
+        svcState = EMPTY_STATE;
         return;
       }
       const { data: customer } = await supabase
@@ -97,7 +106,7 @@ export const useMyUserServices = () => {
         .eq('user_id', user.id)
         .maybeSingle();
       if (!customer?.id) {
-        setState({ customerId: null, devices: [], services: [] });
+        svcState = EMPTY_STATE;
         return;
       }
       const [devRes, svcRes] = await Promise.all([
@@ -110,29 +119,49 @@ export const useMyUserServices = () => {
           .select('id, service_type, service_name, expiration_date, tied_apps, renewal_status, notes')
           .eq('customer_id', customer.id),
       ]);
-      setState({
+      svcState = {
         customerId: customer.id,
         devices: (devRes.data as UserDevice[]) || [],
         services: ((svcRes.data as any[]) || []).map((s) => ({
           ...s,
           tied_apps: Array.isArray(s.tied_apps) ? s.tied_apps : [],
         })) as UserService[],
-      });
+      };
     } catch (e) {
       console.warn('[useMyUserServices] failed:', e);
     } finally {
-      setLoading(false);
+      svcLoading = false;
+      svcHasFetched = true;
+      svcInflight = null;
+      svcListeners.forEach((l) => l());
     }
+  })();
+  return svcInflight;
+};
+
+if (typeof window !== 'undefined' && !svcRefreshBound) {
+  svcRefreshBound = true;
+  window.addEventListener('userServicesRefresh', () => {
+    void runUserServicesFetch();
+  });
+}
+
+export const useMyUserServices = () => {
+  const [, setTick] = useState(0);
+  const refetch = useCallback(async () => {
+    await runUserServicesFetch();
   }, []);
 
   useEffect(() => {
-    refetch();
-    const onRefresh = () => refetch();
-    window.addEventListener('userServicesRefresh', onRefresh);
-    return () => window.removeEventListener('userServicesRefresh', onRefresh);
-  }, [refetch]);
+    const listener = () => setTick((n) => n + 1);
+    svcListeners.add(listener);
+    if (!svcHasFetched && !svcInflight) {
+      void runUserServicesFetch();
+    }
+    return () => { svcListeners.delete(listener); };
+  }, []);
 
-  return { ...state, loading, refetch };
+  return { ...svcState, loading: svcLoading, refetch };
 };
 
 export const SERVICE_WARN_DAYS = 7;

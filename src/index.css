@@ -280,18 +280,19 @@
   /* Height is controlled inline by the component (compact vs thick). */
 }
 
-.native-low-memory .media-bar-track {
-  animation: none !important;
-  transform: none !important;
+/* Pause the news-ticker marquee while the user is actively D-pad navigating,
+   so focus transitions never compete with continuous compositor animation
+   (Amlogic/Mali boxes drop frames when both run). main.tsx toggles
+   html.nav-active; the marquee resumes ~950ms after the last keypress. */
+html.nav-active .news-ticker-track {
+  animation-play-state: paused !important;
 }
 
-/* Pause both marquees while the user is actively D-pad navigating, so focus
-   transitions never compete with continuous compositor animation (Amlogic/
-   Mali boxes drop frames when both run). main.tsx toggles html.nav-active;
-   the marquees resume ~600ms after the last keypress. */
-html.nav-active .news-ticker-track,
-html.nav-active .media-bar-track {
-  animation-play-state: paused !important;
+/* On genuine low-memory native devices (1–2GB Android boxes), slow the ticker
+   dramatically so its compositor cost is negligible. We never stop it — the
+   ticker stays visible — but a 240s loop barely registers in the GPU budget. */
+.native-low-memory .news-ticker-track {
+  animation-duration: 240s !important;
 }
 
 .native-low-memory .home-focus-surface,
@@ -382,23 +383,9 @@ html.nav-active .media-bar-track {
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
-/* Media bar — opposite direction (left-to-right) */
-.media-bar-track {
-  width: max-content;
-  animation: media-bar-marquee 90s linear infinite;
-  backface-visibility: hidden;
-}
-.media-bar-track:hover { animation-play-state: paused; }
-@keyframes media-bar-marquee {
-  from { transform: translate3d(-50%, 0, 0); }
-  to   { transform: translate3d(0, 0, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .media-bar-track { animation-duration: 120s; }
-}
-@media (max-width: 767px) and (pointer: coarse) {
-  .media-bar-track { animation-duration: 140s; }
-}
+/* (The legacy .media-bar-track / @keyframes media-bar-marquee rules used to
+   live here. The current MediaBar component is paginated — it has no marquee
+   element — so those rules were dead code and have been removed.) */
 
 /* Keep it always running; reduced-motion only slows it down without stopping. */
 @media (prefers-reduced-motion: reduce) {
