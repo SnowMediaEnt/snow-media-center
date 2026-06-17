@@ -22,10 +22,10 @@ import {
   type EpgNowNext,
 } from '@/lib/xtream';
 import { MOCK_CATEGORIES, MOCK_STREAMS, mockEpgFor } from '@/lib/mockLiveTV';
-import ChannelRow from './ChannelRow';
+import ChannelRow from './livetv/ChannelRow';
 
-const VideoPlayer = lazy(() => import('./VideoPlayer'));
-const CredentialsForm = lazy(() => import('./CredentialsForm'));
+const VideoPlayer = lazy(() => import('./livetv/VideoPlayer'));
+const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 
 interface Props {
   onBack: () => void;
