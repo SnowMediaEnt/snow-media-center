@@ -253,7 +253,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     const info = movieInfo?.info;
     const cover = info?.movie_image || info?.cover_big || selectedMovie.stream_icon;
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-8 text-white">
+      <div className="flex-1 min-h-0 overflow-y-auto p-8 text-white bg-black/40">
         <Button variant="white" size="sm" onClick={() => { setPane('grid'); setSelectedMovie(null); }} className="tv-focusable home-focus-surface mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
