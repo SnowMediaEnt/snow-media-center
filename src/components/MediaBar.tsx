@@ -191,9 +191,24 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     openPlexItemFromBeginning(item);
   };
 
-  // Fetch
+  // Defer poster image network until after first interaction / idle so it
+  // doesn't compete with home-screen boot. Skeletons still render in cards.
+  const [imagesReady, setImagesReady] = useState(false);
+  useEffect(() => {
+    const cancelInteraction = onFirstInteraction(() => {
+      const cancelIdle = runWhenIdle(() => setImagesReady(true), 800);
+      // Free the closure if unmounted before idle fires.
+      return cancelIdle;
+    });
+    return cancelInteraction;
+  }, []);
+
+  // Fetch — deferred until after first interaction (or hard 5s fallback in
+  // onFirstInteraction), then scheduled via requestIdleCallback so it never
+  // competes with the first few seconds of boot on weak TV boxes.
   useEffect(() => {
     let cancelled = false;
+    let cancelIdleFirst: (() => void) | null = null;
     const load = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('media-bar-feed');
@@ -208,9 +223,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       }
     };
-    const t = window.setTimeout(load, 1500);
+    const cancelFirst = onFirstInteraction(() => {
+      cancelIdleFirst = runWhenIdle(load, 3500);
+    });
+    // Periodic refresh stays — non-essential but pause-aware via setPausableInterval.
     const cancelInterval = setPausableInterval(load, REFRESH_MS);
-    return () => { cancelled = true; clearTimeout(t); cancelInterval(); };
+    return () => {
+      cancelled = true;
+      cancelFirst();
+      cancelIdleFirst?.();
+      cancelInterval();
+    };
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
