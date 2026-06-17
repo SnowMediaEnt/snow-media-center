@@ -26,9 +26,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
       return;
     }
     setTesting(true);
-    setProbingServer(null);
+    const routedServer = pickServerForUsername(username);
+    setProbingServer(routedServer);
     try {
-      const result = await authenticateAny(username, password, (s) => setProbingServer(s));
+      const result = await authenticateRouted(username, password, (s) => setProbingServer(s));
       if (!result.ok || !result.creds) {
         toast({
           title: 'Could not sign in',
