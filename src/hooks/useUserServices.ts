@@ -164,7 +164,51 @@ export const useMyUserServices = () => {
   return { ...svcState, loading: svcLoading, refetch };
 };
 
-export const SERVICE_WARN_DAYS = 7;
+export const SERVICE_WARN_DAYS = 30;
+
+export type ExpirySeverity = 'info' | 'warning' | 'critical';
+export interface ExpiryState {
+  show: boolean;
+  severity: ExpirySeverity;
+  label: string;          // e.g. "expires in 12 days", "expires today", "expired 3 days ago"
+  daysUntil: number | null;
+}
+
+/**
+ * Tiered expiration state, used by both the home banner and the per-app popup.
+ *   > 30 days   → hidden
+ *   8..30 days  → info
+ *   2..7 days   → warning
+ *   1 / 0       → critical (tomorrow / today)
+ *   < 0         → critical (expired N days ago) — keeps showing daily after expiry
+ */
+export const expiryState = (days: number | null): ExpiryState => {
+  if (days === null) {
+    return { show: false, severity: 'info', label: '', daysUntil: null };
+  }
+  if (days > 30) {
+    return { show: false, severity: 'info', label: `expires in ${days} days`, daysUntil: days };
+  }
+  if (days >= 8) {
+    return { show: true, severity: 'info', label: `expires in ${days} days`, daysUntil: days };
+  }
+  if (days >= 2) {
+    return { show: true, severity: 'warning', label: `expires in ${days} days`, daysUntil: days };
+  }
+  if (days === 1) {
+    return { show: true, severity: 'critical', label: 'expires tomorrow', daysUntil: days };
+  }
+  if (days === 0) {
+    return { show: true, severity: 'critical', label: 'expires today', daysUntil: days };
+  }
+  const ago = Math.abs(days);
+  return {
+    show: true,
+    severity: 'critical',
+    label: `expired ${ago} day${ago === 1 ? '' : 's'} ago`,
+    daysUntil: days,
+  };
+};
 
 /** Returns the most urgent service that needs an alert, or null. */
 export const findUrgentService = (services: UserService[]): UserService | null => {
@@ -173,7 +217,8 @@ export const findUrgentService = (services: UserService[]): UserService | null =
   for (const s of services) {
     const d = daysUntil(s.expiration_date);
     if (d === null) continue;
-    if (d > SERVICE_WARN_DAYS) continue;
+    const state = expiryState(d);
+    if (!state.show) continue;
     // lower d = more urgent (expired = negative = even more urgent)
     if (d < bestScore) {
       bestScore = d;

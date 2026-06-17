@@ -705,8 +705,12 @@ export type Database = {
           customer_id: string
           expiration_date: string | null
           id: string
+          is_trial: boolean | null
           line_id: string | null
+          max_connections: number | null
           notes: string | null
+          panel_host: string | null
+          panel_password: string | null
           panel_username: string | null
           renewal_status: string | null
           service_name: string | null
@@ -719,8 +723,12 @@ export type Database = {
           customer_id: string
           expiration_date?: string | null
           id?: string
+          is_trial?: boolean | null
           line_id?: string | null
+          max_connections?: number | null
           notes?: string | null
+          panel_host?: string | null
+          panel_password?: string | null
           panel_username?: string | null
           renewal_status?: string | null
           service_name?: string | null
@@ -733,8 +741,12 @@ export type Database = {
           customer_id?: string
           expiration_date?: string | null
           id?: string
+          is_trial?: boolean | null
           line_id?: string | null
+          max_connections?: number | null
           notes?: string | null
+          panel_host?: string | null
+          panel_password?: string | null
           panel_username?: string | null
           renewal_status?: string | null
           service_name?: string | null

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useMyUserServices, daysUntil, SERVICE_WARN_DAYS, type UserService } from '@/hooks/useUserServices';
+import { useMyUserServices, daysUntil, expiryState, type UserService } from '@/hooks/useUserServices';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
 
@@ -18,30 +18,34 @@ export interface AppAlert {
 
 /**
  * Builds a synthetic AppAlert from an expiring service tied to the given app.
+ * Uses the shared tiered cadence (30 / 7 / 1 / daily-after) via expiryState().
  */
 const buildServiceAlert = (service: UserService, app: string): AppAlert => {
-  const days = daysUntil(service.expiration_date);
+  const d = daysUntil(service.expiration_date);
+  const state = expiryState(d);
   const name = service.service_name || service.service_type || 'Your service';
   let title = 'Service expiring soon';
   let message = '';
-  let severity: AppAlert['severity'] = 'warning';
-  if (days === null) {
+  let severity: AppAlert['severity'] = state.severity;
+
+  if (d === null) {
     title = 'Service status unknown';
     message = `${name}: no expiration date set. Open Dashboard → Edit to update it.`;
     severity = 'info';
-  } else if (days < 0) {
+  } else if (d < 0) {
     title = 'Service expired';
-    message = `${name} expired ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago. Renew before continuing.`;
-    severity = 'critical';
-  } else if (days === 0) {
+    message = `${name} ${state.label}. Renew before continuing.`;
+  } else if (d === 0) {
     title = 'Service expires today';
-    message = `${name} expires today. Renew to avoid interruption.`;
-    severity = 'critical';
+    message = `${name} ${state.label}. Renew to avoid interruption.`;
+  } else if (d === 1) {
+    title = 'Service expires tomorrow';
+    message = `${name} ${state.label}. Renew it from Dashboard before it lapses.`;
   } else {
-    title = `Service expires in ${days} day${days === 1 ? '' : 's'}`;
-    message = `${name} expires soon. Renew it from Dashboard before it lapses.`;
-    severity = 'warning';
+    title = `Service ${state.label}`;
+    message = `${name} ${state.label}. Renew it from Dashboard before it lapses.`;
   }
+
   return {
     id: `svc-${service.id}-${app}`,
     app_match: app,
@@ -121,8 +125,8 @@ export const useAppAlerts = () => {
     const out: AppAlert[] = [];
     for (const svc of userServices) {
       const d = daysUntil(svc.expiration_date);
-      if (d === null) continue;
-      if (d > SERVICE_WARN_DAYS) continue; // only warn within 7 days or already expired
+      const state = expiryState(d);
+      if (!state.show) continue; // tiered 30/7/1/daily-after gate
       for (const app of svc.tied_apps || []) {
         if (!app) continue;
         out.push(buildServiceAlert(svc, app));

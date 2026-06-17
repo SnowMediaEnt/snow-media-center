@@ -2,7 +2,18 @@ import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from '
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, Loader2, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { loadCreds, clearCreds, type XtreamCreds } from '@/lib/xtream';
+import {
+  loadCreds,
+  clearCreds,
+  authenticateRouted,
+  buildPlayerAccount,
+  savePlayerAccount,
+  clearPlayerAccount,
+  type XtreamCreds,
+} from '@/lib/xtream';
+import { useAuth } from '@/hooks/useAuth';
+import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
+import { runWhenIdle } from '@/utils/idle';
 
 import LiveSection from './livetv/LiveSection';
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
@@ -22,6 +33,7 @@ const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
 
 const Player = memo(({ onBack }: Props) => {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [creds, setCreds] = useState<XtreamCreds | null>(null);
   const [credsLoaded, setCredsLoaded] = useState(false);
@@ -44,6 +56,29 @@ const Player = memo(({ onBack }: Props) => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Background refresh: when Player opens with existing creds, re-call the
+  // panel once (deferred to idle) so the local PlayerAccount picks up the
+  // latest expDate/status. Also re-syncs to cloud if signed in.
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (!creds || refreshedRef.current) return;
+    refreshedRef.current = true;
+    const cancel = runWhenIdle(() => {
+      (async () => {
+        try {
+          const res = await authenticateRouted(creds.username, creds.password);
+          if (!res.ok || !res.server || !res.creds) return;
+          const acc = buildPlayerAccount(res.server, res.creds, res.userInfo);
+          await savePlayerAccount(acc);
+          if (user?.id && user.email) {
+            void syncPlayerAccountToCloud(user.id, user.email, acc);
+          }
+        } catch { /* swallow — background refresh is best-effort */ }
+      })();
+    }, 2500);
+    return cancel;
+  }, [creds, user?.id, user?.email]);
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
 
@@ -151,6 +186,7 @@ const Player = memo(({ onBack }: Props) => {
             size="sm"
             onClick={async () => {
               await clearCreds();
+              await clearPlayerAccount();
               setCreds(null);
               setAccountFormOpen(false);
               toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });

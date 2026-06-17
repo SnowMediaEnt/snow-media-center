@@ -3,7 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tv, Loader2 } from 'lucide-react';
-import { authenticateRouted, pickServerForUsername, saveCreds, type XtreamCreds, type XtreamServer } from '@/lib/xtream';
+import {
+  authenticateRouted,
+  pickServerForUsername,
+  saveCreds,
+  savePlayerAccount,
+  buildPlayerAccount,
+  type XtreamCreds,
+  type XtreamServer,
+} from '@/lib/xtream';
+import { useAuth } from '@/hooks/useAuth';
+import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -18,6 +28,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
   const [testing, setTesting] = useState(false);
   const [probingServer, setProbingServer] = useState<XtreamServer | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -39,6 +50,18 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         return;
       }
       await saveCreds(result.creds);
+      // Persist a Player Account snapshot from the panel response so the home
+      // banner / Settings card can warn about expiration even without a main
+      // Supabase account.
+      if (result.server) {
+        const acc = buildPlayerAccount(result.server, result.creds, result.userInfo);
+        await savePlayerAccount(acc);
+        // If the user is signed into a main account, mirror this into their
+        // customer_services row (fire-and-forget).
+        if (user?.id && user.email) {
+          void syncPlayerAccountToCloud(user.id, user.email, acc);
+        }
+      }
       toast({ title: 'Connected', description: `Signed in to ${result.server?.label}.` });
       onSaved(result.creds);
     } catch (err) {
