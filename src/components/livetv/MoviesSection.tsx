@@ -47,11 +47,6 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   // Fetch
   useEffect(() => {
     let cancelled = false;
-    if (!creds || usingMock) {
-      setCategories(MOCK_VOD_CATEGORIES);
-      setMovies(MOCK_VOD_STREAMS);
-      return;
-    }
     setLoading(true);
     (async () => {
       try {
@@ -67,7 +62,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Movies' }];
@@ -89,31 +84,23 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     setSelectedMovie(m);
     setMovieInfo(null);
     setPane('detail');
-    if (!creds || usingMock) {
-      setMovieInfo(mockVodInfo(m));
-      return;
-    }
     setInfoLoading(true);
     try {
       const info = await getVodInfo(creds, m.stream_id);
       setMovieInfo(info);
     } catch {
-      setMovieInfo(mockVodInfo(m));
+      setMovieInfo(null);
     } finally {
       setInfoLoading(false);
     }
-  }, [creds, usingMock]);
+  }, [creds]);
 
   const playMovie = useCallback(() => {
     if (!selectedMovie) return;
-    if (!creds || usingMock) {
-      // Demo mode — nothing to play
-      return;
-    }
     const ext = movieInfo?.movie_data?.container_extension || selectedMovie.container_extension || 'mp4';
     const url = buildMovieUrl(creds, selectedMovie.stream_id, ext);
     setPlaying({ url, title: selectedMovie.name });
-  }, [creds, usingMock, selectedMovie, movieInfo]);
+  }, [creds, selectedMovie, movieInfo]);
 
   // Keyboard
   const paneRef = useRef(pane);
