@@ -223,13 +223,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
         )
   ), [items, pageIdx]);
 
-  // Auto-rotate every 30s (paused on hover/focus/active)
+  // Auto-rotate every 30s (paused on hover/focus/active, and while the user
+  // is actively D-pad navigating elsewhere — main.tsx toggles html.nav-active).
   useEffect(() => {
-    if (paused || active || totalPages <= 1) return;
+    if (paused || active || totalPages <= 1 || items.length === 0) return;
     return setPausableInterval(() => {
+      if (document.documentElement.classList.contains('nav-active')) return;
       setPageIdx((p) => (p + 1) % totalPages);
     }, AUTO_ROTATE_MS);
-  }, [paused, active, totalPages]);
+  }, [paused, active, totalPages, items.length]);
 
   useEffect(() => {
     if (pageIdx >= totalPages) setPageIdx(0);
@@ -241,10 +243,39 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const goPrev = () => setPageIdx((p) => (p - 1 + totalPages) % totalPages);
   const goNext = () => setPageIdx((p) => (p + 1) % totalPages);
 
-  // D-pad handling when active
+  // Phase 7: register the capture keydown listener ONCE and read all volatile
+  // state through refs. Listing currentPage/items in deps used to rebind a
+  // global capture listener on every page rotation and every focus tick.
+  const focusIdxRef = useRef(focusIdx);
+  const pageIdxRef = useRef(pageIdx);
+  const itemsRef = useRef(items);
+  const currentPageRef = useRef(currentPage);
+  const totalPagesRef = useRef(totalPages);
+  const activeRef = useRef(active);
+  const liveDialogRef = useRef(liveDialog);
+  const onExitDownRef = useRef(onExitDown);
+  const onExitUpRef = useRef(onExitUp);
+
+  useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
+  useEffect(() => { pageIdxRef.current = pageIdx; }, [pageIdx]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useEffect(() => { totalPagesRef.current = totalPages; }, [totalPages]);
+  useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => { liveDialogRef.current = liveDialog; }, [liveDialog]);
+  useEffect(() => { onExitDownRef.current = onExitDown; }, [onExitDown]);
+  useEffect(() => { onExitUpRef.current = onExitUp; }, [onExitUp]);
+
   useEffect(() => {
-    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
+      if (!activeRef.current) return;
+      const liveDialog = liveDialogRef.current;
+      const focusIdx = focusIdxRef.current;
+      const pageIdx = pageIdxRef.current;
+      const items = itemsRef.current;
+      const currentPage = currentPageRef.current;
+      const totalPages = totalPagesRef.current;
+
       if (liveDialog) {
         if (isHardwareBackKey(e)) {
           e.preventDefault();
@@ -262,7 +293,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           } else if (totalPages > 1) {
             const newPage = (pageIdx - 1 + totalPages) % totalPages;
             setPageIdx(newPage);
-            // focus last item of new page
             const newPageLen = Math.min(PAGE_SIZE, items.length);
             setTimeout(() => setFocusIdx(Math.max(0, newPageLen - 1)), 0);
           }
@@ -278,11 +308,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
           break;
         case 'ArrowDown':
           e.preventDefault(); e.stopPropagation();
-          onExitDown?.();
+          onExitDownRef.current?.();
           break;
         case 'ArrowUp':
           e.preventDefault(); e.stopPropagation();
-          onExitUp?.();
+          onExitUpRef.current?.();
           break;
         case 'Enter':
         case ' ': {
@@ -295,7 +325,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [active, focusIdx, currentPage, totalPages, pageIdx, items, onExitDown, onExitUp, liveDialog]);
+  }, []);
 
   useEffect(() => {
     if (!liveDialog) return;
