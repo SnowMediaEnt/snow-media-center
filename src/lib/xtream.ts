@@ -444,9 +444,6 @@ export async function authenticateRouted(
   const u = username.trim();
   const p = password.trim();
   if (!u || !p) return { ok: false, error: 'Missing username or password' };
-  const u = username.trim();
-  const p = password.trim();
-  if (!u || !p) return { ok: false, error: 'Missing username or password' };
 
   const server = pickServerForUsername(u);
   onProgress?.(server);
@@ -461,13 +458,13 @@ export async function authenticateRouted(
 
   try {
     const info: any = await authenticate(creds);
-    const ui = info?.user_info;
+    const ui: XtreamUserInfo | undefined = info?.user_info;
     const auth = ui?.auth;
     const status = String(ui?.status || '').toLowerCase();
     const authed = auth === 1 || auth === '1' || auth === true;
     const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
     if (authed && !disabled) {
-      return { ok: true, server, creds, info };
+      return { ok: true, server, creds, info, userInfo: ui };
     }
     return { ok: false, error: 'Invalid username or password.' };
   } catch (e) {
