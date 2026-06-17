@@ -260,9 +260,9 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
   }, [isActive, onExitLeft, openSeries, playEpisode]);
 
   const focusedTileRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest' }); }, [gridIdx]);
+  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [gridIdx]);
   const focusedEpRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest' }); }, [episodeIdx]);
+  useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [episodeIdx]);
 
   // Fullscreen episode player with autoplay next
   if (playing) {
