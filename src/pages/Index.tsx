@@ -542,8 +542,8 @@ const Index = () => {
     },
     {
       icon: Tv,
-      title: 'Live TV',
-      description: 'IPTV Channels & Guide',
+      title: 'Player',
+      description: 'Live TV, Movies & Series',
       variant: 'navy' as const
     }
   ], []);
