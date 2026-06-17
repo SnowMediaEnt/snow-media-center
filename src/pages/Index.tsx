@@ -191,9 +191,22 @@ const Index = () => {
       setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
-  const { resolvePackageName } = useDeviceInstalledApps();
+  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
+
+  // Force the deferred native enumeration when the pinned-apps popup opens
+  // (boot path defers it to idle ~800ms; if the user opens the popup first
+  // we want the list ready immediately).
+  useEffect(() => { if (isInPopup) ensureInstalledLoaded(); }, [isInPopup, ensureInstalledLoaded]);
+
+  // Gate the mount of non-critical overlays (WelcomePopup, AutoUpdatePrompt)
+  // until after first-frame idle so their effect chains don't pile onto boot.
+  const [deferredOverlaysReady, setDeferredOverlaysReady] = useState(false);
+  useEffect(() => {
+    const cancel = runWhenIdle(() => setDeferredOverlaysReady(true), 2000);
+    return cancel;
+  }, []);
 
   // Handle pinning apps from popup
   const handlePinFromPopup = useCallback((app: InstalledApp) => {
