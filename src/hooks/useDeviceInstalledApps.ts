@@ -115,7 +115,12 @@ export const useDeviceInstalledApps = () => {
     // Make sure the snapshot is current for late subscribers.
     setSnap(snapshot);
     if (!hasFetched && !inflight) {
-      runFetch().catch(() => { /* swallowed */ });
+      // Phase 7: defer the native enumeration off the boot critical path.
+      // Home cards must be focusable on first paint; the installed-app list
+      // is only needed for the pinned-apps popup / app-launch resolver.
+      runWhenIdle(() => {
+        if (!hasFetched && !inflight) runFetch().catch(() => { /* swallowed */ });
+      }, 800);
     }
     return () => { listeners.delete(setSnap); };
   }, []);
@@ -124,6 +129,12 @@ export const useDeviceInstalledApps = () => {
     // Manual refresh respects the same debounce — call with force only when
     // we really know the install set changed (post-install / post-uninstall).
     await runFetch(false);
+  }, []);
+
+  // Exposed so the pinned-apps popup can force a fetch the instant it opens
+  // (the deferred boot fetch may not have fired yet on cold start).
+  const ensureLoaded = useCallback(() => {
+    if (!hasFetched && !inflight) runFetch().catch(() => { /* swallowed */ });
   }, []);
 
   const isPackageInstalled = useCallback(
