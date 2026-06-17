@@ -433,7 +433,11 @@ const SeriesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
 
       <div className="flex-1 min-w-0 overflow-y-auto p-5">
         {loading ? (
-          <div className="h-full flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
+            {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-white/5 animate-pulse" style={{ aspectRatio: '2 / 3' }} />
+            ))}
+          </div>
         ) : visibleSeries.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
         ) : (
