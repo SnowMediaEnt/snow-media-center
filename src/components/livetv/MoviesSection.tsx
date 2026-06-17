@@ -13,14 +13,12 @@ import {
   type XtreamVodStream,
   type XtreamVodInfo,
 } from '@/lib/xtream';
-import { MOCK_VOD_CATEGORIES, MOCK_VOD_STREAMS, mockVodInfo } from '@/lib/mockLiveTV';
 import PosterCard from './PosterCard';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
 }
@@ -29,10 +27,10 @@ type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 
-const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_VOD_CATEGORIES);
-  const [movies, setMovies] = useState<XtreamVodStream[]>(MOCK_VOD_STREAMS);
-  const [loading, setLoading] = useState(false);
+const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [movies, setMovies] = useState<XtreamVodStream[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [pane, setPane] = useState<Pane>('categories');
   const [categoryIdx, setCategoryIdx] = useState(0);
