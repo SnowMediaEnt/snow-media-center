@@ -800,12 +800,9 @@ const Index = () => {
 
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
-                const activateCard = () => {
-                  if (index === 0) navigateTo('apps');
-                  else if (index === 1) navigateTo('support');
-                  else if (index === 2) navigateTo('store');
-                  else if (index === 3) navigateTo('livetv');
-                };
+                // Stable callback (created once in activateByIndex via useMemo)
+                // — keeps HomeActionCard.memo effective for the unfocused cards.
+                const activateCard = activateByIndex[index];
 
                 const cardContent = (
                   <HomeActionCard
