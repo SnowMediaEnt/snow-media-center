@@ -255,36 +255,32 @@ export const useAppData = () => {
     }
   };
 
-  const fetchApps = async () => {
+  // PHASE A: read cached Supabase copy — fast, no PHP / sync. Used for boot.
+  const loadFromCache = async () => {
     setLoading(true);
     setError(null);
-
-    console.log('[AppData] Starting fetch — Supabase first for instant load...');
-
-    // 1. Supabase first — fast, cached copy of the feed. Shows the UI immediately.
-    let shownFromCache = false;
     try {
       const supabaseApps = await fetchSupabaseApps();
       if (supabaseApps.length > 0) {
-        console.log(`[AppData] Showing ${supabaseApps.length} apps from Supabase cache`);
         setApps(sortApps(supabaseApps));
         setError(null);
         setLoading(false);
-        shownFromCache = true;
+        return true;
       }
     } catch (err) {
       console.warn('[AppData] Supabase cache miss:', err);
     }
+    return false;
+  };
 
-    // 2. Trigger PHP→Supabase sync in the background (edge function fetches PHP
-    //    server-side, no CORS). Then re-pull from Supabase so the UI shows the
-    //    fresh, complete list — never overwrite with a partial direct PHP result.
+  // PHASE B: trigger PHP→Supabase sync edge function, then refresh.
+  // This is the expensive one — gated behind first interaction.
+  const runBackgroundSyncAndRefresh = async (shownFromCache: boolean) => {
     try {
       const changed = await triggerBackgroundSync();
       if (changed || !shownFromCache) {
         const refreshed = await fetchSupabaseApps();
         if (refreshed.length > 0) {
-          console.log(`[AppData] Refreshed ${refreshed.length} apps after PHP sync`);
           setApps(sortApps(refreshed));
           setError(null);
           setLoading(false);
@@ -295,7 +291,6 @@ export const useAppData = () => {
       console.warn('[AppData] Background sync/refresh failed:', err);
       if (shownFromCache) return;
     }
-
     if (shownFromCache) return;
 
     console.warn('[AppData] All sources failed, using fallback apps');
@@ -304,10 +299,28 @@ export const useAppData = () => {
     setLoading(false);
   };
 
+  // Full fetch — kept exported as `refetch` for callers that need a hard refresh.
+  const fetchApps = async () => {
+    const shown = await loadFromCache();
+    await runBackgroundSyncAndRefresh(shown);
+  };
+
   useEffect(() => {
-    console.log('[AppData] useEffect mounting, calling fetchApps...');
+    console.log('[AppData] mounting — deferring first fetch off boot path');
     let timedOut = false;
-    fetchApps();
+    let shownFromCache = false;
+
+    // Phase 7: defer the FIRST Supabase select so the home cards have
+    // a chance to paint and become focusable before any network work.
+    const cancelIdle = runWhenIdle(async () => {
+      shownFromCache = await loadFromCache();
+    }, 1200);
+
+    // Push the expensive PHP-sync + refetch behind first interaction.
+    // (Falls back to a 5s timer in onFirstInteraction if user never moves.)
+    const cancelFirstInteraction = onFirstInteraction(() => {
+      void runBackgroundSyncAndRefresh(shownFromCache);
+    });
 
     // Safety fallback: if loading takes too long
     const safetyTimeout = setTimeout(() => {
@@ -323,20 +336,22 @@ export const useAppData = () => {
       });
     }, 25000);
 
-    // Poll every 5 minutes (was 60s) — Supabase realtime already covers most updates.
+    // Poll every 5 minutes — Supabase realtime already covers most updates.
     // Pauses while the app is backgrounded.
     const cancelInterval = setPausableInterval(() => {
       console.log('[AppData] Polling for updates...');
-      fetchApps();
+      void loadFromCache();
     }, 5 * 60 * 1000);
 
     const handleOnline = () => {
       console.log('[AppData] Network restored, refreshing...');
-      fetchApps();
+      void loadFromCache();
     };
     window.addEventListener('online', handleOnline);
 
     return () => {
+      cancelIdle();
+      cancelFirstInteraction();
       clearTimeout(safetyTimeout);
       cancelInterval();
       window.removeEventListener('online', handleOnline);
