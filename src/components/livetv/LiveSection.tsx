@@ -390,6 +390,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   const visibleCategoriesRef = useRef(visibleCategories);
   const visibleChannelsRef = useRef(visibleChannels);
   const searchOpenRef = useRef(searchOpen);
+  // Bar refs so the (stable) keydown listener can read live state without rebinding.
+  const barVisibleRef = useRef(barVisible);
+  const barFocusRef = useRef(barFocus);
+  const subMenuOpenRef = useRef(subMenuOpen);
+  const audioMenuOpenRef = useRef(audioMenuOpen);
+  const subMenuFocusRef = useRef(subMenuFocus);
+  const audioMenuFocusRef = useRef(audioMenuFocus);
 
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { categoryIdxRef.current = categoryIdx; }, [categoryIdx]);
@@ -398,6 +405,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleChannelsRef.current = visibleChannels; }, [visibleChannels]);
   useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
+  useEffect(() => { barVisibleRef.current = barVisible; }, [barVisible]);
+  useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
+  useEffect(() => { subMenuOpenRef.current = subMenuOpen; }, [subMenuOpen]);
+  useEffect(() => { audioMenuOpenRef.current = audioMenuOpen; }, [audioMenuOpen]);
+  useEffect(() => { subMenuFocusRef.current = subMenuFocus; }, [subMenuFocus]);
+  useEffect(() => { audioMenuFocusRef.current = audioMenuFocus; }, [audioMenuFocus]);
 
   useEffect(() => {
     if (!isActive) return;
