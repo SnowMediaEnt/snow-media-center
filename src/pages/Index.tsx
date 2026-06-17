@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -45,6 +45,7 @@ const Games = lazy(() => import('@/components/Games'));
 const WixBlog = lazy(() => import('@/components/WixBlog'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
+const LiveTV = lazy(() => import('@/components/LiveTV'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -425,7 +426,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = 2; // apps (0), store (1), support (2)
+      const maxButtons = 3; // apps (0), support (1), store (2), livetv (3)
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -470,7 +471,7 @@ const Index = () => {
             } else {
               // No content bar — jump directly to the top row.
               // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton === 2 ? -1 : -2);
+              setFocusedButton(focusedButton === 3 ? -1 : -2);
             }
           }
           break;
@@ -502,6 +503,8 @@ const Index = () => {
             navigateToRef.current('support');
           } else if (focusedButton === 2) {
             navigateToRef.current('store');
+          } else if (focusedButton === 3) {
+            navigateToRef.current('livetv');
           }
           break;
 
@@ -536,6 +539,12 @@ const Index = () => {
       title: 'Snow Media Store',
       description: 'Visit Official Store',
       variant: 'purple' as const
+    },
+    {
+      icon: Tv,
+      title: 'Live TV',
+      description: 'IPTV Channels & Guide',
+      variant: 'navy' as const
     }
   ], []);
 
@@ -559,6 +568,7 @@ const Index = () => {
         {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
         {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
         {currentView === 'admin-support' && <AdminSupportDashboard onBack={() => goBack()} />}
+        {currentView === 'livetv' && <LiveTV onBack={() => goBack()} />}
       </Suspense>
 
       {/* Home screen content */}
@@ -775,6 +785,7 @@ const Index = () => {
                   if (index === 0) navigateTo('apps');
                   else if (index === 1) navigateTo('support');
                   else if (index === 2) navigateTo('store');
+                  else if (index === 3) navigateTo('livetv');
                 };
 
                 const cardContent = (
