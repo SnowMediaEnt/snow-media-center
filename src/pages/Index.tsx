@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 
