@@ -265,7 +265,7 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
   }, [isActive, onExitLeft, focusedChannel, toggleFavorite, changeChannelInFullscreen, playChannel]);
 
   const focusedRowRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [channelIdx, categoryIdx, pane]);
+  useEffect(() => { focusedRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [channelIdx, categoryIdx, pane]);
 
   // Fullscreen player
   const playingStream = streams.find(s => s.stream_id === playingChannelId) || focusedChannel;
