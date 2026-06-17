@@ -507,7 +507,7 @@ const Index = () => {
             navigateToRef.current('support');
           } else if (focusedButton === 2) {
             navigateToRef.current('store');
-          } else if (focusedButton === 3) {
+          } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
           }
           break;
