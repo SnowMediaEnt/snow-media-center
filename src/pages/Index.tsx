@@ -576,15 +576,15 @@ const Index = () => {
           {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
               doesn't crop the buttons or overlap them with the clock. */}
           <div
-            className="absolute z-20 flex flex-wrap items-center justify-end"
+            className="home-top-controls absolute z-20 flex flex-wrap items-center justify-end"
             style={{
               top: `max(env(safe-area-inset-top, 0px), ${
-                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
+                sizeBucket >= 2160 ? '2rem' : sizeBucket >= 1440 ? '1.5rem' : '1rem'
               })`,
               right: `max(env(safe-area-inset-right, 0px), ${
-                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
+                sizeBucket >= 2160 ? '2rem' : sizeBucket >= 1440 ? '1.5rem' : '1rem'
               })`,
-              gap: screenHeight >= 2160 ? '1rem' : screenHeight >= 1440 ? '0.75rem' : '0.5rem',
+              gap: sizeBucket >= 2160 ? '1rem' : sizeBucket >= 1440 ? '0.75rem' : '0.5rem',
               maxWidth: 'min(50vw, 32rem)',
             }}
           >
@@ -595,18 +595,18 @@ const Index = () => {
               <Button
                 onClick={() => navigateTo('admin-support')}
                 variant="purple"
-                size={screenHeight >= 1440 ? "default" : "sm"}
+                size={sizeBucket >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -3 ? 'true' : 'false'}
                 className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  sizeBucket >= 2160 ? 'text-xl px-6 py-3' :
+                  sizeBucket >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
                 }`}
               >
                 <Shield className={`mr-2 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  sizeBucket >= 2160 ? 'w-6 h-6' :
+                  sizeBucket >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
                 Admin
@@ -616,18 +616,18 @@ const Index = () => {
               <Button
                 onClick={() => navigateTo('user')}
                 variant="white"
-                size={screenHeight >= 1440 ? "default" : "sm"}
+                size={sizeBucket >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
                 className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  sizeBucket >= 2160 ? 'text-xl px-6 py-3' :
+                  sizeBucket >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
                 }`}
               >
                 <User className={`mr-2 text-gray-800 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  sizeBucket >= 2160 ? 'w-6 h-6' :
+                  sizeBucket >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
                 <span className="text-gray-800">Dashboard</span>
@@ -636,18 +636,18 @@ const Index = () => {
               <Button
                 onClick={() => navigate('/auth')}
                 variant="gold"
-                size={screenHeight >= 1440 ? "default" : "sm"}
+                size={sizeBucket >= 1440 ? "default" : "sm"}
                 tabIndex={0}
                 data-focused={focusedButton === -2 ? 'true' : 'false'}
                 className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                  sizeBucket >= 2160 ? 'text-xl px-6 py-3' :
+                  sizeBucket >= 1440 ? 'text-lg px-5 py-2.5' :
                   ''
                 }`}
               >
                 <LogIn className={`mr-2 text-gray-400 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
+                  sizeBucket >= 2160 ? 'w-6 h-6' :
+                  sizeBucket >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
                 <span style={{ color: '#333333' }}>Sign In</span>
@@ -656,18 +656,18 @@ const Index = () => {
             <Button
               onClick={() => navigateTo('settings')}
               variant="gold"
-              size={screenHeight >= 1440 ? "default" : "sm"}
+              size={sizeBucket >= 1440 ? "default" : "sm"}
               tabIndex={0}
               data-focused={focusedButton === -1 ? 'true' : 'false'}
               className={`tv-focusable home-focus-surface ${
-                screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
+                sizeBucket >= 2160 ? 'text-xl px-6 py-3' :
+                sizeBucket >= 1440 ? 'text-lg px-5 py-2.5' :
                 ''
               }`}
             >
               <SettingsIcon className={`mr-2 ${
-                screenHeight >= 2160 ? 'w-6 h-6' :
-                screenHeight >= 1440 ? 'w-5 h-5' :
+                sizeBucket >= 2160 ? 'w-6 h-6' :
+                sizeBucket >= 1440 ? 'w-5 h-5' :
                 'w-4 h-4'
               }`} />
               Settings
@@ -682,12 +682,12 @@ const Index = () => {
               When OFF, a thicker standalone RSS row sits below the title. */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
             <div className="text-center">
-              <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
+              <h1 className="home-brand-title text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
-              <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
+              <p className="home-brand-subtitle text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
                 Your Premium Streaming Experience
               </p>
             </div>
@@ -714,7 +714,7 @@ const Index = () => {
             tabIndex={0}
             data-focused={focusedButton === -3 ? 'true' : 'false'}
             aria-label="Snow Media Entertainment"
-            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
+            className="home-sme-logo absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
             style={{
               top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
               left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
@@ -768,7 +768,7 @@ const Index = () => {
               const effectiveLayout: 'grid' | 'row' = 'row';
               return (
             <div 
-              className="justify-center items-stretch w-full mx-auto flex flex-nowrap"
+              className="home-cards-row justify-center items-stretch w-full mx-auto flex flex-nowrap"
               style={{ 
                 gap: 'clamp(2rem, 5vw, 6rem)',
                 maxWidth: '95vw'
