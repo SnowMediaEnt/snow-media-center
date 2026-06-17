@@ -248,8 +248,22 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive, onExitLeft, openSeries, playEpisode]);
 
-  const focusedTileRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [gridIdx]);
+  // Virtualize series grid by row
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const ROW_H = 280;
+  const rowCount = Math.ceil(visibleSeries.length / GRID_COLS);
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => ROW_H,
+    overscan: 3,
+  });
+  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
+  useEffect(() => {
+    if (!visibleSeries.length) return;
+    rowVirtualizer.scrollToIndex(Math.floor(gridIdx / GRID_COLS), { align: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridIdx, visibleSeries.length]);
   const focusedEpRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [episodeIdx]);
 
