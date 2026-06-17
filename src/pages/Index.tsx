@@ -364,6 +364,16 @@ const Index = () => {
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
 
+  // Stable per-index activation callbacks — referentially constant for the
+  // life of the component so HomeActionCard's React.memo can skip re-renders
+  // on unfocused cards when only `focusedButton` changes.
+  const activateByIndex = useMemo(() => [
+    () => navigateToRef.current('apps'),
+    () => navigateToRef.current('support'),
+    () => navigateToRef.current('store'),
+    () => navigateToRef.current('livetv'),
+  ], []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Skip navigation handling when user is typing in an input or textarea
