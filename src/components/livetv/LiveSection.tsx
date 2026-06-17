@@ -407,10 +407,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
-        if (e.key === 'ArrowDown') setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
+        if (e.key === 'ArrowDown') {
+          userMovedRef.current = true;
+          setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
+        }
+        else if (e.key === 'ArrowUp') {
+          userMovedRef.current = true;
+          setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
+        }
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') setPane('channels');
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          userMovedRef.current = true;
+          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          setPane('channels');
+        }
         return;
       }
 
