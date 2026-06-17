@@ -507,7 +507,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
                     left: 0,
                     width: '100%',
                     transform: `translateY(${vr.start}px)`,
-                    height: ROW_H,
+                    height: rowH,
                     gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
                     paddingBottom: 16,
                   }}
