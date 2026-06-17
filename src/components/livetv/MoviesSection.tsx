@@ -238,10 +238,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
               onClick={playMovie}
               autoFocus
               className="tv-focusable home-focus-surface text-lg px-8 py-6"
-              disabled={!creds || usingMock}
             >
               <Play className="w-5 h-5 mr-2 fill-current" />
-              {usingMock || !creds ? 'Sign in to play' : 'Play Movie'}
+              Play Movie
             </Button>
           </div>
         </div>
