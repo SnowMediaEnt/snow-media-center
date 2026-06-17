@@ -872,16 +872,21 @@ const Index = () => {
         }}
       />
 
-      {/* First-launch welcome + per-version "What's New" popup */}
-      <Suspense fallback={null}>
-        <WelcomePopup />
-      </Suspense>
+      {/* First-launch welcome + per-version "What's New" popup — mounted only
+          after first-frame idle so its effect chain doesn't pile onto boot. */}
+      {deferredOverlaysReady && (
+        <Suspense fallback={null}>
+          <WelcomePopup />
+        </Suspense>
+      )}
 
       {/* Background auto-update check (native only). On by default; users can
           disable via localStorage key smc-auto-update-enabled = "false". */}
-      <Suspense fallback={null}>
-        <AutoUpdatePrompt />
-      </Suspense>
+      {deferredOverlaysReady && (
+        <Suspense fallback={null}>
+          <AutoUpdatePrompt />
+        </Suspense>
+      )}
     </div>
   );
 };
