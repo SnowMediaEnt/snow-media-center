@@ -434,7 +434,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 overflow-y-auto p-5">
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5">
         {loading ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
@@ -444,21 +444,43 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         ) : visibleSeries.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
         ) : (
-          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
-            {visibleSeries.map((s, i) => {
-              const isFocused = isActive && pane === 'grid' && i === gridIdx;
+          <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            {rowVirtualizer.getVirtualItems().map(vr => {
+              const rowStart = vr.index * GRID_COLS;
+              const rowItems = visibleSeries.slice(rowStart, rowStart + GRID_COLS);
               return (
-                <div key={s.series_id} ref={isFocused ? focusedTileRef : null}>
-                  <PosterCard
-                    title={s.name}
-                    image={s.cover}
-                    rating={s.rating}
-                    year={s.releaseDate ? String(s.releaseDate).slice(0, 4) : undefined}
-                    isFocused={isFocused}
-                    variant="series"
-                    onFocus={() => { setGridIdx(i); setPane('grid'); }}
-                    onActivate={() => openSeries(s)}
-                  />
+                <div
+                  key={vr.key}
+                  className="grid gap-4"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${vr.start}px)`,
+                    height: ROW_H,
+                    gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
+                    paddingBottom: 16,
+                  }}
+                >
+                  {rowItems.map((s, ci) => {
+                    const i = rowStart + ci;
+                    const isFocused = isActive && pane === 'grid' && i === gridIdx;
+                    return (
+                      <div key={s.series_id}>
+                        <PosterCard
+                          title={s.name}
+                          image={s.cover}
+                          rating={s.rating}
+                          year={s.releaseDate ? String(s.releaseDate).slice(0, 4) : undefined}
+                          isFocused={isFocused}
+                          variant="series"
+                          onFocus={() => { setGridIdx(i); setPane('grid'); }}
+                          onActivate={() => openSeries(s)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
