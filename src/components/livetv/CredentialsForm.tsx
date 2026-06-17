@@ -130,7 +130,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         </div>
 
         <p className="text-brand-ice/50 text-xs font-nunito mt-6">
-          We try {SERVERS.map(s => s.label).join(' and ')} automatically and use whichever one accepts your login.
+          Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
           Your credentials are stored only on this device.
         </p>
       </form>
