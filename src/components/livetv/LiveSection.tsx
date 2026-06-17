@@ -102,6 +102,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const infoTimerRef = useRef<number | null>(null);
 
+  // --- Fullscreen control bar (TiviMate-style) ---
+  const videoControllerRef = useRef<VideoController | null>(null);
+  const [barVisible, setBarVisible] = useState(true);
+  const [barFocus, setBarFocus] = useState<BarControlId>('play');
+  const [isPaused, setIsPaused] = useState(false);
+  const [subMenuOpen, setSubMenuOpen] = useState(false);
+  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
+  const [audioMenuFocus, setAudioMenuFocus] = useState(0);
+  const [tracksTick, setTracksTick] = useState(0);
+  const barHideTimerRef = useRef<number | null>(null);
+  const pokeBar = useCallback(() => {
+    setBarVisible(true);
+    if (barHideTimerRef.current) window.clearTimeout(barHideTimerRef.current);
+    barHideTimerRef.current = window.setTimeout(() => {
+      setBarVisible(false);
+      setSubMenuOpen(false);
+      setAudioMenuOpen(false);
+    }, 5000) as unknown as number;
+  }, []);
+  const hideBarNow = useCallback(() => {
+    if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
+    setBarVisible(false);
+    setSubMenuOpen(false);
+    setAudioMenuOpen(false);
+  }, []);
+  // Reset bar state when entering fullscreen or switching channel.
+  useEffect(() => {
+    if (!fullscreen) return;
+    setBarFocus('play');
+    setSubMenuOpen(false);
+    setAudioMenuOpen(false);
+    pokeBar();
+    return () => {
+      if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
+    };
+  }, [fullscreen, playingChannelId, pokeBar]);
+
   const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
   const epgPendingRef = useRef<Set<number>>(new Set());
   const epgQueueRef = useRef<number[]>([]);
