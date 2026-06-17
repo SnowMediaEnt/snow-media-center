@@ -85,10 +85,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   useEffect(() => { saveVolume(volume); }, [volume]);
 
   const [pane, setPane] = useState<Pane>('categories');
-  // Start focus on the first REAL category (index 2 = first server category;
-  // 0 = Favorites, 1 = All channels). If no real categories yet, fall back to 0.
-  const [categoryIdx, setCategoryIdx] = useState(2);
+  // Start on Favorites (0). A separate effect bumps to the first REAL category
+  // (index 2) once categories arrive, but only if the user hasn't moved yet.
+  const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
+  // Tracks whether the user has explicitly moved category focus.
+  const userMovedRef = useRef(false);
+  // "All channels" loads ~12K rows — never auto-load. Only fetch when the
+  // user explicitly opens that bucket (Enter / click).
+  const allOptedInRef = useRef(false);
 
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
