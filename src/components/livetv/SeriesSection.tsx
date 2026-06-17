@@ -330,7 +330,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     const info = seriesInfo?.info;
     const cover = info?.cover || selectedSeries.cover;
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 text-white">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 text-white bg-black/40">
         <Button variant="white" size="sm" onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} className="tv-focusable home-focus-surface mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
