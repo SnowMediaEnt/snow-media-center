@@ -41,26 +41,36 @@ export function useFeatureFlag(key: string, defaultValue = true) {
       }
       setLoading(false);
     };
-    fetchFlag();
 
-    const channel = supabase
-      .channel(`feature_flags:${key}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'feature_flags', filter: `key=eq.${key}` },
-        (payload) => {
-          const row = (payload.new ?? payload.old) as { enabled?: boolean } | null;
-          if (row && typeof row.enabled === 'boolean') {
-            setEnabled(row.enabled);
-            writeCached(key, row.enabled);
+    // Phase 7: cached value already showing — defer the network read so the
+    // home cards aren't blocked behind a Supabase round-trip on boot.
+    const cancelIdle = runWhenIdle(() => { void fetchFlag(); }, 1800);
+
+    // Defer the realtime websocket handshake until the user interacts so two
+    // channels don't race at boot (app_alerts + feature_flags).
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const cancelFirstInteraction = onFirstInteraction(() => {
+      channel = supabase
+        .channel(`feature_flags:${key}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'feature_flags', filter: `key=eq.${key}` },
+          (payload) => {
+            const row = (payload.new ?? payload.old) as { enabled?: boolean } | null;
+            if (row && typeof row.enabled === 'boolean') {
+              setEnabled(row.enabled);
+              writeCached(key, row.enabled);
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    });
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      cancelIdle();
+      cancelFirstInteraction();
+      if (channel) supabase.removeChannel(channel);
     };
   }, [key]);
 
