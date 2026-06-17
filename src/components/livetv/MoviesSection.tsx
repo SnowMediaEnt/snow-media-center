@@ -30,11 +30,13 @@ const GRID_COLS = 5;
 
 const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [movies, setMovies] = useState<XtreamVodStream[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
+  const [loadingCat, setLoadingCat] = useState<string | null>(null);
 
   const [pane, setPane] = useState<Pane>('categories');
-  const [categoryIdx, setCategoryIdx] = useState(0);
+  // 0 = "All Movies" sentinel; default to first real category if available.
+  const [categoryIdx, setCategoryIdx] = useState(1);
   const [gridIdx, setGridIdx] = useState(0);
 
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
@@ -45,21 +47,17 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
 
-  // Fetch
+  // Fetch categories only
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setCategoriesLoading(true);
     (async () => {
       try {
-        const [cats, vods] = await Promise.all([
-          getVodCategories(creds).catch(() => [] as XtreamCategory[]),
-          getVodStreams(creds).catch(() => [] as XtreamVodStream[]),
-        ]);
+        const cats = await getVodCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
-        setMovies(vods);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setCategoriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -67,16 +65,44 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Movies' }];
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name });
+    for (const c of categories) base.push({ id: String(c.category_id), name: c.category_name });
     return base;
   }, [categories]);
 
+  useEffect(() => {
+    if (categoryIdx >= visibleCategories.length) setCategoryIdx(Math.max(0, visibleCategories.length - 1));
+  }, [visibleCategories.length, categoryIdx]);
+
+  const currentCat = visibleCategories[categoryIdx];
+
+  // Lazy-load category's movies (ALL only on explicit selection — same gating)
+  useEffect(() => {
+    if (!currentCat) return;
+    if (moviesByCat.has(currentCat.id)) return;
+    let cancelled = false;
+    const key = currentCat.id;
+    setLoadingCat(key);
+    const p = key === ALL_ID ? getVodStreams(creds) : getVodStreams(creds, key);
+    p.then(list => {
+      if (cancelled) return;
+      setMoviesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+    }).catch(() => {
+      if (cancelled) return;
+      setMoviesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
+    }).finally(() => {
+      if (cancelled) return;
+      setLoadingCat(prev => prev === key ? null : prev);
+    });
+    return () => { cancelled = true; };
+  }, [currentCat, creds, moviesByCat]);
+
   const visibleMovies = useMemo(() => {
-    const cat = visibleCategories[categoryIdx];
-    if (!cat) return [];
-    if (cat.id === ALL_ID) return movies;
-    return movies.filter(m => m.category_id === cat.id);
-  }, [visibleCategories, categoryIdx, movies]);
+    if (!currentCat) return [];
+    return moviesByCat.get(currentCat.id) || [];
+  }, [currentCat, moviesByCat]);
+
+  const moviesLoading = currentCat && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id));
+
 
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
