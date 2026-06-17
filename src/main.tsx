@@ -1,3 +1,5 @@
+import "core-js/stable";
+import "core-js/stable/structured-clone";
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'

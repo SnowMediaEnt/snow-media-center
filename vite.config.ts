@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => ({
     ? { drop: ['console', 'debugger'] }
     : undefined,
   build: {
+    target: 'chrome66',
     rollupOptions: {
       output: {
         manualChunks: {
