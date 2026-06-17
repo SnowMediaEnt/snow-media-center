@@ -471,7 +471,7 @@ const Index = () => {
             } else {
               // No content bar — jump directly to the top row.
               // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton === 2 ? -1 : -2);
+              setFocusedButton(focusedButton === 3 ? -1 : -2);
             }
           }
           break;
