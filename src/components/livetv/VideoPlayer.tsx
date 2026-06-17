@@ -24,6 +24,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
   const [loading, setLoading] = useState(false);
+  const [fatal, setFatal] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Keep volume in sync
   useEffect(() => {
