@@ -349,14 +349,19 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => { setCategoryIdx(i); setPane('channels'); }}
                   className={`
-                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
-                    ${!isFocused && isSelected ? 'bg-white/10' : ''}
+                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
+                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
+                    ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
                 >
                   {c.id === FAV_ID && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                  <span className="font-nunito truncate flex-1 text-brand-ice">{c.name}</span>
+                  <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
+                  {c.count != null && c.count > 0 && (
+                    <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
+                      {c.count}
+                    </span>
+                  )}
                 </div>
               );
             })}
