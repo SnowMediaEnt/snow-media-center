@@ -129,8 +129,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
 
     const onPlaying = () => { setLoading(false); setFatal(null); };
     const onWaiting = () => setLoading(true);
+    const onEndedInner = () => { onEnded?.(); };
     video.addEventListener('playing', onPlaying);
     video.addEventListener('waiting', onWaiting);
+    video.addEventListener('ended', onEndedInner);
 
     attach();
 
@@ -138,11 +140,12 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       cancelled = true;
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('waiting', onWaiting);
+      video.removeEventListener('ended', onEndedInner);
       teardownRef.current?.();
       teardownRef.current = null;
       try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
     };
-  }, [src, maxRetries, onError, retryNonce]);
+  }, [src, maxRetries, onError, onEnded, retryNonce]);
 
   const handleRetry = useCallback(() => {
     retriesRef.current = 0;
