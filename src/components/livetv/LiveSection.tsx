@@ -128,11 +128,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
     if (!focusedChannel) return;
     const id = focusedChannel.stream_id;
     if (epgCacheRef.current.has(id)) return;
-    if (usingMock || !creds) {
-      epgCacheRef.current.set(id, mockEpgFor(focusedChannel));
-      forceEpgTick(t => t + 1);
-      return;
-    }
     let cancelled = false;
     (async () => {
       try {
@@ -146,14 +141,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [focusedChannel, creds, usingMock]);
+  }, [focusedChannel, creds]);
 
   const focusedNowNext = focusedChannel ? epgCacheRef.current.get(focusedChannel.stream_id) : undefined;
 
   const streamUrl = useMemo(() => {
-    if (!playingChannelId || usingMock || !creds) return null;
+    if (!playingChannelId) return null;
     return buildLiveStreamUrl(creds, playingChannelId);
-  }, [playingChannelId, usingMock, creds]);
+  }, [playingChannelId, creds]);
 
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     setPlayingChannelId(stream.stream_id);
