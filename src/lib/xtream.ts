@@ -191,6 +191,36 @@ export function saveFavorites(s: Set<number>): void {
   try { localStorage.setItem(FAVS_KEY, JSON.stringify([...s])); } catch { /* ignore */ }
 }
 
+// v2 favorites: store enough metadata to render the Favorites list without
+// having loaded every channel from the server.
+export interface FavChannel {
+  stream_id: number;
+  name: string;
+  num?: number;
+  stream_icon?: string;
+  category_id?: string;
+  epg_channel_id?: string;
+}
+const FAVS_KEY_V2 = 'snow-livetv-favs-v2';
+
+export function loadFavoritesData(): Map<number, FavChannel> {
+  try {
+    const raw = localStorage.getItem(FAVS_KEY_V2);
+    if (raw) {
+      const arr = JSON.parse(raw) as FavChannel[];
+      return new Map(arr.map(f => [f.stream_id, f]));
+    }
+  } catch { /* ignore */ }
+  return new Map();
+}
+
+export function saveFavoritesData(m: Map<number, FavChannel>): void {
+  try {
+    localStorage.setItem(FAVS_KEY_V2, JSON.stringify([...m.values()]));
+    localStorage.setItem(FAVS_KEY, JSON.stringify([...m.keys()]));
+  } catch { /* ignore */ }
+}
+
 export function loadLastChannelId(): number | null {
   try {
     const raw = localStorage.getItem(LAST_CHANNEL_KEY);
