@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, Loader2, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -25,12 +25,12 @@ const Player = memo(({ onBack }: Props) => {
 
   const [creds, setCreds] = useState<XtreamCreds | null>(null);
   const [credsLoaded, setCredsLoaded] = useState(false);
-  const [showCredsForm, setShowCredsForm] = useState(false);
-  const [usingMock, setUsingMock] = useState(true);
+  // When true, the user has explicitly opened the Account form even though
+  // valid creds already exist (i.e. to change account).
+  const [accountFormOpen, setAccountFormOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
-  // 'sections' = focus is on the left section list; 'content' = focus delegated to active section
   const [pane, setPane] = useState<'sections' | 'content'>('sections');
 
   // Load creds on mount
@@ -40,7 +40,6 @@ const Player = memo(({ onBack }: Props) => {
       const c = await loadCreds();
       if (cancelled) return;
       setCreds(c);
-      setUsingMock(!c);
       setCredsLoaded(true);
     })();
     return () => { cancelled = true; };
@@ -48,15 +47,15 @@ const Player = memo(({ onBack }: Props) => {
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
 
-  // Keyboard for shell (only when on the sections pane and no form / no section owns keys)
+  const showCredsForm = !creds || accountFormOpen;
+
+  // Keyboard for shell (only when on the sections pane and no form is up)
   const paneRef = useRef(pane);
   const sectionIdxRef = useRef(sectionIdx);
   const showCredsFormRef = useRef(showCredsForm);
-  const credsRef = useRef(creds);
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { sectionIdxRef.current = sectionIdx; }, [sectionIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
-  useEffect(() => { credsRef.current = creds; }, [creds]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -65,12 +64,12 @@ const Player = memo(({ onBack }: Props) => {
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         if ((e.key === 'Escape' || e.keyCode === 4) && !typing) {
           e.preventDefault();
-          if (credsRef.current) setShowCredsForm(false);
+          if (accountFormOpen && creds) setAccountFormOpen(false);
           else onBack();
         }
         return;
       }
-      if (paneRef.current !== 'sections') return; // section owns keys
+      if (paneRef.current !== 'sections') return;
 
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -95,9 +94,17 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack]);
+  }, [onBack, accountFormOpen, creds]);
 
-  // Credentials form
+  if (!credsLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
+      </div>
+    );
+  }
+
+  // Sign-in screen — shown when no creds OR user opened account form
   if (showCredsForm) {
     return (
       <div className="min-h-screen text-white">
@@ -106,20 +113,11 @@ const Player = memo(({ onBack }: Props) => {
             initial={creds}
             onSaved={(c) => {
               setCreds(c);
-              setUsingMock(false);
-              setShowCredsForm(false);
+              setAccountFormOpen(false);
             }}
-            onCancel={creds ? () => setShowCredsForm(false) : undefined}
+            onCancel={creds ? () => setAccountFormOpen(false) : onBack}
           />
         </Suspense>
-      </div>
-    );
-  }
-
-  if (!credsLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
       </div>
     );
   }
@@ -135,12 +133,7 @@ const Player = memo(({ onBack }: Props) => {
           <div className="flex items-center gap-2">
             <Tv className="w-7 h-7 text-brand-gold" />
             <h1 className="text-2xl font-quicksand font-bold text-white">Player</h1>
-            {usingMock && (
-              <span className="ml-2 text-xs px-2 py-1 rounded-full bg-brand-gold/20 text-brand-gold font-nunito">
-                Demo mode
-              </span>
-            )}
-            {creds?.serverLabel && !usingMock && (
+            {creds?.serverLabel && (
               <span className="ml-2 text-xs px-2 py-1 rounded-full bg-white/10 text-brand-ice font-nunito">
                 {creds.serverLabel}
               </span>
@@ -148,25 +141,23 @@ const Player = memo(({ onBack }: Props) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="gold" size="sm" onClick={() => setShowCredsForm(true)} className="tv-focusable home-focus-surface">
+          <Button variant="gold" size="sm" onClick={() => setAccountFormOpen(true)} className="tv-focusable home-focus-surface">
             <SettingsIcon className="w-4 h-4 mr-2" />
-            {creds ? 'Account' : 'Sign In'}
+            Account
           </Button>
-          {creds && (
-            <Button
-              variant="white"
-              size="sm"
-              onClick={async () => {
-                await clearCreds();
-                setCreds(null);
-                setUsingMock(true);
-                toast({ title: 'Signed out', description: 'Player is back in demo mode.' });
-              }}
-              className="tv-focusable home-focus-surface"
-            >
-              <X className="w-4 h-4 mr-2" /> Sign Out
-            </Button>
-          )}
+          <Button
+            variant="white"
+            size="sm"
+            onClick={async () => {
+              await clearCreds();
+              setCreds(null);
+              setAccountFormOpen(false);
+              toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
+            }}
+            className="tv-focusable home-focus-surface"
+          >
+            <X className="w-4 h-4 mr-2" /> Sign Out
+          </Button>
         </div>
       </div>
 
@@ -197,11 +188,9 @@ const Player = memo(({ onBack }: Props) => {
           })}
         </div>
 
-        {/* Active section — owns keyboard when pane === 'content' */}
         {section === 'live' && (
           <LiveSection
-            creds={creds}
-            usingMock={usingMock}
+            creds={creds!}
             isActive={pane === 'content'}
             onExitLeft={onExitLeft}
             onBack={onBack}
@@ -210,8 +199,7 @@ const Player = memo(({ onBack }: Props) => {
         {section === 'movies' && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
-              creds={creds}
-              usingMock={usingMock}
+              creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
             />
@@ -220,8 +208,7 @@ const Player = memo(({ onBack }: Props) => {
         {section === 'series' && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
-              creds={creds}
-              usingMock={usingMock}
+              creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
             />
