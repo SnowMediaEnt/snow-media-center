@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AppManager, type InstalledAppInfo } from '@/capacitor/AppManager';
+import { runWhenIdle } from '@/utils/idle';
 
 // Normalise an app/display name so "Dreamstreams 3.0" ≈ "dreamstreams30"
 const normaliseName = (s: string) =>
