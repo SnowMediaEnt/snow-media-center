@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Loader2, Search, Star, Tv } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavorites,
   saveFavorites,
@@ -31,6 +32,9 @@ interface Props {
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
+const ROW_HEIGHT = 84; // px — fixed-size virtual row
+const EPG_MAX_CONCURRENT = 5;
+const PREVIEW_DEBOUNCE_MS = 700;
 
 const formatTime = (ms?: number) => {
   if (!ms) return '';
@@ -69,6 +73,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
   const infoTimerRef = useRef<number | null>(null);
 
   const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
+  const epgPendingRef = useRef<Set<number>>(new Set());
+  const epgQueueRef = useRef<number[]>([]);
+  const epgInFlightRef = useRef(0);
   const [, forceEpgTick] = useState(0);
 
   // Load server data
@@ -93,23 +100,38 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
     return () => { cancelled = true; };
   }, [creds]);
 
-  const visibleCategories = useMemo(() => {
-    const base: { id: string | number; name: string; count?: number }[] = [
-      { id: FAV_ID, name: 'Favorites' },
-      { id: ALL_ID, name: 'All channels', count: streams.length },
-    ];
+  // Category counts: O(N) once per streams change — fine.
+  const categoryCounts = useMemo(() => {
     const counts = new Map<string | number, number>();
     for (const s of streams) counts.set(s.category_id, (counts.get(s.category_id) || 0) + 1);
-    for (const c of categories) base.push({ id: c.category_id, name: c.category_name, count: counts.get(c.category_id) || 0 });
-    if (base[0].id === FAV_ID) base[0].count = streams.filter(s => favorites.has(s.stream_id)).length;
+    return counts;
+  }, [streams]);
+
+  const favoriteCount = useMemo(() => {
+    let n = 0;
+    for (const s of streams) if (favorites.has(s.stream_id)) n++;
+    return n;
+  }, [streams, favorites]);
+
+  const visibleCategories = useMemo(() => {
+    const base: { id: string | number; name: string; count?: number }[] = [
+      { id: FAV_ID, name: 'Favorites', count: favoriteCount },
+      { id: ALL_ID, name: 'All channels', count: streams.length },
+    ];
+    for (const c of categories) base.push({ id: c.category_id, name: c.category_name, count: categoryCounts.get(c.category_id) || 0 });
     return base;
-  }, [categories, streams, favorites]);
+  }, [categories, streams.length, categoryCounts, favoriteCount]);
 
   const visibleChannels = useMemo(() => {
     if (searchOpen) {
       const q = searchQuery.trim().toLowerCase();
-      if (!q) return [];
-      return streams.filter(s => s.name.toLowerCase().includes(q)).slice(0, 500);
+      if (!q) return [] as XtreamLiveStream[];
+      // Cap search results so even matching across 30k stays cheap.
+      const out: XtreamLiveStream[] = [];
+      for (let i = 0; i < streams.length && out.length < 500; i++) {
+        if (streams[i].name.toLowerCase().includes(q)) out.push(streams[i]);
+      }
+      return out;
     }
     const cat = visibleCategories[categoryIdx];
     if (!cat) return [];
@@ -124,26 +146,84 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
 
   const focusedChannel = visibleChannels[channelIdx];
 
+  // --- Virtualizer for the channel list ---
+  const scrollParentRef = useRef<HTMLDivElement | null>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: visibleChannels.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 8,
+    getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
+  });
+
+  // Reset scroll position when category/search changes
   useEffect(() => {
-    if (!focusedChannel) return;
-    const id = focusedChannel.stream_id;
-    if (epgCacheRef.current.has(id)) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await getShortEpg(creds, id, 4);
-        if (cancelled) return;
-        epgCacheRef.current.set(id, pickNowNext(res.epg_listings || []));
-        forceEpgTick(t => t + 1);
-      } catch {
-        epgCacheRef.current.set(id, {});
-        forceEpgTick(t => t + 1);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [focusedChannel, creds]);
+    rowVirtualizer.scrollToOffset(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryIdx, searchOpen, searchQuery]);
+
+  // Keep focused row mounted + visible — drives both render window and scroll
+  useEffect(() => {
+    if (!visibleChannels.length) return;
+    rowVirtualizer.scrollToIndex(channelIdx, { align: 'auto' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelIdx, visibleChannels.length]);
+
+  // --- EPG lazy fetch with concurrency cap, only for visible window + focused ---
+  const enqueueEpg = useCallback((id: number) => {
+    if (epgCacheRef.current.has(id) || epgPendingRef.current.has(id)) return;
+    epgPendingRef.current.add(id);
+    epgQueueRef.current.push(id);
+    pumpEpg();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creds]);
+
+  const pumpEpg = useCallback(() => {
+    while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
+      const id = epgQueueRef.current.shift()!;
+      epgInFlightRef.current++;
+      getShortEpg(creds, id, 4)
+        .then(res => { epgCacheRef.current.set(id, pickNowNext(res.epg_listings || [])); })
+        .catch(() => { epgCacheRef.current.set(id, {}); })
+        .finally(() => {
+          epgInFlightRef.current--;
+          epgPendingRef.current.delete(id);
+          forceEpgTick(t => t + 1);
+          if (epgQueueRef.current.length) pumpEpg();
+        });
+    }
+  }, [creds]);
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  useEffect(() => {
+    // visible window
+    for (const v of virtualItems) {
+      const s = visibleChannels[v.index];
+      if (s) enqueueEpg(s.stream_id);
+    }
+    // focused (always)
+    if (focusedChannel) enqueueEpg(focusedChannel.stream_id);
+  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg]);
 
   const focusedNowNext = focusedChannel ? epgCacheRef.current.get(focusedChannel.stream_id) : undefined;
+
+  // --- Debounced preview source (don't re-init player every D-pad press) ---
+  const [previewChannelId, setPreviewChannelId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!focusedChannel) { setPreviewChannelId(null); return; }
+    const id = focusedChannel.stream_id;
+    const t = window.setTimeout(() => setPreviewChannelId(id), PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [focusedChannel]);
+
+  const previewStream = useMemo(
+    () => (previewChannelId ? streams.find(s => s.stream_id === previewChannelId) ?? null : null),
+    [previewChannelId, streams],
+  );
+  const previewUrl = useMemo(
+    () => (previewStream ? buildLiveStreamUrl(creds, previewStream.stream_id) : null),
+    [previewStream, creds],
+  );
 
   const streamUrl = useMemo(() => {
     if (!playingChannelId) return null;
@@ -220,7 +300,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       }
 
       if (e.key === 'f' || e.key === 'F') {
-        if (focusedChannel) { e.preventDefault(); toggleFavorite(focusedChannel.stream_id); }
+        const ch = visibleChannelsRef.current[channelIdxRef.current];
+        if (ch) { e.preventDefault(); toggleFavorite(ch.stream_id); }
         return;
       }
 
@@ -250,13 +331,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, focusedChannel, toggleFavorite, changeChannelInFullscreen, playChannel]);
-
-  const focusedRowRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [channelIdx, categoryIdx, pane]);
+  }, [isActive, onExitLeft, toggleFavorite, changeChannelInFullscreen, playChannel]);
 
   // Fullscreen player
-  const playingStream = streams.find(s => s.stream_id === playingChannelId) || focusedChannel;
+  const playingStream = playingChannelId
+    ? streams.find(s => s.stream_id === playingChannelId) || focusedChannel
+    : focusedChannel;
   const playingNowNext = playingStream ? epgCacheRef.current.get(playingStream.stream_id) : undefined;
   const progress = (() => {
     if (!playingNowNext?.now) return 0;
@@ -305,6 +385,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       </div>
     );
   }
+
+  const totalSize = rowVirtualizer.getTotalSize();
 
   return (
     <div className="flex-1 min-h-0 flex">
@@ -361,13 +443,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/20">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {focusedChannel ? (
+            {previewUrl ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
-                <VideoPlayer src={buildLiveStreamUrl(creds, focusedChannel.stream_id)} volume={0} className="w-full h-full" />
+                <VideoPlayer src={previewUrl} volume={0} className="w-full h-full" />
               </Suspense>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
-                No channel selected
+                {focusedChannel ? 'Preview loading…' : 'No channel selected'}
               </div>
             )}
           </div>
@@ -402,40 +484,58 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
+        {/* Virtualized channel list */}
+        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto p-3">
           {loading && visibleChannels.length === 0 ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
-                <div className="w-8 h-4 rounded bg-white/10" />
-                <div className="w-14 h-14 rounded-lg bg-white/10" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/2 rounded bg-white/10" />
-                  <div className="h-3 w-2/3 rounded bg-white/5" />
+            <div className="space-y-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
+                  <div className="w-8 h-4 rounded bg-white/10" />
+                  <div className="w-14 h-14 rounded-lg bg-white/10" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-1/2 rounded bg-white/10" />
+                    <div className="h-3 w-2/3 rounded bg-white/5" />
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
               {searchOpen ? (searchQuery ? 'No channels match your search.' : 'Type above to search channels.') : 'No channels in this category.'}
             </div>
           ) : (
-            visibleChannels.map((s, i) => {
-              const isFocused = isActive && pane === 'channels' && i === channelIdx;
-              return (
-                <div key={s.stream_id} ref={isFocused ? focusedRowRef : null}>
-                  <ChannelRow
-                    channel={s}
-                    index={i}
-                    isFocused={isFocused}
-                    isPlaying={playingChannelId === s.stream_id}
-                    isFavorite={favorites.has(s.stream_id)}
-                    nowNext={epgCacheRef.current.get(s.stream_id)}
-                    onSelect={(idx) => { setChannelIdx(idx); setPane('channels'); }}
-                    onActivate={(idx) => { setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
-                  />
-                </div>
-              );
-            })
+            <div style={{ height: totalSize, position: 'relative', width: '100%' }}>
+              {virtualItems.map(v => {
+                const s = visibleChannels[v.index];
+                if (!s) return null;
+                const isFocused = isActive && pane === 'channels' && v.index === channelIdx;
+                return (
+                  <div
+                    key={v.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: ROW_HEIGHT,
+                      transform: `translateY(${v.start}px)`,
+                      padding: '2px 0',
+                    }}
+                  >
+                    <ChannelRow
+                      channel={s}
+                      index={v.index}
+                      isFocused={isFocused}
+                      isPlaying={playingChannelId === s.stream_id}
+                      isFavorite={favorites.has(s.stream_id)}
+                      nowNext={epgCacheRef.current.get(s.stream_id)}
+                      onSelect={(idx) => { setChannelIdx(idx); setPane('channels'); }}
+                      onActivate={(idx) => { setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
