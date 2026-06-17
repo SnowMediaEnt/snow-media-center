@@ -419,20 +419,118 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
       if (fullscreenRef.current) {
-        if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
+        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+        const ctrl = videoControllerRef.current;
+
+        // --- Sub/Audio menus take priority ---
+        if (subMenuOpenRef.current || audioMenuOpenRef.current) {
           e.preventDefault(); e.stopPropagation();
+          pokeBar();
+          const isSub = subMenuOpenRef.current;
+          if (isBack || e.key === 'ArrowLeft') {
+            setSubMenuOpen(false); setAudioMenuOpen(false);
+            return;
+          }
+          if (isSub) {
+            const subs = ctrl?.getSubtitleTracks() ?? [];
+            const min = -1; const max = subs.length - 1;
+            if (e.key === 'ArrowDown') setSubMenuFocus(f => Math.min(max, f + 1));
+            else if (e.key === 'ArrowUp') setSubMenuFocus(f => Math.max(min, f - 1));
+            else if (e.key === 'Enter' || e.key === ' ') {
+              ctrl?.setSubtitleTrack(subMenuFocusRef.current);
+              setTracksTick(t => t + 1);
+              setSubMenuOpen(false);
+            }
+          } else {
+            const auds = ctrl?.getAudioTracks() ?? [];
+            const max = auds.length - 1;
+            if (e.key === 'ArrowDown') setAudioMenuFocus(f => Math.min(max, f + 1));
+            else if (e.key === 'ArrowUp') setAudioMenuFocus(f => Math.max(0, f - 1));
+            else if (e.key === 'Enter' || e.key === ' ') {
+              ctrl?.setAudioTrack(audioMenuFocusRef.current);
+              setTracksTick(t => t + 1);
+              setAudioMenuOpen(false);
+            }
+          }
+          return;
+        }
+
+        // --- Back ---
+        if (isBack) {
+          e.preventDefault(); e.stopPropagation();
+          if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false); setShowInfoPanel(false);
           return;
         }
-        if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); return; }
-        if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); return; }
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => Math.min(1, +(v + 0.05).toFixed(2))); return; }
+
+        // --- Bar is HIDDEN: preserve channel zap + volume, Enter shows bar ---
+        if (!barVisibleRef.current) {
+          if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); pokeBar(); setBarFocus('play'); return; }
+          if (e.key === 'ArrowDown')  { e.preventDefault(); changeChannelInFullscreen(+1); pokeBar(); setBarFocus('play'); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); setVolume(v => Math.max(0, +(v - 0.05).toFixed(2))); pokeBar(); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); setVolume(v => Math.min(1, +(v + 0.05).toFixed(2))); pokeBar(); return; }
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setBarFocus('play');
+            pokeBar();
+            return;
+          }
+          // Any other key — pop the bar but don't act.
+          pokeBar();
+          return;
+        }
+
+        // --- Bar VISIBLE: navigate the control row ---
+        e.preventDefault();
+        pokeBar();
+        const subs = ctrl?.getSubtitleTracks() ?? [];
+        const auds = ctrl?.getAudioTracks() ?? [];
+        const seekable = !!ctrl?.isSeekable();
+        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio'];
+        const isDisabled = (id: BarControlId): boolean => {
+          if (id === 'rew' || id === 'fwd') return !seekable;
+          if (id === 'cc') return subs.length === 0;
+          if (id === 'audio') return auds.length <= 1;
+          return false;
+        };
+        const moveFocus = (dir: 1 | -1) => {
+          const cur = order.indexOf(barFocusRef.current);
+          for (let step = 1; step <= order.length; step++) {
+            const next = cur + dir * step;
+            if (next < 0 || next >= order.length) return;
+            const cand = order[next];
+            if (!isDisabled(cand)) { setBarFocus(cand); return; }
+          }
+        };
+
+        if (e.key === 'ArrowLeft')  { moveFocus(-1); return; }
+        if (e.key === 'ArrowRight') { moveFocus(+1); return; }
+        if (e.key === 'ArrowUp')    { hideBarNow(); return; }
+        if (e.key === 'ArrowDown')  { /* bar already shown; keep focus */ return; }
         if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setShowInfoPanel(true);
-          if (infoTimerRef.current) window.clearTimeout(infoTimerRef.current);
-          infoTimerRef.current = window.setTimeout(() => setShowInfoPanel(false), 5000) as unknown as number;
+          const id = barFocusRef.current;
+          if (id === 'prev')  changeChannelInFullscreen(-1);
+          else if (id === 'next') changeChannelInFullscreen(+1);
+          else if (id === 'rew')  { ctrl?.seek(-10); }
+          else if (id === 'fwd')  { ctrl?.seek(+10); }
+          else if (id === 'play') {
+            ctrl?.togglePlay();
+            // optimistic — onPlayStateChange will reconcile
+            setIsPaused(p => !p);
+          }
+          else if (id === 'cc') {
+            const cur = subs.findIndex(s => s.active);
+            setSubMenuFocus(cur >= 0 ? cur : -1);
+            setSubMenuOpen(true);
+            setAudioMenuOpen(false);
+          }
+          else if (id === 'audio') {
+            const cur = auds.findIndex(a => a.active);
+            setAudioMenuFocus(cur >= 0 ? cur : 0);
+            setAudioMenuOpen(true);
+            setSubMenuOpen(false);
+          }
+          return;
         }
         return;
       }
