@@ -211,6 +211,22 @@ export function loadFavoritesData(): Map<number, FavChannel> {
       return new Map(arr.map(f => [f.stream_id, f]));
     }
   } catch { /* ignore */ }
+  // Fallback: migrate v1 (id-only) favorites so users don't lose them after refactor.
+  try {
+    const raw = localStorage.getItem(FAVS_KEY);
+    if (raw) {
+      const ids = JSON.parse(raw) as number[];
+      if (Array.isArray(ids) && ids.length) {
+        const map = new Map<number, FavChannel>();
+        for (const id of ids) {
+          const n = Number(id);
+          if (Number.isFinite(n)) map.set(n, { stream_id: n, name: `Channel ${n}` });
+        }
+        try { localStorage.setItem(FAVS_KEY_V2, JSON.stringify([...map.values()])); } catch { /* ignore */ }
+        return map;
+      }
+    }
+  } catch { /* ignore */ }
   return new Map();
 }
 

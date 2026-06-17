@@ -112,6 +112,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   const seriesLoading = currentCat && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id));
 
+  // Reset grid focus when switching category.
+  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
 
 
@@ -272,16 +274,40 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive, onExitLeft, openSeries, playEpisode]);
 
-  // Virtualize series grid by row
+  // Virtualize series grid by row — measure row height from real layout so
+  // virtual stride matches what's rendered at any TV resolution.
   const gridScrollRef = useRef<HTMLDivElement | null>(null);
-  const ROW_H = 280;
+  const [rowH, setRowH] = useState(280);
+  const rowHRef = useRef(280);
+  useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const calc = () => {
+      const cs = getComputedStyle(el);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const gap = 16; // gap-4
+      const inner = Math.max(0, el.clientWidth - padL - padR);
+      const colW = (inner - gap * (GRID_COLS - 1)) / GRID_COLS;
+      const posterH = colW * 1.5; // aspect 2/3
+      const titleArea = 56; // title + meta
+      const next = Math.max(180, Math.ceil(posterH + titleArea + 16));
+      setRowH(prev => (prev !== next ? next : prev));
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const rowCount = Math.ceil(visibleSeries.length / GRID_COLS);
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: () => ROW_H,
+    estimateSize: () => rowHRef.current,
     overscan: 3,
   });
+  useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
   useEffect(() => {
     if (!visibleSeries.length) return;
@@ -301,26 +327,17 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
             volume={volume}
             className="w-full h-full"
             onError={() => { /* let VideoPlayer retry */ }}
+            onEnded={() => {
+              if (!autoplayNextRef.current) { setPlaying(null); return; }
+              const next = playing.episodeIdx + 1;
+              if (next < episodesRef.current.length) playEpisode(next);
+              else setPlaying(null);
+            }}
           />
         </Suspense>
         <div className="absolute top-4 left-4 right-4 text-white font-quicksand font-bold text-lg drop-shadow-lg truncate">
           {playing.title}
         </div>
-        <video
-          // hidden listener video isn't useful; rely on ended via main player
-          // (mpegts/hls won't fire ended on infinite live; episodes are finite mp4/mkv).
-          // We attach an 'ended' listener via the actual <video> in DOM:
-          style={{ display: 'none' }}
-        />
-        {/* Bind to the player's ended event via DOM query */}
-        <PlaybackEndedWatcher
-          onEnded={() => {
-            if (!autoplayNextRef.current) { setPlaying(null); return; }
-            const next = playing.episodeIdx + 1;
-            if (next < episodes.length) playEpisode(next);
-            else setPlaying(null);
-          }}
-        />
       </div>
     );
   }
@@ -490,7 +507,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
                     left: 0,
                     width: '100%',
                     transform: `translateY(${vr.start}px)`,
-                    height: ROW_H,
+                    height: rowH,
                     gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
                     paddingBottom: 16,
                   }}
@@ -525,23 +542,3 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
 SeriesSection.displayName = 'SeriesSection';
 export default SeriesSection;
-
-/**
- * Tiny helper that finds the active <video> element in the page and forwards
- * its `ended` event. Used by the fullscreen episode player to drive autoplay
- * without modifying VideoPlayer.
- */
-const PlaybackEndedWatcher = ({ onEnded }: { onEnded: () => void }) => {
-  useEffect(() => {
-    const handle = () => onEnded();
-    const attach = () => {
-      const v = document.querySelector('video');
-      if (!v) { window.setTimeout(attach, 300); return; }
-      v.addEventListener('ended', handle);
-      return () => v.removeEventListener('ended', handle);
-    };
-    const detach = attach();
-    return () => { if (typeof detach === 'function') detach(); };
-  }, [onEnded]);
-  return null;
-};

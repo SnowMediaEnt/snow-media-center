@@ -104,6 +104,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const moviesLoading = currentCat && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id));
 
 
+  // Reset grid focus when switching category.
+  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
   // Load detail
@@ -215,15 +217,39 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
   // --- Virtualize grid by rows ---
   const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  // Virtualize grid by rows — measure row height from real layout so the
+  // virtual stride matches the rendered poster row at any TV resolution.
+  const [rowH, setRowH] = useState(280);
+  const rowHRef = useRef(280);
+  useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const calc = () => {
+      const cs = getComputedStyle(el);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const gap = 16; // gap-4
+      const inner = Math.max(0, el.clientWidth - padL - padR);
+      const colW = (inner - gap * (GRID_COLS - 1)) / GRID_COLS;
+      const posterH = colW * 1.5; // aspect 2/3
+      const titleArea = 56;
+      const next = Math.max(180, Math.ceil(posterH + titleArea + 16));
+      setRowH(prev => (prev !== next ? next : prev));
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const rowCount = Math.ceil(visibleMovies.length / GRID_COLS);
-  // Row height: poster aspect 2/3, plus title (~3rem). Container is fluid; estimate ~ 280px.
-  const ROW_H = 280;
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: () => ROW_H,
+    estimateSize: () => rowHRef.current,
     overscan: 3,
   });
+  useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
 
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
 
@@ -353,7 +379,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
                     left: 0,
                     width: '100%',
                     transform: `translateY(${vr.start}px)`,
-                    height: ROW_H,
+                    height: rowH,
                     gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
                     paddingBottom: 16,
                   }}

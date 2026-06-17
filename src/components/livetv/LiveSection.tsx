@@ -85,10 +85,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
   useEffect(() => { saveVolume(volume); }, [volume]);
 
   const [pane, setPane] = useState<Pane>('categories');
-  // Start focus on the first REAL category (index 2 = first server category;
-  // 0 = Favorites, 1 = All channels). If no real categories yet, fall back to 0.
-  const [categoryIdx, setCategoryIdx] = useState(2);
+  // Start on Favorites (0). A separate effect bumps to the first REAL category
+  // (index 2) once categories arrive, but only if the user hasn't moved yet.
+  const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
+  // Tracks whether the user has explicitly moved category focus.
+  const userMovedRef = useRef(false);
+  // "All channels" loads ~12K rows — never auto-load. Only fetch when the
+  // user explicitly opens that bucket (Enter / click).
+  const allOptedInRef = useRef(false);
 
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -131,20 +136,35 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     return base;
   }, [categories, streamsByCat, favorites.size]);
 
-  // Clamp focus when category list shrinks/grows. Also bump to first real
-  // category once categories arrive, if user hasn't moved.
+  // Clamp focus when category list shrinks (never clamp UP to "All channels").
+  // Once real categories have arrived, bump focus to the first real category
+  // (index 2) iff the user hasn't moved focus yet.
   useEffect(() => {
-    if (categoryIdx >= visibleCategories.length) setCategoryIdx(Math.max(0, visibleCategories.length - 1));
-  }, [visibleCategories.length, categoryIdx]);
+    if (visibleCategories.length === 0) return;
+    if (categoryIdx >= visibleCategories.length) {
+      setCategoryIdx(visibleCategories.length - 1);
+      return;
+    }
+    if (
+      categories.length > 0 &&
+      !userMovedRef.current &&
+      categoryIdx < 2 &&
+      visibleCategories.length > 2
+    ) {
+      setCategoryIdx(2);
+    }
+  }, [visibleCategories.length, categoryIdx, categories.length]);
 
   const currentCat = visibleCategories[categoryIdx];
 
-  // 2) Lazy-load the focused category's channels (skip Favorites; never auto-load ALL).
+  // 2) Lazy-load the focused category's channels.
+  //    - Skip Favorites (rendered from metadata cache).
+  //    - "All channels" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
     if (!currentCat) return;
     if (currentCat.id === FAV_ID) return;
+    if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (streamsByCat.has(currentCat.id)) return;
-    // ALL_ID is loaded the same way, but ONLY when user actually focuses/selects it.
     let cancelled = false;
     const key = currentCat.id;
     setLoadingCat(key);
@@ -175,38 +195,59 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     return () => { cancelled = true; };
   }, [currentCat, creds, streamsByCat]);
 
+  // Full-catalog channel list, fetched lazily ONLY when search is opened.
+  // Used to power search across every channel without bloating per-category caches.
+  const [allChannels, setAllChannels] = useState<XtreamLiveStream[] | null>(null);
+  const [allChannelsLoading, setAllChannelsLoading] = useState(false);
+  useEffect(() => {
+    if (!searchOpen) return;
+    if (allChannels || allChannelsLoading) return;
+    setAllChannelsLoading(true);
+    let cancelled = false;
+    getLiveStreams(creds)
+      .then(list => { if (!cancelled) setAllChannels(list); })
+      .catch(() => { if (!cancelled) setAllChannels([]); })
+      .finally(() => { if (!cancelled) setAllChannelsLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchOpen, allChannels, allChannelsLoading, creds]);
+
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
     if (searchOpen) {
       const q = searchQuery.trim().toLowerCase();
       if (!q) return [];
-      // Search only inside what we've actually loaded (avoids fetching everything).
+      const src = allChannels || [];
       const out: XtreamLiveStream[] = [];
-      const seen = new Set<number>();
-      for (const list of streamsByCat.values()) {
-        for (const s of list) {
-          if (out.length >= 500) break;
-          if (seen.has(s.stream_id)) continue;
-          if (s.name.toLowerCase().includes(q)) { out.push(s); seen.add(s.stream_id); }
-        }
+      for (const s of src) {
         if (out.length >= 500) break;
+        if (s.name.toLowerCase().includes(q)) out.push(s);
       }
       return out;
     }
     if (!currentCat) return [];
     if (currentCat.id === FAV_ID) return [...favorites.values()].map(favToStream);
     return streamsByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, currentCat, streamsByCat, favorites]);
+  }, [searchOpen, searchQuery, allChannels, currentCat, streamsByCat, favorites]);
 
-  const channelsLoading = currentCat
-    && currentCat.id !== FAV_ID
-    && (loadingCat === currentCat.id || !streamsByCat.has(currentCat.id));
+  const channelsLoading = searchOpen
+    ? allChannelsLoading
+    : !!(currentCat && currentCat.id !== FAV_ID
+        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+        && (loadingCat === currentCat.id || !streamsByCat.has(currentCat.id)));
 
+  // Reset channel focus whenever the visible list changes context.
+  useEffect(() => { setChannelIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
+  // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);
   }, [visibleChannels.length, channelIdx]);
 
-  const focusedChannel = visibleChannels[channelIdx];
+  // Derive focused channel from a CLAMPED index so it's never out of range
+  // for even a single frame between renders.
+  const safeChannelIdx = visibleChannels.length
+    ? Math.min(channelIdx, visibleChannels.length - 1)
+    : 0;
+  const focusedChannel = visibleChannels[safeChannelIdx];
 
   // Virtualizer
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
@@ -366,10 +407,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
-        if (e.key === 'ArrowDown') setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
+        if (e.key === 'ArrowDown') {
+          userMovedRef.current = true;
+          setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
+        }
+        else if (e.key === 'ArrowUp') {
+          userMovedRef.current = true;
+          setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
+        }
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') setPane('channels');
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          userMovedRef.current = true;
+          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          setPane('channels');
+        }
         return;
       }
 
@@ -477,7 +528,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
                 <div
                   key={c.id}
                   data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => { setCategoryIdx(i); setPane('channels'); }}
+                  onClick={() => {
+                    userMovedRef.current = true;
+                    if (c.isAll) allOptedInRef.current = true;
+                    setCategoryIdx(i);
+                    setPane('channels');
+                  }}
                   className={`
                     flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
                     ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
@@ -565,7 +621,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
           ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-center px-6">
               {searchOpen
-                ? (searchQuery ? 'No channels match your search.' : 'Type above to search channels you have already opened.')
+                ? (searchQuery
+                    ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')
+                    : (allChannelsLoading ? 'Loading channel catalog…' : 'Type above to search all channels.'))
                 : currentCat?.id === FAV_ID
                   ? 'No favorites yet. Press F on a channel to add it.'
                   : 'No channels in this category.'}
@@ -575,7 +633,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
               {virtualItems.map(v => {
                 const s = visibleChannels[v.index];
                 if (!s) return null;
-                const isFocused = isActive && pane === 'channels' && v.index === channelIdx;
+                const isFocused = isActive && pane === 'channels' && v.index === safeChannelIdx;
                 return (
                   <div
                     key={v.key}

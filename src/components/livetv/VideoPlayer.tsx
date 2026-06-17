@@ -8,6 +8,8 @@ interface VideoPlayerProps {
   /** Auto-retry attempts on fatal errors (IPTV streams drop often). */
   maxRetries?: number;
   onError?: (msg: string) => void;
+  /** Fired when the underlying <video> finishes playback (finite media). */
+  onEnded?: () => void;
 }
 
 type Engine = 'hls' | 'mpegts' | 'native';
@@ -19,7 +21,7 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError, onEnded }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
@@ -127,8 +129,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
 
     const onPlaying = () => { setLoading(false); setFatal(null); };
     const onWaiting = () => setLoading(true);
+    const onEndedInner = () => { onEnded?.(); };
     video.addEventListener('playing', onPlaying);
     video.addEventListener('waiting', onWaiting);
+    video.addEventListener('ended', onEndedInner);
 
     attach();
 
@@ -136,11 +140,12 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       cancelled = true;
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('waiting', onWaiting);
+      video.removeEventListener('ended', onEndedInner);
       teardownRef.current?.();
       teardownRef.current = null;
       try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
     };
-  }, [src, maxRetries, onError, retryNonce]);
+  }, [src, maxRetries, onError, onEnded, retryNonce]);
 
   const handleRetry = useCallback(() => {
     retriesRef.current = 0;
