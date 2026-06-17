@@ -104,6 +104,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const moviesLoading = currentCat && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id));
 
 
+  // Reset grid focus when switching category.
+  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
   // Load detail
