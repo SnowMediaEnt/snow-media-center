@@ -183,6 +183,7 @@ const Index = () => {
   const { pinnedApps, isPinned, pinApp, unpinApp, replacePinnedApp, canPinMore } = usePinnedApps();
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
+  const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { resolvePackageName } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
