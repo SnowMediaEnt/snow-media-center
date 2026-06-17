@@ -415,7 +415,18 @@ const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Pr
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          {visibleChannels.length === 0 ? (
+          {loading && visibleChannels.length === 0 ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
+                <div className="w-8 h-4 rounded bg-white/10" />
+                <div className="w-14 h-14 rounded-lg bg-white/10" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/2 rounded bg-white/10" />
+                  <div className="h-3 w-2/3 rounded bg-white/5" />
+                </div>
+              </div>
+            ))
+          ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
               {searchOpen ? (searchQuery ? 'No channels match your search.' : 'Type above to search channels.') : 'No channels in this category.'}
             </div>
