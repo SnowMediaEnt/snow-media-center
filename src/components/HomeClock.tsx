@@ -25,7 +25,7 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
 
   return (
     <div
-      className="absolute z-20"
+      className="home-clock absolute z-20"
       style={{
         top: 'max(env(safe-area-inset-top, 0px), clamp(0.5rem, 1.5vh, 1rem))',
         left: '50%',
@@ -33,7 +33,7 @@ const HomeClock = memo(({ version, onUpdateClick }: HomeClockProps) => {
         maxWidth: 'min(80vw, 32rem)',
       }}
     >
-      <div className="bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
+      <div className="home-clock-pill bg-black/80 rounded-full border border-white/20 shadow-lg flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 md:gap-5 md:px-6 md:py-2.5 whitespace-nowrap overflow-hidden">
         <div
           className="font-bold font-quicksand text-shadow-soft text-white"
           style={{ fontSize: 'clamp(0.65rem, 0.95vw, 1rem)' }}

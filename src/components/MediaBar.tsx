@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { isNativePlatform } from '@/utils/platform';
+import { isTvLegacyLayout } from '@/utils/tvLayout';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
@@ -45,7 +46,9 @@ type Props = {
 
 const STORAGE_KEY = 'snow-media-bar-cache-v4';
 const REFRESH_MS = 5 * 60 * 1000;
-const PAGE_SIZE = 8;
+// Reduce page size on Android TV / legacy WebView — 8 posters is too dense
+// at 1080p and forces the bar over the top controls.
+const PAGE_SIZE = isTvLegacyLayout() ? 6 : 8;
 const AUTO_ROTATE_MS = 30 * 1000;
 
 const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
@@ -336,7 +339,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       ref={containerRef}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className="relative z-10 border-y border-primary/30"
+      className="home-media-bar relative z-10 border-y border-primary/30"
       style={{
         backgroundColor: 'hsl(var(--brand-navy) / 0.95)',
         contain: 'layout paint style',
