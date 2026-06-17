@@ -6,6 +6,7 @@ import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { trackAppLaunch } from '@/lib/analytics';
+import { onFirstInteraction, runWhenIdle } from '@/utils/idle';
 import {
   Dialog,
   DialogContent,
