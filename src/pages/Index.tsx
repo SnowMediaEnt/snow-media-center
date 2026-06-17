@@ -325,6 +325,7 @@ const Index = () => {
   const isInMediaBarRef = useRef(isInMediaBar);
   const showEasterEggRef = useRef(showEasterEgg);
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
+  const playerEnabledRef = useRef(playerEnabled);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
