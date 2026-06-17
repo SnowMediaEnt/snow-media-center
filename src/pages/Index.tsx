@@ -338,6 +338,7 @@ const Index = () => {
   useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
+  useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
