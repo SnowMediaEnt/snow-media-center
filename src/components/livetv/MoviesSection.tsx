@@ -35,9 +35,17 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   const [loadingCat, setLoadingCat] = useState<string | null>(null);
 
   const [pane, setPane] = useState<Pane>('categories');
-  // 0 = "All Movies" sentinel; default to first real category if available.
-  const [categoryIdx, setCategoryIdx] = useState(1);
+  // Start on ALL sentinel (0). A separate effect bumps focus to the first
+  // REAL category (index 1) once categories arrive, but only if the user
+  // hasn't moved yet. This prevents accidentally triggering an "All Movies"
+  // fetch on a transient frame where visibleCategories.length === 1.
+  const [categoryIdx, setCategoryIdx] = useState(0);
   const [gridIdx, setGridIdx] = useState(0);
+  // Tracks whether the user has explicitly moved category focus.
+  const userMovedRef = useRef(false);
+  // "All Movies" loads the entire VOD catalog (huge) — never auto-load.
+  // Only fetch when the user explicitly opens that bucket (Enter / click).
+  const allOptedInRef = useRef(false);
 
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
@@ -69,15 +77,31 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     return base;
   }, [categories]);
 
+  // Clamp focus when category list shrinks; once real categories arrive, bump
+  // focus to the first real category (index 1) iff the user hasn't moved yet.
   useEffect(() => {
-    if (categoryIdx >= visibleCategories.length) setCategoryIdx(Math.max(0, visibleCategories.length - 1));
-  }, [visibleCategories.length, categoryIdx]);
+    if (visibleCategories.length === 0) return;
+    if (categoryIdx >= visibleCategories.length) {
+      setCategoryIdx(visibleCategories.length - 1);
+      return;
+    }
+    if (
+      categories.length > 0 &&
+      !userMovedRef.current &&
+      categoryIdx < 1 &&
+      visibleCategories.length > 1
+    ) {
+      setCategoryIdx(1);
+    }
+  }, [visibleCategories.length, categoryIdx, categories.length]);
 
   const currentCat = visibleCategories[categoryIdx];
 
-  // Lazy-load category's movies (ALL only on explicit selection — same gating)
+  // Lazy-load focused category's movies.
+  // "All Movies" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
     if (!currentCat) return;
+    if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (moviesByCat.has(currentCat.id)) return;
     let cancelled = false;
     const key = currentCat.id;
@@ -101,7 +125,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     return moviesByCat.get(currentCat.id) || [];
   }, [currentCat, moviesByCat]);
 
-  const moviesLoading = currentCat && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id));
+  // Only show "loading" for buckets we actually fetch. The All-Movies sentinel
+  // doesn't auto-load, so don't render a spinner there until the user opts in.
+  const moviesLoading = !!(
+    currentCat
+    && (currentCat.id !== ALL_ID || allOptedInRef.current)
+    && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
+  );
 
 
   // Reset grid focus when switching category.
@@ -178,10 +208,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
-        if (e.key === 'ArrowDown') setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0);
-        else if (e.key === 'ArrowUp') setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
+        if (e.key === 'ArrowDown') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0); }
+        else if (e.key === 'ArrowUp') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0); }
         else if (e.key === 'ArrowLeft') onExitLeft();
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setPane('grid'); }
+        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+          userMovedRef.current = true;
+          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          setPane('grid');
+        }
         return;
       }
 
@@ -337,7 +371,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
               <div
                 key={c.id}
                 data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => { setCategoryIdx(i); setGridIdx(0); setPane('grid'); }}
+                onClick={() => {
+                  userMovedRef.current = true;
+                  if (c.id === ALL_ID) allOptedInRef.current = true;
+                  setCategoryIdx(i); setGridIdx(0); setPane('grid');
+                }}
                 className={`
                   flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
                   ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
