@@ -18,6 +18,8 @@ import {
   type EpgNowNext,
 } from '@/lib/xtream';
 import ChannelRow from './ChannelRow';
+import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
+import type { VideoController } from './VideoPlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
