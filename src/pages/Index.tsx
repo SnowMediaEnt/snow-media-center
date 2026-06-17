@@ -16,6 +16,7 @@ import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName } from '@/utils/downloadApk';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlayerAccountSync } from '@/hooks/usePlayerAccountSync';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
@@ -145,6 +146,10 @@ const Index = () => {
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { version } = useVersion();
+  // Mirrors a locally-stored player account into customer_services once a
+  // signed-in session is detected. Fire-and-forget; safe no-op when either
+  // piece is missing.
+  usePlayerAccountSync();
   const navigate = useNavigate();
   const { toast } = useToast();
   const handleRootBack = useCallback(() => {
