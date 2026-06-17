@@ -1,6 +1,28 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
 
+export interface VideoTrackInfo {
+  id: number;
+  label: string;
+  language?: string;
+  active: boolean;
+}
+
+export interface VideoController {
+  play(): void;
+  pause(): void;
+  togglePlay(): void;
+  /** Positive = forward, negative = rewind. Clamped to seekable range. No-op if not seekable. */
+  seek(deltaSec: number): void;
+  isPaused(): boolean;
+  isSeekable(): boolean;
+  getSubtitleTracks(): VideoTrackInfo[];
+  /** -1 = OFF */
+  setSubtitleTrack(id: number): void;
+  getAudioTracks(): VideoTrackInfo[];
+  setAudioTrack(id: number): void;
+}
+
 interface VideoPlayerProps {
   src: string | null;
   volume?: number;
@@ -10,6 +32,12 @@ interface VideoPlayerProps {
   onError?: (msg: string) => void;
   /** Fired when the underlying <video> finishes playback (finite media). */
   onEnded?: () => void;
+  /** Emitted once with a stable controller handle (methods delegate to current engine via refs). */
+  onReady?: (controller: VideoController) => void;
+  /** Emitted when paused state changes (true = paused). */
+  onPlayStateChange?: (paused: boolean) => void;
+  /** Signal — caller should re-query controller.getSubtitleTracks() / getAudioTracks(). */
+  onTracksChanged?: () => void;
 }
 
 type Engine = 'hls' | 'mpegts' | 'native';
@@ -21,13 +49,137 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError, onEnded }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
+  // Live engine refs — read by the stable VideoController.
+  const engineRef = useRef<Engine>('native');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hlsRef = useRef<any>(null);
   const [loading, setLoading] = useState(false);
   const [fatal, setFatal] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+
+  // Stable controller handle — emitted once on mount.
+  const onTracksChangedRef = useRef(onTracksChanged);
+  const onPlayStateRef = useRef(onPlayStateChange);
+  useEffect(() => { onTracksChangedRef.current = onTracksChanged; }, [onTracksChanged]);
+  useEffect(() => { onPlayStateRef.current = onPlayStateChange; }, [onPlayStateChange]);
+
+  const controllerRef = useRef<VideoController | null>(null);
+  if (!controllerRef.current) {
+    controllerRef.current = {
+      play: () => { videoRef.current?.play().catch(() => { /* ignore */ }); },
+      pause: () => { try { videoRef.current?.pause(); } catch { /* ignore */ } },
+      togglePlay: () => {
+        const v = videoRef.current; if (!v) return;
+        if (v.paused) v.play().catch(() => { /* ignore */ });
+        else { try { v.pause(); } catch { /* ignore */ } }
+      },
+      seek: (delta: number) => {
+        const v = videoRef.current; if (!v) return;
+        try {
+          const sk = v.seekable;
+          if (!sk || sk.length === 0) return;
+          const start = sk.start(0);
+          const end = sk.end(sk.length - 1);
+          if (!Number.isFinite(end - start) || end - start < 1) return;
+          const next = Math.min(end - 0.5, Math.max(start, (v.currentTime || end) + delta));
+          v.currentTime = next;
+        } catch { /* ignore */ }
+      },
+      isPaused: () => !!videoRef.current?.paused,
+      isSeekable: () => {
+        const v = videoRef.current; if (!v) return false;
+        try {
+          const sk = v.seekable;
+          if (!sk || sk.length === 0) return false;
+          return (sk.end(sk.length - 1) - sk.start(0)) > 1;
+        } catch { return false; }
+      },
+      getSubtitleTracks: () => {
+        const hls = hlsRef.current;
+        if (hls && Array.isArray(hls.subtitleTracks)) {
+          const cur = hls.subtitleTrack;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return hls.subtitleTracks.map((t: any, i: number) => ({
+            id: i,
+            label: t.name || t.lang || `Sub ${i + 1}`,
+            language: t.lang,
+            active: i === cur,
+          }));
+        }
+        const v = videoRef.current;
+        if (!v || !v.textTracks) return [];
+        const out: VideoTrackInfo[] = [];
+        for (let i = 0; i < v.textTracks.length; i++) {
+          const t = v.textTracks[i];
+          if (t.kind !== 'subtitles' && t.kind !== 'captions') continue;
+          out.push({ id: i, label: t.label || t.language || `Sub ${i + 1}`, language: t.language, active: t.mode === 'showing' });
+        }
+        return out;
+      },
+      setSubtitleTrack: (id: number) => {
+        const hls = hlsRef.current;
+        if (hls && Array.isArray(hls.subtitleTracks)) {
+          hls.subtitleTrack = id; // -1 = off
+          onTracksChangedRef.current?.();
+          return;
+        }
+        const v = videoRef.current; if (!v || !v.textTracks) return;
+        for (let i = 0; i < v.textTracks.length; i++) {
+          v.textTracks[i].mode = i === id ? 'showing' : 'disabled';
+        }
+        onTracksChangedRef.current?.();
+      },
+      getAudioTracks: () => {
+        const hls = hlsRef.current;
+        if (hls && Array.isArray(hls.audioTracks)) {
+          const cur = hls.audioTrack;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return hls.audioTracks.map((t: any, i: number) => ({
+            id: i,
+            label: t.name || t.lang || `Audio ${i + 1}`,
+            language: t.lang,
+            active: i === cur,
+          }));
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const v = videoRef.current as any;
+        const at = v?.audioTracks;
+        if (!at || !at.length) return [];
+        const out: VideoTrackInfo[] = [];
+        for (let i = 0; i < at.length; i++) {
+          const t = at[i];
+          out.push({ id: i, label: t.label || t.language || `Audio ${i + 1}`, language: t.language, active: !!t.enabled });
+        }
+        return out;
+      },
+      setAudioTrack: (id: number) => {
+        const hls = hlsRef.current;
+        if (hls && Array.isArray(hls.audioTracks)) {
+          hls.audioTrack = id;
+          onTracksChangedRef.current?.();
+          return;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const v = videoRef.current as any;
+        const at = v?.audioTracks;
+        if (!at) return;
+        for (let i = 0; i < at.length; i++) at[i].enabled = i === id;
+        onTracksChangedRef.current?.();
+      },
+    };
+  }
+
+  // Emit onReady once.
+  const readyEmittedRef = useRef(false);
+  useEffect(() => {
+    if (readyEmittedRef.current || !controllerRef.current) return;
+    readyEmittedRef.current = true;
+    try { onReady?.(controllerRef.current); } catch { /* ignore */ }
+  }, [onReady]);
 
   // Keep volume in sync
   useEffect(() => {
@@ -46,9 +198,11 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       // Tear down previous engine
       teardownRef.current?.();
       teardownRef.current = null;
+      hlsRef.current = null;
       setLoading(true);
 
       const engine = pickEngine(src);
+      engineRef.current = engine;
 
       try {
         if (engine === 'hls') {
@@ -61,8 +215,15 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
           const Hls = (await import('hls.js')).default;
           if (Hls.isSupported()) {
             const hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: true });
+            hlsRef.current = hls;
             hls.loadSource(src);
             hls.attachMedia(video);
+            const fireTracks = () => { try { onTracksChangedRef.current?.(); } catch { /* ignore */ } };
+            hls.on(Hls.Events.MANIFEST_PARSED, fireTracks);
+            hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, fireTracks);
+            hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, fireTracks);
+            hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, fireTracks);
+            hls.on(Hls.Events.AUDIO_TRACK_SWITCH, fireTracks);
             hls.on(Hls.Events.ERROR, (_evt, data) => {
               if (data.fatal) {
                 onError?.(`HLS ${data.type}: ${data.details}`);
@@ -127,22 +288,32 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       setTimeout(() => { if (!cancelled) attach(); }, delay);
     };
 
-    const onPlaying = () => { setLoading(false); setFatal(null); };
+    const onPlaying = () => { setLoading(false); setFatal(null); onPlayStateRef.current?.(false); };
+    const onPause   = () => { onPlayStateRef.current?.(true); };
+    const onPlay    = () => { onPlayStateRef.current?.(false); };
     const onWaiting = () => setLoading(true);
     const onEndedInner = () => { onEnded?.(); };
+    const onLoadedMeta = () => { try { onTracksChangedRef.current?.(); } catch { /* ignore */ } };
     video.addEventListener('playing', onPlaying);
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('ended', onEndedInner);
+    video.addEventListener('loadedmetadata', onLoadedMeta);
 
     attach();
 
     return () => {
       cancelled = true;
       video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('ended', onEndedInner);
+      video.removeEventListener('loadedmetadata', onLoadedMeta);
       teardownRef.current?.();
       teardownRef.current = null;
+      hlsRef.current = null;
       try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
     };
   }, [src, maxRetries, onError, onEnded, retryNonce]);
