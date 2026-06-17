@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tv, Loader2 } from 'lucide-react';
-import { authenticate, normalizeCreds, saveCreds, type XtreamCreds } from '@/lib/xtream';
+import { authenticateAny, saveCreds, SERVERS, type XtreamCreds, type XtreamServer } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -13,28 +13,33 @@ interface Props {
 }
 
 const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
-  const [host, setHost] = useState(initial?.host || '');
   const [username, setUsername] = useState(initial?.username || '');
   const [password, setPassword] = useState(initial?.password || '');
   const [testing, setTesting] = useState(false);
+  const [probingServer, setProbingServer] = useState<XtreamServer | null>(null);
   const { toast } = useToast();
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!host || !username || !password) {
-      toast({ title: 'Missing info', description: 'Please fill in host, username and password.', variant: 'destructive' });
+    if (!username || !password) {
+      toast({ title: 'Missing info', description: 'Please enter your username and password.', variant: 'destructive' });
       return;
     }
-    const creds = normalizeCreds({ host, username, password, output: 'm3u8' });
     setTesting(true);
+    setProbingServer(null);
     try {
-      const info: any = await authenticate(creds);
-      if (info?.user_info?.auth === 0 || info?.user_info?.status === 'Disabled') {
-        throw new Error('Server rejected credentials');
+      const result = await authenticateAny(username, password, (s) => setProbingServer(s));
+      if (!result.ok || !result.creds) {
+        toast({
+          title: 'Could not sign in',
+          description: result.error || 'Invalid username or password.',
+          variant: 'destructive',
+        });
+        return;
       }
-      await saveCreds(creds);
-      toast({ title: 'Connected', description: 'Live TV is loading your channels.' });
-      onSaved(creds);
+      await saveCreds(result.creds);
+      toast({ title: 'Connected', description: `Signed in to ${result.server?.label}.` });
+      onSaved(result.creds);
     } catch (err) {
       toast({
         title: 'Could not connect',
@@ -43,6 +48,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
       });
     } finally {
       setTesting(false);
+      setProbingServer(null);
     }
   };
 
@@ -57,23 +63,14 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
             <Tv className="w-8 h-8 text-brand-gold" />
           </div>
           <div>
-            <h2 className="text-2xl font-quicksand font-bold text-white">Connect Live TV</h2>
-            <p className="text-brand-ice/70 font-nunito text-sm">Enter your Xtream Codes credentials</p>
+            <h2 className="text-2xl font-quicksand font-bold text-white">Sign in to Player</h2>
+            <p className="text-brand-ice/70 font-nunito text-sm">
+              Use your subscription username & password
+            </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="lt-host" className="text-brand-ice font-nunito">Server URL</Label>
-            <Input
-              id="lt-host"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-              placeholder="http://your-server.com:8080"
-              className="tv-focusable bg-black/30 text-white border-white/20"
-              autoComplete="off"
-            />
-          </div>
           <div>
             <Label htmlFor="lt-user" className="text-brand-ice font-nunito">Username</Label>
             <Input
@@ -82,6 +79,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
               onChange={(e) => setUsername(e.target.value)}
               className="tv-focusable bg-black/30 text-white border-white/20"
               autoComplete="off"
+              disabled={testing}
             />
           </div>
           <div>
@@ -93,9 +91,19 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
               onChange={(e) => setPassword(e.target.value)}
               className="tv-focusable bg-black/30 text-white border-white/20"
               autoComplete="off"
+              disabled={testing}
             />
           </div>
         </div>
+
+        {testing && (
+          <div className="mt-5 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
+            <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
+            <span>
+              {probingServer ? `Checking ${probingServer.label}…` : 'Connecting…'}
+            </span>
+          </div>
+        )}
 
         <div className="flex gap-3 mt-8">
           <Button
@@ -105,13 +113,14 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
             className="tv-focusable home-focus-surface flex-1"
           >
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {testing ? 'Connecting…' : 'Connect'}
+            {testing ? 'Signing in…' : 'Sign In'}
           </Button>
           {onCancel && (
             <Button
               type="button"
               variant="white"
               onClick={onCancel}
+              disabled={testing}
               className="tv-focusable home-focus-surface"
             >
               Cancel
@@ -120,7 +129,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         </div>
 
         <p className="text-brand-ice/50 text-xs font-nunito mt-6">
-          Your credentials are stored only on this device. We never share them.
+          We try {SERVERS.map(s => s.label).join(' and ')} automatically and use whichever one accepts your login.
+          Your credentials are stored only on this device.
         </p>
       </form>
     </div>

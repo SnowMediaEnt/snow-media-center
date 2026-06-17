@@ -1,12 +1,26 @@
-// Xtream Codes API client — uses CapacitorHttp on native to bypass CORS,
-// falls back to fetch on web. Credentials are persisted via @capacitor/preferences
-// (with a localStorage fallback for plain web).
+// Xtream Codes API client.
+// - Uses CapacitorHttp on native to bypass CORS, falls back to fetch on web.
+// - Credentials are persisted via @capacitor/preferences (with a localStorage fallback).
+// - Login is hardcoded to two servers (SERVERS below); the form only collects
+//   username + password and we probe servers in order to pick the working host.
+
+export interface XtreamServer {
+  label: string;
+  host: string; // no trailing slash
+}
+
+// EDIT THESE to add / change servers. Order = probe order.
+export const SERVERS: XtreamServer[] = [
+  { label: 'Dstreams', host: 'http://dstreams.xyz:8080' },
+  { label: 'Vibez',    host: 'http://strmz.xyz' },
+];
 
 export interface XtreamCreds {
-  host: string;          // e.g. "http://host:port" (no trailing slash)
+  host: string;
   username: string;
   password: string;
-  output: 'm3u8' | 'ts'; // preferred container for live
+  output: 'm3u8' | 'ts';
+  serverLabel?: string;
 }
 
 export interface XtreamCategory {
@@ -30,12 +44,85 @@ export interface XtreamLiveStream {
   tv_archive_duration?: number;
 }
 
+export interface XtreamVodStream {
+  num?: number;
+  name: string;
+  stream_id: number;
+  stream_icon?: string;
+  rating?: string | number;
+  rating_5based?: number;
+  year?: string;
+  added?: string;
+  category_id?: string;
+  container_extension?: string; // mp4 / mkv / avi
+}
+
+export interface XtreamVodInfo {
+  info?: {
+    movie_image?: string;
+    cover_big?: string;
+    plot?: string;
+    genre?: string;
+    releasedate?: string;
+    rating?: string | number;
+    duration?: string;
+    cast?: string;
+    director?: string;
+  };
+  movie_data?: {
+    stream_id: number;
+    name: string;
+    container_extension: string;
+  };
+}
+
+export interface XtreamSeries {
+  num?: number;
+  name: string;
+  series_id: number;
+  cover?: string;
+  plot?: string;
+  genre?: string;
+  releaseDate?: string;
+  rating?: string | number;
+  category_id?: string;
+}
+
+export interface XtreamEpisode {
+  id: string;
+  episode_num: number | string;
+  title: string;
+  container_extension: string;
+  info?: {
+    plot?: string;
+    duration?: string;
+    movie_image?: string;
+    rating?: string | number;
+    releasedate?: string;
+  };
+}
+
+export interface XtreamSeriesInfo {
+  info?: {
+    name?: string;
+    cover?: string;
+    plot?: string;
+    genre?: string;
+    releaseDate?: string;
+    rating?: string | number;
+    cast?: string;
+    director?: string;
+  };
+  seasons?: Array<{ season_number: number; name?: string; cover?: string; episode_count?: number }>;
+  episodes?: Record<string, XtreamEpisode[]>; // keyed by season number
+}
+
 export interface XtreamEpgEntry {
   id?: string;
   epg_id?: string;
   title: string;        // base64
   lang?: string;
-  start: string;        // "YYYY-MM-DD HH:mm:ss"
+  start: string;
   end: string;
   description?: string; // base64
   channel_id?: string;
@@ -129,33 +216,35 @@ export function saveVolume(v: number): void {
 
 // --- HTTP transport ---------------------------------------------------------
 
-async function httpGetJson<T>(url: string): Promise<T> {
-  // Try CapacitorHttp first (native bypasses CORS); fall back to fetch on web.
+async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
   try {
     const { Capacitor, CapacitorHttp } = await import('@capacitor/core');
     if (Capacitor.isNativePlatform?.()) {
       const res = await CapacitorHttp.get({
         url,
         headers: { Accept: 'application/json' },
-        connectTimeout: 15000,
-        readTimeout: 25000,
+        connectTimeout: Math.min(timeoutMs, 15000),
+        readTimeout: timeoutMs,
       } as any);
       if (res.status >= 200 && res.status < 300) {
-        // CapacitorHttp auto-parses JSON when Content-Type is JSON
         return (typeof res.data === 'string' ? JSON.parse(res.data) : res.data) as T;
       }
       throw new Error(`HTTP ${res.status}`);
     }
   } catch (e) {
-    // Fall through to fetch
     if (!(e instanceof Error) || !/Capacitor/i.test(e.message)) {
-      // Real network/parse error from CapacitorHttp — surface it
-      // (only retry fetch if it's a "not native" import error)
+      // real error — surface below via fetch fallback
     }
   }
-  const r = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json() as Promise<T>;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json() as Promise<T>;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // --- API endpoints ----------------------------------------------------------
@@ -169,8 +258,56 @@ const buildBase = (c: XtreamCreds, params: Record<string, string | number>) => {
 };
 
 export async function authenticate(c: XtreamCreds): Promise<any> {
-  return httpGetJson(buildBase(c, {}));
+  return httpGetJson(buildBase(c, {}), 15000);
 }
+
+export interface AuthProbeResult {
+  ok: boolean;
+  server?: XtreamServer;
+  creds?: XtreamCreds;
+  info?: any;
+  error?: string;
+}
+
+/** Try each SERVER in order; return the first that authenticates. */
+export async function authenticateAny(
+  username: string,
+  password: string,
+  onProgress?: (server: XtreamServer) => void,
+): Promise<AuthProbeResult> {
+  const u = username.trim();
+  const p = password.trim();
+  if (!u || !p) return { ok: false, error: 'Missing username or password' };
+
+  let lastErr: string | undefined;
+  for (const server of SERVERS) {
+    onProgress?.(server);
+    const creds = normalizeCreds({
+      host: server.host,
+      username: u,
+      password: p,
+      output: 'm3u8',
+      serverLabel: server.label,
+    });
+    try {
+      const info: any = await authenticate(creds);
+      const ui = info?.user_info;
+      const auth = ui?.auth;
+      const status = String(ui?.status || '').toLowerCase();
+      const authed = auth === 1 || auth === '1' || auth === true;
+      const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
+      if (authed && !disabled) {
+        return { ok: true, server, creds, info };
+      }
+      lastErr = `Server ${server.label} rejected the login.`;
+    } catch (e) {
+      lastErr = `Server ${server.label} unreachable.`;
+    }
+  }
+  return { ok: false, error: lastErr || 'Invalid username or password' };
+}
+
+// --- Live -------------------------------------------------------------------
 
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_live_categories' }));
@@ -195,12 +332,53 @@ export function buildLiveStreamUrl(c: XtreamCreds, streamId: number): string {
   return `${c.host}/live/${encodeURIComponent(c.username)}/${encodeURIComponent(c.password)}/${streamId}.${ext}`;
 }
 
+// --- Movies (VOD) -----------------------------------------------------------
+
+export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
+}
+
+export async function getVodStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamVodStream[]> {
+  const params: Record<string, string | number> = { action: 'get_vod_streams' };
+  if (categoryId) params.category_id = categoryId;
+  return httpGetJson<XtreamVodStream[]>(buildBase(c, params));
+}
+
+export async function getVodInfo(c: XtreamCreds, vodId: number): Promise<XtreamVodInfo> {
+  return httpGetJson<XtreamVodInfo>(buildBase(c, { action: 'get_vod_info', vod_id: vodId }));
+}
+
+export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): string {
+  const safeExt = (ext || 'mp4').replace(/^\./, '');
+  return `${c.host}/movie/${encodeURIComponent(c.username)}/${encodeURIComponent(c.password)}/${streamId}.${safeExt}`;
+}
+
+// --- Series -----------------------------------------------------------------
+
+export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
+}
+
+export async function getSeries(c: XtreamCreds, categoryId?: string): Promise<XtreamSeries[]> {
+  const params: Record<string, string | number> = { action: 'get_series' };
+  if (categoryId) params.category_id = categoryId;
+  return httpGetJson<XtreamSeries[]>(buildBase(c, params));
+}
+
+export async function getSeriesInfo(c: XtreamCreds, seriesId: number): Promise<XtreamSeriesInfo> {
+  return httpGetJson<XtreamSeriesInfo>(buildBase(c, { action: 'get_series_info', series_id: seriesId }));
+}
+
+export function buildEpisodeUrl(c: XtreamCreds, episodeId: string | number, ext = 'mp4'): string {
+  const safeExt = (ext || 'mp4').replace(/^\./, '');
+  return `${c.host}/series/${encodeURIComponent(c.username)}/${encodeURIComponent(c.password)}/${episodeId}.${safeExt}`;
+}
+
 // --- EPG helpers ------------------------------------------------------------
 
 export function decodeEpgText(b64?: string): string {
   if (!b64) return '';
   try {
-    // Standard base64
     return decodeURIComponent(
       atob(b64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
     );
@@ -211,10 +389,8 @@ export function decodeEpgText(b64?: string): string {
 
 export function parseEpgTime(s: string | undefined): number {
   if (!s) return 0;
-  // Try unix timestamp first
   const asNum = Number(s);
   if (Number.isFinite(asNum) && asNum > 1_000_000_000) return asNum * 1000;
-  // "YYYY-MM-DD HH:mm:ss" — treat as local time
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
   if (m) {
     return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
