@@ -202,7 +202,7 @@ const MoviesSection = memo(({ creds, usingMock, isActive, onExitLeft }: Props) =
   }, [isActive, onExitLeft, openMovie, playMovie]);
 
   const focusedTileRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest' }); }, [gridIdx]);
+  useEffect(() => { focusedTileRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [gridIdx]);
 
   // Fullscreen player
   if (playing) {
