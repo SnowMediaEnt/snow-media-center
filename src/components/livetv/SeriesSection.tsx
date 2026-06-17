@@ -317,10 +317,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
                 onClick={() => { if (episodes.length) { setEpisodeIdx(0); playEpisode(0); } }}
                 data-focused={detailFocus === 'play' ? 'true' : 'false'}
                 className={`tv-focusable home-focus-surface ${detailFocus === 'play' ? 'ring-2 ring-brand-gold scale-105' : ''}`}
-                disabled={!creds || usingMock || !episodes.length}
+                disabled={!episodes.length}
               >
                 <Play className="w-4 h-4 mr-2 fill-current" />
-                {usingMock || !creds ? 'Sign in to play' : 'Play S1·E1'}
+                Play S1·E1
               </Button>
               <label className="flex items-center gap-2 text-sm font-nunito text-brand-ice cursor-pointer">
                 <input
