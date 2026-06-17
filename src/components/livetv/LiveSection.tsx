@@ -17,14 +17,12 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
-import { MOCK_CATEGORIES, MOCK_STREAMS, mockEpgFor } from '@/lib/mockLiveTV';
 import ChannelRow from './ChannelRow';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
 interface Props {
-  creds: XtreamCreds | null;
-  usingMock: boolean;
+  creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
   onBack: () => void;
@@ -40,10 +38,10 @@ const formatTime = (ms?: number) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const LiveSection = memo(({ creds, usingMock, isActive, onExitLeft, onBack }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>(MOCK_CATEGORIES);
-  const [streams, setStreams] = useState<XtreamLiveStream[]>(MOCK_STREAMS);
-  const [loading, setLoading] = useState(false);
+const LiveSection = memo(({ creds, isActive, onExitLeft, onBack }: Props) => {
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [streams, setStreams] = useState<XtreamLiveStream[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
