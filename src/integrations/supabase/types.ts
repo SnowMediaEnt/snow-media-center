@@ -520,6 +520,33 @@ export type Database = {
         }
         Relationships: []
       }
+      chip_ledger: {
+        Row: {
+          change: number
+          created_at: string
+          game_round_id: number | null
+          id: number
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          change: number
+          created_at?: string
+          game_round_id?: number | null
+          id?: never
+          reason: string
+          user_id: string
+        }
+        Update: {
+          change?: number
+          created_at?: string
+          game_round_id?: number | null
+          id?: never
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       community_messages: {
         Row: {
           created_at: string
@@ -553,6 +580,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      cosmetics: {
+        Row: {
+          asset_ref: string | null
+          id: number
+          name: string
+          price_chips: number | null
+          price_money_cents: number | null
+          type: string
+        }
+        Insert: {
+          asset_ref?: string | null
+          id?: never
+          name: string
+          price_chips?: number | null
+          price_money_cents?: number | null
+          type: string
+        }
+        Update: {
+          asset_ref?: string | null
+          id?: never
+          name?: string
+          price_chips?: number | null
+          price_money_cents?: number | null
+          type?: string
         }
         Relationships: []
       }
@@ -809,6 +863,21 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_claims: {
+        Row: {
+          last_claim_at: string | null
+          user_id: string
+        }
+        Insert: {
+          last_claim_at?: string | null
+          user_id: string
+        }
+        Update: {
+          last_claim_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           enabled: boolean
@@ -827,6 +896,45 @@ export type Database = {
           key?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      game_rounds: {
+        Row: {
+          bet: number
+          client_seed: string | null
+          created_at: string
+          game: string
+          id: number
+          nonce: number | null
+          result: Json | null
+          server_seed: string | null
+          server_seed_hash: string | null
+          user_id: string
+        }
+        Insert: {
+          bet?: number
+          client_seed?: string | null
+          created_at?: string
+          game: string
+          id?: never
+          nonce?: number | null
+          result?: Json | null
+          server_seed?: string | null
+          server_seed_hash?: string | null
+          user_id: string
+        }
+        Update: {
+          bet?: number
+          client_seed?: string | null
+          created_at?: string
+          game?: string
+          id?: never
+          nonce?: number | null
+          result?: Json | null
+          server_seed?: string | null
+          server_seed_hash?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -947,6 +1055,24 @@ export type Database = {
           resolved_user_id?: string | null
           wix_order_id?: string
           wix_order_number?: string | null
+        }
+        Relationships: []
+      }
+      play_chips: {
+        Row: {
+          balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1244,6 +1370,35 @@ export type Database = {
           },
         ]
       }
+      user_cosmetics: {
+        Row: {
+          acquired_at: string
+          cosmetic_id: number
+          equipped: boolean
+          user_id: string
+        }
+        Insert: {
+          acquired_at?: string
+          cosmetic_id: number
+          equipped?: boolean
+          user_id: string
+        }
+        Update: {
+          acquired_at?: string
+          cosmetic_id?: number
+          equipped?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_cosmetics_cosmetic_id_fkey"
+            columns: ["cosmetic_id"]
+            isOneToOne: false
+            referencedRelation: "cosmetics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1358,6 +1513,15 @@ export type Database = {
           unique_devices: number
           unique_users: number
         }[]
+      }
+      apply_chip_change: {
+        Args: {
+          p_change: number
+          p_reason: string
+          p_round?: number
+          p_user: string
+        }
+        Returns: number
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
