@@ -35,66 +35,59 @@
       }
     </script>
     <script>
-      // BOOT HEARTBEAT diagnostic — ES5-safe, dependency-free
+      // BOOT HEARTBEAT diagnostic — silent on success; visible only on error or when debug flag is set.
       (function() {
         var stages = [];
         var hasError = false;
         var diag = null;
-        var hideTimer = null;
 
-        function getDiag() {
-          if (!diag) {
-            diag = document.createElement('div');
-            diag.id = 'smc-diag';
-            var style = 'position:fixed;top:0;left:0;max-width:96vw;z-index:2147483647;background:rgba(0,0,0,0.85);color:#7CFC00;font-family:monospace;font-size:13px;padding:6px 8px;white-space:pre-wrap;word-break:break-word;pointer-events:none;';
-            diag.setAttribute('style', style);
-            if (document.body) {
-              document.body.appendChild(diag);
-            } else {
-              document.addEventListener('DOMContentLoaded', function() {
-                if (diag && !diag.parentNode && document.body) {
-                  document.body.appendChild(diag);
-                }
-              });
-            }
+        function isDebug() {
+          try {
+            if (typeof localStorage !== 'undefined' && localStorage.getItem('smc_debug') === '1') return true;
+          } catch (_) {}
+          try {
+            if (typeof location !== 'undefined' && /[?&]debug(=|&|$)/.test(location.search || '')) return true;
+          } catch (_) {}
+          return false;
+        }
+
+        var debugMode = isDebug();
+
+        function ensureDiag() {
+          if (diag) return diag;
+          diag = document.createElement('div');
+          diag.id = 'smc-diag';
+          var color = hasError ? '#ff4444' : '#7CFC00';
+          var style = 'position:fixed;top:0;left:0;max-width:96vw;z-index:2147483647;background:rgba(0,0,0,0.85);color:' + color + ';font-family:monospace;font-size:13px;padding:6px 8px;white-space:pre-wrap;word-break:break-word;pointer-events:none;';
+          diag.setAttribute('style', style);
+          if (document.body) {
+            document.body.appendChild(diag);
+          } else {
+            document.addEventListener('DOMContentLoaded', function() {
+              if (diag && !diag.parentNode && document.body) document.body.appendChild(diag);
+            });
           }
           return diag;
         }
 
         function render() {
-          var el = getDiag();
-          var text = stages.join('\n');
-          if (hasError) {
-            el.style.color = '#ff4444';
-          }
-          el.textContent = text + '\n';
+          if (!debugMode && !hasError) return; // stay silent
+          var el = ensureDiag();
+          if (hasError) el.style.color = '#ff4444';
+          el.textContent = stages.join('\n') + '\n';
         }
 
         window.__SMC_BOOT__ = function(stage) {
           stages.push('stage: ' + stage);
-          if (hideTimer) {
-            clearTimeout(hideTimer);
-            hideTimer = null;
-          }
-          if (stage === 'mounted' && !hasError) {
-            hideTimer = setTimeout(function() {
-              if (diag) diag.style.display = 'none';
-            }, 10000);
-          }
           render();
         };
 
-        // Initial lines
         stages.push('SMC boot: html');
         stages.push('UA: ' + (navigator.userAgent || 'unknown'));
         render();
 
         function errorHandler(event) {
           hasError = true;
-          if (hideTimer) {
-            clearTimeout(hideTimer);
-            hideTimer = null;
-          }
           var msg = '';
           if (event && event.reason) {
             var reason = event.reason;
@@ -119,6 +112,7 @@
         window.addEventListener('unhandledrejection', errorHandler);
       })();
     </script>
+
     <style>
       /* Prevent Android TV scaling issues */
       html, body {
