@@ -29,6 +29,8 @@ const App = () => {
   // here used to fight that handler and produced extra D-pad/back work that
   // contributed to perceived stutter — leaving it out on purpose.
 
+  useEffect(() => { try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('mounted'); } catch(e){} }, []);
+
   // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
   // and route into the in-app /sso consumer page so the magic link signs the user in.
   useEffect(() => {

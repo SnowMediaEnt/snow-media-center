@@ -8,6 +8,8 @@ import { isNativePlatform, getPlatform } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
 
+try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('js'); } catch(e){}
+
 // Low-memory by actual RAM, not by box brand.
 // navigator.deviceMemory is approximate GiB (0.25–8) in Chromium WebViews.
 const dm = (navigator as any).deviceMemory;
@@ -64,6 +66,7 @@ const logStartupDiagnostics = async () => {
 
 // Render IMMEDIATELY — do not block first paint on storage probes.
 createRoot(document.getElementById("root")!).render(<App />);
+try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('render'); } catch(e){}
 
 // Fire-and-forget diagnostics
 logStartupDiagnostics().catch((err) => {
