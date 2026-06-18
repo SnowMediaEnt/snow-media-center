@@ -66,6 +66,7 @@ const logStartupDiagnostics = async () => {
 
 // Render IMMEDIATELY — do not block first paint on storage probes.
 createRoot(document.getElementById("root")!).render(<App />);
+try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('render'); } catch(e){}
 
 // Fire-and-forget diagnostics
 logStartupDiagnostics().catch((err) => {
