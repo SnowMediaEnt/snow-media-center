@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Coins, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
@@ -28,19 +29,18 @@ const ANTES = [10, 25, 50, 100];
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const RED_SUITS = new Set(['H', 'D']);
 
-const RANK_LABEL: Record<string, string> = {
-  royal_flush: 'Royal Flush',
-  straight_flush: 'Straight Flush',
-  four_of_a_kind: 'Four of a Kind',
-  full_house: 'Full House',
-  flush: 'Flush',
-  straight: 'Straight',
-  three_of_a_kind: 'Three of a Kind',
-  two_pair: 'Two Pair',
-  one_pair: 'Pair',
-  high_card: 'High Card',
+const RANK_KEY: Record<string, string> = {
+  royal_flush: 'games.casinoHoldem.handName.royalFlush',
+  straight_flush: 'games.casinoHoldem.handName.straightFlush',
+  four_of_a_kind: 'games.casinoHoldem.handName.fourOfAKind',
+  full_house: 'games.casinoHoldem.handName.fullHouse',
+  flush: 'games.casinoHoldem.handName.flush',
+  straight: 'games.casinoHoldem.handName.straight',
+  three_of_a_kind: 'games.casinoHoldem.handName.threeOfAKind',
+  two_pair: 'games.casinoHoldem.handName.twoPair',
+  one_pair: 'games.casinoHoldem.handName.pair',
+  high_card: 'games.casinoHoldem.handName.highCard',
 };
-const labelRank = (k?: string) => (k ? RANK_LABEL[k] ?? k.replace(/_/g, ' ') : '');
 
 function PlayingCard({
   card,
@@ -111,8 +111,10 @@ function CardSlot() {
 }
 
 const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const labelRank = (k?: string) => (k ? (RANK_KEY[k] ? t(RANK_KEY[k]) : k.replace(/_/g, ' ')) : '');
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [ante, setAnte] = useState<number>(10);
@@ -184,21 +186,21 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   }, [phase, focusBet, focusDecision, focusSettle]);
 
   const handleErrorAck = (err: string, respBalance?: number) => {
-    if (err === 'game_disabled') setError("Casino Hold'em is temporarily disabled.");
-    else if (err === 'invalid_bet') setError('Invalid ante.');
-    else if (err === 'insufficient_balance') setError('Not enough chips — grab your Daily Spin.');
-    else if (err === 'round_in_progress') setError('Finish your current hand first.');
-    else if (err === 'no_active_round') setError('No active hand — deal a new one.');
-    else setError('Something went wrong — try again.');
+    if (err === 'game_disabled') setError(t('games.casinoHoldem.error.gameDisabled'));
+    else if (err === 'invalid_bet') setError(t('games.casinoHoldem.error.invalidBet'));
+    else if (err === 'insufficient_balance') setError(t('games.casinoHoldem.error.insufficientBalance'));
+    else if (err === 'round_in_progress') setError(t('games.casinoHoldem.error.roundInProgress'));
+    else if (err === 'no_active_round') setError(t('games.casinoHoldem.error.noActiveRound'));
+    else setError(t('games.casinoHoldem.error.generic'));
     setTimeout(() => setError(null), 3500);
   };
 
   const deal = useCallback(async () => {
     if (inFlight.current) return;
     if (busy) return;
-    if (!user) { setError('Sign in to play.'); return; }
-    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
-    if (balance < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (!user) { setError(t('games.casinoHoldem.error.signIn')); return; }
+    if (balance === null) { setError(t('games.casinoHoldem.error.loadingChips')); return; }
+    if (balance < ante) { setError(t('games.casinoHoldem.error.insufficientBalance')); return; }
     inFlight.current = true;
     setError(null);
     setBusy(true);
@@ -230,7 +232,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         handleErrorAck(resp?.error ?? 'error', resp?.balance);
       }
     } catch {
-      setError("Couldn't deal right now — try again.");
+      setError(t('games.casinoHoldem.error.dealFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -278,7 +280,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       if (resp?.ok) finishSettle(resp, false);
       else handleErrorAck(resp?.error ?? 'error', resp?.balance);
     } catch {
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -296,7 +298,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       if (resp?.ok) finishSettle(resp, true);
       else handleErrorAck(resp?.error ?? 'error', resp?.balance);
     } catch {
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -376,11 +378,11 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     // Tone driven by signed net (so dealer_no_qualify wins render green).
     const tone: 'win' | 'lose' | 'push' = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
     const text =
-      settleStatus === 'win' ? 'YOU WIN' :
-      settleStatus === 'lose' ? 'DEALER WINS' :
-      settleStatus === 'push' ? 'PUSH' :
-      settleStatus === 'dealer_no_qualify' ? "DEALER DIDN'T QUALIFY" :
-      settleStatus === 'folded' ? 'FOLDED' :
+      settleStatus === 'win' ? t('games.casinoHoldem.banner.youWin') :
+      settleStatus === 'lose' ? t('games.casinoHoldem.banner.dealerWins') :
+      settleStatus === 'push' ? t('games.casinoHoldem.banner.push') :
+      settleStatus === 'dealer_no_qualify' ? t('games.casinoHoldem.banner.dealerNoQualify') :
+      settleStatus === 'folded' ? t('games.casinoHoldem.banner.folded') :
       settleStatus.toUpperCase();
     const toneClasses =
       tone === 'win' ? 'from-emerald-500/30 to-emerald-700/30 border-emerald-300/60 text-emerald-100' :
@@ -391,24 +393,24 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         <div className="text-3xl font-black tracking-wider">{text}</div>
         {(playerRank || dealerRank) && (
           <div className="mt-2 text-sm text-slate-100/90">
-            {playerRank && <span>You: <b>{labelRank(playerRank)}</b></span>}
-            {playerRank && dealerRank && <span className="mx-3 opacity-60">vs</span>}
-            {dealerRank && <span>Dealer: <b>{labelRank(dealerRank)}</b></span>}
+            {playerRank && <span>{t('games.casinoHoldem.result.youLabel')} <b>{labelRank(playerRank)}</b></span>}
+            {playerRank && dealerRank && <span className="mx-3 opacity-60">{t('games.casinoHoldem.result.versus')}</span>}
+            {dealerRank && <span>{t('games.casinoHoldem.result.dealerLabel')} <b>{labelRank(dealerRank)}</b></span>}
           </div>
         )}
         {anteBonus > 0 && (
-          <div className="mt-1 text-sm font-bold text-amber-200">Ante Bonus +{anteBonus.toLocaleString()}</div>
+          <div className="mt-1 text-sm font-bold text-amber-200">{t('games.casinoHoldem.result.anteBonus', { amount: anteBonus.toLocaleString() })}</div>
         )}
         <div className="mt-1 text-lg font-bold">
           {net > 0 ? (
-            <span className="text-emerald-300">+{net.toLocaleString()} chips</span>
+            <span className="text-emerald-300">{t('games.casinoHoldem.result.netWin', { amount: net.toLocaleString() })}</span>
           ) : net < 0 ? (
-            <span className="text-rose-300">{net.toLocaleString()} chips</span>
+            <span className="text-rose-300">{t('games.casinoHoldem.result.netLose', { amount: net.toLocaleString() })}</span>
           ) : (
-            <span className="text-slate-200">±0 chips</span>
+            <span className="text-slate-200">{t('games.casinoHoldem.result.netZero')}</span>
           )}
         </div>
-        <div className="text-xs text-slate-300 mt-1">Balance: {balance?.toLocaleString() ?? '—'}</div>
+        <div className="text-xs text-slate-300 mt-1">{t('games.casinoHoldem.result.balance', { balance: balance?.toLocaleString() ?? '—' })}</div>
       </div>
     );
   })();
@@ -429,15 +431,15 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         )}`}
       >
         {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-        Provably fair
+        {t('games.casinoHoldem.fair.toggle')}
       </Button>
       {showFair && (
         <div className="mt-3 p-4 rounded-lg bg-slate-900/70 border border-slate-700 text-xs text-slate-200 font-mono break-all space-y-1">
-          {serverSeedHash && <div><span className="text-slate-400">serverSeedHash:</span> {serverSeedHash}</div>}
-          {fair?.serverSeed && <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>}
-          {fair?.clientSeed && <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>}
-          {fair && typeof fair.nonce === 'number' && <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>}
-          <div className="text-slate-400 pt-1">Verify: sha256(serverSeed) should equal the hash shown before the hand.</div>
+          {serverSeedHash && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeedHash')}</span> {serverSeedHash}</div>}
+          {fair?.serverSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeed')}</span> {fair.serverSeed}</div>}
+          {fair?.clientSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.clientSeed')}</span> {fair.clientSeed}</div>}
+          {fair && typeof fair.nonce === 'number' && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.nonce')}</span> {fair.nonce}</div>}
+          <div className="text-slate-400 pt-1">{t('games.casinoHoldem.fair.verifyHint')}</div>
         </div>
       )}
     </div>
@@ -480,14 +482,14 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
             )}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.casinoHoldem.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.casinoHoldem.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.casinoHoldem.loadingChips')}
               </span>
             </div>
           </div>
@@ -495,12 +497,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Casino Hold'em
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.casinoHoldem.title')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Beat the dealer — five community cards
+            {t('games.casinoHoldem.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">Play Chips only — just for fun and bragging rights.</p>
+          <p className="text-slate-200/90 mt-2">{t('games.casinoHoldem.subheading')}</p>
         </div>
 
         {/* Felt Table */}
@@ -516,7 +518,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         >
           {/* Dealer */}
           <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">Dealer</div>
+            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = dealerHole[i];
@@ -536,7 +538,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 <b>{labelRank(dealerRank)}</b>
                 {!dealerQualified && (
                   <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-300/50 text-amber-100 text-[10px] uppercase tracking-wider font-bold">
-                    Didn't qualify
+                    {t('games.casinoHoldem.dealerDidntQualify')}
                   </span>
                 )}
               </div>
@@ -545,7 +547,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
           {/* Community */}
           <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">Community</div>
+            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.community')}</div>
             <div className="flex gap-2">
               {[0, 1, 2, 3, 4].map((i) => {
                 const card = community[i];
@@ -557,7 +559,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
           {/* Player */}
           <div className="flex flex-col items-center">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">You</div>
+            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.you')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = playerHole[i];
@@ -575,7 +577,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         {phase === 'bet' && (
           <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
             <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              Choose your ante
+              {t('games.casinoHoldem.chooseAnte')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
               {ANTES.map((amt, idx) => {
@@ -608,7 +610,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`transition-all ${focusRing(focusBet === 'deal')}`}
               >
-                {balance === null ? 'Loading chips…' : `Deal — ante ${ante}`}
+                {balance === null ? t('games.casinoHoldem.loadingChips') : t('games.casinoHoldem.dealButton', { ante })}
               </Button>
             </div>
           </div>
@@ -617,14 +619,14 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         {phase === 'decision' && (
           <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
             <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              Choose your move — Call, Raise, or Fold
+              {t('games.casinoHoldem.chooseMove')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
               {raiseOptions.map((opt, i) => {
                 const canAfford = (balance ?? 0) >= opt.cost;
                 const focused = focusDecision === `opt-${i}`;
                 const isCall = opt.multiplier === 2;
-                const label = isCall ? `CALL ${opt.multiplier}× (${opt.cost})` : `RAISE ${opt.multiplier}× (${opt.cost})`;
+                const label = isCall ? t('games.casinoHoldem.callOption', { multiplier: opt.multiplier, cost: opt.cost }) : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost });
                 return (
                   <Button
                     key={i}
@@ -652,7 +654,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`text-base font-black px-6 py-5 bg-rose-700 hover:bg-rose-600 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
-                FOLD
+                {t('games.casinoHoldem.fold')}
               </Button>
             </div>
             {renderFair()}
@@ -660,7 +662,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         )}
 
         {phase === 'reveal' && (
-          <div className="text-center text-sm text-slate-300">Revealing…</div>
+          <div className="text-center text-sm text-slate-300">{t('games.casinoHoldem.revealing')}</div>
         )}
 
         {phase === 'settled' && (
@@ -675,7 +677,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`transition-all ${focusRing(focusSettle === 'again')}`}
               >
-                New Hand
+                {t('games.casinoHoldem.newHand')}
               </Button>
             </div>
             {renderFair()}

@@ -302,6 +302,77 @@
       "fairChecking": "comprobando…",
       "fairMatches": "coincide con seedHash",
       "fairMismatch": "no coincide"
+    },
+    "casinoHoldem": {
+      "handName": {
+        "royalFlush": "Escalera Real",
+        "straightFlush": "Escalera de Color",
+        "fourOfAKind": "Póker",
+        "fullHouse": "Full",
+        "flush": "Color",
+        "straight": "Escalera",
+        "threeOfAKind": "Trío",
+        "twoPair": "Doble Pareja",
+        "pair": "Pareja",
+        "highCard": "Carta Alta"
+      },
+      "error": {
+        "gameDisabled": "Casino Hold'em está temporalmente deshabilitado.",
+        "invalidBet": "Ante no válido.",
+        "insufficientBalance": "Fichas insuficientes — consigue tu Giro diario.",
+        "roundInProgress": "Termina primero tu mano actual.",
+        "noActiveRound": "No hay mano activa: reparte una nueva.",
+        "generic": "Algo salió mal: inténtalo de nuevo.",
+        "signIn": "Inicia sesión para jugar.",
+        "loadingChips": "Cargando fichas… inténtalo de nuevo en un momento.",
+        "dealFailed": "No se pudo repartir ahora mismo: inténtalo de nuevo.",
+        "tableUnreachable": "No se pudo conectar con la mesa: inténtalo de nuevo."
+      },
+      "banner": {
+        "youWin": "GANAS",
+        "dealerWins": "GANA EL CRUPIER",
+        "push": "EMPATE",
+        "dealerNoQualify": "EL CRUPIER NO CALIFICA",
+        "folded": "RETIRADO"
+      },
+      "result": {
+        "youLabel": "Tú:",
+        "versus": "vs",
+        "dealerLabel": "Crupier:",
+        "anteBonus": "Bono de Ante +{{amount}}",
+        "netWin": "+{{amount}} fichas",
+        "netLose": "{{amount}} fichas",
+        "netZero": "±0 fichas",
+        "balance": "Saldo: {{balance}}"
+      },
+      "fair": {
+        "toggle": "Juego justo verificable",
+        "serverSeedHash": "serverSeedHash:",
+        "serverSeed": "serverSeed:",
+        "clientSeed": "clientSeed:",
+        "nonce": "nonce:",
+        "verifyHint": "Verifica: sha256(serverSeed) debe coincidir con el hash mostrado antes de la mano."
+      },
+      "back": "Atrás",
+      "playChips": "Fichas de juego",
+      "loadingChips": "Cargando fichas…",
+      "title": "Casino Hold'em",
+      "heading": "Gana al crupier — cinco cartas comunitarias",
+      "subheading": "Solo con fichas de juego: solo por diversión y para presumir.",
+      "label": {
+        "dealer": "Crupier",
+        "community": "Comunitarias",
+        "you": "Tú"
+      },
+      "dealerDidntQualify": "No califica",
+      "chooseAnte": "Elige tu ante",
+      "dealButton": "Repartir — ante {{ante}}",
+      "chooseMove": "Elige tu jugada: Igualar, Subir o Retirarse",
+      "callOption": "IGUALAR {{multiplier}}× ({{cost}})",
+      "raiseOption": "SUBIR {{multiplier}}× ({{cost}})",
+      "fold": "RETIRARSE",
+      "revealing": "Revelando…",
+      "newHand": "Nueva Mano"
     }
   }
 }

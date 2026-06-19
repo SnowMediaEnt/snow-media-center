@@ -302,6 +302,77 @@
       "fairChecking": "جارٍ التحقق…",
       "fairMatches": "يطابق seedHash",
       "fairMismatch": "عدم تطابق"
+    },
+    "casinoHoldem": {
+      "handName": {
+        "royalFlush": "فلاش ملكي",
+        "straightFlush": "ستريت فلاش",
+        "fourOfAKind": "أربعة متشابهة",
+        "fullHouse": "فول هاوس",
+        "flush": "فلاش",
+        "straight": "ستريت",
+        "threeOfAKind": "ثلاثة متشابهة",
+        "twoPair": "زوجان",
+        "pair": "زوج",
+        "highCard": "أعلى ورقة"
+      },
+      "error": {
+        "gameDisabled": "لعبة Casino Hold'em معطّلة مؤقتًا.",
+        "invalidBet": "رهان الأنتي غير صالح.",
+        "insufficientBalance": "الرقائق غير كافية — احصل على دورتك اليومية.",
+        "roundInProgress": "أنهِ يدك الحالية أولًا.",
+        "noActiveRound": "لا توجد يد نشطة — وزّع يدًا جديدة.",
+        "generic": "حدث خطأ ما — حاول مرة أخرى.",
+        "signIn": "سجّل الدخول للعب.",
+        "loadingChips": "جارٍ تحميل الرقائق… حاول مرة أخرى بعد قليل.",
+        "dealFailed": "تعذّر التوزيع الآن — حاول مرة أخرى.",
+        "tableUnreachable": "تعذّر الوصول إلى الطاولة — حاول مرة أخرى."
+      },
+      "banner": {
+        "youWin": "لقد فزت",
+        "dealerWins": "فاز الموزّع",
+        "push": "تعادل",
+        "dealerNoQualify": "الموزّع لم يتأهّل",
+        "folded": "انسحبت"
+      },
+      "result": {
+        "youLabel": "أنت:",
+        "versus": "ضد",
+        "dealerLabel": "الموزّع:",
+        "anteBonus": "مكافأة الأنتي +{{amount}}",
+        "netWin": "+{{amount}} رقاقة",
+        "netLose": "{{amount}} رقاقة",
+        "netZero": "±0 رقاقة",
+        "balance": "الرصيد: {{balance}}"
+      },
+      "fair": {
+        "toggle": "العدالة القابلة للإثبات",
+        "serverSeedHash": "serverSeedHash:",
+        "serverSeed": "serverSeed:",
+        "clientSeed": "clientSeed:",
+        "nonce": "nonce:",
+        "verifyHint": "للتحقق: يجب أن يساوي sha256(serverSeed) قيمة الهاش المعروضة قبل بدء اليد."
+      },
+      "back": "رجوع",
+      "playChips": "رقائق اللعب",
+      "loadingChips": "جارٍ تحميل الرقائق…",
+      "title": "Casino Hold'em",
+      "heading": "اهزم الموزّع — خمس أوراق مشتركة",
+      "subheading": "رقائق اللعب فقط — للمتعة والتباهي لا أكثر.",
+      "label": {
+        "dealer": "الموزّع",
+        "community": "المشتركة",
+        "you": "أنت"
+      },
+      "dealerDidntQualify": "لم يتأهّل",
+      "chooseAnte": "اختر رهان الأنتي",
+      "dealButton": "توزيع — أنتي {{ante}}",
+      "chooseMove": "اختر حركتك — مجاراة أو رفع أو انسحاب",
+      "callOption": "مجاراة {{multiplier}}× ({{cost}})",
+      "raiseOption": "رفع {{multiplier}}× ({{cost}})",
+      "fold": "انسحاب",
+      "revealing": "جارٍ الكشف…",
+      "newHand": "يد جديدة"
     }
   }
 }

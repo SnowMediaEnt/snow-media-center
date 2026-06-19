@@ -302,6 +302,77 @@
       "fairChecking": "wird geprüft…",
       "fairMatches": "stimmt mit seedHash überein",
       "fairMismatch": "keine Übereinstimmung"
+    },
+    "casinoHoldem": {
+      "handName": {
+        "royalFlush": "Royal Flush",
+        "straightFlush": "Straight Flush",
+        "fourOfAKind": "Vierling",
+        "fullHouse": "Full House",
+        "flush": "Flush",
+        "straight": "Straße",
+        "threeOfAKind": "Drilling",
+        "twoPair": "Zwei Paare",
+        "pair": "Paar",
+        "highCard": "Höchste Karte"
+      },
+      "error": {
+        "gameDisabled": "Casino Hold'em ist vorübergehend deaktiviert.",
+        "invalidBet": "Ungültiger Ante-Einsatz.",
+        "insufficientBalance": "Nicht genug Chips — hol dir deinen Täglichen Spin.",
+        "roundInProgress": "Beende zuerst deine aktuelle Hand.",
+        "noActiveRound": "Keine aktive Hand — gib eine neue.",
+        "generic": "Etwas ist schiefgelaufen — versuch es erneut.",
+        "signIn": "Melde dich an, um zu spielen.",
+        "loadingChips": "Chips werden geladen… versuch es gleich erneut.",
+        "dealFailed": "Geben momentan nicht möglich — versuch es erneut.",
+        "tableUnreachable": "Tisch nicht erreichbar — versuch es erneut."
+      },
+      "banner": {
+        "youWin": "DU GEWINNST",
+        "dealerWins": "DEALER GEWINNT",
+        "push": "UNENTSCHIEDEN",
+        "dealerNoQualify": "DEALER QUALIFIZIERT SICH NICHT",
+        "folded": "GEPASST"
+      },
+      "result": {
+        "youLabel": "Du:",
+        "versus": "vs",
+        "dealerLabel": "Dealer:",
+        "anteBonus": "Ante-Bonus +{{amount}}",
+        "netWin": "+{{amount}} Chips",
+        "netLose": "{{amount}} Chips",
+        "netZero": "±0 Chips",
+        "balance": "Guthaben: {{balance}}"
+      },
+      "fair": {
+        "toggle": "Nachweislich fair",
+        "serverSeedHash": "serverSeedHash:",
+        "serverSeed": "serverSeed:",
+        "clientSeed": "clientSeed:",
+        "nonce": "nonce:",
+        "verifyHint": "Verifizieren: sha256(serverSeed) muss dem vor der Hand angezeigten Hash entsprechen."
+      },
+      "back": "Zurück",
+      "playChips": "Play Chips",
+      "loadingChips": "Chips werden geladen…",
+      "title": "Casino Hold'em",
+      "heading": "Schlag den Dealer — fünf Gemeinschaftskarten",
+      "subheading": "Nur Play Chips — nur zum Spaß und für den Ruhm.",
+      "label": {
+        "dealer": "Dealer",
+        "community": "Gemeinschaft",
+        "you": "Du"
+      },
+      "dealerDidntQualify": "Nicht qualifiziert",
+      "chooseAnte": "Wähle deinen Ante",
+      "dealButton": "Geben — Ante {{ante}}",
+      "chooseMove": "Wähle deinen Zug — Mitgehen, Erhöhen oder Passen",
+      "callOption": "MITGEHEN {{multiplier}}× ({{cost}})",
+      "raiseOption": "ERHÖHEN {{multiplier}}× ({{cost}})",
+      "fold": "PASSEN",
+      "revealing": "Aufdecken…",
+      "newHand": "Neue Hand"
     }
   }
 }

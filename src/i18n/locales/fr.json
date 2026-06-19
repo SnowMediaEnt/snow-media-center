@@ -302,6 +302,77 @@
       "fairChecking": "vérification…",
       "fairMatches": "correspond au seedHash",
       "fairMismatch": "non concordant"
+    },
+    "casinoHoldem": {
+      "handName": {
+        "royalFlush": "Quinte Flush Royale",
+        "straightFlush": "Quinte Flush",
+        "fourOfAKind": "Carré",
+        "fullHouse": "Full",
+        "flush": "Couleur",
+        "straight": "Quinte",
+        "threeOfAKind": "Brelan",
+        "twoPair": "Double Paire",
+        "pair": "Paire",
+        "highCard": "Carte Haute"
+      },
+      "error": {
+        "gameDisabled": "Casino Hold'em est temporairement désactivé.",
+        "invalidBet": "Ante invalide.",
+        "insufficientBalance": "Jetons insuffisants — récupérez votre Tour quotidien.",
+        "roundInProgress": "Terminez d'abord votre main en cours.",
+        "noActiveRound": "Aucune main active — distribuez-en une nouvelle.",
+        "generic": "Une erreur s'est produite — réessayez.",
+        "signIn": "Connectez-vous pour jouer.",
+        "loadingChips": "Chargement des jetons… réessayez dans un instant.",
+        "dealFailed": "Impossible de distribuer pour le moment — réessayez.",
+        "tableUnreachable": "Impossible de joindre la table — réessayez."
+      },
+      "banner": {
+        "youWin": "VOUS GAGNEZ",
+        "dealerWins": "LE CROUPIER GAGNE",
+        "push": "ÉGALITÉ",
+        "dealerNoQualify": "LE CROUPIER NE SE QUALIFIE PAS",
+        "folded": "COUCHÉ"
+      },
+      "result": {
+        "youLabel": "Vous :",
+        "versus": "vs",
+        "dealerLabel": "Croupier :",
+        "anteBonus": "Bonus d'Ante +{{amount}}",
+        "netWin": "+{{amount}} jetons",
+        "netLose": "{{amount}} jetons",
+        "netZero": "±0 jetons",
+        "balance": "Solde : {{balance}}"
+      },
+      "fair": {
+        "toggle": "Équité vérifiable",
+        "serverSeedHash": "serverSeedHash :",
+        "serverSeed": "serverSeed :",
+        "clientSeed": "clientSeed :",
+        "nonce": "nonce :",
+        "verifyHint": "Vérifiez : sha256(serverSeed) doit correspondre au hash affiché avant la main."
+      },
+      "back": "Retour",
+      "playChips": "Play Chips",
+      "loadingChips": "Chargement des jetons…",
+      "title": "Casino Hold'em",
+      "heading": "Battez le croupier — cinq cartes communes",
+      "subheading": "Play Chips uniquement — juste pour le plaisir et la gloire.",
+      "label": {
+        "dealer": "Croupier",
+        "community": "Communes",
+        "you": "Vous"
+      },
+      "dealerDidntQualify": "Ne se qualifie pas",
+      "chooseAnte": "Choisissez votre ante",
+      "dealButton": "Distribuer — ante {{ante}}",
+      "chooseMove": "Choisissez votre action — Suivre, Relancer ou Se coucher",
+      "callOption": "SUIVRE {{multiplier}}× ({{cost}})",
+      "raiseOption": "RELANCER {{multiplier}}× ({{cost}})",
+      "fold": "SE COUCHER",
+      "revealing": "Révélation…",
+      "newHand": "Nouvelle Main"
     }
   }
 }
