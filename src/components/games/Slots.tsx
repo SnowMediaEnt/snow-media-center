@@ -243,9 +243,12 @@ const Slots = ({ onBack }: SlotsProps) => {
   );
 
   const handleSpin = useCallback(async () => {
+    if (inFlight.current) return;
     if (spinning) return;
     if (!user) { setErrorMsg('Sign in to play.'); return; }
+    if (balance === null && !inFreeSpins) { setErrorMsg('Loading chips… try again in a moment.'); return; }
     if (!inFreeSpins && !canBet) { setErrorMsg('Not enough chips — grab your Daily Spin'); return; }
+    inFlight.current = true;
 
     setErrorMsg(null);
     setResult(null);
