@@ -19,8 +19,10 @@ interface FairInfo {
 
 type Phase = 'bet' | 'decision' | 'reveal' | 'settled';
 type FocusBet = `chip-${number}` | 'deal' | 'back';
-type FocusDecision = 'call' | 'fold' | 'back' | 'fair';
+type FocusDecision = `opt-${number}` | 'fold' | 'back' | 'fair';
 type FocusSettle = 'again' | 'back' | 'fair';
+
+interface RaiseOption { multiplier: number; cost: number }
 
 const ANTES = [10, 25, 50, 100];
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
@@ -115,8 +117,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [phase, setPhase] = useState<Phase>('bet');
   const [ante, setAnte] = useState<number>(10);
   const [callCost, setCallCost] = useState<number>(0);
+  const [raiseOptions, setRaiseOptions] = useState<RaiseOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const [playerHole, setPlayerHole] = useState<ChCard[]>([]);
   const [dealerHole, setDealerHole] = useState<ChCard[]>([]);
@@ -136,17 +140,23 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [showFair, setShowFair] = useState(false);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
-  const [focusDecision, setFocusDecision] = useState<FocusDecision>('call');
+  const [focusDecision, setFocusDecision] = useState<FocusDecision>('fold');
   const [focusSettle, setFocusSettle] = useState<FocusSettle>('again');
 
+  const backRef = useRef<HTMLButtonElement>(null);
+  const dealRef = useRef<HTMLButtonElement>(null);
+  const foldRef = useRef<HTMLButtonElement>(null);
+  const againRef = useRef<HTMLButtonElement>(null);
+  const fairRef = useRef<HTMLButtonElement>(null);
+  const chipsRefs = ANTES.map(() => useRef<HTMLButtonElement>(null));
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const refs = {
-    back: useRef<HTMLButtonElement>(null),
-    deal: useRef<HTMLButtonElement>(null),
-    call: useRef<HTMLButtonElement>(null),
-    fold: useRef<HTMLButtonElement>(null),
-    again: useRef<HTMLButtonElement>(null),
-    fair: useRef<HTMLButtonElement>(null),
-    chips: ANTES.map(() => useRef<HTMLButtonElement>(null)),
+    back: backRef,
+    deal: dealRef,
+    fold: foldRef,
+    again: againRef,
+    fair: fairRef,
+    chips: chipsRefs,
   };
 
   // Focus management
@@ -160,9 +170,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       }
     } else if (phase === 'decision') {
       if (focusDecision === 'back') refs.back.current?.focus();
-      else if (focusDecision === 'call') refs.call.current?.focus();
       else if (focusDecision === 'fold') refs.fold.current?.focus();
       else if (focusDecision === 'fair') refs.fair.current?.focus();
+      else if (focusDecision.startsWith('opt-')) {
+        const i = Number(focusDecision.split('-')[1]);
+        optionRefs.current[i]?.focus();
+      }
     } else if (phase === 'settled') {
       if (focusSettle === 'back') refs.back.current?.focus();
       else if (focusSettle === 'again') refs.again.current?.focus();
@@ -181,9 +194,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   };
 
   const deal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setError(null);
     setBusy(true);
     try {
@@ -195,14 +211,21 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         setRevealedCommunity(3);
         setDealerHole([]);
         setDealerRevealed(false);
-        setCallCost(resp.callCost ?? ante * 2);
+        const cc = resp.callCost ?? ante * 2;
+        setCallCost(cc);
+        const opts: RaiseOption[] = Array.isArray(resp.raiseOptions) && resp.raiseOptions.length
+          ? resp.raiseOptions
+          : [{ multiplier: 2, cost: cc }];
+        setRaiseOptions(opts);
         if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setSettleStatus(null);
         setFair(null);
         setNet(0); setPayout(0); setAnteBonus(0);
         setPlayerRank(''); setDealerRank(''); setDealerQualified(true);
         setPhase('decision');
-        setFocusDecision('call');
+        const bal = balance ?? 0;
+        const firstAffordable = opts.findIndex((o) => o.cost <= bal);
+        setFocusDecision(firstAffordable >= 0 ? (`opt-${firstAffordable}` as FocusDecision) : 'fold');
       } else {
         handleErrorAck(resp?.error ?? 'error', resp?.balance);
       }
@@ -210,6 +233,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setError("Couldn't deal right now — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, ante]);
 
@@ -227,21 +251,15 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     if (resp.fair) setFair(resp.fair);
 
     if (folded) {
-      // Reveal everything at once
       setRevealedCommunity(5);
       setDealerRevealed(true);
       setPhase('settled');
       setFocusSettle('again');
     } else {
-      // Staggered reveal: turn -> river -> dealer
       setPhase('reveal');
-      // turn
       setTimeout(() => setRevealedCommunity((n) => Math.max(n, 4)), 350);
-      // river
       setTimeout(() => setRevealedCommunity((n) => Math.max(n, 5)), 700);
-      // flip dealer
       setTimeout(() => setDealerRevealed(true), 1100);
-      // settle
       setTimeout(() => {
         setPhase('settled');
         setFocusSettle('again');
@@ -249,23 +267,28 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     }
   }, []);
 
-  const doCall = useCallback(async () => {
+  const doCall = useCallback(async (multiplier: number) => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const resp = await gameSocket.callCasinoHoldem();
+      const resp = await gameSocket.callCasinoHoldem(multiplier);
       if (resp?.ok) finishSettle(resp, false);
       else handleErrorAck(resp?.error ?? 'error', resp?.balance);
     } catch {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, finishSettle]);
 
   const doFold = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -276,6 +299,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, finishSettle]);
 
@@ -311,12 +335,22 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
         }
       } else if (phase === 'decision') {
-        const order: FocusDecision[] = ['call', 'fold', 'fair'];
+        // Build dynamic order: each affordable option, then fold, then fair. Fold always present.
+        const bal = balance ?? 0;
+        const order: FocusDecision[] = [
+          ...raiseOptions.map((_, i) => `opt-${i}` as FocusDecision),
+          'fold',
+          'fair',
+        ];
         const idx = order.indexOf(focusDecision);
         if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusDecision(order[idx - 1]); }
         else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusDecision(order[idx + 1]); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusDecision('back'); }
-        else if (e.key === 'ArrowDown' && focusDecision === 'back') { e.preventDefault(); setFocusDecision('call'); }
+        else if (e.key === 'ArrowDown' && focusDecision === 'back') {
+          e.preventDefault();
+          const firstAff = raiseOptions.findIndex((o) => o.cost <= bal);
+          setFocusDecision(firstAff >= 0 ? (`opt-${firstAff}` as FocusDecision) : 'fold');
+        }
       } else if (phase === 'settled') {
         const order: FocusSettle[] = ['again', 'fair'];
         const idx = order.indexOf(focusSettle);
@@ -335,12 +369,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
   const settleBanner = (() => {
     if (phase !== 'settled' || !settleStatus) return null;
-    const winStatuses = new Set(['win']);
-    const loseStatuses = new Set(['lose', 'folded']);
-    const tone: 'win' | 'lose' | 'push' =
-      winStatuses.has(settleStatus) ? 'win'
-      : loseStatuses.has(settleStatus) ? 'lose'
-      : 'push';
+    // Tone driven by signed net (so dealer_no_qualify wins render green).
+    const tone: 'win' | 'lose' | 'push' = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
     const text =
       settleStatus === 'win' ? 'YOU WIN' :
       settleStatus === 'lose' ? 'DEALER WINS' :
@@ -383,14 +413,13 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     <div className="mt-6">
       <Button
         ref={refs.fair}
-        variant="outline"
         size="sm"
         onClick={() => setShowFair((v) => !v)}
         onFocus={() => {
           if (phase === 'decision') setFocusDecision('fair');
           else if (phase === 'settled') setFocusSettle('fair');
         }}
-        className={`transition-all ${focusRing(
+        className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing(
           (phase === 'decision' && focusDecision === 'fair') ||
           (phase === 'settled' && focusSettle === 'fair')
         )}`}
@@ -454,7 +483,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -584,30 +613,42 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         {phase === 'decision' && (
           <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
             <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              Call (2× ante = {callCost}) or fold?
+              Choose your move — Call, Raise, or Fold
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                ref={refs.call}
-                onClick={doCall}
-                onFocus={() => setFocusDecision('call')}
-                disabled={busy}
-                variant="gold"
-                size="lg"
-                className={`transition-all ${focusRing(focusDecision === 'call')}`}
-              >
-                Call {callCost}
-              </Button>
+              {raiseOptions.map((opt, i) => {
+                const canAfford = (balance ?? 0) >= opt.cost;
+                const focused = focusDecision === `opt-${i}`;
+                const isCall = opt.multiplier === 2;
+                const label = isCall ? `CALL ${opt.multiplier}× (${opt.cost})` : `RAISE ${opt.multiplier}× (${opt.cost})`;
+                return (
+                  <Button
+                    key={i}
+                    ref={(el) => (optionRefs.current[i] = el)}
+                    onClick={() => doCall(opt.multiplier)}
+                    onFocus={() => setFocusDecision(`opt-${i}` as FocusDecision)}
+                    disabled={busy || !canAfford}
+                    size="lg"
+                    className={`text-base font-black px-6 py-5 border-2 transition-all
+                      ${isCall
+                        ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-amber-200'
+                        : 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white border-emerald-300'}
+                      ${(!canAfford || busy) ? 'opacity-50' : ''}
+                      ${focusRing(focused)}`}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
               <Button
                 ref={refs.fold}
                 onClick={doFold}
                 onFocus={() => setFocusDecision('fold')}
                 disabled={busy}
-                variant="outline"
                 size="lg"
-                className={`transition-all ${focusRing(focusDecision === 'fold')}`}
+                className={`text-base font-black px-6 py-5 bg-rose-600 hover:bg-rose-500 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
-                Fold
+                FOLD
               </Button>
             </div>
             {renderFair()}

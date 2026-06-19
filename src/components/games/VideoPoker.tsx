@@ -145,6 +145,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const [bet, setBet] = useState<number>(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const [hand, setHand] = useState<VpCard[]>([]);
   const [holds, setHolds] = useState<boolean[]>([false, false, false, false, false]);
@@ -196,9 +197,12 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   };
 
   const doDeal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setResultRank(null);
@@ -230,11 +234,14 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       setError("Couldn't deal — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, bet]);
 
   const doDraw = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy || phase !== 'dealt') return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     // Flip the non-held cards
@@ -242,7 +249,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     try {
       const resp = await gameSocket.drawVideoPoker(holds);
       if (resp?.ok && Array.isArray(resp.hand)) {
-        // Replace with new hand after a brief flip
         setTimeout(() => {
           setHand(resp.hand);
           setFlipping([false, false, false, false, false]);
@@ -256,7 +262,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         setResultWin(!!resp.win);
         if (resp.fair) setFair(resp.fair);
         setPhase('settled');
-        // Payout count-up
         if (resp.win && resp.payout > 0) {
           setCelebrate(true);
           const target = resp.payout as number;
@@ -280,6 +285,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       setError("Couldn't draw — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, phase, holds]);
 
@@ -414,7 +420,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -599,7 +605,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
               ref={fairRef}
               onFocus={() => setZone('fair')}
               onClick={() => setShowFair((s) => !s)}
-              className={`text-xs text-slate-300 hover:text-white inline-flex items-center gap-1 rounded px-1 ${zone === 'fair' ? 'ring-2 ring-amber-300/70 text-white' : ''}`}
+              className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${zone === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
             >
               Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>

@@ -107,6 +107,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [bet, setBet] = useState<number>(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const [playerHand, setPlayerHand] = useState<BjCard[]>([]);
   const [dealerHand, setDealerHand] = useState<BjCard[]>([]);
@@ -219,9 +220,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   };
 
   const deal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setError(null);
     setBusy(true);
     try {
@@ -233,11 +237,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setError("Couldn't deal right now — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, bet, applyAck]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -251,6 +258,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, applyAck]);
 
@@ -394,7 +402,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -590,7 +598,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   ref={refs.fair}
                   onFocus={() => setFocusSettle('fair')}
                   onClick={() => setShowFair((s) => !s)}
-                  className={`text-xs text-slate-300 hover:text-white inline-flex items-center gap-1 rounded px-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/70 text-white' : ''}`}
+                  className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
                 >
                   Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>

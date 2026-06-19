@@ -234,8 +234,8 @@ class GameSocketManager {
   async dealCasinoHoldem(ante: number, clientSeed?: string): Promise<any> {
     return this.emitWithAck('ch_deal', { ante, clientSeed: clientSeed ?? null });
   }
-  async callCasinoHoldem(): Promise<any> {
-    return this.emitWithAck('ch_call', {});
+  async callCasinoHoldem(multiplier: number = 2): Promise<any> {
+    return this.emitWithAck('ch_call', { multiplier });
   }
   async foldCasinoHoldem(): Promise<any> {
     return this.emitWithAck('ch_fold', {});

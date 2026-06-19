@@ -41,6 +41,11 @@ const REEL_KEYS = ['p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scat
 const ROWS = 3;
 const REELS = 5;
 const SYMBOL_HEIGHT = 80; // px per cell
+// Fixed strip length used for every reel; finalOffset is derived from this constant.
+const STRIP_LENGTH = 36;
+// Extra random padding placed AFTER the 3 result symbols so the window never runs past the array end
+// and reel 0's settle has visible downward travel.
+const TAIL_PAD = 6;
 
 interface FairInfo {
   serverSeedHash: string;
@@ -63,11 +68,13 @@ interface SpinResult {
 }
 
 function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyphs: Record<string, string>; size?: number }) {
-  const img = SYMBOL_IMAGES[symbolKey];
+  // Guard against empty/unknown keys so a cell can never render blank
+  const safeKey = (symbolKey && REEL_KEYS.includes(symbolKey)) ? symbolKey : 'p1';
+  const img = SYMBOL_IMAGES[safeKey];
   if (img) {
-    return <img src={img} alt={symbolKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
+    return <img src={img} alt={safeKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
   }
-  if (symbolKey === 'wild') {
+  if (safeKey === 'wild') {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
         <g stroke="#67e8f9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,7 +93,7 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
       </svg>
     );
   }
-  if (symbolKey === 'scatter') {
+  if (safeKey === 'scatter') {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
         <ellipse cx="32" cy="52" rx="13" ry="4" fill="#a855f7" />
@@ -100,8 +107,8 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
       </svg>
     );
   }
-  const glyph = glyphs[symbolKey] ?? DEFAULT_GLYPHS[symbolKey] ?? '❓';
-  const isLow = symbolKey === 'la' || symbolKey === 'lk' || symbolKey === 'lq' || symbolKey === 'lj';
+  const glyph = glyphs[safeKey] ?? DEFAULT_GLYPHS[safeKey] ?? '❓';
+  const isLow = safeKey === 'la' || safeKey === 'lk' || safeKey === 'lq' || safeKey === 'lj';
   return (
     <span
       style={{
@@ -118,13 +125,26 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
   );
 }
 
-// Build a long random strip ending in finalKey (used during spin animation)
-function buildStrip(finalKey: string, length = 32): string[] {
+// Build a deterministic-length strip. The first (STRIP_LENGTH - ROWS - TAIL_PAD) entries are random
+// fillers, then exactly 3 result symbols (top→bottom), then TAIL_PAD random padding so the visible
+// window has overshoot room and never runs past the array end.
+function buildStrip(top: string, mid: string, bot: string): string[] {
   const out: string[] = [];
-  for (let i = 0; i < length - 1; i++) {
+  const leading = STRIP_LENGTH - ROWS - TAIL_PAD;
+  for (let i = 0; i < leading; i++) {
     out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
   }
-  out.push(finalKey);
+  out.push(top, mid, bot);
+  for (let i = 0; i < TAIL_PAD; i++) {
+    out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
+  }
+  return out;
+}
+
+// Build a fully random strip (idle / placeholder spinning state).
+function buildRandomStrip(): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < STRIP_LENGTH; i++) out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
   return out;
 }
 
@@ -152,9 +172,10 @@ const Slots = ({ onBack }: SlotsProps) => {
   const [columns, setColumns] = useState<string[][]>(initGrid);
   // For each reel: scrolling strip & stopped flag
   const [reelStrips, setReelStrips] = useState<string[][]>(() =>
-    Array.from({ length: REELS }, () => buildStrip(REEL_KEYS[0]))
+    Array.from({ length: REELS }, () => buildRandomStrip())
   );
   const [reelStopped, setReelStopped] = useState<boolean[]>(() => Array(REELS).fill(true));
+  const inFlight = useRef(false);
 
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winningCells, setWinningCells] = useState<boolean[][]>(() =>
@@ -222,9 +243,12 @@ const Slots = ({ onBack }: SlotsProps) => {
   );
 
   const handleSpin = useCallback(async () => {
+    if (inFlight.current) return;
     if (spinning) return;
     if (!user) { setErrorMsg('Sign in to play.'); return; }
+    if (balance === null && !inFreeSpins) { setErrorMsg('Loading chips… try again in a moment.'); return; }
     if (!inFreeSpins && !canBet) { setErrorMsg('Not enough chips — grab your Daily Spin'); return; }
+    inFlight.current = true;
 
     setErrorMsg(null);
     setResult(null);
@@ -234,10 +258,8 @@ const Slots = ({ onBack }: SlotsProps) => {
     setSpinning(true);
     setReelStopped(Array(REELS).fill(false));
 
-    // Kick off scrolling strips with placeholder finals
-    setReelStrips(Array.from({ length: REELS }, () =>
-      buildStrip(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)])
-    ));
+    // Kick off scrolling strips with random placeholder content
+    setReelStrips(Array.from({ length: REELS }, () => buildRandomStrip()));
 
     try {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
@@ -252,13 +274,9 @@ const Slots = ({ onBack }: SlotsProps) => {
           Array.from({ length: ROWS }, (_, row) => grid[row]?.[r] ?? REEL_KEYS[0])
         );
 
-        // Build strips for each reel ending with this reel's 3 symbols
-        setReelStrips(cols.map((col) => {
-          const strip = buildStrip(col[0], 30);
-          // append col[1], col[2] so the final 3 are top→bottom
-          strip.push(col[1], col[2]);
-          return strip;
-        }));
+        // Build deterministic-length strips for each reel ending with this reel's 3 symbols
+        // followed by TAIL_PAD random padding (so the visible window can never run past the end).
+        setReelStrips(cols.map((col) => buildStrip(col[0], col[1], col[2])));
 
         const result: SpinResult = {
           grid,
@@ -290,10 +308,11 @@ const Slots = ({ onBack }: SlotsProps) => {
               setFreeSpinsRemaining(result.freeSpinsRemaining);
               setMultiplier(result.multiplier || 1);
 
-              // Highlight winning cells
+              // Highlight winning cells — only if a win actually paid.
               const lit: boolean[][] = Array.from({ length: REELS }, () => Array(ROWS).fill(false));
-              const winningSymbols = new Set(result.wins.map((w) => w.symbol));
-              if (winningSymbols.size > 0) {
+              const paidWins = result.wins.filter((w) => w.payout > 0);
+              const winningSymbols = new Set(paidWins.map((w) => w.symbol));
+              if (result.totalPayout > 0 && winningSymbols.size > 0) {
                 for (let r = 0; r < REELS; r++) {
                   for (let row = 0; row < ROWS; row++) {
                     const sym = cols[r][row];
@@ -313,6 +332,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                 setTimeout(() => setFreeBurst(false), 2200);
               }
               if (resp.fair) setFair(resp.fair);
+              inFlight.current = false;
             }
           }, baseDelay + idx * stagger);
         }
@@ -320,25 +340,30 @@ const Slots = ({ onBack }: SlotsProps) => {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Not enough chips — grab your Daily Spin');
+        inFlight.current = false;
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Invalid bet.');
+        inFlight.current = false;
       } else if (resp?.error === 'game_disabled') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Slots are temporarily disabled.');
+        inFlight.current = false;
       } else {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg("Couldn't spin right now — try again.");
+        inFlight.current = false;
       }
     } catch {
       setSpinning(false);
       setReelStopped(Array(REELS).fill(true));
       setErrorMsg("Couldn't spin right now — try again.");
+      inFlight.current = false;
     }
-  }, [spinning, user, canBet, bet, inFreeSpins]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance]);
 
   // D-pad
   useEffect(() => {
@@ -374,10 +399,12 @@ const Slots = ({ onBack }: SlotsProps) => {
   const renderReel = (reelIndex: number) => {
     const strip = reelStrips[reelIndex] ?? [];
     const stopped = reelStopped[reelIndex];
-    const totalHeight = strip.length * SYMBOL_HEIGHT;
-    // Final offset so that the last 3 symbols of the strip fill the 3-row window
-    const finalOffset = -(strip.length - ROWS) * SYMBOL_HEIGHT;
-    const spinningOffset = -(totalHeight - SYMBOL_HEIGHT * ROWS);
+    // Result symbols are at positions [STRIP_LENGTH - ROWS - TAIL_PAD, ..., STRIP_LENGTH - 1 - TAIL_PAD].
+    // Window shows ROWS rows; finalOffset puts the result row 0 at the top of the window.
+    const finalOffset = -((STRIP_LENGTH - ROWS - TAIL_PAD) * SYMBOL_HEIGHT);
+    // During spin, translate so we visibly travel past the result row, ending near the bottom-most
+    // padding tail. This guarantees overshoot/downward travel before the ease-out settle for reel 0.
+    const spinningOffset = -((STRIP_LENGTH - ROWS) * SYMBOL_HEIGHT);
 
     const transition = stopped
       ? `transform ${550}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
@@ -471,7 +498,7 @@ const Slots = ({ onBack }: SlotsProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -601,15 +628,19 @@ const Slots = ({ onBack }: SlotsProps) => {
                   <Minus className="w-4 h-4" />
                 </Button>
                 <div
-                  className="min-w-[80px] text-center px-4 py-2 rounded-lg font-black text-2xl tabular-nums"
+                  className={`relative min-w-[80px] text-center px-4 py-2 rounded-lg font-black text-2xl tabular-nums ${inFreeSpins ? 'opacity-60' : ''}`}
                   style={{
                     background: 'linear-gradient(180deg, #0a0202, #1a0606)',
                     border: '2px solid rgba(251,191,36,0.6)',
                     color: '#fde68a',
                     boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.6)',
                   }}
+                  title={inFreeSpins ? 'Bet locked during free spins' : undefined}
                 >
                   {bet}
+                  {inFreeSpins && (
+                    <span className="absolute -top-2 -right-2 text-[10px] bg-slate-900 border border-amber-400/60 text-amber-200 rounded-full px-1.5 py-0.5">🔒</span>
+                  )}
                 </div>
                 <Button
                   ref={plusBtnRef}
@@ -643,7 +674,7 @@ const Slots = ({ onBack }: SlotsProps) => {
               </div>
             </div>
 
-            {!canBet && user && !inFreeSpins && (
+            {balance !== null && !canBet && user && !inFreeSpins && (
               <p className="mt-3 text-center text-amber-200 font-semibold text-sm">
                 Not enough chips — grab your Daily Spin.
               </p>
@@ -697,11 +728,10 @@ const Slots = ({ onBack }: SlotsProps) => {
         <div className="mt-5 max-w-4xl mx-auto">
           <Button
             ref={fairBtnRef}
-            variant="outline"
             size="sm"
             onClick={() => setShowFair((v) => !v)}
             onFocus={() => setFocus('fair')}
-            className={`transition-all ${focusRing('fair')}`}
+            className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing('fair')}`}
           >
             {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
             Provably fair

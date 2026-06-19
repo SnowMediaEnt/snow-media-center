@@ -13,7 +13,7 @@ interface DailySpinProps {
 
 const PRIZES = [50, 100, 250, 500, 2000];
 const SEG_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b']; // jackpot last (gold)
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 4 * 60 * 60 * 1000;
 
 interface FairInfo {
   serverSeedHash: string;
@@ -39,6 +39,9 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const { balance, status } = useGameSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
+  const backBtnRef = useRef<HTMLButtonElement>(null);
+  const inFlight = useRef(false);
+  const rotRef = useRef(0);
 
   const [rotation, setRotation] = useState(0); // degrees
   const [spinning, setSpinning] = useState(false);
@@ -50,6 +53,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+
+  const setRot = useCallback((v: number) => { rotRef.current = v; setRotation(v); }, []);
 
   // Draw wheel
   const drawWheel = useCallback(() => {
@@ -187,21 +192,24 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     }
   }, [now, nextClaimAt]);
 
-  // Focus spin button
+  // Focus: prefer spin, else fall back to back
   useEffect(() => {
-    spinBtnRef.current?.focus();
-  }, [loadingCooldown, nextClaimAt]);
+    const target = (!loadingCooldown && !nextClaimAt && user) ? spinBtnRef.current : backBtnRef.current;
+    target?.focus();
+  }, [loadingCooldown, nextClaimAt, user]);
 
 
   const handleSpin = useCallback(async () => {
+    if (inFlight.current) return;
     if (spinning || nextClaimAt) return;
+    inFlight.current = true;
     setErrorMsg(null);
     setLastWin(null);
     setFair(null);
     setSpinning(true);
 
-    // Start a continuous spin
-    const startRot = rotation;
+    // Start a continuous spin — drive from rotRef so closures stay live
+    const startRot = rotRef.current;
     const animStart = performance.now();
     let resolved = false;
     let targetRot = startRot + 360 * 6; // fallback
@@ -212,18 +220,13 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       const elapsed = t - animStart;
       if (!resolved) {
         // Linear spin while waiting
-        setRotation(startRot + (elapsed / 1000) * 720);
+        setRot(startRot + (elapsed / 1000) * 720);
         raf = requestAnimationFrame(animate);
-      } else {
-        const p = Math.min(1, elapsed / duration);
-        // ease-out cubic
-        const eased = 1 - Math.pow(1 - p, 3);
-        const r = startRot + (targetRot - startRot) * eased;
-        setRotation(r);
-        if (p < 1) raf = requestAnimationFrame(animate);
       }
     };
     raf = requestAnimationFrame(animate);
+
+    const settle = () => { inFlight.current = false; };
 
     try {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
@@ -232,23 +235,24 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       if (resp?.ok && typeof resp.index === 'number') {
         const n = PRIZES.length;
         const segDeg = 360 / n;
-        // Pointer at top. Wheel drawn with seg 0 centered at top when rotation=0.
-        // To land on index i at top, rotate by -i*segDeg (mod 360).
         const baseSpins = 6;
-        const currentMod = ((startRot % 360) + 360) % 360;
+        // Compute target from the LIVE rotation so we continue forward without snapping back.
+        const liveRot = rotRef.current;
+        const currentMod = ((liveRot % 360) + 360) % 360;
         const targetMod = ((-resp.index * segDeg) % 360 + 360) % 360;
         let delta = targetMod - currentMod;
         if (delta < 0) delta += 360;
-        targetRot = startRot + baseSpins * 360 + delta;
-        // restart animation from now for clean ease-out
+        targetRot = liveRot + baseSpins * 360 + delta;
+
         const reStart = performance.now();
+        resolved = true;
         cancelAnimationFrame(raf);
-        const restartFrom = rotation;
+        const restartFrom = liveRot;
         const animate2 = (t: number) => {
           const el = t - reStart;
           const p = Math.min(1, el / duration);
           const eased = 1 - Math.pow(1 - p, 3);
-          setRotation(restartFrom + (targetRot - restartFrom) * eased);
+          setRot(restartFrom + (targetRot - restartFrom) * eased);
           if (p < 1) requestAnimationFrame(animate2);
           else {
             setSpinning(false);
@@ -257,26 +261,31 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             setTimeout(() => setCelebrate(false), 2500);
             setNextClaimAt(new Date(Date.now() + COOLDOWN_MS));
             if (resp.fair) setFair(resp.fair);
+            // Sync chip balance with the win
+            try { gameSocket.refreshBalance(); } catch {}
+            settle();
           }
         };
-        resolved = true;
         requestAnimationFrame(animate2);
       } else if (resp?.error === 'cooldown') {
         cancelAnimationFrame(raf);
         setSpinning(false);
         if (resp.nextClaimAt) setNextClaimAt(new Date(resp.nextClaimAt));
         setErrorMsg(null);
+        settle();
       } else {
         cancelAnimationFrame(raf);
         setSpinning(false);
         setErrorMsg("Couldn't spin right now — try again.");
+        settle();
       }
     } catch {
       cancelAnimationFrame(raf);
       setSpinning(false);
       setErrorMsg("Couldn't spin right now — try again.");
+      settle();
     }
-  }, [spinning, nextClaimAt, rotation]);
+  }, [spinning, nextClaimAt, setRot]);
 
   const remaining = nextClaimAt ? nextClaimAt.getTime() - now : 0;
   const eligible = !nextClaimAt && !loadingCooldown && !!user;
@@ -293,7 +302,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     >
       <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-          <Button onClick={onBack} variant="gold" size="lg">
+          <Button ref={backBtnRef} onClick={onBack} variant="gold" size="lg" className="focus:outline-none focus:ring-4 focus:ring-amber-300/80">
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back
           </Button>
@@ -302,7 +311,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -313,7 +322,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             <Sparkles className="w-3.5 h-3.5" /> Daily Spin
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            One free spin every 24 hours
+            One free spin every 4 hours
           </h1>
           <p className="text-slate-200/90 mt-2">Land on the gold segment for the 2,000 chip jackpot.</p>
         </div>
@@ -439,7 +448,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
               <div className="mt-6 text-left">
                 <button
                   onClick={() => setShowFair((s) => !s)}
-                  className="text-xs text-slate-300 hover:text-white inline-flex items-center gap-1"
+                  className="text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-300/80"
                 >
                   Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>

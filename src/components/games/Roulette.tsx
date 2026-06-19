@@ -52,9 +52,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [wheel, setWheel] = useState<WheelKind>('european');
   const [denom, setDenom] = useState<number>(10);
   const [chips, setChips] = useState<PlacedChip[]>([]);
+  // History stack of chip placements for Undo (each entry is the key of the cell a chip was added to,
+  // along with the denomination added).
+  const [history, setHistory] = useState<{ key: string; amount: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
   // (client seed is auto-generated per spin; not user-editable)
   const [serverSeedHash, setServerSeedHash] = useState<string>('');
   const [result, setResult] = useState<SpinResult | null>(null);
@@ -72,7 +76,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Focus
   const focusItems = useRef<Map<string, HTMLElement>>(new Map());
-  const [focusId, setFocusId] = useState<string>('spin');
+  // Track which bet (type+selection) a given focusable cell represents (for D-pad decrement).
+  const cellBets = useRef<Map<string, { type: BetType; selection: any }>>(new Map());
+  const [focusId, setFocusId] = useState<string>('num-17');
 
   const registerFocus = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) focusItems.current.set(id, el);
@@ -129,15 +135,58 @@ const Roulette = ({ onBack }: RouletteProps) => {
       }
       return [...prev, { type, selection, key: k, amount: denom }];
     });
+    setHistory((h) => [...h, { key: k, amount: denom }]);
     // Clear settle visuals when re-betting
     setResult(null);
     setWinKeys(new Set());
     setFair(null);
   };
 
+  // Remove a single chip-denomination from a cell (used by Backspace/'-' on focused cell).
+  const decrementChipOn = (type: BetType, selection: any) => {
+    if (spinning) return;
+    const k = keyFor(type, selection);
+    setChips((prev) => {
+      const existing = prev.find((c) => c.key === k);
+      if (!existing) return prev;
+      const dec = Math.min(existing.amount, denom);
+      const remaining = existing.amount - dec;
+      // also pop the most recent matching history entry (best effort)
+      setHistory((h) => {
+        const idx = [...h].reverse().findIndex((x) => x.key === k);
+        if (idx < 0) return h;
+        const realIdx = h.length - 1 - idx;
+        return [...h.slice(0, realIdx), ...h.slice(realIdx + 1)];
+      });
+      if (remaining <= 0) return prev.filter((c) => c.key !== k);
+      return prev.map((c) => c.key === k ? { ...c, amount: remaining } : c);
+    });
+    setResult(null);
+    setWinKeys(new Set());
+  };
+
+  const undoLast = () => {
+    if (spinning) return;
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const last = h[h.length - 1];
+      setChips((prev) => {
+        const existing = prev.find((c) => c.key === last.key);
+        if (!existing) return prev;
+        const remaining = existing.amount - last.amount;
+        if (remaining <= 0) return prev.filter((c) => c.key !== last.key);
+        return prev.map((c) => c.key === last.key ? { ...c, amount: remaining } : c);
+      });
+      return h.slice(0, -1);
+    });
+    setResult(null);
+    setWinKeys(new Set());
+  };
+
   const clearBets = () => {
     if (spinning) return;
     setChips([]);
+    setHistory([]);
     setResult(null);
     setWinKeys(new Set());
   };
@@ -178,7 +227,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
   };
 
   const doSpin = useCallback(async () => {
+    if (inFlight.current) return;
     if (!canSpin) return;
+    inFlight.current = true;
     setBusy(true);
     setSpinning(true);
     setError(null);
@@ -219,6 +270,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
         cancelAnimationFrame(raf);
         setSpinning(false);
         setBusy(false);
+        inFlight.current = false;
         handleErr(resp?.error ?? 'spin_failed', resp?.detail);
         return;
       }
@@ -262,6 +314,10 @@ const Roulette = ({ onBack }: RouletteProps) => {
           }
           setSpinning(false);
           setBusy(false);
+          inFlight.current = false;
+          // Reset bet history after a successful settle
+          setHistory([]);
+          setChips([]);
         }
       };
       requestAnimationFrame(land);
@@ -269,6 +325,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       cancelAnimationFrame(raf);
       setSpinning(false);
       setBusy(false);
+      inFlight.current = false;
       setError("Couldn't reach the table — try again.");
     }
   }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
@@ -276,10 +333,16 @@ const Roulette = ({ onBack }: RouletteProps) => {
   // D-pad handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ')) return;
       if (e.key === 'Enter' || e.key === ' ') {
         const el = focusItems.current.get(focusId) as HTMLButtonElement | undefined;
         if (el && !el.disabled) { e.preventDefault(); el.click(); }
         return;
+      }
+      // Decrement: Backspace, '-', NumpadSubtract on a focused cell
+      if (e.key === 'Backspace' || e.key === '-' || e.key === 'Subtract') {
+        const bet = cellBets.current.get(focusId);
+        if (bet) { e.preventDefault(); decrementChipOn(bet.type, bet.selection); return; }
       }
       if (e.key === 'ArrowRight') { e.preventDefault(); moveFocus('right'); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocus('left'); }
@@ -290,10 +353,17 @@ const Roulette = ({ onBack }: RouletteProps) => {
     return () => window.removeEventListener('keydown', handler);
   }, [focusId, moveFocus, onBack]);
 
-  // Initial focus
+  // Initial focus on an always-enabled control (a denom chip).
   useEffect(() => {
-    setFocusId('spin');
+    setFocusId('denom-10');
   }, []);
+
+  // If total bet exceeds balance, move focus to Undo so the remote user lands on the fix.
+  useEffect(() => {
+    if (!spinning && balance !== null && totalBet > balance && chips.length > 0) {
+      setFocusId('undo');
+    }
+  }, [totalBet, balance, spinning, chips.length]);
 
   // When switching wheels, drop any chips invalid on the new layout (e.g. '00' on European)
   // and clear any stale spin result so the board redraws cleanly.
@@ -404,6 +474,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
       color === 'black' ? 'bg-slate-950 hover:bg-slate-800 border-slate-500/40' :
       color === 'green' ? 'bg-emerald-700/95 hover:bg-emerald-600 border-emerald-300/40' :
       'bg-slate-800/80 hover:bg-slate-700 border-slate-500/40';
+    // Register cell bet for D-pad decrement
+    useEffect(() => {
+      cellBets.current.set(id, { type, selection });
+      return () => { cellBets.current.delete(id); };
+    }, [id, type, selection]);
     return (
       <button
         ref={registerFocus(id)}
@@ -475,7 +550,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -621,14 +696,22 @@ const Roulette = ({ onBack }: RouletteProps) => {
               ))}
             </div>
 
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              <Button
+                ref={registerFocus('undo') as any}
+                onFocus={() => setFocusId('undo')}
+                onClick={undoLast}
+                disabled={spinning || history.length === 0}
+                className={`bg-slate-800 text-slate-100 border border-slate-500/60 hover:bg-slate-700 ${focusId === 'undo' ? focusRing : ''}`}
+              >
+                ↶ Undo
+              </Button>
               <Button
                 ref={registerFocus('clear') as any}
                 onFocus={() => setFocusId('clear')}
                 onClick={clearBets}
                 disabled={spinning || chips.length === 0}
-                variant="outline"
-                className={`border-rose-400/60 text-rose-200 bg-rose-950/40 hover:bg-rose-900/40 ${focusId === 'clear' ? focusRing : ''}`}
+                className={`bg-rose-900/70 text-rose-100 border border-rose-400/60 hover:bg-rose-800/70 ${focusId === 'clear' ? focusRing : ''}`}
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Clear Bets
               </Button>
@@ -637,13 +720,22 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 onFocus={() => setFocusId('spin')}
                 onClick={doSpin}
                 disabled={!canSpin}
-                className={`ml-auto text-xl font-black px-8 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] transition-all ${focusId === 'spin' ? focusRing : ''}`}
+                className={`ml-auto text-xl font-black px-8 py-6 border-2 transition-all
+                  ${canSpin
+                    ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-emerald-200 shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)]'
+                    : 'bg-slate-700 text-slate-300 border-slate-500/40 opacity-60 cursor-not-allowed'}
+                  ${focusId === 'spin' ? focusRing : ''}`}
               >
                 {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Spinning…</> : 'SPIN'}
               </Button>
             </div>
-            {totalBet > (balance ?? 0) && (
-              <p className="mt-2 text-xs text-amber-200">Your bet exceeds your balance — adjust before spinning.</p>
+            {balance !== null && totalBet > balance && chips.length > 0 && (
+              <p className="mt-2 text-xs text-amber-200 font-semibold">
+                Bet exceeds your balance — press Undo or lower a stake.
+              </p>
+            )}
+            {balance === null && (
+              <p className="mt-2 text-xs text-slate-300">Loading chips…</p>
             )}
           </Card>
         </div>
@@ -790,7 +882,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
               ref={registerFocus('fair-toggle')}
               onFocus={() => setFocusId('fair-toggle')}
               onClick={() => setShowFair((s) => !s)}
-              className={`text-xs text-slate-300 hover:text-white inline-flex items-center gap-1 rounded px-1 ${focusId === 'fair-toggle' ? 'ring-2 ring-amber-300/70 text-white' : ''}`}
+              className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusId === 'fair-toggle' ? 'ring-2 ring-amber-300/80' : ''}`}
             >
               Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
