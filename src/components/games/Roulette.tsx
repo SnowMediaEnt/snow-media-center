@@ -550,9 +550,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.roulette.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.roulette.loadingChips')}
               </span>
             </div>
           </div>
