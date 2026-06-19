@@ -728,7 +728,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                     : 'bg-slate-700 text-slate-300 border-slate-500/40 opacity-60 cursor-not-allowed'}
                   ${focusId === 'spin' ? focusRing : ''}`}
               >
-                {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Spinning…</> : 'SPIN'}
+                {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t('games.roulette.spinning')}</> : t('games.roulette.spin')}
               </Button>
             </div>
             {balance !== null && totalBet > balance && chips.length > 0 && (
