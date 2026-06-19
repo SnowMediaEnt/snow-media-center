@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -14,6 +15,7 @@ import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
+import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
 
 interface SettingsProps {
   onBack: () => void;
@@ -33,10 +35,21 @@ type SettingsFocus =
   | 'alerts-content';
 
 const Settings = ({ onBack }: SettingsProps) => {
+  const { t, i18n } = useTranslation();
   const { isAdmin } = useAdminRole();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
+  const [currentLang, setCurrentLang] = useState<string>(i18n.language || 'en');
+  useEffect(() => {
+    const onChange = (lng: string) => setCurrentLang(lng);
+    i18n.on('languageChanged', onChange);
+    return () => { i18n.off('languageChanged', onChange); };
+  }, [i18n]);
+  const handleLanguageSelect = (code: string) => {
+    i18n.changeLanguage(code);
+    try { localStorage.setItem(LANG_STORAGE_KEY, code); } catch { /* ignore */ }
+  };
   const togglePlayer = async (next: boolean) => {
     try {
       await setFeatureFlag('player_enabled', next);
