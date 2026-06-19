@@ -340,25 +340,30 @@ const Slots = ({ onBack }: SlotsProps) => {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Not enough chips — grab your Daily Spin');
+        inFlight.current = false;
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Invalid bet.');
+        inFlight.current = false;
       } else if (resp?.error === 'game_disabled') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg('Slots are temporarily disabled.');
+        inFlight.current = false;
       } else {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
         setErrorMsg("Couldn't spin right now — try again.");
+        inFlight.current = false;
       }
     } catch {
       setSpinning(false);
       setReelStopped(Array(REELS).fill(true));
       setErrorMsg("Couldn't spin right now — try again.");
+      inFlight.current = false;
     }
-  }, [spinning, user, canBet, bet, inFreeSpins]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance]);
 
   // D-pad
   useEffect(() => {
