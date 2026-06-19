@@ -706,7 +706,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 disabled={spinning || history.length === 0}
                 className={`bg-slate-800 text-slate-100 border border-slate-500/60 hover:bg-slate-700 ${focusId === 'undo' ? focusRing : ''}`}
               >
-                ↶ Undo
+                {t('games.roulette.undo')}
               </Button>
               <Button
                 ref={registerFocus('clear') as any}
