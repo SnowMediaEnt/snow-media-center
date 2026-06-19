@@ -270,6 +270,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
         cancelAnimationFrame(raf);
         setSpinning(false);
         setBusy(false);
+        inFlight.current = false;
         handleErr(resp?.error ?? 'spin_failed', resp?.detail);
         return;
       }
