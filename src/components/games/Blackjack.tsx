@@ -138,9 +138,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     double: useRef<HTMLButtonElement>(null),
     again: useRef<HTMLButtonElement>(null),
     fair: useRef<HTMLButtonElement>(null),
-    seed: useRef<HTMLInputElement>(null),
     chips: BETS.map(() => useRef<HTMLButtonElement>(null)),
   };
+  // strip old seed ref line
 
   // Focus management
   useEffect(() => {
