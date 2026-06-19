@@ -868,7 +868,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
         {serverSeedHash && (
           <div className="mt-4 text-[11px] text-slate-400 font-mono break-all text-center">
-            seedHash: {serverSeedHash}
+            {t('games.roulette.seedHash', { hash: serverSeedHash })}
           </div>
         )}
 
