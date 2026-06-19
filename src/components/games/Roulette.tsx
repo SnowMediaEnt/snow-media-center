@@ -890,20 +890,20 @@ const Roulette = ({ onBack }: RouletteProps) => {
             </button>
             {showFair && (
               <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairServerSeed')}</span> {fair.serverSeed}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairClientSeed')}</span> {fair.clientSeed}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairNonce')}</span> {fair.nonce}</div>
                 <div className="pt-1 flex items-center gap-2">
-                  <span className="text-slate-400">Verify SHA-256(serverSeed):</span>
+                  <span className="text-slate-400">{t('games.roulette.fairVerifyLabel')}</span>
                   {verifyOk === null ? (
-                    <span className="text-slate-400">checking…</span>
+                    <span className="text-slate-400">{t('games.roulette.fairChecking')}</span>
                   ) : verifyOk ? (
                     <span className="inline-flex items-center gap-1 text-emerald-300 font-bold">
-                      <Check className="w-3 h-3" /> matches seedHash
+                      <Check className="w-3 h-3" /> {t('games.roulette.fairMatches')}
                     </span>
                   ) : (
-                    <span className="text-rose-300 font-bold">mismatch</span>
+                    <span className="text-rose-300 font-bold">{t('games.roulette.fairMismatch')}</span>
                   )}
                 </div>
               </div>
