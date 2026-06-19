@@ -642,7 +642,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                           : 'bg-slate-800/70 text-amber-100 border-transparent hover:bg-slate-700/70'
                       } ${focusId === `wheel-${k}` ? focusRing : ''}`}
                     >
-                      {k === 'european' ? 'European • 0' : 'American • 0 / 00'}
+                      {k === 'european' ? t('games.roulette.wheelEuropean') : t('games.roulette.wheelAmerican')}
                     </button>
                   );
                 })}
