@@ -263,8 +263,19 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setNet(0);
     setFair(null);
     setShowFair(false);
+    setRevealedDealer(0);
     setFocusBet('deal');
   };
+
+  // Staggered dealer reveal during settle phase: ~550ms between cards.
+  useEffect(() => {
+    if (phase !== 'settled') return;
+    if (revealedDealer >= dealerHand.length) return;
+    const delay = revealedDealer === 0 ? 250 : 550;
+    const t = setTimeout(() => setRevealedDealer((n) => n + 1), delay);
+    return () => clearTimeout(t);
+  }, [phase, revealedDealer, dealerHand.length]);
+
 
   // D-pad
   useEffect(() => {
