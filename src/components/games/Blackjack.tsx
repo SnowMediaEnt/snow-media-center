@@ -504,17 +504,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 ) : `DEAL  •  ${bet}`}
               </Button>
             </div>
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-              Custom client seed (optional)
-            </label>
-            <input
-              ref={refs.seed}
-              onFocus={() => setFocusBet('seed')}
-              value={clientSeed}
-              onChange={(e) => setClientSeed(e.target.value)}
-              placeholder="Auto-generated if blank"
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-700/70 text-sm text-slate-200 font-mono outline-none transition-all ${focusBet === 'seed' ? 'ring-4 ring-amber-300/70 border-amber-300/70' : ''}`}
-            />
+            <p className="text-[11px] text-slate-400">
+              A fresh client seed is generated for every hand — view it under <span className="text-slate-200 font-semibold">Provably fair</span> after you settle.
+            </p>
           </Card>
         )}
 
