@@ -47,6 +47,7 @@ interface FocusItem { id: string; el: HTMLElement }
 const focusRing = 'ring-4 ring-amber-300/90 shadow-[0_0_22px_rgba(252,211,77,0.7)] z-10';
 
 const Roulette = ({ onBack }: RouletteProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
