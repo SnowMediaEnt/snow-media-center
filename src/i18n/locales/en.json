@@ -1,0 +1,44 @@
+{
+  "common": {
+    "signIn": "Sign In",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "admin": "Admin",
+    "back": "Back",
+    "backToHome": "Back to Home",
+    "beta": "Beta"
+  },
+  "home": {
+    "tagline": "Your Premium Streaming Experience",
+    "mainApps": { "title": "Main Apps", "description": "Download APKs & Streaming Tools" },
+    "support": { "title": "Support", "description": "Help, AI Chat & Community" },
+    "store": { "title": "Snow Media Store", "description": "Visit Official Store" },
+    "player": { "title": "Player", "description": "Live TV, Movies & Series" }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Customize your Snow Media Center experience",
+    "tabs": {
+      "media": "Media Manager",
+      "ui": "UI",
+      "updates": "Updates",
+      "alerts": "App Alerts",
+      "ai": "AI"
+    },
+    "mediaManagerHeading": "Media Manager",
+    "contentBar": {
+      "title": "Content Bar",
+      "description": "Shows trending Plex titles and live sports on the home screen. Turn off on slower devices for a smoother experience.",
+      "aria": "Toggle home screen content bar"
+    },
+    "player": {
+      "title": "Player (Live TV)",
+      "description": "Global kill-switch for the Player section (Live TV, Movies & Series). When off, the Player card is hidden on every device.",
+      "aria": "Toggle Player section globally"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose the app language. Translation coverage is still being expanded."
+    }
+  }
+}

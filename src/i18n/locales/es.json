@@ -1,0 +1,44 @@
+{
+  "common": {
+    "signIn": "Iniciar sesión",
+    "dashboard": "Panel",
+    "settings": "Ajustes",
+    "admin": "Admin",
+    "back": "Atrás",
+    "backToHome": "Volver al inicio",
+    "beta": "Beta"
+  },
+  "home": {
+    "tagline": "Tu experiencia premium de streaming",
+    "mainApps": { "title": "Apps principales", "description": "Descarga APKs y herramientas de streaming" },
+    "support": { "title": "Soporte", "description": "Ayuda, chat con IA y comunidad" },
+    "store": { "title": "Tienda Snow Media", "description": "Visita la tienda oficial" },
+    "player": { "title": "Reproductor", "description": "TV en vivo, películas y series" }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "subtitle": "Personaliza tu experiencia en Snow Media Center",
+    "tabs": {
+      "media": "Gestor de medios",
+      "ui": "Interfaz",
+      "updates": "Actualizaciones",
+      "alerts": "Alertas de apps",
+      "ai": "IA"
+    },
+    "mediaManagerHeading": "Gestor de medios",
+    "contentBar": {
+      "title": "Barra de contenido",
+      "description": "Muestra títulos populares de Plex y deportes en vivo en la pantalla de inicio. Desactívala en dispositivos lentos para una experiencia más fluida.",
+      "aria": "Activar barra de contenido de inicio"
+    },
+    "player": {
+      "title": "Reproductor (TV en vivo)",
+      "description": "Interruptor global para la sección Reproductor (TV en vivo, películas y series). Cuando está desactivado, la tarjeta del Reproductor se oculta en todos los dispositivos.",
+      "aria": "Activar sección Reproductor globalmente"
+    },
+    "language": {
+      "title": "Idioma",
+      "description": "Elige el idioma de la aplicación. La cobertura de traducciones aún se está ampliando."
+    }
+  }
+}

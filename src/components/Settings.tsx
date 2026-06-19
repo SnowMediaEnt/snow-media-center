@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -14,6 +15,7 @@ import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
+import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
 
 interface SettingsProps {
   onBack: () => void;
@@ -33,10 +35,21 @@ type SettingsFocus =
   | 'alerts-content';
 
 const Settings = ({ onBack }: SettingsProps) => {
+  const { t, i18n } = useTranslation();
   const { isAdmin } = useAdminRole();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
+  const [currentLang, setCurrentLang] = useState<string>(i18n.language || 'en');
+  useEffect(() => {
+    const onChange = (lng: string) => setCurrentLang(lng);
+    i18n.on('languageChanged', onChange);
+    return () => { i18n.off('languageChanged', onChange); };
+  }, [i18n]);
+  const handleLanguageSelect = (code: string) => {
+    i18n.changeLanguage(code);
+    try { localStorage.setItem(LANG_STORAGE_KEY, code); } catch { /* ignore */ }
+  };
   const togglePlayer = async (next: boolean) => {
     try {
       await setFeatureFlag('player_enabled', next);
@@ -275,12 +288,12 @@ const Settings = ({ onBack }: SettingsProps) => {
               className={`transition-all duration-200 ${backFocusRing('back')}`}
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
+              {t('common.backToHome')}
             </Button>
           </div>
           <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Settings</h1>
-            <p className="text-xl text-blue-200">Customize your Snow Media Center experience</p>
+            <h1 className="text-4xl font-bold text-white mb-2">{t('settings.title')}</h1>
+            <p className="text-xl text-blue-200">{t('settings.subtitle')}</p>
           </div>
         </div>
 
@@ -292,7 +305,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
               <Image className="w-4 h-4 mr-2" />
-              Media Manager
+              {t('settings.tabs.media')}
             </TabsTrigger>
             <TabsTrigger
               data-settings-focus="tab-ui"
@@ -300,7 +313,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
             >
               <Sliders className="w-4 h-4 mr-2" />
-              UI
+              {t('settings.tabs.ui')}
             </TabsTrigger>
             <TabsTrigger
               data-settings-focus="tab-updates"
@@ -308,7 +321,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
-              Updates
+              {t('settings.tabs.updates')}
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger
@@ -317,7 +330,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                App Alerts
+                {t('settings.tabs.alerts')}
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -326,14 +339,14 @@ const Settings = ({ onBack }: SettingsProps) => {
                 className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200`}
               >
                 <Bot className="w-4 h-4 mr-2" />
-                AI
+                {t('settings.tabs.ai')}
               </TabsTrigger>
             )}
           </TabsList>
 
           <TabsContent value="media" className="mt-6">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Media Manager</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">{t('settings.mediaManagerHeading')}</h2>
               <MediaManager
                 onBack={handleMediaManagerBack}
                 embedded={true}
@@ -356,17 +369,16 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div className="flex items-start gap-3">
                   <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Content Bar</h3>
+                    <h3 className="text-lg font-bold text-white">{t('settings.contentBar.title')}</h3>
                     <p className="text-sm text-white/70 mt-1">
-                      Shows trending Plex titles and live sports on the home screen.
-                      Turn off on slower devices for a smoother experience.
+                      {t('settings.contentBar.description')}
                     </p>
                   </div>
                 </div>
                 <Switch
                   checked={mediaBarEnabled}
                   onCheckedChange={setMediaBarEnabledState}
-                  aria-label="Toggle home screen content bar"
+                  aria-label={t('settings.contentBar.aria')}
                   className="mt-1"
                 />
               </div>
@@ -378,19 +390,57 @@ const Settings = ({ onBack }: SettingsProps) => {
                   <div className="flex items-start gap-3">
                     <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                     <div>
-                      <h3 className="text-lg font-bold text-white">Player (Live TV)</h3>
+                      <h3 className="text-lg font-bold text-white">{t('settings.player.title')}</h3>
                       <p className="text-sm text-white/70 mt-1">
-                        Global kill-switch for the Player section (Live TV, Movies & Series).
-                        When off, the Player card is hidden on every device.
+                        {t('settings.player.description')}
                       </p>
                     </div>
                   </div>
                   <Switch
                     checked={playerEnabled}
                     onCheckedChange={togglePlayer}
-                    aria-label="Toggle Player section globally"
+                    aria-label={t('settings.player.aria')}
                     className="mt-1"
                   />
+                </div>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
+                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                        {t('common.beta')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const selected = currentLang.startsWith(lang.code);
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => handleLanguageSelect(lang.code)}
+                        tabIndex={0}
+                        dir={lang.code === 'ar' ? 'rtl' : 'ltr'}
+                        className={`tv-focusable flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:scale-[1.04] ${
+                          selected
+                            ? 'bg-brand-gold/20 border-brand-gold text-white'
+                            : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
+                        }`}
+                      >
+                        <span className="font-medium">{lang.nativeName}</span>
+                        {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             )}

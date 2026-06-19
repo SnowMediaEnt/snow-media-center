@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv } from 'lucide-react';
@@ -149,6 +150,7 @@ const Index = () => {
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { version } = useVersion();
@@ -568,15 +570,15 @@ const Index = () => {
 
   const buttons = useMemo(() => {
     const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
-      { icon: Smartphone, title: 'Main Apps', description: 'Download APKs & Streaming Tools', variant: 'blue' },
-      { icon: LifeBuoy, title: 'Support', description: 'Help, AI Chat & Community', variant: 'gold' },
-      { icon: Store, title: 'Snow Media Store', description: 'Visit Official Store', variant: 'purple' },
+      { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
+      { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
+      { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
     ];
     if (playerEnabled) {
-      list.push({ icon: Tv, title: 'Player', description: 'Live TV, Movies & Series', variant: 'navy' });
+      list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
     }
     return list;
-  }, [playerEnabled]);
+  }, [playerEnabled, t]);
 
   
   return (
@@ -649,7 +651,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                Admin
+                {t('common.admin')}
               </Button>
             )}
             {user ? (
@@ -670,7 +672,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                <span className="text-gray-800">Dashboard</span>
+                <span className="text-gray-800">{t('common.dashboard')}</span>
               </Button>
             ) : (
               <Button
@@ -690,7 +692,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                <span style={{ color: '#333333' }}>Sign In</span>
+                <span style={{ color: '#333333' }}>{t('common.signIn')}</span>
               </Button>
             )}
             <Button
@@ -710,7 +712,7 @@ const Index = () => {
                 screenHeight >= 1440 ? 'w-5 h-5' :
                 'w-4 h-4'
               }`} />
-              Settings
+              {t('common.settings')}
             </Button>
           </div>
 
@@ -728,7 +730,7 @@ const Index = () => {
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
               <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
-                Your Premium Streaming Experience
+                {t('home.tagline')}
               </p>
             </div>
             {mediaBarEnabled && (

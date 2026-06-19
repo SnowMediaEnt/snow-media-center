@@ -1,0 +1,44 @@
+{
+  "common": {
+    "signIn": "Anmelden",
+    "dashboard": "Übersicht",
+    "settings": "Einstellungen",
+    "admin": "Admin",
+    "back": "Zurück",
+    "backToHome": "Zurück zur Startseite",
+    "beta": "Beta"
+  },
+  "home": {
+    "tagline": "Dein Premium-Streaming-Erlebnis",
+    "mainApps": { "title": "Haupt-Apps", "description": "APKs und Streaming-Tools herunterladen" },
+    "support": { "title": "Support", "description": "Hilfe, KI-Chat und Community" },
+    "store": { "title": "Snow Media Store", "description": "Offiziellen Store besuchen" },
+    "player": { "title": "Player", "description": "Live-TV, Filme und Serien" }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Passe dein Snow Media Center an",
+    "tabs": {
+      "media": "Medien-Manager",
+      "ui": "Oberfläche",
+      "updates": "Updates",
+      "alerts": "App-Hinweise",
+      "ai": "KI"
+    },
+    "mediaManagerHeading": "Medien-Manager",
+    "contentBar": {
+      "title": "Inhaltsleiste",
+      "description": "Zeigt angesagte Plex-Titel und Live-Sport auf dem Startbildschirm. Auf langsameren Geräten für ein flüssigeres Erlebnis deaktivieren.",
+      "aria": "Inhaltsleiste auf dem Startbildschirm umschalten"
+    },
+    "player": {
+      "title": "Player (Live-TV)",
+      "description": "Globaler Schalter für den Player-Bereich (Live-TV, Filme und Serien). Wenn deaktiviert, wird die Player-Kachel auf allen Geräten ausgeblendet.",
+      "aria": "Player-Bereich global umschalten"
+    },
+    "language": {
+      "title": "Sprache",
+      "description": "App-Sprache wählen. Die Übersetzungsabdeckung wird noch erweitert."
+    }
+  }
+}
