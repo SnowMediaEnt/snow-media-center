@@ -835,12 +835,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
           <div className="grid grid-cols-[60px_1fr_64px] gap-1 mt-1">
             <div />
             <div className="grid grid-cols-6 gap-1">
-              <Cell id="bet-low" type="low" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">1–18</Cell>
-              <Cell id="bet-even" type="even" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">EVEN</Cell>
-              <Cell id="bet-red" type="red" selection={null} color="red" className="rounded-lg h-[44px] text-sm">RED</Cell>
-              <Cell id="bet-black" type="black" selection={null} color="black" className="rounded-lg h-[44px] text-sm">BLACK</Cell>
-              <Cell id="bet-odd" type="odd" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">ODD</Cell>
-              <Cell id="bet-high" type="high" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">19–36</Cell>
+              <Cell id="bet-low" type="low" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betLow')}</Cell>
+              <Cell id="bet-even" type="even" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betEven')}</Cell>
+              <Cell id="bet-red" type="red" selection={null} color="red" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betRed')}</Cell>
+              <Cell id="bet-black" type="black" selection={null} color="black" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betBlack')}</Cell>
+              <Cell id="bet-odd" type="odd" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betOdd')}</Cell>
+              <Cell id="bet-high" type="high" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betHigh')}</Cell>
             </div>
             <div />
           </div>
