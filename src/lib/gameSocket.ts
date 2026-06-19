@@ -153,6 +153,31 @@ class GameSocketManager {
     });
   }
 
+  async claimDailySpin(clientSeed?: string): Promise<any> {
+    if (!this.socket || !this.socket.connected) {
+      await this.connect();
+    }
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('not_connected'));
+        return;
+      }
+      let acked = false;
+      const timeout = setTimeout(() => {
+        if (!acked) reject(new Error('timeout'));
+      }, 20000);
+      this.socket.emit('claim_daily_spin', { clientSeed: clientSeed ?? null }, (resp: any) => {
+        acked = true;
+        clearTimeout(timeout);
+        if (resp && resp.ok === true && typeof resp.balance === 'number') {
+          this.balance = resp.balance;
+          this.emitChange();
+        }
+        resolve(resp);
+      });
+    });
+  }
+
   disconnect() {
     this.currentToken = null;
     this.balance = null;
