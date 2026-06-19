@@ -321,6 +321,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+        e.preventDefault();
+        return;
+      }
       if (phase === 'bet') {
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
         if (e.key === 'ArrowLeft') {
@@ -599,12 +603,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 ref={refs.deal}
                 onClick={deal}
                 onFocus={() => setFocusBet('deal')}
-                disabled={busy || !user}
+                disabled={busy || !user || balance === null || balance < ante}
                 variant="gold"
                 size="lg"
                 className={`transition-all ${focusRing(focusBet === 'deal')}`}
               >
-                Deal — ante {ante}
+                {balance === null ? 'Loading chips…' : `Deal — ante ${ante}`}
               </Button>
             </div>
           </div>
@@ -646,7 +650,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 onFocus={() => setFocusDecision('fold')}
                 disabled={busy}
                 size="lg"
-                className={`text-base font-black px-6 py-5 bg-rose-600 hover:bg-rose-500 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
+                className={`text-base font-black px-6 py-5 bg-rose-700 hover:bg-rose-600 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
                 FOLD
               </Button>
