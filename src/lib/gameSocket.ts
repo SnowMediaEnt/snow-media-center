@@ -240,6 +240,13 @@ class GameSocketManager {
   async stand(): Promise<any> { return this.emitWithAck('bj_stand', undefined); }
   async double(): Promise<any> { return this.emitWithAck('bj_double', undefined); }
 
+  async dealVideoPoker(bet: number, clientSeed?: string): Promise<any> {
+    return this.emitWithAck('vp_deal', { bet, clientSeed: clientSeed ?? null });
+  }
+  async drawVideoPoker(holds: boolean[]): Promise<any> {
+    return this.emitWithAck('vp_draw', { holds });
+  }
+
   disconnect() {
     this.currentToken = null;
     this.balance = null;
