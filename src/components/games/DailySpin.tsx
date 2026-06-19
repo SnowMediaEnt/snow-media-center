@@ -278,13 +278,13 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       } else {
         cancelAnimationFrame(raf);
         setSpinning(false);
-        setErrorMsg("Couldn't spin right now — try again.");
+        setErrorMsg(t('games.dailySpin.spinError'));
         settle();
       }
     } catch {
       cancelAnimationFrame(raf);
       setSpinning(false);
-      setErrorMsg("Couldn't spin right now — try again.");
+      setErrorMsg(t('games.dailySpin.spinError'));
       settle();
     }
   }, [spinning, nextClaimAt, setRot]);
