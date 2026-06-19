@@ -313,6 +313,10 @@ const Roulette = ({ onBack }: RouletteProps) => {
           }
           setSpinning(false);
           setBusy(false);
+          inFlight.current = false;
+          // Reset bet history after a successful settle
+          setHistory([]);
+          setChips([]);
         }
       };
       requestAnimationFrame(land);
@@ -320,6 +324,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       cancelAnimationFrame(raf);
       setSpinning(false);
       setBusy(false);
+      inFlight.current = false;
       setError("Couldn't reach the table — try again.");
     }
   }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
