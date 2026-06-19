@@ -650,7 +650,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 onFocus={() => setFocusDecision('fold')}
                 disabled={busy}
                 size="lg"
-                className={`text-base font-black px-6 py-5 bg-rose-600 hover:bg-rose-500 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
+                className={`text-base font-black px-6 py-5 bg-rose-700 hover:bg-rose-600 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
                 FOLD
               </Button>
