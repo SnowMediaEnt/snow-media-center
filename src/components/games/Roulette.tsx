@@ -271,7 +271,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       setBusy(false);
       setError("Couldn't reach the table — try again.");
     }
-  }, [canSpin, wheelRotation, ballRotation, clientSeed, wheel, chips, totalBet]);
+  }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
 
   // D-pad handler
   useEffect(() => {
