@@ -202,11 +202,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Error handling
   const handleErr = (err: string, detail?: string) => {
-    if (err === 'insufficient_balance') setError('Not enough chips for this bet.');
-    else if (err === 'invalid_bet') setError(`Invalid bet${detail ? `: ${detail}` : '.'}`);
-    else if (err === 'game_disabled') setError('Roulette is temporarily disabled.');
-    else if (err === 'spin_failed') setError("Couldn't spin — try again.");
-    else setError("Something went wrong.");
+    if (err === 'insufficient_balance') setError(t('games.roulette.errInsufficientBalance'));
+    else if (err === 'invalid_bet') setError(detail ? t('games.roulette.errInvalidBetWithDetail', { detail }) : t('games.roulette.errInvalidBet'));
+    else if (err === 'game_disabled') setError(t('games.roulette.errGameDisabled'));
+    else if (err === 'spin_failed') setError(t('games.roulette.errSpinFailed'));
+    else setError(t('games.roulette.errGeneric'));
     setTimeout(() => setError(null), 3500);
   };
 
