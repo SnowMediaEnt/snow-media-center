@@ -19,6 +19,7 @@ import Slots from './games/Slots';
 import Blackjack from './games/Blackjack';
 import VideoPoker from './games/VideoPoker';
 import Roulette from './games/Roulette';
+import CasinoHoldem from './games/CasinoHoldem';
 
 interface GamesProps {
   onBack: () => void;
