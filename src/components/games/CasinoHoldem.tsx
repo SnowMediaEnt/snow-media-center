@@ -321,6 +321,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+        e.preventDefault();
+        return;
+      }
       if (phase === 'bet') {
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
         if (e.key === 'ArrowLeft') {
