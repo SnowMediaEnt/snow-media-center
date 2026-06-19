@@ -678,7 +678,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
               )}
             </div>
 
-            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-bold mb-2">Chip in hand</div>
+            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.roulette.chipInHand')}</div>
             <div className="flex gap-2 flex-wrap mb-4">
               {DENOMS.map((d) => (
                 <button
