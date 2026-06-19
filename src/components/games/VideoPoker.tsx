@@ -234,11 +234,14 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       setError("Couldn't deal — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, bet]);
 
   const doDraw = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy || phase !== 'dealt') return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     // Flip the non-held cards
@@ -246,7 +249,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     try {
       const resp = await gameSocket.drawVideoPoker(holds);
       if (resp?.ok && Array.isArray(resp.hand)) {
-        // Replace with new hand after a brief flip
         setTimeout(() => {
           setHand(resp.hand);
           setFlipping([false, false, false, false, false]);
@@ -260,7 +262,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         setResultWin(!!resp.win);
         if (resp.fair) setFair(resp.fair);
         setPhase('settled');
-        // Payout count-up
         if (resp.win && resp.payout > 0) {
           setCelebrate(true);
           const target = resp.payout as number;
@@ -284,6 +285,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       setError("Couldn't draw — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, phase, holds]);
 
