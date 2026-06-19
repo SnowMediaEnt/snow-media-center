@@ -378,11 +378,11 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     // Tone driven by signed net (so dealer_no_qualify wins render green).
     const tone: 'win' | 'lose' | 'push' = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
     const text =
-      settleStatus === 'win' ? 'YOU WIN' :
-      settleStatus === 'lose' ? 'DEALER WINS' :
-      settleStatus === 'push' ? 'PUSH' :
-      settleStatus === 'dealer_no_qualify' ? "DEALER DIDN'T QUALIFY" :
-      settleStatus === 'folded' ? 'FOLDED' :
+      settleStatus === 'win' ? t('games.casinoHoldem.banner.youWin') :
+      settleStatus === 'lose' ? t('games.casinoHoldem.banner.dealerWins') :
+      settleStatus === 'push' ? t('games.casinoHoldem.banner.push') :
+      settleStatus === 'dealer_no_qualify' ? t('games.casinoHoldem.banner.dealerNoQualify') :
+      settleStatus === 'folded' ? t('games.casinoHoldem.banner.folded') :
       settleStatus.toUpperCase();
     const toneClasses =
       tone === 'win' ? 'from-emerald-500/30 to-emerald-700/30 border-emerald-300/60 text-emerald-100' :
@@ -393,24 +393,24 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         <div className="text-3xl font-black tracking-wider">{text}</div>
         {(playerRank || dealerRank) && (
           <div className="mt-2 text-sm text-slate-100/90">
-            {playerRank && <span>You: <b>{labelRank(playerRank)}</b></span>}
-            {playerRank && dealerRank && <span className="mx-3 opacity-60">vs</span>}
-            {dealerRank && <span>Dealer: <b>{labelRank(dealerRank)}</b></span>}
+            {playerRank && <span>{t('games.casinoHoldem.result.youLabel')} <b>{labelRank(playerRank)}</b></span>}
+            {playerRank && dealerRank && <span className="mx-3 opacity-60">{t('games.casinoHoldem.result.versus')}</span>}
+            {dealerRank && <span>{t('games.casinoHoldem.result.dealerLabel')} <b>{labelRank(dealerRank)}</b></span>}
           </div>
         )}
         {anteBonus > 0 && (
-          <div className="mt-1 text-sm font-bold text-amber-200">Ante Bonus +{anteBonus.toLocaleString()}</div>
+          <div className="mt-1 text-sm font-bold text-amber-200">{t('games.casinoHoldem.result.anteBonus', { amount: anteBonus.toLocaleString() })}</div>
         )}
         <div className="mt-1 text-lg font-bold">
           {net > 0 ? (
-            <span className="text-emerald-300">+{net.toLocaleString()} chips</span>
+            <span className="text-emerald-300">{t('games.casinoHoldem.result.netWin', { amount: net.toLocaleString() })}</span>
           ) : net < 0 ? (
-            <span className="text-rose-300">{net.toLocaleString()} chips</span>
+            <span className="text-rose-300">{t('games.casinoHoldem.result.netLose', { amount: net.toLocaleString() })}</span>
           ) : (
-            <span className="text-slate-200">±0 chips</span>
+            <span className="text-slate-200">{t('games.casinoHoldem.result.netZero')}</span>
           )}
         </div>
-        <div className="text-xs text-slate-300 mt-1">Balance: {balance?.toLocaleString() ?? '—'}</div>
+        <div className="text-xs text-slate-300 mt-1">{t('games.casinoHoldem.result.balance', { balance: balance?.toLocaleString() ?? '—' })}</div>
       </div>
     );
   })();
