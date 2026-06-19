@@ -280,11 +280,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-        return;
-      }
       if (phase === 'bet') {
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
         if (e.key === 'ArrowLeft') {

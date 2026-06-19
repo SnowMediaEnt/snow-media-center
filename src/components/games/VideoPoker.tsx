@@ -300,11 +300,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-        return;
-      }
       const k = e.key;
       if (zone === 'back') {
         if (k === 'ArrowDown') { e.preventDefault(); setZone('bet'); setBetIdx(0); }

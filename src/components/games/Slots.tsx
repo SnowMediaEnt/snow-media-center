@@ -343,11 +343,6 @@ const Slots = ({ onBack }: SlotsProps) => {
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-        return;
-      }
       if (e.key === 'Enter' || e.key === ' ') {
         return; // let buttons handle
       }

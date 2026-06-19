@@ -192,17 +192,6 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     spinBtnRef.current?.focus();
   }, [loadingCooldown, nextClaimAt]);
 
-  // Back handler
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onBack]);
 
   const handleSpin = useCallback(async () => {
     if (spinning || nextClaimAt) return;
