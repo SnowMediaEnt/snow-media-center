@@ -610,7 +610,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`transition-all ${focusRing(focusBet === 'deal')}`}
               >
-                {balance === null ? 'Loading chips…' : `Deal — ante ${ante}`}
+                {balance === null ? t('games.casinoHoldem.loadingChips') : t('games.casinoHoldem.dealButton', { ante })}
               </Button>
             </div>
           </div>
