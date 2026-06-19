@@ -547,7 +547,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
           {/* Community */}
           <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">Community</div>
+            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.community')}</div>
             <div className="flex gap-2">
               {[0, 1, 2, 3, 4].map((i) => {
                 const card = community[i];
