@@ -42,7 +42,6 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const backBtnRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const rotRef = useRef(0);
-  const setRot = useCallback((v: number) => { rotRef.current = v; setRotation(v); }, []);
 
   const [rotation, setRotation] = useState(0); // degrees
   const [spinning, setSpinning] = useState(false);
@@ -54,6 +53,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+
+  const setRot = useCallback((v: number) => { rotRef.current = v; setRotation(v); }, []);
 
   // Draw wheel
   const drawWheel = useCallback(() => {
