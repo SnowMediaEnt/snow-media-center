@@ -227,7 +227,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
   };
 
   const doSpin = useCallback(async () => {
+    if (inFlight.current) return;
     if (!canSpin) return;
+    inFlight.current = true;
     setBusy(true);
     setSpinning(true);
     setError(null);
