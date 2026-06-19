@@ -52,9 +52,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [wheel, setWheel] = useState<WheelKind>('european');
   const [denom, setDenom] = useState<number>(10);
   const [chips, setChips] = useState<PlacedChip[]>([]);
+  // History stack of chip placements for Undo (each entry is the key of the cell a chip was added to,
+  // along with the denomination added).
+  const [history, setHistory] = useState<{ key: string; amount: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
   // (client seed is auto-generated per spin; not user-editable)
   const [serverSeedHash, setServerSeedHash] = useState<string>('');
   const [result, setResult] = useState<SpinResult | null>(null);
