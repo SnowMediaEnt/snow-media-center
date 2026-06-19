@@ -133,15 +133,58 @@ const Roulette = ({ onBack }: RouletteProps) => {
       }
       return [...prev, { type, selection, key: k, amount: denom }];
     });
+    setHistory((h) => [...h, { key: k, amount: denom }]);
     // Clear settle visuals when re-betting
     setResult(null);
     setWinKeys(new Set());
     setFair(null);
   };
 
+  // Remove a single chip-denomination from a cell (used by Backspace/'-' on focused cell).
+  const decrementChipOn = (type: BetType, selection: any) => {
+    if (spinning) return;
+    const k = keyFor(type, selection);
+    setChips((prev) => {
+      const existing = prev.find((c) => c.key === k);
+      if (!existing) return prev;
+      const dec = Math.min(existing.amount, denom);
+      const remaining = existing.amount - dec;
+      // also pop the most recent matching history entry (best effort)
+      setHistory((h) => {
+        const idx = [...h].reverse().findIndex((x) => x.key === k);
+        if (idx < 0) return h;
+        const realIdx = h.length - 1 - idx;
+        return [...h.slice(0, realIdx), ...h.slice(realIdx + 1)];
+      });
+      if (remaining <= 0) return prev.filter((c) => c.key !== k);
+      return prev.map((c) => c.key === k ? { ...c, amount: remaining } : c);
+    });
+    setResult(null);
+    setWinKeys(new Set());
+  };
+
+  const undoLast = () => {
+    if (spinning) return;
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const last = h[h.length - 1];
+      setChips((prev) => {
+        const existing = prev.find((c) => c.key === last.key);
+        if (!existing) return prev;
+        const remaining = existing.amount - last.amount;
+        if (remaining <= 0) return prev.filter((c) => c.key !== last.key);
+        return prev.map((c) => c.key === last.key ? { ...c, amount: remaining } : c);
+      });
+      return h.slice(0, -1);
+    });
+    setResult(null);
+    setWinKeys(new Set());
+  };
+
   const clearBets = () => {
     if (spinning) return;
     setChips([]);
+    setHistory([]);
     setResult(null);
     setWinKeys(new Set());
   };
