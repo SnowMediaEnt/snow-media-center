@@ -117,8 +117,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [phase, setPhase] = useState<Phase>('bet');
   const [ante, setAnte] = useState<number>(10);
   const [callCost, setCallCost] = useState<number>(0);
+  const [raiseOptions, setRaiseOptions] = useState<RaiseOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const [playerHole, setPlayerHole] = useState<ChCard[]>([]);
   const [dealerHole, setDealerHole] = useState<ChCard[]>([]);
@@ -138,17 +140,23 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [showFair, setShowFair] = useState(false);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
-  const [focusDecision, setFocusDecision] = useState<FocusDecision>('call');
+  const [focusDecision, setFocusDecision] = useState<FocusDecision>('fold');
   const [focusSettle, setFocusSettle] = useState<FocusSettle>('again');
 
+  const backRef = useRef<HTMLButtonElement>(null);
+  const dealRef = useRef<HTMLButtonElement>(null);
+  const foldRef = useRef<HTMLButtonElement>(null);
+  const againRef = useRef<HTMLButtonElement>(null);
+  const fairRef = useRef<HTMLButtonElement>(null);
+  const chipsRefs = ANTES.map(() => useRef<HTMLButtonElement>(null));
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const refs = {
-    back: useRef<HTMLButtonElement>(null),
-    deal: useRef<HTMLButtonElement>(null),
-    call: useRef<HTMLButtonElement>(null),
-    fold: useRef<HTMLButtonElement>(null),
-    again: useRef<HTMLButtonElement>(null),
-    fair: useRef<HTMLButtonElement>(null),
-    chips: ANTES.map(() => useRef<HTMLButtonElement>(null)),
+    back: backRef,
+    deal: dealRef,
+    fold: foldRef,
+    again: againRef,
+    fair: fairRef,
+    chips: chipsRefs,
   };
 
   // Focus management
