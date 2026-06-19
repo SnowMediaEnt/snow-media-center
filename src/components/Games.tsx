@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Trophy, Lock, Sparkles, Dice5, Gift, LogIn, Loader2, WifiOff } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
+import DailySpin from './games/DailySpin';
 
 interface GamesProps {
   onBack: () => void;
@@ -15,7 +16,7 @@ const hubTiles = [
     name: 'Daily Spin',
     tagline: 'Free chips every 24 hours',
     icon: Gift,
-    badge: 'Coming next',
+    badge: 'Play now',
   },
   {
     id: 'chip-games',
@@ -46,15 +47,31 @@ const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(0);
+  const [screen, setScreen] = useState<'hub' | 'daily-spin'>('hub');
 
   // Focusable items: back (0), then 3 hub tiles (1-3), then upcoming games (4..)
   const totalFocusable = 1 + hubTiles.length + upcomingGames.length;
 
+  const openTile = (id: string) => {
+    if (id === 'daily-spin') setScreen('daily-spin');
+  };
+
   useEffect(() => {
+    if (screen !== 'hub') return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         onBack();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        const hubStart = 1;
+        if (focusIndex >= hubStart && focusIndex < hubStart + hubTiles.length) {
+          const tile = hubTiles[focusIndex - hubStart];
+          openTile(tile.id);
+        } else if (focusIndex === 0) {
+          onBack();
+        }
         return;
       }
       if (e.key === 'ArrowRight') {
@@ -62,7 +79,6 @@ const Games = ({ onBack }: GamesProps) => {
       } else if (e.key === 'ArrowLeft') {
         setFocusIndex((i) => Math.max(0, i - 1));
       } else if (e.key === 'ArrowDown') {
-        // jump down by 3 (rough grid)
         setFocusIndex((i) => Math.min(totalFocusable - 1, i + 3));
       } else if (e.key === 'ArrowUp') {
         setFocusIndex((i) => Math.max(0, i - 3));
@@ -70,7 +86,7 @@ const Games = ({ onBack }: GamesProps) => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onBack, totalFocusable]);
+  }, [onBack, totalFocusable, screen, focusIndex]);
 
   // Scroll focused tile into view
   useEffect(() => {
@@ -115,6 +131,10 @@ const Games = ({ onBack }: GamesProps) => {
       </div>
     );
   };
+
+  if (screen === 'daily-spin') {
+    return <DailySpin onBack={() => setScreen('hub')} />;
+  }
 
   return (
     <div
@@ -174,6 +194,7 @@ const Games = ({ onBack }: GamesProps) => {
                 tabIndex={0}
                 onFocus={() => setFocusIndex(focusPos)}
                 onMouseEnter={() => setFocusIndex(focusPos)}
+                onClick={() => openTile(tile.id)}
                 className={`relative overflow-hidden cursor-pointer border-emerald-400/20 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-6 transition-all duration-300 outline-none
                   ${focused
                     ? 'scale-[1.04] border-emerald-300/70 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06)] ring-2 ring-emerald-300/60'
