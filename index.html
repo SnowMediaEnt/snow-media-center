@@ -27,6 +27,21 @@
 
     
     <script>
+      // globalThis polyfill — MUST run before any other script/chunk.
+      // Chrome 66 / Android 9 WebView (T95 etc.) has no globalThis and the
+      // Supabase chunk references it, causing a white screen pre-React.
+      (function(){
+        if (typeof globalThis === 'object') return;
+        try {
+          Object.defineProperty(Object.prototype, '__magic__', { get: function(){ return this; }, configurable: true });
+          __magic__.globalThis = __magic__;
+          delete Object.prototype.__magic__;
+        } catch (e) {
+          if (typeof window !== 'undefined') window.globalThis = window;
+        }
+      })();
+    </script>
+    <script>
       // Polyfill structuredClone for older Android WebViews (FireTV, older STBs)
       if (typeof structuredClone === 'undefined') {
         window.structuredClone = function(obj) {
@@ -34,6 +49,7 @@
         };
       }
     </script>
+
     <script>
       // BOOT HEARTBEAT diagnostic — silent on success; visible only on error or when debug flag is set.
       (function() {
@@ -71,11 +87,12 @@
         }
 
         function render() {
-          if (!debugMode && !hasError) return; // stay silent
+          if (!debugMode) return; // never render overlay for end users
           var el = ensureDiag();
           if (hasError) el.style.color = '#ff4444';
           el.textContent = stages.join('\n') + '\n';
         }
+
 
         window.__SMC_BOOT__ = function(stage) {
           stages.push('stage: ' + stage);
