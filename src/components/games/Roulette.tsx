@@ -824,7 +824,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   color="neutral"
                   className="rounded-lg h-[44px] text-sm uppercase"
                 >
-                  {d === 1 ? '1st 12' : d === 2 ? '2nd 12' : '3rd 12'}
+                  {d === 1 ? t('games.roulette.dozenFirst') : d === 2 ? t('games.roulette.dozenSecond') : t('games.roulette.dozenThird')}
                 </Cell>
               ))}
             </div>
