@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus, Sparkles, Gift, Star } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
@@ -157,6 +158,7 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 const Slots = ({ onBack }: SlotsProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
@@ -245,9 +247,9 @@ const Slots = ({ onBack }: SlotsProps) => {
   const handleSpin = useCallback(async () => {
     if (inFlight.current) return;
     if (spinning) return;
-    if (!user) { setErrorMsg('Sign in to play.'); return; }
-    if (balance === null && !inFreeSpins) { setErrorMsg('Loading chips… try again in a moment.'); return; }
-    if (!inFreeSpins && !canBet) { setErrorMsg('Not enough chips — grab your Daily Spin'); return; }
+    if (!user) { setErrorMsg(t('games.slots.errorSignIn')); return; }
+    if (balance === null && !inFreeSpins) { setErrorMsg(t('games.slots.errorLoadingChips')); return; }
+    if (!inFreeSpins && !canBet) { setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
     inFlight.current = true;
 
     setErrorMsg(null);
@@ -339,28 +341,28 @@ const Slots = ({ onBack }: SlotsProps) => {
       } else if (resp?.ok === false && resp.error === 'insufficient_balance') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Not enough chips — grab your Daily Spin');
+        setErrorMsg(t('games.slots.errorNotEnoughChips'));
         inFlight.current = false;
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Invalid bet.');
+        setErrorMsg(t('games.slots.errorInvalidBet'));
         inFlight.current = false;
       } else if (resp?.error === 'game_disabled') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Slots are temporarily disabled.');
+        setErrorMsg(t('games.slots.errorGameDisabled'));
         inFlight.current = false;
       } else {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg("Couldn't spin right now — try again.");
+        setErrorMsg(t('games.slots.errorSpinFailed'));
         inFlight.current = false;
       }
     } catch {
       setSpinning(false);
       setReelStopped(Array(REELS).fill(true));
-      setErrorMsg("Couldn't spin right now — try again.");
+      setErrorMsg(t('games.slots.errorSpinFailed'));
       inFlight.current = false;
     }
   }, [spinning, user, canBet, bet, inFreeSpins, balance]);
@@ -491,14 +493,14 @@ const Slots = ({ onBack }: SlotsProps) => {
             className={`transition-all duration-200 ${focusRing('back')}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.slots.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.slots.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.slots.loadingChips')}
               </span>
             </div>
           </div>
@@ -506,20 +508,20 @@ const Slots = ({ onBack }: SlotsProps) => {
 
         <div className="text-center mb-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Lucky Slots — 243 Ways
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.slots.luckySlotsWays')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Spin to win
+            {t('games.slots.spinToWin')}
           </h1>
           <p className="text-slate-200/90 mt-1 text-sm">
-            <Star className="inline w-4 h-4 mb-0.5 text-amber-300" /> Wild substitutes • <Gift className="inline w-4 h-4 mb-0.5 text-pink-300" /> 3+ Scatter = Free Spins
+            <Star className="inline w-4 h-4 mb-0.5 text-amber-300" /> {t('games.slots.subtitleWildScatter')}
           </p>
         </div>
 
         {/* Free spins banner */}
         {inFreeSpins && (
           <div className="mb-4 p-3 rounded-xl border border-fuchsia-300/50 bg-gradient-to-br from-fuchsia-600/30 to-purple-700/30 text-center font-bold text-fuchsia-100 shadow-[0_8px_28px_-12px_rgba(217,70,239,0.6)]">
-            FREE SPINS: {freeSpinsRemaining} left • {multiplier}× wins
+            {t('games.slots.freeSpinsBanner', { remaining: freeSpinsRemaining, multiplier })}
           </div>
         )}
 
@@ -550,7 +552,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                   textShadow: '0 1px 0 rgba(255,255,255,0.5)',
                 }}
               >
-                LUCKY SLOTS
+                {t('games.slots.marquee')}
               </div>
             </div>
 
@@ -578,7 +580,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                       animation: 'free-pop 2.2s ease-out both',
                     }}
                   >
-                    +{result.totalPayout.toLocaleString()} chips
+                    {t('games.slots.winChips', { amount: result.totalPayout.toLocaleString() })}
                   </div>
                   {/* coin burst */}
                   {Array.from({ length: 8 }).map((_, i) => (
@@ -606,8 +608,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                       animation: 'free-pop 2.2s ease-out both',
                     }}
                   >
-                    FREE SPINS!
-                    <div className="text-base mt-1 font-bold tracking-wider">+{result.triggeredFreeSpins} awarded</div>
+                    {t('games.slots.freeSpinsCallout')}
+                    <div className="text-base mt-1 font-bold tracking-wider">{t('games.slots.freeSpinsAwarded', { count: result.triggeredFreeSpins })}</div>
                   </div>
                 </div>
               )}
@@ -616,7 +618,7 @@ const Slots = ({ onBack }: SlotsProps) => {
             {/* Controls */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">Bet</div>
+                <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.slots.bet')}</div>
                 <Button
                   ref={minusBtnRef}
                   onFocus={() => setFocus('betMinus')}
@@ -635,7 +637,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                     color: '#fde68a',
                     boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.6)',
                   }}
-                  title={inFreeSpins ? 'Bet locked during free spins' : undefined}
+                  title={inFreeSpins ? t('games.slots.betLockedTooltip') : undefined}
                 >
                   {bet}
                   {inFreeSpins && (
@@ -664,19 +666,19 @@ const Slots = ({ onBack }: SlotsProps) => {
                 >
                   {spinning ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="w-6 h-6 animate-spin" /> Spinning…
+                      <Loader2 className="w-6 h-6 animate-spin" /> {t('games.slots.spinning')}
                     </span>
-                  ) : inFreeSpins ? 'SPIN (FREE)' : 'SPIN'}
+                  ) : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}
                 </Button>
                 {result && result.scatterCount > 0 && (
-                  <div className="text-xs text-pink-200 font-semibold">🎁 Scatters: {result.scatterCount}</div>
+                  <div className="text-xs text-pink-200 font-semibold">🎁 {t('games.slots.scatters', { count: result.scatterCount })}</div>
                 )}
               </div>
             </div>
 
             {balance !== null && !canBet && user && !inFreeSpins && (
               <p className="mt-3 text-center text-amber-200 font-semibold text-sm">
-                Not enough chips — grab your Daily Spin.
+                {t('games.slots.notEnoughChipsDailySpin')}
               </p>
             )}
             {errorMsg && (
@@ -688,39 +690,41 @@ const Slots = ({ onBack }: SlotsProps) => {
         {/* Wins breakdown */}
         {result && result.wins.length > 0 && (
           <div className="mt-5 max-w-4xl mx-auto rounded-xl border border-emerald-400/30 bg-slate-900/70 p-4">
-            <div className="text-sm uppercase tracking-wider text-emerald-200 font-bold mb-2">Wins this spin</div>
+            <div className="text-sm uppercase tracking-wider text-emerald-200 font-bold mb-2">{t('games.slots.winsThisSpin')}</div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
               {result.wins.map((w, i) => (
                 <div key={i} className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2 border border-emerald-400/20">
                   <SlotSymbol symbolKey={w.symbol} glyphs={glyphs} size={28} />
                   <div className="flex-1">
-                    <div className="font-bold text-white">{w.count}×{w.symbol.toUpperCase()}</div>
-                    <div className="text-xs text-slate-300">{w.ways} ways</div>
+                    <div className="font-bold text-white">{t('games.slots.winSymbolCount', { count: w.count, symbol: w.symbol.toUpperCase() })}</div>
+                    <div className="text-xs text-slate-300">{t('games.slots.winWays', { ways: w.ways })}</div>
                   </div>
                   <div className="text-amber-200 font-extrabold">+{w.payout.toLocaleString()}</div>
                 </div>
               ))}
             </div>
             <div className="mt-2 text-right text-amber-100 font-bold">
-              Total: +{result.totalPayout.toLocaleString()} {result.freeSpin && multiplier > 1 ? `(${multiplier}×)` : ''}
+              {result.freeSpin && multiplier > 1
+                ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
+                : t('games.slots.totalPayout', { amount: result.totalPayout.toLocaleString() })}
             </div>
           </div>
         )}
 
         {/* Paytable */}
         <div className="mt-5 max-w-4xl mx-auto rounded-xl border border-amber-400/20 bg-slate-900/70 p-4">
-          <div className="text-sm uppercase tracking-wider text-amber-200 font-bold mb-2">Paytable</div>
+          <div className="text-sm uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.slots.paytable')}</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
             {(['p1','p2','p3','p4'] as const).map((k) => (
               <div key={k} className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2 border border-amber-400/20">
                 <SlotSymbol symbolKey={k} glyphs={glyphs} size={28} />
                 <div className="font-bold text-white">{k.toUpperCase()}</div>
-                <div className="ml-auto text-amber-200 text-xs">Top payer</div>
+                <div className="ml-auto text-amber-200 text-xs">{t('games.slots.topPayer')}</div>
               </div>
             ))}
           </div>
           <div className="mt-2 text-xs text-slate-300">
-            A / K / Q / J pay less. <span className="text-amber-200 font-semibold">Wild</span> substitutes for all symbols except Scatter. 3+ <span className="text-pink-200 font-semibold">Scatters</span> trigger Free Spins.
+            {t('games.slots.paytableNote')}
           </div>
         </div>
 
@@ -734,24 +738,24 @@ const Slots = ({ onBack }: SlotsProps) => {
             className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing('fair')}`}
           >
             {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-            Provably fair
+            {t('games.slots.provablyFair')}
           </Button>
           {showFair && (
             <div className="mt-3 p-4 rounded-lg bg-slate-900/70 border border-slate-700 text-xs text-slate-200 font-mono break-all space-y-1">
               {fair ? (
                 <>
-                  <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                  <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                  <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                  <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
+                  <div><span className="text-slate-400">{t('games.slots.serverSeedHashLabel')}</span> {fair.serverSeedHash}</div>
+                  <div><span className="text-slate-400">{t('games.slots.serverSeedLabel')}</span> {fair.serverSeed}</div>
+                  <div><span className="text-slate-400">{t('games.slots.clientSeedLabel')}</span> {fair.clientSeed}</div>
+                  <div><span className="text-slate-400">{t('games.slots.nonceLabel')}</span> {fair.nonce}</div>
                   <div className="pt-1">
-                    {fairValid === true && <span className="text-emerald-300 font-bold">✓ sha256(serverSeed) matches the hash</span>}
-                    {fairValid === false && <span className="text-rose-300 font-bold">✗ Hash mismatch!</span>}
-                    {fairValid === null && <span className="text-slate-400">Verifying…</span>}
+                    {fairValid === true && <span className="text-emerald-300 font-bold">{t('games.slots.fairHashMatches')}</span>}
+                    {fairValid === false && <span className="text-rose-300 font-bold">{t('games.slots.fairHashMismatch')}</span>}
+                    {fairValid === null && <span className="text-slate-400">{t('games.slots.fairVerifying')}</span>}
                   </div>
                 </>
               ) : (
-                <div className="text-slate-400">Spin to reveal seed details.</div>
+                <div className="text-slate-400">{t('games.slots.spinToRevealSeed')}</div>
               )}
             </div>
           )}
