@@ -160,6 +160,9 @@ const Games = ({ onBack }: GamesProps) => {
   if (screen === 'roulette') {
     return <Roulette onBack={() => setScreen('hub')} />;
   }
+  if (screen === 'casino-holdem') {
+    return <CasinoHoldem onBack={() => setScreen('hub')} />;
+  }
 
   return (
     <div
