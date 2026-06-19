@@ -651,7 +651,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                Admin
+                {t('common.admin')}
               </Button>
             )}
             {user ? (
@@ -672,7 +672,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                <span className="text-gray-800">Dashboard</span>
+                <span className="text-gray-800">{t('common.dashboard')}</span>
               </Button>
             ) : (
               <Button
@@ -692,7 +692,7 @@ const Index = () => {
                   screenHeight >= 1440 ? 'w-5 h-5' :
                   'w-4 h-4'
                 }`} />
-                <span style={{ color: '#333333' }}>Sign In</span>
+                <span style={{ color: '#333333' }}>{t('common.signIn')}</span>
               </Button>
             )}
             <Button
@@ -712,7 +712,7 @@ const Index = () => {
                 screenHeight >= 1440 ? 'w-5 h-5' :
                 'w-4 h-4'
               }`} />
-              Settings
+              {t('common.settings')}
             </Button>
           </div>
 
@@ -730,7 +730,7 @@ const Index = () => {
                 <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
               </h1>
               <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
-                Your Premium Streaming Experience
+                {t('home.tagline')}
               </p>
             </div>
             {mediaBarEnabled && (
