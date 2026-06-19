@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv } from 'lucide-react';
