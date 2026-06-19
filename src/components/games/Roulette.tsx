@@ -696,14 +696,22 @@ const Roulette = ({ onBack }: RouletteProps) => {
               ))}
             </div>
 
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              <Button
+                ref={registerFocus('undo') as any}
+                onFocus={() => setFocusId('undo')}
+                onClick={undoLast}
+                disabled={spinning || history.length === 0}
+                className={`bg-slate-800 text-slate-100 border border-slate-500/60 hover:bg-slate-700 ${focusId === 'undo' ? focusRing : ''}`}
+              >
+                ↶ Undo
+              </Button>
               <Button
                 ref={registerFocus('clear') as any}
                 onFocus={() => setFocusId('clear')}
                 onClick={clearBets}
                 disabled={spinning || chips.length === 0}
-                variant="outline"
-                className={`border-rose-400/60 text-rose-200 bg-rose-950/40 hover:bg-rose-900/40 ${focusId === 'clear' ? focusRing : ''}`}
+                className={`bg-rose-900/70 text-rose-100 border border-rose-400/60 hover:bg-rose-800/70 ${focusId === 'clear' ? focusRing : ''}`}
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Clear Bets
               </Button>
@@ -712,13 +720,22 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 onFocus={() => setFocusId('spin')}
                 onClick={doSpin}
                 disabled={!canSpin}
-                className={`ml-auto text-xl font-black px-8 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] transition-all ${focusId === 'spin' ? focusRing : ''}`}
+                className={`ml-auto text-xl font-black px-8 py-6 border-2 transition-all
+                  ${canSpin
+                    ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-emerald-200 shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)]'
+                    : 'bg-slate-700 text-slate-300 border-slate-500/40 opacity-60 cursor-not-allowed'}
+                  ${focusId === 'spin' ? focusRing : ''}`}
               >
                 {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Spinning…</> : 'SPIN'}
               </Button>
             </div>
-            {totalBet > (balance ?? 0) && (
-              <p className="mt-2 text-xs text-amber-200">Your bet exceeds your balance — adjust before spinning.</p>
+            {balance !== null && totalBet > balance && chips.length > 0 && (
+              <p className="mt-2 text-xs text-amber-200 font-semibold">
+                Bet exceeds your balance — press Undo or lower a stake.
+              </p>
+            )}
+            {balance === null && (
+              <p className="mt-2 text-xs text-slate-300">Loading chips…</p>
             )}
           </Card>
         </div>
