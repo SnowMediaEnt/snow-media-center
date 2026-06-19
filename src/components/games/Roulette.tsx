@@ -55,7 +55,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState('');
+  // (client seed is auto-generated per spin; not user-editable)
   const [serverSeedHash, setServerSeedHash] = useState<string>('');
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winKeys, setWinKeys] = useState<Set<string>>(new Set());
