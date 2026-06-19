@@ -538,7 +538,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 <b>{labelRank(dealerRank)}</b>
                 {!dealerQualified && (
                   <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-300/50 text-amber-100 text-[10px] uppercase tracking-wider font-bold">
-                    Didn't qualify
+                    {t('games.casinoHoldem.dealerDidntQualify')}
                   </span>
                 )}
               </div>
