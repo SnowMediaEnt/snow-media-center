@@ -662,7 +662,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         )}
 
         {phase === 'reveal' && (
-          <div className="text-center text-sm text-slate-300">Revealing…</div>
+          <div className="text-center text-sm text-slate-300">{t('games.casinoHoldem.revealing')}</div>
         )}
 
         {phase === 'settled' && (
