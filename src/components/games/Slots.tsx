@@ -172,9 +172,10 @@ const Slots = ({ onBack }: SlotsProps) => {
   const [columns, setColumns] = useState<string[][]>(initGrid);
   // For each reel: scrolling strip & stopped flag
   const [reelStrips, setReelStrips] = useState<string[][]>(() =>
-    Array.from({ length: REELS }, () => buildStrip(REEL_KEYS[0]))
+    Array.from({ length: REELS }, () => buildRandomStrip())
   );
   const [reelStopped, setReelStopped] = useState<boolean[]>(() => Array(REELS).fill(true));
+  const inFlight = useRef(false);
 
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winningCells, setWinningCells] = useState<boolean[][]>(() =>
