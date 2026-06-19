@@ -29,19 +29,18 @@ const ANTES = [10, 25, 50, 100];
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const RED_SUITS = new Set(['H', 'D']);
 
-const RANK_LABEL: Record<string, string> = {
-  royal_flush: 'Royal Flush',
-  straight_flush: 'Straight Flush',
-  four_of_a_kind: 'Four of a Kind',
-  full_house: 'Full House',
-  flush: 'Flush',
-  straight: 'Straight',
-  three_of_a_kind: 'Three of a Kind',
-  two_pair: 'Two Pair',
-  one_pair: 'Pair',
-  high_card: 'High Card',
+const RANK_KEY: Record<string, string> = {
+  royal_flush: 'games.casinoHoldem.handName.royalFlush',
+  straight_flush: 'games.casinoHoldem.handName.straightFlush',
+  four_of_a_kind: 'games.casinoHoldem.handName.fourOfAKind',
+  full_house: 'games.casinoHoldem.handName.fullHouse',
+  flush: 'games.casinoHoldem.handName.flush',
+  straight: 'games.casinoHoldem.handName.straight',
+  three_of_a_kind: 'games.casinoHoldem.handName.threeOfAKind',
+  two_pair: 'games.casinoHoldem.handName.twoPair',
+  one_pair: 'games.casinoHoldem.handName.pair',
+  high_card: 'games.casinoHoldem.handName.highCard',
 };
-const labelRank = (k?: string) => (k ? RANK_LABEL[k] ?? k.replace(/_/g, ' ') : '');
 
 function PlayingCard({
   card,
