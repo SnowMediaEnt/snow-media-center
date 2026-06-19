@@ -541,23 +541,32 @@ const Roulette = ({ onBack }: RouletteProps) => {
               </div>
             </div>
             {/* Wheel kind toggle */}
-            <div className="mt-3 flex gap-2">
-              {(['european', 'american'] as WheelKind[]).map((k) => (
-                <button
-                  key={k}
-                  ref={registerFocus(`wheel-${k}`)}
-                  onFocus={() => setFocusId(`wheel-${k}`)}
-                  onClick={() => !spinning && setWheel(k)}
-                  disabled={spinning}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
-                    wheel === k
-                      ? 'bg-amber-400 text-slate-900 border-amber-200'
-                      : 'bg-slate-800/70 text-amber-100 border-amber-400/40'
-                  } ${focusId === `wheel-${k}` ? focusRing : ''}`}
-                >
-                  {k === 'european' ? 'European (0)' : 'American (0/00)'}
-                </button>
-              ))}
+            <div className="mt-4 w-full max-w-[360px]">
+              <div className="text-[10px] uppercase tracking-wider text-amber-200 font-bold mb-1.5 text-center">
+                Wheel
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950/70 border border-amber-400/40">
+                {(['european', 'american'] as WheelKind[]).map((k) => {
+                  const active = wheel === k;
+                  return (
+                    <button
+                      key={k}
+                      ref={registerFocus(`wheel-${k}`)}
+                      onFocus={() => setFocusId(`wheel-${k}`)}
+                      onClick={() => { if (!spinning) setWheel(k); }}
+                      disabled={spinning}
+                      aria-pressed={active}
+                      className={`px-3 py-2 rounded-lg text-sm font-black uppercase tracking-wider border-2 transition-all ${
+                        active
+                          ? 'bg-gradient-to-br from-amber-300 to-amber-600 text-slate-900 border-amber-200 shadow-[0_4px_18px_-4px_rgba(252,211,77,0.7)]'
+                          : 'bg-slate-800/70 text-amber-100 border-transparent hover:bg-slate-700/70'
+                      } ${focusId === `wheel-${k}` ? focusRing : ''}`}
+                    >
+                      {k === 'european' ? 'European • 0' : 'American • 0 / 00'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {result && (
               <div className={`mt-3 px-4 py-2 rounded-xl border font-black text-2xl tabular-nums ${
