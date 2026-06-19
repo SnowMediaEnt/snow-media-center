@@ -628,15 +628,19 @@ const Slots = ({ onBack }: SlotsProps) => {
                   <Minus className="w-4 h-4" />
                 </Button>
                 <div
-                  className="min-w-[80px] text-center px-4 py-2 rounded-lg font-black text-2xl tabular-nums"
+                  className={`relative min-w-[80px] text-center px-4 py-2 rounded-lg font-black text-2xl tabular-nums ${inFreeSpins ? 'opacity-60' : ''}`}
                   style={{
                     background: 'linear-gradient(180deg, #0a0202, #1a0606)',
                     border: '2px solid rgba(251,191,36,0.6)',
                     color: '#fde68a',
                     boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.6)',
                   }}
+                  title={inFreeSpins ? 'Bet locked during free spins' : undefined}
                 >
                   {bet}
+                  {inFreeSpins && (
+                    <span className="absolute -top-2 -right-2 text-[10px] bg-slate-900 border border-amber-400/60 text-amber-200 rounded-full px-1.5 py-0.5">🔒</span>
+                  )}
                 </div>
                 <Button
                   ref={plusBtnRef}
