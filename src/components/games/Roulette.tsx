@@ -206,7 +206,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
     raf = requestAnimationFrame(animateIdle);
 
     try {
-      const seed = (clientSeed || '').trim() || crypto.getRandomValues(new Uint32Array(2)).join('-');
+      const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp: any = await gameSocket.spinRoulette({
         bets: buildBets(),
         wheel,
