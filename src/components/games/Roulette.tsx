@@ -760,28 +760,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
           </div>
         )}
 
-        {/* Client seed input */}
-        <div className="mt-4 grid md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-              Custom client seed (optional)
-            </label>
-            <input
-              ref={registerFocus('seed') as any}
-              onFocus={() => setFocusId('seed')}
-              value={clientSeed}
-              onChange={(e) => setClientSeed(e.target.value)}
-              placeholder="Auto-generated if blank"
-              disabled={spinning}
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-700/70 text-sm text-slate-200 font-mono outline-none transition-all ${focusId === 'seed' ? 'ring-4 ring-amber-300/70 border-amber-300/70' : ''}`}
-            />
+        {serverSeedHash && (
+          <div className="mt-4 text-[11px] text-slate-400 font-mono break-all text-center">
+            seedHash: {serverSeedHash}
           </div>
-          {serverSeedHash && (
-            <div className="self-end text-[11px] text-slate-400 font-mono break-all">
-              seedHash: {serverSeedHash}
-            </div>
-          )}
-        </div>
+        )}
 
         {error && (
           <div className="mt-4 mx-auto max-w-md px-4 py-3 rounded-lg bg-rose-950/70 border border-rose-400/50 text-rose-100 text-sm text-center font-semibold">
