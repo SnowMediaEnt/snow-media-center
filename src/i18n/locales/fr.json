@@ -1,0 +1,44 @@
+{
+  "common": {
+    "signIn": "Connexion",
+    "dashboard": "Tableau de bord",
+    "settings": "Paramètres",
+    "admin": "Admin",
+    "back": "Retour",
+    "backToHome": "Retour à l'accueil",
+    "beta": "Bêta"
+  },
+  "home": {
+    "tagline": "Votre expérience de streaming premium",
+    "mainApps": { "title": "Applis principales", "description": "Téléchargez des APK et outils de streaming" },
+    "support": { "title": "Assistance", "description": "Aide, chat IA et communauté" },
+    "store": { "title": "Boutique Snow Media", "description": "Visitez la boutique officielle" },
+    "player": { "title": "Lecteur", "description": "TV en direct, films et séries" }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "subtitle": "Personnalisez votre expérience Snow Media Center",
+    "tabs": {
+      "media": "Gestionnaire de médias",
+      "ui": "Interface",
+      "updates": "Mises à jour",
+      "alerts": "Alertes d'applis",
+      "ai": "IA"
+    },
+    "mediaManagerHeading": "Gestionnaire de médias",
+    "contentBar": {
+      "title": "Barre de contenu",
+      "description": "Affiche les titres tendances Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",
+      "aria": "Activer la barre de contenu d'accueil"
+    },
+    "player": {
+      "title": "Lecteur (TV en direct)",
+      "description": "Interrupteur global pour la section Lecteur (TV en direct, films et séries). Lorsqu'il est désactivé, la carte Lecteur est masquée sur tous les appareils.",
+      "aria": "Activer la section Lecteur globalement"
+    },
+    "language": {
+      "title": "Langue",
+      "description": "Choisissez la langue de l'application. La couverture des traductions est encore en cours d'extension."
+    }
+  }
+}
