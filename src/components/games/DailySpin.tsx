@@ -39,6 +39,10 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const { balance, status } = useGameSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
+  const backBtnRef = useRef<HTMLButtonElement>(null);
+  const inFlight = useRef(false);
+  const rotRef = useRef(0);
+  const setRot = useCallback((v: number) => { rotRef.current = v; setRotation(v); }, []);
 
   const [rotation, setRotation] = useState(0); // degrees
   const [spinning, setSpinning] = useState(false);
