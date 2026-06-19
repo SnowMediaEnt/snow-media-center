@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
@@ -100,6 +101,7 @@ function PlayingCard({
 }
 
 const Blackjack = ({ onBack }: BlackjackProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
@@ -209,22 +211,22 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, []);
 
   const handleErrorAck = (err: string) => {
-    if (err === 'game_disabled') setError('Blackjack is temporarily disabled.');
-    else if (err === 'invalid_bet') setError('Invalid bet.');
-    else if (err === 'insufficient_balance') setError('Not enough chips — grab your Daily Spin.');
-    else if (err === 'round_in_progress') setError('Finish your current hand first.');
-    else if (err === 'no_active_round') setError('No active hand — deal a new one.');
-    else if (err === 'cannot_double') setError("Can't double right now.");
-    else setError("Something went wrong — try again.");
+    if (err === 'game_disabled') setError(t('games.blackjack.errorGameDisabled'));
+    else if (err === 'invalid_bet') setError(t('games.blackjack.errorInvalidBet'));
+    else if (err === 'insufficient_balance') setError(t('games.blackjack.errorInsufficientBalance'));
+    else if (err === 'round_in_progress') setError(t('games.blackjack.errorRoundInProgress'));
+    else if (err === 'no_active_round') setError(t('games.blackjack.errorNoActiveRound'));
+    else if (err === 'cannot_double') setError(t('games.blackjack.errorCannotDouble'));
+    else setError(t('games.blackjack.errorGeneric'));
     setTimeout(() => setError(null), 3500);
   };
 
   const deal = useCallback(async () => {
     if (inFlight.current) return;
     if (busy) return;
-    if (!user) { setError('Sign in to play.'); return; }
-    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
-    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (!user) { setError(t('games.blackjack.errorSignIn')); return; }
+    if (balance === null) { setError(t('games.blackjack.errorLoadingChips')); return; }
+    if (balance < bet) { setError(t('games.blackjack.errorInsufficientBalance')); return; }
     inFlight.current = true;
     setError(null);
     setBusy(true);
@@ -234,7 +236,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError("Couldn't deal right now — try again.");
+      setError(t('games.blackjack.errorDealFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -255,7 +257,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.blackjack.errorTableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -329,12 +331,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const settleBanner = (() => {
     if (!settleStatus || !revealComplete) return null;
     const map: Record<string, { text: string; tone: 'win' | 'lose' | 'push' }> = {
-      blackjack: { text: 'BLACKJACK!', tone: 'win' },
-      win: { text: 'YOU WIN', tone: 'win' },
-      dealer_bust: { text: 'DEALER BUSTS', tone: 'win' },
-      lose: { text: 'DEALER WINS', tone: 'lose' },
-      bust: { text: 'BUST', tone: 'lose' },
-      push: { text: 'PUSH', tone: 'push' },
+      blackjack: { text: t('games.blackjack.bannerBlackjack'), tone: 'win' },
+      win: { text: t('games.blackjack.bannerWin'), tone: 'win' },
+      dealer_bust: { text: t('games.blackjack.bannerDealerBust'), tone: 'win' },
+      lose: { text: t('games.blackjack.bannerLose'), tone: 'lose' },
+      bust: { text: t('games.blackjack.bannerBust'), tone: 'lose' },
+      push: { text: t('games.blackjack.bannerPush'), tone: 'push' },
     };
     const m = map[settleStatus] ?? { text: settleStatus.toUpperCase(), tone: 'push' as const };
     const toneClasses =
@@ -346,14 +348,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         <div className="text-3xl font-black tracking-wider">{m.text}</div>
         <div className="mt-1 text-lg font-bold">
           {net > 0 ? (
-            <span className="text-emerald-300">+{net.toLocaleString()} chips</span>
+            <span className="text-emerald-300">{t('games.blackjack.netWin', { net: net.toLocaleString() })}</span>
           ) : net < 0 ? (
-            <span className="text-rose-300">{net.toLocaleString()} chips</span>
+            <span className="text-rose-300">{t('games.blackjack.netLoss', { net: net.toLocaleString() })}</span>
           ) : (
-            <span className="text-slate-200">±0 chips</span>
+            <span className="text-slate-200">{t('games.blackjack.netZero')}</span>
           )}
         </div>
-        <div className="text-xs text-slate-300 mt-1">Balance: {balance?.toLocaleString() ?? '—'}</div>
+        <div className="text-xs text-slate-300 mt-1">{t('games.blackjack.balanceLine', { balance: balance?.toLocaleString() ?? '—' })}</div>
       </div>
     );
   })();
@@ -395,14 +397,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             )}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.blackjack.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.blackjack.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.blackjack.loadingChips')}
               </span>
             </div>
           </div>
@@ -410,12 +412,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Blackjack
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.blackjack.title')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Beat the dealer to 21
+            {t('games.blackjack.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">Play Chips only — just for fun and bragging rights.</p>
+          <p className="text-slate-200/90 mt-2">{t('games.blackjack.subheading')}</p>
         </div>
 
         {/* Felt Table */}
@@ -435,7 +437,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           {/* Dealer row */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">Dealer</div>
+              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.dealer')}</div>
               {(phase === 'playing' || phase === 'settled') && (
                 <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums transition-all">
                   {phase === 'settled'
@@ -446,7 +448,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             </div>
             <div className="flex items-end gap-2 min-h-[128px]">
               {phase === 'bet' && (
-                <div className="text-slate-300/70 italic">Place your bet to deal a hand.</div>
+                <div className="text-slate-300/70 italic">{t('games.blackjack.placeBetPrompt')}</div>
               )}
               {phase === 'playing' && (
                 <>
@@ -472,7 +474,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           {/* Player row */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">You</div>
+              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.you')}</div>
               {(phase === 'playing' || phase === 'settled') && (
                 <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums">
                   {playerTotal}
@@ -481,7 +483,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             </div>
             <div className="flex items-end gap-2 min-h-[128px]">
               {phase === 'bet' && (
-                <div className="text-slate-300/70 italic">Your cards will appear here.</div>
+                <div className="text-slate-300/70 italic">{t('games.blackjack.cardsAppearHere')}</div>
               )}
               {playerHand.map((c, i) => (
                 <PlayingCard key={`p-${i}`} card={c} delay={i * 120} highlight={phase === 'settled' && settleStatus === 'blackjack'} />
@@ -493,7 +495,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         {/* Bet selector */}
         {phase === 'bet' && (
           <Card className="p-5 bg-slate-900/70 border-emerald-400/30">
-            <div className="text-xs uppercase tracking-wider text-emerald-200 font-bold mb-3">Choose your bet</div>
+            <div className="text-xs uppercase tracking-wider text-emerald-200 font-bold mb-3">{t('games.blackjack.chooseBet')}</div>
             <div className="flex flex-wrap gap-3 mb-4">
               {BETS.map((amount, i) => {
                 const selected = bet === amount;
@@ -525,12 +527,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 className={`ml-auto text-xl font-black px-8 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${focusRing(focusBet === 'deal')}`}
               >
                 {busy ? (
-                  <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Dealing…</span>
-                ) : `DEAL  •  ${bet}`}
+                  <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> {t('games.blackjack.dealing')}</span>
+                ) : t('games.blackjack.dealWithBet', { bet })}
               </Button>
             </div>
             <p className="text-[11px] text-slate-400">
-              A fresh client seed is generated for every hand — view it under <span className="text-slate-200 font-semibold">Provably fair</span> after you settle.
+              {t('games.blackjack.freshSeedNote')}
             </p>
           </Card>
         )}
@@ -546,7 +548,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 disabled={!canHit || busy}
                 className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-sky-400 to-sky-600 text-slate-900 border-2 border-sky-200 transition-all ${focusRing(focusAction === 'hit')}`}
               >
-                HIT
+                {t('games.blackjack.hit')}
               </Button>
               <Button
                 ref={refs.stand}
@@ -555,7 +557,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 disabled={!canStand || busy}
                 className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-200 transition-all ${focusRing(focusAction === 'stand')}`}
               >
-                STAND
+                {t('games.blackjack.stand')}
               </Button>
               {canDouble && (
                 <Button
@@ -565,13 +567,13 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   disabled={busy}
                   className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-fuchsia-400 to-fuchsia-600 text-slate-900 border-2 border-fuchsia-200 transition-all ${focusRing(focusAction === 'double')}`}
                 >
-                  DOUBLE
+                  {t('games.blackjack.double')}
                 </Button>
               )}
             </div>
             {busy && (
               <div className="flex items-center justify-center gap-2 mt-3 text-slate-300 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" /> Working…
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('games.blackjack.working')}
               </div>
             )}
           </Card>
@@ -588,7 +590,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 onClick={playAgain}
                 className={`text-xl font-black px-10 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${focusRing(focusSettle === 'again')}`}
               >
-                PLAY AGAIN
+                {t('games.blackjack.playAgain')}
               </Button>
             </div>
 
@@ -600,15 +602,15 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   onClick={() => setShowFair((s) => !s)}
                   className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
                 >
-                  Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {t('games.blackjack.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
                 {showFair && (
                   <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                    <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                    <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                    <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                    <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
-                    <div className="text-slate-400 pt-1">Verify the shuffle: SHA-256(serverSeed) must equal the hash shown before the deal.</div>
+                    <div><span className="text-slate-400">{t('games.blackjack.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
+                    <div><span className="text-slate-400">{t('games.blackjack.fairServerSeed')}</span> {fair.serverSeed}</div>
+                    <div><span className="text-slate-400">{t('games.blackjack.fairClientSeed')}</span> {fair.clientSeed}</div>
+                    <div><span className="text-slate-400">{t('games.blackjack.fairNonce')}</span> {fair.nonce}</div>
+                    <div className="text-slate-400 pt-1">{t('games.blackjack.fairVerifyNote')}</div>
                   </div>
                 )}
               </div>
@@ -624,7 +626,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
 
         {phase === 'playing' && serverSeedHash && (
           <p className="mt-3 text-center text-[11px] text-slate-400 font-mono break-all">
-            seedHash: {serverSeedHash}
+            {t('games.blackjack.seedHashLine', { serverSeedHash })}
           </p>
         )}
       </div>
