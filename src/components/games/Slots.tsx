@@ -308,10 +308,11 @@ const Slots = ({ onBack }: SlotsProps) => {
               setFreeSpinsRemaining(result.freeSpinsRemaining);
               setMultiplier(result.multiplier || 1);
 
-              // Highlight winning cells
+              // Highlight winning cells — only if a win actually paid.
               const lit: boolean[][] = Array.from({ length: REELS }, () => Array(ROWS).fill(false));
-              const winningSymbols = new Set(result.wins.map((w) => w.symbol));
-              if (winningSymbols.size > 0) {
+              const paidWins = result.wins.filter((w) => w.payout > 0);
+              const winningSymbols = new Set(paidWins.map((w) => w.symbol));
+              if (result.totalPayout > 0 && winningSymbols.size > 0) {
                 for (let r = 0; r < REELS; r++) {
                   for (let row = 0; row < ROWS; row++) {
                     const sym = cols[r][row];
@@ -331,6 +332,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                 setTimeout(() => setFreeBurst(false), 2200);
               }
               if (resp.fair) setFair(resp.fair);
+              inFlight.current = false;
             }
           }, baseDelay + idx * stagger);
         }
