@@ -82,6 +82,30 @@
       "heroSubtitle": "Spiele mit kostenlosen Play Chips. Verdiene sie täglich, klettere in der Bestenliste nach oben und hab Spaß — nur für den Ruhm.",
       "signInBanner": "Melde dich an, um Play Chips zu sammeln.",
       "serverError": "Server: {{errorMessage}}"
+    },
+    "dailySpin": {
+      "back": "Zurück",
+      "playChips": "Play Chips",
+      "loadingChips": "Chips werden geladen…",
+      "badge": "Täglicher Spin",
+      "heading": "Ein Gratis-Spin alle 4 Stunden",
+      "subheading": "Lande auf dem goldenen Segment für den Jackpot von 2.000 Chips.",
+      "signInPrompt": "Melde dich an, um deinen täglichen Spin zu erhalten.",
+      "checkingSpin": "Dein täglicher Spin wird geprüft…",
+      "comeBackIn": "Komm wieder in",
+      "nextSpinReady": "Dein nächster Spin ist dann bereit.",
+      "spinning": "Dreht…",
+      "spin": "DREHEN",
+      "spinError": "Drehen gerade nicht möglich — versuche es erneut.",
+      "jackpotResult": "🎉 JACKPOT!",
+      "youWon": "Du hast gewonnen",
+      "winAmount": "+{{prize}} Chips",
+      "provablyFair": "Nachweislich fair",
+      "fairServerSeedHash": "serverSeedHash:",
+      "fairServerSeed": "serverSeed:",
+      "fairClientSeed": "clientSeed:",
+      "fairNonce": "nonce:",
+      "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen."
     }
   }
 }

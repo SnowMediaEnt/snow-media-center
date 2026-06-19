@@ -82,6 +82,30 @@
       "heroSubtitle": "العب باستخدام رقائق Play Chips المجانية. اكسبها يوميًا، وتسلّق لوحة المتصدرين، واستمتع — للتباهي فقط.",
       "signInBanner": "سجّل الدخول لتبدأ بجمع رقائق Play Chips.",
       "serverError": "الخادم: {{errorMessage}}"
+    },
+    "dailySpin": {
+      "back": "رجوع",
+      "playChips": "رقائق اللعب",
+      "loadingChips": "جارٍ تحميل الرقائق…",
+      "badge": "الدورة اليومية",
+      "heading": "دورة مجانية واحدة كل 4 ساعات",
+      "subheading": "توقّف عند القطاع الذهبي للفوز بالجائزة الكبرى البالغة 2,000 رقاقة.",
+      "signInPrompt": "سجّل الدخول للحصول على دورتك اليومية.",
+      "checkingSpin": "جارٍ التحقق من دورتك اليومية…",
+      "comeBackIn": "عُد بعد",
+      "nextSpinReady": "ستكون دورتك التالية جاهزة حينئذٍ.",
+      "spinning": "جارٍ الدوران…",
+      "spin": "أدِر",
+      "spinError": "تعذّر الدوران الآن — حاول مرة أخرى.",
+      "jackpotResult": "🎉 الجائزة الكبرى!",
+      "youWon": "لقد فزت",
+      "winAmount": "+{{prize}} رقاقة",
+      "provablyFair": "العدالة القابلة للإثبات",
+      "fairServerSeedHash": "serverSeedHash:",
+      "fairServerSeed": "serverSeed:",
+      "fairClientSeed": "clientSeed:",
+      "fairNonce": "nonce:",
+      "fairVerify": "تحقّق: يجب أن يساوي SHA-256(serverSeed) قيمة الهاش المعروضة قبل الدورة."
     }
   }
 }

@@ -82,6 +82,30 @@
       "heroSubtitle": "Play with free Play Chips. Earn them daily, climb the leaderboard, and have fun — just for bragging rights.",
       "signInBanner": "Sign in to start collecting Play Chips.",
       "serverError": "Server: {{errorMessage}}"
+    },
+    "dailySpin": {
+      "back": "Back",
+      "playChips": "Play Chips",
+      "loadingChips": "Loading chips…",
+      "badge": "Daily Spin",
+      "heading": "One free spin every 4 hours",
+      "subheading": "Land on the gold segment for the 2,000 chip jackpot.",
+      "signInPrompt": "Sign in to claim your daily spin.",
+      "checkingSpin": "Checking your daily spin…",
+      "comeBackIn": "Come back in",
+      "nextSpinReady": "Next spin will be ready then.",
+      "spinning": "Spinning…",
+      "spin": "SPIN",
+      "spinError": "Couldn't spin right now — try again.",
+      "jackpotResult": "🎉 JACKPOT!",
+      "youWon": "You won",
+      "winAmount": "+{{prize}} chips",
+      "provablyFair": "Provably fair",
+      "fairServerSeedHash": "serverSeedHash:",
+      "fairServerSeed": "serverSeed:",
+      "fairClientSeed": "clientSeed:",
+      "fairNonce": "nonce:",
+      "fairVerify": "Verify: SHA-256(serverSeed) must equal the hash shown before the spin."
     }
   }
 }

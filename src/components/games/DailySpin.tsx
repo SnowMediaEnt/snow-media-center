@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -35,6 +36,7 @@ function fmtCountdown(ms: number) {
 }
 
 const DailySpin = ({ onBack }: DailySpinProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -276,13 +278,13 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       } else {
         cancelAnimationFrame(raf);
         setSpinning(false);
-        setErrorMsg("Couldn't spin right now — try again.");
+        setErrorMsg(t('games.dailySpin.spinError'));
         settle();
       }
     } catch {
       cancelAnimationFrame(raf);
       setSpinning(false);
-      setErrorMsg("Couldn't spin right now — try again.");
+      setErrorMsg(t('games.dailySpin.spinError'));
       settle();
     }
   }, [spinning, nextClaimAt, setRot]);
@@ -304,14 +306,14 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <Button ref={backBtnRef} onClick={onBack} variant="gold" size="lg" className="focus:outline-none focus:ring-4 focus:ring-amber-300/80">
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.dailySpin.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.dailySpin.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.dailySpin.loadingChips')}
               </span>
             </div>
           </div>
@@ -319,12 +321,12 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Daily Spin
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.dailySpin.badge')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            One free spin every 4 hours
+            {t('games.dailySpin.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">Land on the gold segment for the 2,000 chip jackpot.</p>
+          <p className="text-slate-200/90 mt-2">{t('games.dailySpin.subheading')}</p>
         </div>
 
         {/* Wheel */}
@@ -385,21 +387,21 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
           <div className="mt-8 w-full max-w-md text-center">
             {!user ? (
               <Card className="p-5 bg-slate-900/70 border-amber-400/40 text-amber-100 font-semibold">
-                Sign in to claim your daily spin.
+                {t('games.dailySpin.signInPrompt')}
               </Card>
             ) : loadingCooldown ? (
               <div className="flex items-center justify-center gap-2 text-slate-200">
-                <Loader2 className="w-5 h-5 animate-spin" /> Checking your daily spin…
+                <Loader2 className="w-5 h-5 animate-spin" /> {t('games.dailySpin.checkingSpin')}
               </div>
             ) : nextClaimAt ? (
               <Card className="p-6 bg-slate-900/80 border-emerald-400/30">
                 <div className="text-sm uppercase tracking-wider text-emerald-200/90 font-semibold mb-1">
-                  Come back in
+                  {t('games.dailySpin.comeBackIn')}
                 </div>
                 <div className="text-4xl font-black tabular-nums text-white">
                   {fmtCountdown(remaining)}
                 </div>
-                <div className="text-xs text-slate-300 mt-2">Next spin will be ready then.</div>
+                <div className="text-xs text-slate-300 mt-2">{t('games.dailySpin.nextSpinReady')}</div>
               </Card>
             ) : (
               <Button
@@ -410,10 +412,10 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
               >
                 {spinning ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-6 h-6 animate-spin" /> Spinning…
+                    <Loader2 className="w-6 h-6 animate-spin" /> {t('games.dailySpin.spinning')}
                   </span>
                 ) : (
-                  'SPIN'
+                  t('games.dailySpin.spin')
                 )}
               </Button>
             )}
@@ -436,10 +438,10 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
                 }
               >
                 <div className="text-sm uppercase tracking-wider font-semibold text-amber-200">
-                  {lastWin.jackpot ? '🎉 JACKPOT!' : 'You won'}
+                  {lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}
                 </div>
                 <div className="text-4xl font-black text-white mt-1">
-                  +{lastWin.prize.toLocaleString()} chips
+                  {t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}
                 </div>
               </div>
             )}
@@ -450,15 +452,15 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
                   onClick={() => setShowFair((s) => !s)}
                   className="text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-300/80"
                 >
-                  Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {t('games.dailySpin.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
                 {showFair && (
                   <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                    <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                    <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                    <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                    <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
-                    <div className="text-slate-400 pt-1">Verify: SHA-256(serverSeed) must equal the hash shown before the spin.</div>
+                    <div><span className="text-slate-400">{t('games.dailySpin.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
+                    <div><span className="text-slate-400">{t('games.dailySpin.fairServerSeed')}</span> {fair.serverSeed}</div>
+                    <div><span className="text-slate-400">{t('games.dailySpin.fairClientSeed')}</span> {fair.clientSeed}</div>
+                    <div><span className="text-slate-400">{t('games.dailySpin.fairNonce')}</span> {fair.nonce}</div>
+                    <div className="text-slate-400 pt-1">{t('games.dailySpin.fairVerify')}</div>
                   </div>
                 )}
               </div>
