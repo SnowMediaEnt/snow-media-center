@@ -674,7 +674,7 @@ const Slots = ({ onBack }: SlotsProps) => {
               </div>
             </div>
 
-            {!canBet && user && !inFreeSpins && (
+            {balance !== null && !canBet && user && !inFreeSpins && (
               <p className="mt-3 text-center text-amber-200 font-semibold text-sm">
                 Not enough chips — grab your Daily Spin.
               </p>
