@@ -4,6 +4,10 @@ import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus, Sparkle
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import p1img from '@/assets/slots/dreamstreams.png';
+import p2img from '@/assets/slots/vibez.png';
+import p3img from '@/assets/slots/snowmedia.png';
+import p4img from '@/assets/slots/smc.png';
 
 interface SlotsProps {
   onBack: () => void;
@@ -11,18 +15,11 @@ interface SlotsProps {
 
 const BETS = [10, 25, 50, 100];
 
-// Brand logos to be dropped in here later. Each maps a symbol KEY to an image URL.
-//   p1 = DreamStreams
-//   p2 = Vibez TV
-//   p3 = Snow Media (yeti)
-//   p4 = SMC
-// To brand: `import p1img from '@/assets/slots/dreamstreams.png'` and set p1: p1img.
-// Until set (undefined), SlotSymbol falls back to the server-provided glyph (emoji).
 const SYMBOL_IMAGES: Record<string, string | undefined> = {
-  p1: undefined,
-  p2: undefined,
-  p3: undefined,
-  p4: undefined,
+  p1: p1img,
+  p2: p2img,
+  p3: p3img,
+  p4: p4img,
   wild: undefined,
   scatter: undefined,
 };
@@ -68,7 +65,40 @@ interface SpinResult {
 function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyphs: Record<string, string>; size?: number }) {
   const img = SYMBOL_IMAGES[symbolKey];
   if (img) {
-    return <img src={img} alt={symbolKey} style={{ width: size, height: size, objectFit: 'contain' }} draggable={false} />;
+    return <img src={img} alt={symbolKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
+  }
+  if (symbolKey === 'wild') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
+        <g stroke="#67e8f9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          {[0, 60, 120, 180, 240, 300].map((a) => (
+            <g key={a} transform={`rotate(${a} 32 32)`}>
+              <line x1="32" y1="32" x2="32" y2="10" />
+              <line x1="32" y1="14" x2="26" y2="20" />
+              <line x1="32" y1="14" x2="38" y2="20" />
+              <line x1="32" y1="22" x2="27" y2="27" />
+              <line x1="32" y1="22" x2="37" y2="27" />
+            </g>
+          ))}
+        </g>
+        <circle cx="32" cy="32" r="10" fill="#fbbf24" />
+        <text x="32" y="35.5" textAnchor="middle" fontSize="9" fontWeight="900" fill="#064e3b" style={{ fontFamily: 'system-ui, sans-serif' }}>WILD</text>
+      </svg>
+    );
+  }
+  if (symbolKey === 'scatter') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
+        <ellipse cx="32" cy="52" rx="13" ry="4" fill="#a855f7" />
+        <ellipse cx="32" cy="52" rx="13" ry="4" stroke="#c084fc" strokeWidth="1" />
+        <path d="M19 51.5 C19 34 25 26 32 24 C39 26 45 34 45 51.5" fill="#e879f9" fillOpacity="0.22" stroke="#e879f9" strokeWidth="1.5" />
+        <circle cx="32" cy="38" r="9" fill="#fdf4ff" fillOpacity="0.15" stroke="#e879f9" strokeWidth="1.5" />
+        <g fill="#f0abfc">
+          <path d="M32 30 L33.5 34.5 L38 34.5 L34.5 37.5 L35.5 42 L32 39.5 L28.5 42 L29.5 37.5 L26 34.5 L30.5 34.5 Z" />
+        </g>
+        <text x="32" y="54.5" textAnchor="middle" fontSize="6" fontWeight="900" fill="#fdf4ff" style={{ fontFamily: 'system-ui, sans-serif' }}>BONUS</text>
+      </svg>
+    );
   }
   const glyph = glyphs[symbolKey] ?? DEFAULT_GLYPHS[symbolKey] ?? '❓';
   const isLow = symbolKey === 'la' || symbolKey === 'lk' || symbolKey === 'lq' || symbolKey === 'lj';
