@@ -369,12 +369,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
   const settleBanner = (() => {
     if (phase !== 'settled' || !settleStatus) return null;
-    const winStatuses = new Set(['win']);
-    const loseStatuses = new Set(['lose', 'folded']);
-    const tone: 'win' | 'lose' | 'push' =
-      winStatuses.has(settleStatus) ? 'win'
-      : loseStatuses.has(settleStatus) ? 'lose'
-      : 'push';
+    // Tone driven by signed net (so dealer_no_qualify wins render green).
+    const tone: 'win' | 'lose' | 'push' = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
     const text =
       settleStatus === 'win' ? 'YOU WIN' :
       settleStatus === 'lose' ? 'DEALER WINS' :
