@@ -255,10 +255,8 @@ const Slots = ({ onBack }: SlotsProps) => {
     setSpinning(true);
     setReelStopped(Array(REELS).fill(false));
 
-    // Kick off scrolling strips with placeholder finals
-    setReelStrips(Array.from({ length: REELS }, () =>
-      buildStrip(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)])
-    ));
+    // Kick off scrolling strips with random placeholder content
+    setReelStrips(Array.from({ length: REELS }, () => buildRandomStrip()));
 
     try {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
