@@ -619,7 +619,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         {phase === 'decision' && (
           <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
             <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              Choose your move — Call, Raise, or Fold
+              {t('games.casinoHoldem.chooseMove')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
               {raiseOptions.map((opt, i) => {
