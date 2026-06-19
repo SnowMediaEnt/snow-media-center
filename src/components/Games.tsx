@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Trophy, Lock, Sparkles, Dice5, Gift, LogIn, Loader2, WifiOff } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
+import DailySpin from './games/DailySpin';
 
 interface GamesProps {
   onBack: () => void;
