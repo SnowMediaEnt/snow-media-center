@@ -57,10 +57,21 @@ const Games = ({ onBack }: GamesProps) => {
   };
 
   useEffect(() => {
+    if (screen !== 'hub') return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         onBack();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        const hubStart = 1;
+        if (focusIndex >= hubStart && focusIndex < hubStart + hubTiles.length) {
+          const tile = hubTiles[focusIndex - hubStart];
+          openTile(tile.id);
+        } else if (focusIndex === 0) {
+          onBack();
+        }
         return;
       }
       if (e.key === 'ArrowRight') {
@@ -68,7 +79,6 @@ const Games = ({ onBack }: GamesProps) => {
       } else if (e.key === 'ArrowLeft') {
         setFocusIndex((i) => Math.max(0, i - 1));
       } else if (e.key === 'ArrowDown') {
-        // jump down by 3 (rough grid)
         setFocusIndex((i) => Math.min(totalFocusable - 1, i + 3));
       } else if (e.key === 'ArrowUp') {
         setFocusIndex((i) => Math.max(0, i - 3));
@@ -76,7 +86,7 @@ const Games = ({ onBack }: GamesProps) => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onBack, totalFocusable]);
+  }, [onBack, totalFocusable, screen, focusIndex]);
 
   // Scroll focused tile into view
   useEffect(() => {
