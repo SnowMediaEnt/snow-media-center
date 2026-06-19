@@ -16,6 +16,7 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import DailySpin from './games/DailySpin';
 import Slots from './games/Slots';
+import Blackjack from './games/Blackjack';
 
 interface GamesProps {
   onBack: () => void;
@@ -33,7 +34,7 @@ type GameCard = {
 const GAMES: GameCard[] = [
   { id: 'daily-spin', name: 'Daily Spin', tagline: 'Free chips every 24 hours', emoji: '🎁', badge: 'PLAY NOW', playable: true },
   { id: 'slots', name: 'Slots', tagline: 'Spin the reels — match three', emoji: '🎰', badge: 'PLAY NOW', playable: true },
-  { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'Coming soon', playable: false },
+  { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'PLAY NOW', playable: true },
   { id: 'video-poker', name: 'Video Poker', tagline: 'Jacks or better', emoji: '♠️', badge: 'Coming soon', playable: false },
   { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'Coming soon', playable: false },
   { id: 'leaderboard', name: 'Leaderboard', tagline: 'Climb the ranks — bragging rights only', emoji: '🏆', badge: 'Coming soon', playable: false },
@@ -45,7 +46,7 @@ const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(1); // start on first game card
-  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots'>('hub');
+  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack'>('hub');
 
   // Focusable items: back (0), then GAMES.length game cards (1..)
   const totalFocusable = 1 + GAMES.length;
@@ -54,6 +55,7 @@ const Games = ({ onBack }: GamesProps) => {
     if (!card.playable) return;
     if (card.id === 'daily-spin') setScreen('daily-spin');
     else if (card.id === 'slots') setScreen('slots');
+    else if (card.id === 'blackjack') setScreen('blackjack');
   };
 
   useEffect(() => {
@@ -141,6 +143,9 @@ const Games = ({ onBack }: GamesProps) => {
   }
   if (screen === 'slots') {
     return <Slots onBack={() => setScreen('hub')} />;
+  }
+  if (screen === 'blackjack') {
+    return <Blackjack onBack={() => setScreen('hub')} />;
   }
 
   return (

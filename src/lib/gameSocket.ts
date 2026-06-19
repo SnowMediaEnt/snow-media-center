@@ -206,6 +206,40 @@ class GameSocketManager {
     });
   }
 
+  private async emitWithAck(event: string, payload: any, timeoutMs = 20000): Promise<any> {
+    if (!this.socket || !this.socket.connected) {
+      await this.connect();
+    }
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('not_connected'));
+        return;
+      }
+      let acked = false;
+      const t = setTimeout(() => {
+        if (!acked) reject(new Error('timeout'));
+      }, timeoutMs);
+      const cb = (resp: any) => {
+        acked = true;
+        clearTimeout(t);
+        if (resp && typeof resp.balance === 'number') {
+          this.balance = resp.balance;
+          this.emitChange();
+        }
+        resolve(resp);
+      };
+      if (payload === undefined) this.socket.emit(event, cb);
+      else this.socket.emit(event, payload, cb);
+    });
+  }
+
+  async dealBlackjack(bet: number, clientSeed?: string): Promise<any> {
+    return this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null });
+  }
+  async hit(): Promise<any> { return this.emitWithAck('bj_hit', undefined); }
+  async stand(): Promise<any> { return this.emitWithAck('bj_stand', undefined); }
+  async double(): Promise<any> { return this.emitWithAck('bj_double', undefined); }
+
   disconnect() {
     this.currentToken = null;
     this.balance = null;
