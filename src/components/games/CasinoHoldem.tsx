@@ -518,7 +518,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         >
           {/* Dealer */}
           <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">Dealer</div>
+            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = dealerHole[i];
