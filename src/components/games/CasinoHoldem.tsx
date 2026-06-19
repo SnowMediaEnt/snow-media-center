@@ -280,7 +280,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       if (resp?.ok) finishSettle(resp, false);
       else handleErrorAck(resp?.error ?? 'error', resp?.balance);
     } catch {
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
