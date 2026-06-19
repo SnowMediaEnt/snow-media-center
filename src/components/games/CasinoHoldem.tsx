@@ -111,8 +111,10 @@ function CardSlot() {
 }
 
 const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const labelRank = (k?: string) => (k ? (RANK_KEY[k] ? t(RANK_KEY[k]) : k.replace(/_/g, ' ')) : '');
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [ante, setAnte] = useState<number>(10);
