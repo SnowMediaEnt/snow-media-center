@@ -677,7 +677,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`transition-all ${focusRing(focusSettle === 'again')}`}
               >
-                New Hand
+                {t('games.casinoHoldem.newHand')}
               </Button>
             </div>
             {renderFair()}
