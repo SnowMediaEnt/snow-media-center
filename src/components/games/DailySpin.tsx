@@ -302,7 +302,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     >
       <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-          <Button onClick={onBack} variant="gold" size="lg">
+          <Button ref={backBtnRef} onClick={onBack} variant="gold" size="lg" className="focus:outline-none focus:ring-4 focus:ring-amber-300/80">
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back
           </Button>
@@ -311,7 +311,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
@@ -322,7 +322,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             <Sparkles className="w-3.5 h-3.5" /> Daily Spin
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            One free spin every 24 hours
+            One free spin every 4 hours
           </h1>
           <p className="text-slate-200/90 mt-2">Land on the gold segment for the 2,000 chip jackpot.</p>
         </div>
