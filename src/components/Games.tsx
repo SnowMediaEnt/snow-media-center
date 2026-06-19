@@ -50,7 +50,7 @@ const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(1); // start on first game card
-  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack' | 'video-poker' | 'roulette'>('hub');
+  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack' | 'video-poker' | 'roulette' | 'casino-holdem'>('hub');
 
   // Focusable items: back (0), then GAMES.length game cards (1..)
   const totalFocusable = 1 + GAMES.length;
@@ -62,6 +62,7 @@ const Games = ({ onBack }: GamesProps) => {
     else if (card.id === 'blackjack') setScreen('blackjack');
     else if (card.id === 'video-poker') setScreen('video-poker');
     else if (card.id === 'roulette') setScreen('roulette');
+    else if (card.id === 'casino-holdem') setScreen('casino-holdem');
   };
 
   useEffect(() => {
