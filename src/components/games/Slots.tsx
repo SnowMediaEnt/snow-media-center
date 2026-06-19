@@ -399,10 +399,12 @@ const Slots = ({ onBack }: SlotsProps) => {
   const renderReel = (reelIndex: number) => {
     const strip = reelStrips[reelIndex] ?? [];
     const stopped = reelStopped[reelIndex];
-    const totalHeight = strip.length * SYMBOL_HEIGHT;
-    // Final offset so that the last 3 symbols of the strip fill the 3-row window
-    const finalOffset = -(strip.length - ROWS) * SYMBOL_HEIGHT;
-    const spinningOffset = -(totalHeight - SYMBOL_HEIGHT * ROWS);
+    // Result symbols are at positions [STRIP_LENGTH - ROWS - TAIL_PAD, ..., STRIP_LENGTH - 1 - TAIL_PAD].
+    // Window shows ROWS rows; finalOffset puts the result row 0 at the top of the window.
+    const finalOffset = -((STRIP_LENGTH - ROWS - TAIL_PAD) * SYMBOL_HEIGHT);
+    // During spin, translate so we visibly travel past the result row, ending near the bottom-most
+    // padding tail. This guarantees overshoot/downward travel before the ease-out settle for reel 0.
+    const spinningOffset = -((STRIP_LENGTH - ROWS) * SYMBOL_HEIGHT);
 
     const transition = stopped
       ? `transform ${550}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
