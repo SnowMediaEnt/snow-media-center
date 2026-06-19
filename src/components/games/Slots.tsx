@@ -247,9 +247,9 @@ const Slots = ({ onBack }: SlotsProps) => {
   const handleSpin = useCallback(async () => {
     if (inFlight.current) return;
     if (spinning) return;
-    if (!user) { setErrorMsg('Sign in to play.'); return; }
-    if (balance === null && !inFreeSpins) { setErrorMsg('Loading chips… try again in a moment.'); return; }
-    if (!inFreeSpins && !canBet) { setErrorMsg('Not enough chips — grab your Daily Spin'); return; }
+    if (!user) { setErrorMsg(t('games.slots.errorSignIn')); return; }
+    if (balance === null && !inFreeSpins) { setErrorMsg(t('games.slots.errorLoadingChips')); return; }
+    if (!inFreeSpins && !canBet) { setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
     inFlight.current = true;
 
     setErrorMsg(null);
@@ -341,28 +341,28 @@ const Slots = ({ onBack }: SlotsProps) => {
       } else if (resp?.ok === false && resp.error === 'insufficient_balance') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Not enough chips — grab your Daily Spin');
+        setErrorMsg(t('games.slots.errorNotEnoughChips'));
         inFlight.current = false;
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Invalid bet.');
+        setErrorMsg(t('games.slots.errorInvalidBet'));
         inFlight.current = false;
       } else if (resp?.error === 'game_disabled') {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg('Slots are temporarily disabled.');
+        setErrorMsg(t('games.slots.errorGameDisabled'));
         inFlight.current = false;
       } else {
         setSpinning(false);
         setReelStopped(Array(REELS).fill(true));
-        setErrorMsg("Couldn't spin right now — try again.");
+        setErrorMsg(t('games.slots.errorSpinFailed'));
         inFlight.current = false;
       }
     } catch {
       setSpinning(false);
       setReelStopped(Array(REELS).fill(true));
-      setErrorMsg("Couldn't spin right now — try again.");
+      setErrorMsg(t('games.slots.errorSpinFailed'));
       inFlight.current = false;
     }
   }, [spinning, user, canBet, bet, inFreeSpins, balance]);
