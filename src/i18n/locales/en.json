@@ -302,6 +302,77 @@
       "fairChecking": "checking…",
       "fairMatches": "matches seedHash",
       "fairMismatch": "mismatch"
+    },
+    "casinoHoldem": {
+      "handName": {
+        "royalFlush": "Royal Flush",
+        "straightFlush": "Straight Flush",
+        "fourOfAKind": "Four of a Kind",
+        "fullHouse": "Full House",
+        "flush": "Flush",
+        "straight": "Straight",
+        "threeOfAKind": "Three of a Kind",
+        "twoPair": "Two Pair",
+        "pair": "Pair",
+        "highCard": "High Card"
+      },
+      "error": {
+        "gameDisabled": "Casino Hold'em is temporarily disabled.",
+        "invalidBet": "Invalid ante.",
+        "insufficientBalance": "Not enough chips — grab your Daily Spin.",
+        "roundInProgress": "Finish your current hand first.",
+        "noActiveRound": "No active hand — deal a new one.",
+        "generic": "Something went wrong — try again.",
+        "signIn": "Sign in to play.",
+        "loadingChips": "Loading chips… try again in a moment.",
+        "dealFailed": "Couldn't deal right now — try again.",
+        "tableUnreachable": "Couldn't reach the table — try again."
+      },
+      "banner": {
+        "youWin": "YOU WIN",
+        "dealerWins": "DEALER WINS",
+        "push": "PUSH",
+        "dealerNoQualify": "DEALER DIDN'T QUALIFY",
+        "folded": "FOLDED"
+      },
+      "result": {
+        "youLabel": "You:",
+        "versus": "vs",
+        "dealerLabel": "Dealer:",
+        "anteBonus": "Ante Bonus +{{amount}}",
+        "netWin": "+{{amount}} chips",
+        "netLose": "{{amount}} chips",
+        "netZero": "±0 chips",
+        "balance": "Balance: {{balance}}"
+      },
+      "fair": {
+        "toggle": "Provably fair",
+        "serverSeedHash": "serverSeedHash:",
+        "serverSeed": "serverSeed:",
+        "clientSeed": "clientSeed:",
+        "nonce": "nonce:",
+        "verifyHint": "Verify: sha256(serverSeed) should equal the hash shown before the hand."
+      },
+      "back": "Back",
+      "playChips": "Play Chips",
+      "loadingChips": "Loading chips…",
+      "title": "Casino Hold'em",
+      "heading": "Beat the dealer — five community cards",
+      "subheading": "Play Chips only — just for fun and bragging rights.",
+      "label": {
+        "dealer": "Dealer",
+        "community": "Community",
+        "you": "You"
+      },
+      "dealerDidntQualify": "Didn't qualify",
+      "chooseAnte": "Choose your ante",
+      "dealButton": "Deal — ante {{ante}}",
+      "chooseMove": "Choose your move — Call, Raise, or Fold",
+      "callOption": "CALL {{multiplier}}× ({{cost}})",
+      "raiseOption": "RAISE {{multiplier}}× ({{cost}})",
+      "fold": "FOLD",
+      "revealing": "Revealing…",
+      "newHand": "New Hand"
     }
   }
 }
