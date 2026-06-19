@@ -413,14 +413,13 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     <div className="mt-6">
       <Button
         ref={refs.fair}
-        variant="outline"
         size="sm"
         onClick={() => setShowFair((v) => !v)}
         onFocus={() => {
           if (phase === 'decision') setFocusDecision('fair');
           else if (phase === 'settled') setFocusSettle('fair');
         }}
-        className={`transition-all ${focusRing(
+        className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing(
           (phase === 'decision' && focusDecision === 'fair') ||
           (phase === 'settled' && focusSettle === 'fair')
         )}`}
