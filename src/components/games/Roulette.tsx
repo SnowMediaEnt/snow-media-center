@@ -623,7 +623,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
             {/* Wheel kind toggle */}
             <div className="mt-4 w-full max-w-[360px]">
               <div className="text-[10px] uppercase tracking-wider text-amber-200 font-bold mb-1.5 text-center">
-                Wheel
+                {t('games.roulette.wheel')}
               </div>
               <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950/70 border border-amber-400/40">
                 {(['european', 'american'] as WheelKind[]).map((k) => {
