@@ -197,9 +197,12 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   };
 
   const doDeal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setResultRank(null);
