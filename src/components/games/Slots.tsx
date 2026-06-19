@@ -74,7 +74,7 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
   if (img) {
     return <img src={img} alt={safeKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
   }
-  if (symbolKey === 'wild') {
+  if (safeKey === 'wild') {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
         <g stroke="#67e8f9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -93,7 +93,7 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
       </svg>
     );
   }
-  if (symbolKey === 'scatter') {
+  if (safeKey === 'scatter') {
     return (
       <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
         <ellipse cx="32" cy="52" rx="13" ry="4" fill="#a855f7" />
@@ -107,8 +107,8 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
       </svg>
     );
   }
-  const glyph = glyphs[symbolKey] ?? DEFAULT_GLYPHS[symbolKey] ?? '❓';
-  const isLow = symbolKey === 'la' || symbolKey === 'lk' || symbolKey === 'lq' || symbolKey === 'lj';
+  const glyph = glyphs[safeKey] ?? DEFAULT_GLYPHS[safeKey] ?? '❓';
+  const isLow = safeKey === 'la' || safeKey === 'lk' || safeKey === 'lq' || safeKey === 'lj';
   return (
     <span
       style={{
@@ -125,13 +125,26 @@ function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyph
   );
 }
 
-// Build a long random strip ending in finalKey (used during spin animation)
-function buildStrip(finalKey: string, length = 32): string[] {
+// Build a deterministic-length strip. The first (STRIP_LENGTH - ROWS - TAIL_PAD) entries are random
+// fillers, then exactly 3 result symbols (top→bottom), then TAIL_PAD random padding so the visible
+// window has overshoot room and never runs past the array end.
+function buildStrip(top: string, mid: string, bot: string): string[] {
   const out: string[] = [];
-  for (let i = 0; i < length - 1; i++) {
+  const leading = STRIP_LENGTH - ROWS - TAIL_PAD;
+  for (let i = 0; i < leading; i++) {
     out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
   }
-  out.push(finalKey);
+  out.push(top, mid, bot);
+  for (let i = 0; i < TAIL_PAD; i++) {
+    out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
+  }
+  return out;
+}
+
+// Build a fully random strip (idle / placeholder spinning state).
+function buildRandomStrip(): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < STRIP_LENGTH; i++) out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
   return out;
 }
 
