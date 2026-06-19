@@ -321,8 +321,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const focusRing = (active: boolean) =>
     active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
+  const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+
   const settleBanner = (() => {
-    if (!settleStatus) return null;
+    if (!settleStatus || !revealComplete) return null;
     const map: Record<string, { text: string; tone: 'win' | 'lose' | 'push' }> = {
       blackjack: { text: 'BLACKJACK!', tone: 'win' },
       win: { text: 'YOU WIN', tone: 'win' },
