@@ -194,6 +194,7 @@ const Games = ({ onBack }: GamesProps) => {
                 tabIndex={0}
                 onFocus={() => setFocusIndex(focusPos)}
                 onMouseEnter={() => setFocusIndex(focusPos)}
+                onClick={() => openTile(tile.id)}
                 className={`relative overflow-hidden cursor-pointer border-emerald-400/20 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-6 transition-all duration-300 outline-none
                   ${focused
                     ? 'scale-[1.04] border-emerald-300/70 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06)] ring-2 ring-emerald-300/60'
