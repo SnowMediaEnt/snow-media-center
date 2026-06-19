@@ -284,10 +284,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           else if (chipIdx === BETS.length - 1) { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowUp') {
           if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('back'); }
-          else if (focusBet === 'seed') { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowDown') {
           if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
-          else if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('seed'); }
         }
       } else if (phase === 'playing') {
         const order: FocusAction[] = ['hit', 'stand', ...(canDouble ? ['double' as FocusAction] : [])];
