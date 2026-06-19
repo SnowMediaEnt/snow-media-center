@@ -40,6 +40,7 @@ const GAMES: GameCard[] = [
   { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'PLAY NOW', playable: true },
   { id: 'video-poker', name: 'Video Poker', tagline: 'Jacks or better', emoji: '♠️', badge: 'PLAY NOW', playable: true },
   { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'PLAY NOW', playable: true },
+  { id: 'casino-holdem', name: "Casino Hold'em", tagline: 'Beat the dealer — 5 community cards', emoji: '♣️', badge: 'PLAY NOW', playable: true },
   { id: 'leaderboard', name: 'Leaderboard', tagline: 'Climb the ranks — bragging rights only', emoji: '🏆', badge: 'Coming soon', playable: false },
 ];
 
