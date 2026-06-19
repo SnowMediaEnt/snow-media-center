@@ -186,12 +186,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   }, [phase, focusBet, focusDecision, focusSettle]);
 
   const handleErrorAck = (err: string, respBalance?: number) => {
-    if (err === 'game_disabled') setError("Casino Hold'em is temporarily disabled.");
-    else if (err === 'invalid_bet') setError('Invalid ante.');
-    else if (err === 'insufficient_balance') setError('Not enough chips — grab your Daily Spin.');
-    else if (err === 'round_in_progress') setError('Finish your current hand first.');
-    else if (err === 'no_active_round') setError('No active hand — deal a new one.');
-    else setError('Something went wrong — try again.');
+    if (err === 'game_disabled') setError(t('games.casinoHoldem.error.gameDisabled'));
+    else if (err === 'invalid_bet') setError(t('games.casinoHoldem.error.invalidBet'));
+    else if (err === 'insufficient_balance') setError(t('games.casinoHoldem.error.insufficientBalance'));
+    else if (err === 'round_in_progress') setError(t('games.casinoHoldem.error.roundInProgress'));
+    else if (err === 'no_active_round') setError(t('games.casinoHoldem.error.noActiveRound'));
+    else setError(t('games.casinoHoldem.error.generic'));
     setTimeout(() => setError(null), 3500);
   };
 
