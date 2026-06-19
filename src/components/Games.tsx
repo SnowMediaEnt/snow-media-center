@@ -138,24 +138,6 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
     );
   };
 
-  if (screen === 'daily-spin') {
-    return <DailySpin onBack={() => setScreen('hub')} />;
-  }
-  if (screen === 'slots') {
-    return <Slots onBack={() => setScreen('hub')} />;
-  }
-  if (screen === 'blackjack') {
-    return <Blackjack onBack={() => setScreen('hub')} />;
-  }
-  if (screen === 'video-poker') {
-    return <VideoPoker onBack={() => setScreen('hub')} />;
-  }
-  if (screen === 'roulette') {
-    return <Roulette onBack={() => setScreen('hub')} />;
-  }
-  if (screen === 'casino-holdem') {
-    return <CasinoHoldem onBack={() => setScreen('hub')} />;
-  }
 
   return (
     <div
