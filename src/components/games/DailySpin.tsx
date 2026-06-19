@@ -13,7 +13,7 @@ interface DailySpinProps {
 
 const PRIZES = [50, 100, 250, 500, 2000];
 const SEG_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b']; // jackpot last (gold)
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 4 * 60 * 60 * 1000;
 
 interface FairInfo {
   serverSeedHash: string;
