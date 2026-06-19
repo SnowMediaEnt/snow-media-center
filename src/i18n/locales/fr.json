@@ -10,10 +10,22 @@
   },
   "home": {
     "tagline": "Votre expérience de streaming premium",
-    "mainApps": { "title": "Applis principales", "description": "Téléchargez des APK et outils de streaming" },
-    "support": { "title": "Assistance", "description": "Aide, chat IA et communauté" },
-    "store": { "title": "Boutique Snow Media", "description": "Visitez la boutique officielle" },
-    "player": { "title": "Lecteur", "description": "TV en direct, films et séries" }
+    "mainApps": {
+      "title": "Applis principales",
+      "description": "Téléchargez des APK et outils de streaming"
+    },
+    "support": {
+      "title": "Assistance",
+      "description": "Aide, chat IA et communauté"
+    },
+    "store": {
+      "title": "Boutique Snow Media",
+      "description": "Visitez la boutique officielle"
+    },
+    "player": {
+      "title": "Lecteur",
+      "description": "TV en direct, films et séries"
+    }
   },
   "settings": {
     "title": "Paramètres",
@@ -39,6 +51,37 @@
     "language": {
       "title": "Langue",
       "description": "Choisissez la langue de l'application. La couverture des traductions est encore en cours d'extension."
+    }
+  },
+  "games": {
+    "hub": {
+      "gameDailySpinName": "Tour quotidien",
+      "gameDailySpinTagline": "Jetons gratuits toutes les 4 heures",
+      "gameSlotsName": "Machines à sous",
+      "gameSlotsTagline": "Faites tourner les rouleaux — alignez-en trois",
+      "gameBlackjackName": "Blackjack",
+      "gameBlackjackTagline": "Battez le croupier en atteignant 21",
+      "gameVideoPokerName": "Vidéo Poker",
+      "gameVideoPokerTagline": "Valets ou mieux",
+      "gameRouletteName": "Roulette",
+      "gameRouletteTagline": "Faites vos jeux",
+      "gameCasinoHoldemName": "Casino Hold'em",
+      "gameCasinoHoldemTagline": "Battez le croupier — 5 cartes communes",
+      "gameLeaderboardName": "Classement",
+      "gameLeaderboardTagline": "Grimpez au classement — juste pour la gloire",
+      "badgePlayNow": "JOUER",
+      "badgeComingSoon": "Bientôt disponible",
+      "chipBadgeSignInPrompt": "Connectez-vous pour charger vos Play Chips",
+      "chipBadgeLoading": "Chargement des jetons…",
+      "chipBadgeReconnecting": "Impossible de charger vos jetons — reconnexion…",
+      "chipBadgeAriaLabel": "Solde de Play Chips",
+      "chipBadgeFreeChipsLabel": "Jetons gratuits",
+      "back": "Retour",
+      "heroEyebrow": "Salle de jeux",
+      "heroTitle": "Bienvenue au Lounge",
+      "heroSubtitle": "Jouez avec des Play Chips gratuits. Gagnez-en chaque jour, grimpez au classement et amusez-vous — juste pour la gloire.",
+      "signInBanner": "Connectez-vous pour commencer à accumuler des Play Chips.",
+      "serverError": "Serveur : {{errorMessage}}"
     }
   }
 }

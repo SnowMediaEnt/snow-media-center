@@ -10,10 +10,22 @@
   },
   "home": {
     "tagline": "Tu experiencia premium de streaming",
-    "mainApps": { "title": "Apps principales", "description": "Descarga APKs y herramientas de streaming" },
-    "support": { "title": "Soporte", "description": "Ayuda, chat con IA y comunidad" },
-    "store": { "title": "Tienda Snow Media", "description": "Visita la tienda oficial" },
-    "player": { "title": "Reproductor", "description": "TV en vivo, películas y series" }
+    "mainApps": {
+      "title": "Apps principales",
+      "description": "Descarga APKs y herramientas de streaming"
+    },
+    "support": {
+      "title": "Soporte",
+      "description": "Ayuda, chat con IA y comunidad"
+    },
+    "store": {
+      "title": "Tienda Snow Media",
+      "description": "Visita la tienda oficial"
+    },
+    "player": {
+      "title": "Reproductor",
+      "description": "TV en vivo, películas y series"
+    }
   },
   "settings": {
     "title": "Ajustes",
@@ -39,6 +51,37 @@
     "language": {
       "title": "Idioma",
       "description": "Elige el idioma de la aplicación. La cobertura de traducciones aún se está ampliando."
+    }
+  },
+  "games": {
+    "hub": {
+      "gameDailySpinName": "Giro diario",
+      "gameDailySpinTagline": "Fichas gratis cada 4 horas",
+      "gameSlotsName": "Tragamonedas",
+      "gameSlotsTagline": "Gira los rodillos: combina tres",
+      "gameBlackjackName": "Blackjack",
+      "gameBlackjackTagline": "Gana al crupier llegando a 21",
+      "gameVideoPokerName": "Video Póker",
+      "gameVideoPokerTagline": "Jotas o mejor",
+      "gameRouletteName": "Ruleta",
+      "gameRouletteTagline": "Hagan sus apuestas",
+      "gameCasinoHoldemName": "Casino Hold'em",
+      "gameCasinoHoldemTagline": "Gana al crupier — 5 cartas comunitarias",
+      "gameLeaderboardName": "Clasificación",
+      "gameLeaderboardTagline": "Sube en la clasificación — solo por el orgullo",
+      "badgePlayNow": "JUGAR AHORA",
+      "badgeComingSoon": "Próximamente",
+      "chipBadgeSignInPrompt": "Inicia sesión para cargar tus Play Chips",
+      "chipBadgeLoading": "Cargando fichas…",
+      "chipBadgeReconnecting": "No se pudieron cargar tus fichas — reconectando…",
+      "chipBadgeAriaLabel": "Saldo de Play Chips",
+      "chipBadgeFreeChipsLabel": "Fichas gratis",
+      "back": "Atrás",
+      "heroEyebrow": "Sala de juegos",
+      "heroTitle": "Bienvenido al Lounge",
+      "heroSubtitle": "Juega con Play Chips gratis. Gánalas a diario, sube en la clasificación y diviértete — solo por el orgullo.",
+      "signInBanner": "Inicia sesión para empezar a acumular Play Chips.",
+      "serverError": "Servidor: {{errorMessage}}"
     }
   }
 }
