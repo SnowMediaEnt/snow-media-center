@@ -805,7 +805,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   color="neutral"
                   className="rounded-lg h-[60px] w-16 text-[11px] uppercase font-extrabold leading-tight"
                 >
-                  2 to 1
+                  {t('games.roulette.columnPayout')}
                 </Cell>
               ))}
             </div>
