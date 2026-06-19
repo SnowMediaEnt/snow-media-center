@@ -18,6 +18,7 @@ import DailySpin from './games/DailySpin';
 import Slots from './games/Slots';
 import Blackjack from './games/Blackjack';
 import VideoPoker from './games/VideoPoker';
+import Roulette from './games/Roulette';
 
 interface GamesProps {
   onBack: () => void;
@@ -37,7 +38,7 @@ const GAMES: GameCard[] = [
   { id: 'slots', name: 'Slots', tagline: 'Spin the reels — match three', emoji: '🎰', badge: 'PLAY NOW', playable: true },
   { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'PLAY NOW', playable: true },
   { id: 'video-poker', name: 'Video Poker', tagline: 'Jacks or better', emoji: '♠️', badge: 'PLAY NOW', playable: true },
-  { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'Coming soon', playable: false },
+  { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'PLAY NOW', playable: true },
   { id: 'leaderboard', name: 'Leaderboard', tagline: 'Climb the ranks — bragging rights only', emoji: '🏆', badge: 'Coming soon', playable: false },
 ];
 
@@ -47,7 +48,7 @@ const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(1); // start on first game card
-  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack' | 'video-poker'>('hub');
+  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack' | 'video-poker' | 'roulette'>('hub');
 
   // Focusable items: back (0), then GAMES.length game cards (1..)
   const totalFocusable = 1 + GAMES.length;
@@ -58,6 +59,7 @@ const Games = ({ onBack }: GamesProps) => {
     else if (card.id === 'slots') setScreen('slots');
     else if (card.id === 'blackjack') setScreen('blackjack');
     else if (card.id === 'video-poker') setScreen('video-poker');
+    else if (card.id === 'roulette') setScreen('roulette');
   };
 
   useEffect(() => {
