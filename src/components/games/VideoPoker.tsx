@@ -145,6 +145,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const [bet, setBet] = useState<number>(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const [hand, setHand] = useState<VpCard[]>([]);
   const [holds, setHolds] = useState<boolean[]>([false, false, false, false, false]);
