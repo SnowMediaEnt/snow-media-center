@@ -234,7 +234,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     } finally {
       setBusy(false);
     }
-  }, [busy, user, balance, bet, clientSeed, applyAck]);
+  }, [busy, user, balance, bet, applyAck]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
     if (busy) return;
