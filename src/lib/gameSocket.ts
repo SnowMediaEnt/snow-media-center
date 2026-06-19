@@ -247,6 +247,14 @@ class GameSocketManager {
     return this.emitWithAck('vp_draw', { holds });
   }
 
+  async spinRoulette(payload: { bets: any[]; wheel: 'european' | 'american'; clientSeed?: string | null }): Promise<any> {
+    return this.emitWithAck('roulette_spin', {
+      bets: payload.bets,
+      wheel: payload.wheel,
+      clientSeed: payload.clientSeed ?? null,
+    });
+  }
+
   disconnect() {
     this.currentToken = null;
     this.balance = null;
