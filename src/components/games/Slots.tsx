@@ -68,9 +68,11 @@ interface SpinResult {
 }
 
 function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyphs: Record<string, string>; size?: number }) {
-  const img = SYMBOL_IMAGES[symbolKey];
+  // Guard against empty/unknown keys so a cell can never render blank
+  const safeKey = (symbolKey && REEL_KEYS.includes(symbolKey)) ? symbolKey : 'p1';
+  const img = SYMBOL_IMAGES[safeKey];
   if (img) {
-    return <img src={img} alt={symbolKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
+    return <img src={img} alt={safeKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
   }
   if (symbolKey === 'wild') {
     return (
