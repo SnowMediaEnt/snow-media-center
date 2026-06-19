@@ -431,15 +431,15 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         )}`}
       >
         {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-        Provably fair
+        {t('games.casinoHoldem.fair.toggle')}
       </Button>
       {showFair && (
         <div className="mt-3 p-4 rounded-lg bg-slate-900/70 border border-slate-700 text-xs text-slate-200 font-mono break-all space-y-1">
-          {serverSeedHash && <div><span className="text-slate-400">serverSeedHash:</span> {serverSeedHash}</div>}
-          {fair?.serverSeed && <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>}
-          {fair?.clientSeed && <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>}
-          {fair && typeof fair.nonce === 'number' && <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>}
-          <div className="text-slate-400 pt-1">Verify: sha256(serverSeed) should equal the hash shown before the hand.</div>
+          {serverSeedHash && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeedHash')}</span> {serverSeedHash}</div>}
+          {fair?.serverSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeed')}</span> {fair.serverSeed}</div>}
+          {fair?.clientSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.clientSeed')}</span> {fair.clientSeed}</div>}
+          {fair && typeof fair.nonce === 'number' && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.nonce')}</span> {fair.nonce}</div>}
+          <div className="text-slate-400 pt-1">{t('games.casinoHoldem.fair.verifyHint')}</div>
         </div>
       )}
     </div>
