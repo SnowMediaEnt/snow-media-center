@@ -188,10 +188,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         return 'hit';
       });
     } else if (resp?.status) {
-      // Settled
+      // Settled — keep dealer total/banner hidden until the staggered reveal completes
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
-      setDealerHand(resp.dealerHand ?? []);
+      const dHand: BjCard[] = resp.dealerHand ?? [];
+      setDealerHand(dHand);
       setPlayerTotal(resp.playerTotal ?? 0);
       setDealerTotal(resp.dealerTotal ?? 0);
       setSettleStatus(resp.status);
@@ -201,6 +202,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
       setFocusSettle('again');
+      // Start the staggered reveal: only the up-card is showing right now.
+      setRevealedDealer(Math.min(1, dHand.length));
     }
   }, []);
 
