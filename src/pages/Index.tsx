@@ -150,6 +150,7 @@ const Index = () => {
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { version } = useVersion();
