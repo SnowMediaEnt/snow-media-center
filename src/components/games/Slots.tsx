@@ -271,13 +271,9 @@ const Slots = ({ onBack }: SlotsProps) => {
           Array.from({ length: ROWS }, (_, row) => grid[row]?.[r] ?? REEL_KEYS[0])
         );
 
-        // Build strips for each reel ending with this reel's 3 symbols
-        setReelStrips(cols.map((col) => {
-          const strip = buildStrip(col[0], 30);
-          // append col[1], col[2] so the final 3 are top→bottom
-          strip.push(col[1], col[2]);
-          return strip;
-        }));
+        // Build deterministic-length strips for each reel ending with this reel's 3 symbols
+        // followed by TAIL_PAD random padding (so the visible window can never run past the end).
+        setReelStrips(cols.map((col) => buildStrip(col[0], col[1], col[2])));
 
         const result: SpinResult = {
           grid,
