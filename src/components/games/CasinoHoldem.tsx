@@ -603,12 +603,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 ref={refs.deal}
                 onClick={deal}
                 onFocus={() => setFocusBet('deal')}
-                disabled={busy || !user}
+                disabled={busy || !user || balance === null || balance < ante}
                 variant="gold"
                 size="lg"
                 className={`transition-all ${focusRing(focusBet === 'deal')}`}
               >
-                Deal — ante {ante}
+                {balance === null ? 'Loading chips…' : `Deal — ante ${ante}`}
               </Button>
             </div>
           </div>
