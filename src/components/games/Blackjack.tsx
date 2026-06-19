@@ -21,12 +21,24 @@ interface FairInfo {
 }
 
 type Phase = 'bet' | 'playing' | 'settled';
-type FocusBet = `chip-${number}` | 'deal' | 'back' | 'seed';
+type FocusBet = `chip-${number}` | 'deal' | 'back';
 type FocusAction = 'hit' | 'stand' | 'double' | 'back';
 type FocusSettle = 'again' | 'back' | 'fair';
 
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const RED_SUITS = new Set(['H', 'D']);
+
+const computeBjTotal = (cards: BjCard[]): number => {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    if (c.rank === 'A') { total += 11; aces++; }
+    else if (c.rank === 'K' || c.rank === 'Q' || c.rank === 'J' || c.rank === '10') total += 10;
+    else total += parseInt(c.rank, 10) || 0;
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return total;
+};
 
 function PlayingCard({
   card,
@@ -95,7 +107,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [bet, setBet] = useState<number>(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState<string>('');
 
   const [playerHand, setPlayerHand] = useState<BjCard[]>([]);
   const [dealerHand, setDealerHand] = useState<BjCard[]>([]);
@@ -112,6 +123,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [net, setNet] = useState<number>(0);
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
+  // Staggered dealer reveal on settle: number of dealer cards currently shown face-up
+  const [revealedDealer, setRevealedDealer] = useState<number>(0);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
   const [focusAction, setFocusAction] = useState<FocusAction>('hit');
@@ -125,16 +138,15 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     double: useRef<HTMLButtonElement>(null),
     again: useRef<HTMLButtonElement>(null),
     fair: useRef<HTMLButtonElement>(null),
-    seed: useRef<HTMLInputElement>(null),
     chips: BETS.map(() => useRef<HTMLButtonElement>(null)),
   };
+  // strip old seed ref line
 
   // Focus management
   useEffect(() => {
     if (phase === 'bet') {
       if (focusBet === 'back') refs.back.current?.focus();
       else if (focusBet === 'deal') refs.deal.current?.focus();
-      else if (focusBet === 'seed') refs.seed.current?.focus();
       else if (focusBet.startsWith('chip-')) {
         const i = Number(focusBet.split('-')[1]);
         refs.chips[i]?.current?.focus();
@@ -176,10 +188,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         return 'hit';
       });
     } else if (resp?.status) {
-      // Settled
+      // Settled — keep dealer total/banner hidden until the staggered reveal completes
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
-      setDealerHand(resp.dealerHand ?? []);
+      const dHand: BjCard[] = resp.dealerHand ?? [];
+      setDealerHand(dHand);
       setPlayerTotal(resp.playerTotal ?? 0);
       setDealerTotal(resp.dealerTotal ?? 0);
       setSettleStatus(resp.status);
@@ -189,6 +202,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
       setFocusSettle('again');
+      // Start the staggered reveal: only the up-card is showing right now.
+      setRevealedDealer(Math.min(1, dHand.length));
     }
   }, []);
 
@@ -210,7 +225,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setError(null);
     setBusy(true);
     try {
-      const seed = clientSeed.trim() || crypto.getRandomValues(new Uint32Array(2)).join('-');
+      const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.dealBlackjack(bet, seed);
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
@@ -219,7 +234,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     } finally {
       setBusy(false);
     }
-  }, [busy, user, balance, bet, clientSeed, applyAck]);
+  }, [busy, user, balance, bet, applyAck]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
     if (busy) return;
@@ -248,8 +263,19 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setNet(0);
     setFair(null);
     setShowFair(false);
+    setRevealedDealer(0);
     setFocusBet('deal');
   };
+
+  // Staggered dealer reveal during settle phase: ~550ms between cards.
+  useEffect(() => {
+    if (phase !== 'settled') return;
+    if (revealedDealer >= dealerHand.length) return;
+    const delay = revealedDealer === 0 ? 250 : 550;
+    const t = setTimeout(() => setRevealedDealer((n) => n + 1), delay);
+    return () => clearTimeout(t);
+  }, [phase, revealedDealer, dealerHand.length]);
+
 
   // D-pad
   useEffect(() => {
@@ -269,10 +295,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           else if (chipIdx === BETS.length - 1) { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowUp') {
           if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('back'); }
-          else if (focusBet === 'seed') { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowDown') {
           if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
-          else if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('seed'); }
         }
       } else if (phase === 'playing') {
         const order: FocusAction[] = ['hit', 'stand', ...(canDouble ? ['double' as FocusAction] : [])];
@@ -297,8 +321,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const focusRing = (active: boolean) =>
     active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
+  const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+
   const settleBanner = (() => {
-    if (!settleStatus) return null;
+    if (!settleStatus || !revealComplete) return null;
     const map: Record<string, { text: string; tone: 'win' | 'lose' | 'push' }> = {
       blackjack: { text: 'BLACKJACK!', tone: 'win' },
       win: { text: 'YOU WIN', tone: 'win' },
@@ -408,8 +434,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">Dealer</div>
               {(phase === 'playing' || phase === 'settled') && (
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums">
-                  {phase === 'settled' ? dealerTotal : dealerUpTotal}
+                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums transition-all">
+                  {phase === 'settled'
+                    ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
+                    : dealerUpTotal}
                 </span>
               )}
             </div>
@@ -425,9 +453,16 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   <PlayingCard faceDown delay={dealerUp.length * 120} />
                 </>
               )}
-              {phase === 'settled' && dealerHand.map((c, i) => (
-                <PlayingCard key={`dh-${i}`} card={c} delay={i * 90} />
-              ))}
+              {phase === 'settled' && (
+                <>
+                  {dealerHand.slice(0, revealedDealer).map((c, i) => (
+                    <PlayingCard key={`dh-${i}`} card={c} delay={i === revealedDealer - 1 ? 0 : 0} />
+                  ))}
+                  {revealedDealer < dealerHand.length && revealedDealer < 2 && (
+                    <PlayingCard faceDown />
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -491,17 +526,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 ) : `DEAL  •  ${bet}`}
               </Button>
             </div>
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-              Custom client seed (optional)
-            </label>
-            <input
-              ref={refs.seed}
-              onFocus={() => setFocusBet('seed')}
-              value={clientSeed}
-              onChange={(e) => setClientSeed(e.target.value)}
-              placeholder="Auto-generated if blank"
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-700/70 text-sm text-slate-200 font-mono outline-none transition-all ${focusBet === 'seed' ? 'ring-4 ring-amber-300/70 border-amber-300/70' : ''}`}
-            />
+            <p className="text-[11px] text-slate-400">
+              A fresh client seed is generated for every hand — view it under <span className="text-slate-200 font-semibold">Provably fair</span> after you settle.
+            </p>
           </Card>
         )}
 

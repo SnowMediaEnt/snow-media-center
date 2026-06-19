@@ -55,7 +55,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState('');
+  // (client seed is auto-generated per spin; not user-editable)
   const [serverSeedHash, setServerSeedHash] = useState<string>('');
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winKeys, setWinKeys] = useState<Set<string>>(new Set());
@@ -206,7 +206,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
     raf = requestAnimationFrame(animateIdle);
 
     try {
-      const seed = (clientSeed || '').trim() || crypto.getRandomValues(new Uint32Array(2)).join('-');
+      const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp: any = await gameSocket.spinRoulette({
         bets: buildBets(),
         wheel,
@@ -271,7 +271,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       setBusy(false);
       setError("Couldn't reach the table — try again.");
     }
-  }, [canSpin, wheelRotation, ballRotation, clientSeed, wheel, chips, totalBet]);
+  }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
 
   // D-pad handler
   useEffect(() => {
@@ -299,6 +299,14 @@ const Roulette = ({ onBack }: RouletteProps) => {
   useEffect(() => {
     setFocusId('spin');
   }, []);
+
+  // When switching wheels, drop any chips invalid on the new layout (e.g. '00' on European)
+  // and clear any stale spin result so the board redraws cleanly.
+  useEffect(() => {
+    setChips((prev) => prev.filter((c) => !(wheel === 'european' && c.type === 'straight' && c.selection === '00')));
+    setResult(null);
+    setWinKeys(new Set());
+  }, [wheel]);
 
   // Draw wheel
   useEffect(() => {
@@ -541,23 +549,32 @@ const Roulette = ({ onBack }: RouletteProps) => {
               </div>
             </div>
             {/* Wheel kind toggle */}
-            <div className="mt-3 flex gap-2">
-              {(['european', 'american'] as WheelKind[]).map((k) => (
-                <button
-                  key={k}
-                  ref={registerFocus(`wheel-${k}`)}
-                  onFocus={() => setFocusId(`wheel-${k}`)}
-                  onClick={() => !spinning && setWheel(k)}
-                  disabled={spinning}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
-                    wheel === k
-                      ? 'bg-amber-400 text-slate-900 border-amber-200'
-                      : 'bg-slate-800/70 text-amber-100 border-amber-400/40'
-                  } ${focusId === `wheel-${k}` ? focusRing : ''}`}
-                >
-                  {k === 'european' ? 'European (0)' : 'American (0/00)'}
-                </button>
-              ))}
+            <div className="mt-4 w-full max-w-[360px]">
+              <div className="text-[10px] uppercase tracking-wider text-amber-200 font-bold mb-1.5 text-center">
+                Wheel
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950/70 border border-amber-400/40">
+                {(['european', 'american'] as WheelKind[]).map((k) => {
+                  const active = wheel === k;
+                  return (
+                    <button
+                      key={k}
+                      ref={registerFocus(`wheel-${k}`)}
+                      onFocus={() => setFocusId(`wheel-${k}`)}
+                      onClick={() => { if (!spinning) setWheel(k); }}
+                      disabled={spinning}
+                      aria-pressed={active}
+                      className={`px-3 py-2 rounded-lg text-sm font-black uppercase tracking-wider border-2 transition-all ${
+                        active
+                          ? 'bg-gradient-to-br from-amber-300 to-amber-600 text-slate-900 border-amber-200 shadow-[0_4px_18px_-4px_rgba(252,211,77,0.7)]'
+                          : 'bg-slate-800/70 text-amber-100 border-transparent hover:bg-slate-700/70'
+                      } ${focusId === `wheel-${k}` ? focusRing : ''}`}
+                    >
+                      {k === 'european' ? 'European • 0' : 'American • 0 / 00'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {result && (
               <div className={`mt-3 px-4 py-2 rounded-xl border font-black text-2xl tabular-nums ${
@@ -760,28 +777,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
           </div>
         )}
 
-        {/* Client seed input */}
-        <div className="mt-4 grid md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-              Custom client seed (optional)
-            </label>
-            <input
-              ref={registerFocus('seed') as any}
-              onFocus={() => setFocusId('seed')}
-              value={clientSeed}
-              onChange={(e) => setClientSeed(e.target.value)}
-              placeholder="Auto-generated if blank"
-              disabled={spinning}
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-700/70 text-sm text-slate-200 font-mono outline-none transition-all ${focusId === 'seed' ? 'ring-4 ring-amber-300/70 border-amber-300/70' : ''}`}
-            />
+        {serverSeedHash && (
+          <div className="mt-4 text-[11px] text-slate-400 font-mono break-all text-center">
+            seedHash: {serverSeedHash}
           </div>
-          {serverSeedHash && (
-            <div className="self-end text-[11px] text-slate-400 font-mono break-all">
-              seedHash: {serverSeedHash}
-            </div>
-          )}
-        </div>
+        )}
 
         {error && (
           <div className="mt-4 mx-auto max-w-md px-4 py-3 rounded-lg bg-rose-950/70 border border-rose-400/50 text-rose-100 text-sm text-center font-semibold">
