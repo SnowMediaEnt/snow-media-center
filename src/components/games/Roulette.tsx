@@ -300,6 +300,14 @@ const Roulette = ({ onBack }: RouletteProps) => {
     setFocusId('spin');
   }, []);
 
+  // When switching wheels, drop any chips invalid on the new layout (e.g. '00' on European)
+  // and clear any stale spin result so the board redraws cleanly.
+  useEffect(() => {
+    setChips((prev) => prev.filter((c) => !(wheel === 'european' && c.type === 'straight' && c.selection === '00')));
+    setResult(null);
+    setWinKeys(new Set());
+  }, [wheel]);
+
   // Draw wheel
   useEffect(() => {
     const canvas = canvasRef.current;
