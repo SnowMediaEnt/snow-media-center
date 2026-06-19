@@ -733,11 +733,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
             </div>
             {balance !== null && totalBet > balance && chips.length > 0 && (
               <p className="mt-2 text-xs text-amber-200 font-semibold">
-                Bet exceeds your balance — press Undo or lower a stake.
+                {t('games.roulette.betExceedsBalance')}
               </p>
             )}
             {balance === null && (
-              <p className="mt-2 text-xs text-slate-300">Loading chips…</p>
+              <p className="mt-2 text-xs text-slate-300">{t('games.roulette.loadingChips')}</p>
             )}
           </Card>
         </div>
