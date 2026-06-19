@@ -232,7 +232,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         handleErrorAck(resp?.error ?? 'error', resp?.balance);
       }
     } catch {
-      setError("Couldn't deal right now — try again.");
+      setError(t('games.casinoHoldem.error.dealFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
