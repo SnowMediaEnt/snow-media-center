@@ -158,6 +158,7 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 const Slots = ({ onBack }: SlotsProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
