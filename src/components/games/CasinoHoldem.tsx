@@ -198,9 +198,9 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const deal = useCallback(async () => {
     if (inFlight.current) return;
     if (busy) return;
-    if (!user) { setError('Sign in to play.'); return; }
-    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
-    if (balance < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (!user) { setError(t('games.casinoHoldem.error.signIn')); return; }
+    if (balance === null) { setError(t('games.casinoHoldem.error.loadingChips')); return; }
+    if (balance < ante) { setError(t('games.casinoHoldem.error.insufficientBalance')); return; }
     inFlight.current = true;
     setError(null);
     setBusy(true);
