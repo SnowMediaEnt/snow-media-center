@@ -225,7 +225,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setError(null);
     setBusy(true);
     try {
-      const seed = clientSeed.trim() || crypto.getRandomValues(new Uint32Array(2)).join('-');
+      const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.dealBlackjack(bet, seed);
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
