@@ -325,10 +325,16 @@ const Roulette = ({ onBack }: RouletteProps) => {
   // D-pad handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ')) return;
       if (e.key === 'Enter' || e.key === ' ') {
         const el = focusItems.current.get(focusId) as HTMLButtonElement | undefined;
         if (el && !el.disabled) { e.preventDefault(); el.click(); }
         return;
+      }
+      // Decrement: Backspace, '-', NumpadSubtract on a focused cell
+      if (e.key === 'Backspace' || e.key === '-' || e.key === 'Subtract') {
+        const bet = cellBets.current.get(focusId);
+        if (bet) { e.preventDefault(); decrementChipOn(bet.type, bet.selection); return; }
       }
       if (e.key === 'ArrowRight') { e.preventDefault(); moveFocus('right'); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocus('left'); }
@@ -339,10 +345,17 @@ const Roulette = ({ onBack }: RouletteProps) => {
     return () => window.removeEventListener('keydown', handler);
   }, [focusId, moveFocus, onBack]);
 
-  // Initial focus
+  // Initial focus on an always-enabled control (a denom chip).
   useEffect(() => {
-    setFocusId('spin');
+    setFocusId('denom-10');
   }, []);
+
+  // If total bet exceeds balance, move focus to Undo so the remote user lands on the fix.
+  useEffect(() => {
+    if (!spinning && balance !== null && totalBet > balance && chips.length > 0) {
+      setFocusId('undo');
+    }
+  }, [totalBet, balance, spinning, chips.length]);
 
   // When switching wheels, drop any chips invalid on the new layout (e.g. '00' on European)
   // and clear any stale spin result so the board redraws cleanly.
