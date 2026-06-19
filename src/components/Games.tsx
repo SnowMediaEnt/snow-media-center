@@ -1,59 +1,59 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Coins, Trophy, Lock, Sparkles, Dice5, Gift, LogIn, Loader2, WifiOff } from 'lucide-react';
+import {
+  ArrowLeft,
+  Coins,
+  Trophy,
+  Lock,
+  Sparkles,
+  Gift,
+  LogIn,
+  Loader2,
+  WifiOff,
+} from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import DailySpin from './games/DailySpin';
+import Slots from './games/Slots';
 
 interface GamesProps {
   onBack: () => void;
 }
 
-const hubTiles = [
-  {
-    id: 'daily-spin',
-    name: 'Daily Spin',
-    tagline: 'Free chips every 24 hours',
-    icon: Gift,
-    badge: 'Play now',
-  },
-  {
-    id: 'chip-games',
-    name: 'Chip Games',
-    tagline: 'Casino-style games, just for fun',
-    icon: Dice5,
-    badge: 'Coming soon',
-  },
-  {
-    id: 'leaderboard',
-    name: 'Leaderboard',
-    tagline: 'Climb the ranks — bragging rights only',
-    icon: Trophy,
-    badge: 'Coming soon',
-  },
+type GameCard = {
+  id: string;
+  name: string;
+  tagline: string;
+  emoji: string;
+  badge: string;
+  playable: boolean;
+};
+
+const GAMES: GameCard[] = [
+  { id: 'daily-spin', name: 'Daily Spin', tagline: 'Free chips every 24 hours', emoji: '🎁', badge: 'PLAY NOW', playable: true },
+  { id: 'slots', name: 'Slots', tagline: 'Spin the reels — match three', emoji: '🎰', badge: 'PLAY NOW', playable: true },
+  { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'Coming soon', playable: false },
+  { id: 'video-poker', name: 'Video Poker', tagline: 'Jacks or better', emoji: '♠️', badge: 'Coming soon', playable: false },
+  { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'Coming soon', playable: false },
+  { id: 'leaderboard', name: 'Leaderboard', tagline: 'Climb the ranks — bragging rights only', emoji: '🏆', badge: 'Coming soon', playable: false },
 ];
 
-const upcomingGames = [
-  { id: 'poker', name: "Texas Hold'em Poker", icon: '♠️', description: 'Classic poker' },
-  { id: 'slots', name: 'Lucky Slots', icon: '🎰', description: 'Spin the reels' },
-  { id: 'blackjack', name: 'Blackjack 21', icon: '🃏', description: 'Beat the dealer' },
-  { id: 'plinko', name: 'Plinko Drop', icon: '⚪', description: 'Drop the puck' },
-  { id: 'roulette', name: 'Roulette', icon: '🎡', description: 'Spin the wheel' },
-  { id: 'dice', name: 'Lucky Dice', icon: '🎲', description: 'Roll the bones' },
-];
+const COLS = 3;
 
 const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
-  const [focusIndex, setFocusIndex] = useState(0);
-  const [screen, setScreen] = useState<'hub' | 'daily-spin'>('hub');
+  const [focusIndex, setFocusIndex] = useState(1); // start on first game card
+  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots'>('hub');
 
-  // Focusable items: back (0), then 3 hub tiles (1-3), then upcoming games (4..)
-  const totalFocusable = 1 + hubTiles.length + upcomingGames.length;
+  // Focusable items: back (0), then GAMES.length game cards (1..)
+  const totalFocusable = 1 + GAMES.length;
 
-  const openTile = (id: string) => {
-    if (id === 'daily-spin') setScreen('daily-spin');
+  const openCard = (card: GameCard) => {
+    if (!card.playable) return;
+    if (card.id === 'daily-spin') setScreen('daily-spin');
+    else if (card.id === 'slots') setScreen('slots');
   };
 
   useEffect(() => {
@@ -65,12 +65,11 @@ const Games = ({ onBack }: GamesProps) => {
         return;
       }
       if (e.key === 'Enter' || e.key === ' ') {
-        const hubStart = 1;
-        if (focusIndex >= hubStart && focusIndex < hubStart + hubTiles.length) {
-          const tile = hubTiles[focusIndex - hubStart];
-          openTile(tile.id);
-        } else if (focusIndex === 0) {
+        if (focusIndex === 0) {
           onBack();
+        } else {
+          const card = GAMES[focusIndex - 1];
+          if (card) openCard(card);
         }
         return;
       }
@@ -79,16 +78,21 @@ const Games = ({ onBack }: GamesProps) => {
       } else if (e.key === 'ArrowLeft') {
         setFocusIndex((i) => Math.max(0, i - 1));
       } else if (e.key === 'ArrowDown') {
-        setFocusIndex((i) => Math.min(totalFocusable - 1, i + 3));
+        setFocusIndex((i) => {
+          if (i === 0) return 1;
+          return Math.min(totalFocusable - 1, i + COLS);
+        });
       } else if (e.key === 'ArrowUp') {
-        setFocusIndex((i) => Math.max(0, i - 3));
+        setFocusIndex((i) => {
+          if (i >= 1 && i <= COLS) return 0;
+          return Math.max(0, i - COLS);
+        });
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [onBack, totalFocusable, screen, focusIndex]);
 
-  // Scroll focused tile into view
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(`[data-game-focus="${focusIndex}"]`);
     if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -134,6 +138,9 @@ const Games = ({ onBack }: GamesProps) => {
 
   if (screen === 'daily-spin') {
     return <DailySpin onBack={() => setScreen('hub')} />;
+  }
+  if (screen === 'slots') {
+    return <Slots onBack={() => setScreen('hub')} />;
   }
 
   return (
@@ -181,80 +188,62 @@ const Games = ({ onBack }: GamesProps) => {
           </div>
         </Card>
 
-        {/* Hub tiles */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10" style={{ perspective: '1200px' }}>
-          {hubTiles.map((tile, idx) => {
+        {/* Games grid */}
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${COLS} gap-5`} style={{ perspective: '1200px' }}>
+          {GAMES.map((card, idx) => {
             const focusPos = 1 + idx;
             const focused = focusIndex === focusPos;
-            const Icon = tile.icon;
+            const playable = card.playable;
             return (
               <Card
-                key={tile.id}
+                key={card.id}
                 data-game-focus={focusPos}
                 tabIndex={0}
                 onFocus={() => setFocusIndex(focusPos)}
                 onMouseEnter={() => setFocusIndex(focusPos)}
-                onClick={() => openTile(tile.id)}
-                className={`relative overflow-hidden cursor-pointer border-emerald-400/20 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-6 transition-all duration-300 outline-none
+                onClick={() => openCard(card)}
+                className={`relative overflow-hidden border p-6 transition-all duration-300 outline-none
+                  ${playable
+                    ? 'cursor-pointer border-emerald-400/30 bg-gradient-to-br from-slate-900/90 to-slate-950/95'
+                    : 'cursor-not-allowed border-slate-600/40 bg-gradient-to-br from-slate-800/70 to-slate-950/90 opacity-90'}
                   ${focused
-                    ? 'scale-[1.04] border-emerald-300/70 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06)] ring-2 ring-emerald-300/60'
-                    : 'shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7),inset_0_0_0_1px_rgba(255,255,255,0.03)] hover:scale-[1.02]'}
+                    ? playable
+                      ? 'scale-[1.05] border-emerald-300/70 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.55)] ring-2 ring-emerald-300/60'
+                      : 'scale-[1.04] border-amber-300/60 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.7)] ring-2 ring-amber-300/40'
+                    : 'shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] hover:scale-[1.02]'}
                 `}
                 style={{ transformStyle: 'preserve-3d' }}
               >
-                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-emerald-400/10 blur-2xl" />
+                {!playable && (
+                  <div className="absolute top-3 right-3">
+                    <Lock className="w-4 h-4 text-slate-300" />
+                  </div>
+                )}
+                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-emerald-400/10 blur-2xl pointer-events-none" />
                 <div className="relative flex items-start gap-4">
-                  <div className="rounded-xl p-3 bg-gradient-to-br from-emerald-500/30 to-emerald-700/30 border border-emerald-300/30">
-                    <Icon className="w-8 h-8 text-amber-300" />
+                  <div
+                    className={`text-5xl drop-shadow rounded-xl p-2 ${
+                      playable
+                        ? 'bg-gradient-to-br from-emerald-500/30 to-emerald-700/30 border border-emerald-300/30'
+                        : 'bg-slate-800/40 border border-slate-600/30'
+                    }`}
+                  >
+                    {card.emoji}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="text-xl font-bold text-white">{tile.name}</h3>
-                      <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-300/40 whitespace-nowrap">
-                        {tile.badge}
+                      <h3 className="text-xl font-bold text-white">{card.name}</h3>
+                      <span
+                        className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full whitespace-nowrap border ${
+                          playable
+                            ? 'bg-amber-400/25 text-amber-100 border-amber-300/50'
+                            : 'bg-slate-700/50 text-slate-200 border-slate-500/40'
+                        }`}
+                      >
+                        {card.badge}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-100/90 font-medium">{tile.tagline}</p>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Upcoming games */}
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <Lock className="w-5 h-5 text-emerald-300" />
-          Coming Soon
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4" style={{ perspective: '1200px' }}>
-          {upcomingGames.map((game, idx) => {
-            const focusPos = 1 + hubTiles.length + idx;
-            const focused = focusIndex === focusPos;
-            return (
-              <Card
-                key={game.id}
-                data-game-focus={focusPos}
-                tabIndex={0}
-                onFocus={() => setFocusIndex(focusPos)}
-                onMouseEnter={() => setFocusIndex(focusPos)}
-                className={`relative overflow-hidden border-slate-600/40 bg-gradient-to-br from-slate-800/80 to-slate-950/90 p-6 transition-all duration-300 outline-none
-                  ${focused
-                    ? 'scale-[1.05] border-emerald-300/70 shadow-[0_18px_44px_-12px_rgba(16,185,129,0.55)] ring-2 ring-emerald-300/60'
-                    : 'shadow-[0_10px_24px_-12px_rgba(0,0,0,0.7)] hover:scale-[1.02]'}
-                `}
-              >
-                <div className="absolute top-2 right-2">
-                  <Lock className="w-4 h-4 text-slate-300" />
-                </div>
-                <div className="text-center">
-                  <div className="text-5xl mb-3 drop-shadow">{game.icon}</div>
-                  <h3 className="text-lg font-bold text-white mb-1">{game.name}</h3>
-                  <p className="text-sm text-slate-200/90 font-medium">{game.description}</p>
-                  <div className="mt-3">
-                    <span className="text-xs font-semibold bg-emerald-500/25 text-emerald-100 px-2 py-1 rounded-full border border-emerald-300/30">
-                      Coming Soon
-                    </span>
+                    <p className="text-sm text-slate-100/90 font-medium">{card.tagline}</p>
                   </div>
                 </div>
               </Card>
@@ -278,3 +267,4 @@ const Games = ({ onBack }: GamesProps) => {
 };
 
 export default Games;
+
