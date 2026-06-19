@@ -654,7 +654,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 size="lg"
                 className={`text-base font-black px-6 py-5 bg-rose-700 hover:bg-rose-600 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
-                FOLD
+                {t('games.casinoHoldem.fold')}
               </Button>
             </div>
             {renderFair()}
