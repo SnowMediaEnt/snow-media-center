@@ -328,7 +328,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       setSpinning(false);
       setBusy(false);
       inFlight.current = false;
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.roulette.errUnreachable'));
     }
   }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
 
