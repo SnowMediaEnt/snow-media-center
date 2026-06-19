@@ -170,9 +170,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       }
     } else if (phase === 'decision') {
       if (focusDecision === 'back') refs.back.current?.focus();
-      else if (focusDecision === 'call') refs.call.current?.focus();
       else if (focusDecision === 'fold') refs.fold.current?.focus();
       else if (focusDecision === 'fair') refs.fair.current?.focus();
+      else if (focusDecision.startsWith('opt-')) {
+        const i = Number(focusDecision.split('-')[1]);
+        optionRefs.current[i]?.focus();
+      }
     } else if (phase === 'settled') {
       if (focusSettle === 'back') refs.back.current?.focus();
       else if (focusSettle === 'again') refs.again.current?.focus();
