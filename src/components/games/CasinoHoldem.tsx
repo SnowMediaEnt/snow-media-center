@@ -194,9 +194,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   };
 
   const deal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < ante) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setError(null);
     setBusy(true);
     try {
@@ -208,14 +211,21 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         setRevealedCommunity(3);
         setDealerHole([]);
         setDealerRevealed(false);
-        setCallCost(resp.callCost ?? ante * 2);
+        const cc = resp.callCost ?? ante * 2;
+        setCallCost(cc);
+        const opts: RaiseOption[] = Array.isArray(resp.raiseOptions) && resp.raiseOptions.length
+          ? resp.raiseOptions
+          : [{ multiplier: 2, cost: cc }];
+        setRaiseOptions(opts);
         if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setSettleStatus(null);
         setFair(null);
         setNet(0); setPayout(0); setAnteBonus(0);
         setPlayerRank(''); setDealerRank(''); setDealerQualified(true);
         setPhase('decision');
-        setFocusDecision('call');
+        const bal = balance ?? 0;
+        const firstAffordable = opts.findIndex((o) => o.cost <= bal);
+        setFocusDecision(firstAffordable >= 0 ? (`opt-${firstAffordable}` as FocusDecision) : 'fold');
       } else {
         handleErrorAck(resp?.error ?? 'error', resp?.balance);
       }
@@ -223,6 +233,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setError("Couldn't deal right now — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, ante]);
 
@@ -240,21 +251,15 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     if (resp.fair) setFair(resp.fair);
 
     if (folded) {
-      // Reveal everything at once
       setRevealedCommunity(5);
       setDealerRevealed(true);
       setPhase('settled');
       setFocusSettle('again');
     } else {
-      // Staggered reveal: turn -> river -> dealer
       setPhase('reveal');
-      // turn
       setTimeout(() => setRevealedCommunity((n) => Math.max(n, 4)), 350);
-      // river
       setTimeout(() => setRevealedCommunity((n) => Math.max(n, 5)), 700);
-      // flip dealer
       setTimeout(() => setDealerRevealed(true), 1100);
-      // settle
       setTimeout(() => {
         setPhase('settled');
         setFocusSettle('again');
@@ -262,23 +267,28 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     }
   }, []);
 
-  const doCall = useCallback(async () => {
+  const doCall = useCallback(async (multiplier: number) => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const resp = await gameSocket.callCasinoHoldem();
+      const resp = await gameSocket.callCasinoHoldem(multiplier);
       if (resp?.ok) finishSettle(resp, false);
       else handleErrorAck(resp?.error ?? 'error', resp?.balance);
     } catch {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, finishSettle]);
 
   const doFold = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -289,6 +299,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, finishSettle]);
 
