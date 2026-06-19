@@ -715,7 +715,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 disabled={spinning || chips.length === 0}
                 className={`bg-rose-900/70 text-rose-100 border border-rose-400/60 hover:bg-rose-800/70 ${focusId === 'clear' ? focusRing : ''}`}
               >
-                <Trash2 className="w-4 h-4 mr-2" /> Clear Bets
+                <Trash2 className="w-4 h-4 mr-2" /> {t('games.roulette.clearBets')}
               </Button>
               <Button
                 ref={registerFocus('spin') as any}
