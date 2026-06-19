@@ -483,7 +483,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
             <div className="flex flex-col leading-tight">
               <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : status === 'connecting' ? '…' : '—'}
+                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
               </span>
             </div>
           </div>
