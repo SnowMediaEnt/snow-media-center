@@ -107,7 +107,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [bet, setBet] = useState<number>(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState<string>('');
 
   const [playerHand, setPlayerHand] = useState<BjCard[]>([]);
   const [dealerHand, setDealerHand] = useState<BjCard[]>([]);
