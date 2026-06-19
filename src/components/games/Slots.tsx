@@ -728,11 +728,10 @@ const Slots = ({ onBack }: SlotsProps) => {
         <div className="mt-5 max-w-4xl mx-auto">
           <Button
             ref={fairBtnRef}
-            variant="outline"
             size="sm"
             onClick={() => setShowFair((v) => !v)}
             onFocus={() => setFocus('fair')}
-            className={`transition-all ${focusRing('fair')}`}
+            className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing('fair')}`}
           >
             {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
             Provably fair
