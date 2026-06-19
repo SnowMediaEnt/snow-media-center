@@ -147,7 +147,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     if (phase === 'bet') {
       if (focusBet === 'back') refs.back.current?.focus();
       else if (focusBet === 'deal') refs.deal.current?.focus();
-      else if (focusBet === 'seed') refs.seed.current?.focus();
       else if (focusBet.startsWith('chip-')) {
         const i = Number(focusBet.split('-')[1]);
         refs.chips[i]?.current?.focus();
