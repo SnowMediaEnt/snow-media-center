@@ -850,11 +850,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
         {result && (
           <div className="mt-4 text-center relative">
             <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border bg-slate-900/70 border-amber-400/40">
-              <span className="text-xs uppercase tracking-wider text-amber-200 font-bold">Payout</span>
+              <span className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.roulette.payout')}</span>
               <span className="text-2xl font-black text-emerald-300 tabular-nums">
-                {result.totalPayout.toLocaleString()} chips
+                {t('games.roulette.payoutChips', { amount: result.totalPayout.toLocaleString() })}
               </span>
-              <span className="text-xs text-slate-300">on {result.totalBet} bet</span>
+              <span className="text-xs text-slate-300">{t('games.roulette.onBet', { amount: result.totalBet })}</span>
             </div>
             {celebrate && (
               <div className="absolute inset-x-0 -top-2 pointer-events-none flex justify-center gap-3">
