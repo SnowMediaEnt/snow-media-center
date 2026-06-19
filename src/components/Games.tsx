@@ -47,9 +47,14 @@ const Games = ({ onBack }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(0);
+  const [screen, setScreen] = useState<'hub' | 'daily-spin'>('hub');
 
   // Focusable items: back (0), then 3 hub tiles (1-3), then upcoming games (4..)
   const totalFocusable = 1 + hubTiles.length + upcomingGames.length;
+
+  const openTile = (id: string) => {
+    if (id === 'daily-spin') setScreen('daily-spin');
+  };
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
