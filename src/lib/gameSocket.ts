@@ -179,31 +179,7 @@ class GameSocketManager {
   }
 
   async spinSlots(bet: number, clientSeed?: string): Promise<any> {
-    if (!this.socket || !this.socket.connected) {
-      await this.connect();
-    }
-    return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error('not_connected'));
-        return;
-      }
-      let acked = false;
-      const timeout = setTimeout(() => {
-        if (!acked) reject(new Error('timeout'));
-      }, 20000);
-      this.socket.emit('slots_spin', { bet, clientSeed: clientSeed ?? null }, (resp: any) => {
-        acked = true;
-        clearTimeout(timeout);
-        if (resp && resp.ok === true && typeof resp.balance === 'number') {
-          this.balance = resp.balance;
-          this.emitChange();
-        } else if (resp && resp.ok === false && typeof resp.balance === 'number') {
-          this.balance = resp.balance;
-          this.emitChange();
-        }
-        resolve(resp);
-      });
-    });
+    return this.emitWithAck('slots_spin', { bet, clientSeed: clientSeed ?? null });
   }
 
   private async emitWithAck(event: string, payload: any, timeoutMs = 20000): Promise<any> {
