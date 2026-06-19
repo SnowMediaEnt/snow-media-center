@@ -76,7 +76,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Focus
   const focusItems = useRef<Map<string, HTMLElement>>(new Map());
-  const [focusId, setFocusId] = useState<string>('spin');
+  // Track which bet (type+selection) a given focusable cell represents (for D-pad decrement).
+  const cellBets = useRef<Map<string, { type: BetType; selection: any }>>(new Map());
+  const [focusId, setFocusId] = useState<string>('num-17');
 
   const registerFocus = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) focusItems.current.set(id, el);
