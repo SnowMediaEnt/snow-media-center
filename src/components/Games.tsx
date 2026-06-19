@@ -132,6 +132,10 @@ const Games = ({ onBack }: GamesProps) => {
     );
   };
 
+  if (screen === 'daily-spin') {
+    return <DailySpin onBack={() => setScreen('hub')} />;
+  }
+
   return (
     <div
       className="tv-scroll-container tv-safe text-white relative"
