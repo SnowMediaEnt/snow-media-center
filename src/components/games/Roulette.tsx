@@ -276,11 +276,6 @@ const Roulette = ({ onBack }: RouletteProps) => {
   // D-pad handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-        return;
-      }
       if (e.key === 'Enter' || e.key === ' ') {
         const el = focusItems.current.get(focusId) as HTMLButtonElement | undefined;
         if (el && !el.disabled) { e.preventDefault(); el.click(); }
