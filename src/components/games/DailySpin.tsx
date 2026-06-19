@@ -448,7 +448,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
               <div className="mt-6 text-left">
                 <button
                   onClick={() => setShowFair((s) => !s)}
-                  className="text-xs text-slate-300 hover:text-white inline-flex items-center gap-1"
+                  className="text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-300/80"
                 >
                   Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
