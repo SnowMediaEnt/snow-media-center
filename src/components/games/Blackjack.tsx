@@ -434,8 +434,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">Dealer</div>
               {(phase === 'playing' || phase === 'settled') && (
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums">
-                  {phase === 'settled' ? dealerTotal : dealerUpTotal}
+                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums transition-all">
+                  {phase === 'settled'
+                    ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
+                    : dealerUpTotal}
                 </span>
               )}
             </div>
@@ -451,9 +453,16 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   <PlayingCard faceDown delay={dealerUp.length * 120} />
                 </>
               )}
-              {phase === 'settled' && dealerHand.map((c, i) => (
-                <PlayingCard key={`dh-${i}`} card={c} delay={i * 90} />
-              ))}
+              {phase === 'settled' && (
+                <>
+                  {dealerHand.slice(0, revealedDealer).map((c, i) => (
+                    <PlayingCard key={`dh-${i}`} card={c} delay={i === revealedDealer - 1 ? 0 : 0} />
+                  ))}
+                  {revealedDealer < dealerHand.length && revealedDealer < 2 && (
+                    <PlayingCard faceDown />
+                  )}
+                </>
+              )}
             </div>
           </div>
 
