@@ -41,6 +41,11 @@ const REEL_KEYS = ['p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scat
 const ROWS = 3;
 const REELS = 5;
 const SYMBOL_HEIGHT = 80; // px per cell
+// Fixed strip length used for every reel; finalOffset is derived from this constant.
+const STRIP_LENGTH = 36;
+// Extra random padding placed AFTER the 3 result symbols so the window never runs past the array end
+// and reel 0's settle has visible downward travel.
+const TAIL_PAD = 6;
 
 interface FairInfo {
   serverSeedHash: string;
