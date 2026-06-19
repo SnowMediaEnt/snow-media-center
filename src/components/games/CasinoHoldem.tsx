@@ -335,12 +335,22 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
         }
       } else if (phase === 'decision') {
-        const order: FocusDecision[] = ['call', 'fold', 'fair'];
+        // Build dynamic order: each affordable option, then fold, then fair. Fold always present.
+        const bal = balance ?? 0;
+        const order: FocusDecision[] = [
+          ...raiseOptions.map((_, i) => `opt-${i}` as FocusDecision),
+          'fold',
+          'fair',
+        ];
         const idx = order.indexOf(focusDecision);
         if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusDecision(order[idx - 1]); }
         else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusDecision(order[idx + 1]); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusDecision('back'); }
-        else if (e.key === 'ArrowDown' && focusDecision === 'back') { e.preventDefault(); setFocusDecision('call'); }
+        else if (e.key === 'ArrowDown' && focusDecision === 'back') {
+          e.preventDefault();
+          const firstAff = raiseOptions.findIndex((o) => o.cost <= bal);
+          setFocusDecision(firstAff >= 0 ? (`opt-${firstAff}` as FocusDecision) : 'fold');
+        }
       } else if (phase === 'settled') {
         const order: FocusSettle[] = ['again', 'fair'];
         const idx = order.indexOf(focusSettle);
