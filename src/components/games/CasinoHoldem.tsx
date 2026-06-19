@@ -618,30 +618,42 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         {phase === 'decision' && (
           <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
             <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              Call (2× ante = {callCost}) or fold?
+              Choose your move — Call, Raise, or Fold
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                ref={refs.call}
-                onClick={doCall}
-                onFocus={() => setFocusDecision('call')}
-                disabled={busy}
-                variant="gold"
-                size="lg"
-                className={`transition-all ${focusRing(focusDecision === 'call')}`}
-              >
-                Call {callCost}
-              </Button>
+              {raiseOptions.map((opt, i) => {
+                const canAfford = (balance ?? 0) >= opt.cost;
+                const focused = focusDecision === `opt-${i}`;
+                const isCall = opt.multiplier === 2;
+                const label = isCall ? `CALL ${opt.multiplier}× (${opt.cost})` : `RAISE ${opt.multiplier}× (${opt.cost})`;
+                return (
+                  <Button
+                    key={i}
+                    ref={(el) => (optionRefs.current[i] = el)}
+                    onClick={() => doCall(opt.multiplier)}
+                    onFocus={() => setFocusDecision(`opt-${i}` as FocusDecision)}
+                    disabled={busy || !canAfford}
+                    size="lg"
+                    className={`text-base font-black px-6 py-5 border-2 transition-all
+                      ${isCall
+                        ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-amber-200'
+                        : 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white border-emerald-300'}
+                      ${(!canAfford || busy) ? 'opacity-50' : ''}
+                      ${focusRing(focused)}`}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
               <Button
                 ref={refs.fold}
                 onClick={doFold}
                 onFocus={() => setFocusDecision('fold')}
                 disabled={busy}
-                variant="outline"
                 size="lg"
-                className={`transition-all ${focusRing(focusDecision === 'fold')}`}
+                className={`text-base font-black px-6 py-5 bg-rose-600 hover:bg-rose-500 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
               >
-                Fold
+                FOLD
               </Button>
             </div>
             {renderFair()}
