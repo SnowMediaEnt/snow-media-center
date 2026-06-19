@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles, Check } from 'lucide-react';
@@ -46,18 +47,33 @@ const PAY_ORDER = [
   'Jacks or Better',
 ];
 
+// Map canonical English hand name → i18n key under games.videoPoker.hand
+const HAND_KEY: Record<string, string> = {
+  'Royal Flush': 'games.videoPoker.hand.royalFlush',
+  'Straight Flush': 'games.videoPoker.hand.straightFlush',
+  'Four of a Kind': 'games.videoPoker.hand.fourOfAKind',
+  'Full House': 'games.videoPoker.hand.fullHouse',
+  'Flush': 'games.videoPoker.hand.flush',
+  'Straight': 'games.videoPoker.hand.straight',
+  'Three of a Kind': 'games.videoPoker.hand.threeOfAKind',
+  'Two Pair': 'games.videoPoker.hand.twoPair',
+  'Jacks or Better': 'games.videoPoker.hand.jacksOrBetter',
+};
+
 function PokerCard({
   card,
   held,
   flipping,
   delay = 0,
   focused,
+  holdLabel,
 }: {
   card?: VpCard;
   held?: boolean;
   flipping?: boolean;
   delay?: number;
   focused?: boolean;
+  holdLabel: string;
 }) {
   const isRed = card && RED.has(card.suit);
   return (
@@ -80,7 +96,7 @@ function PokerCard({
             textShadow: '0 1px 0 rgba(255,255,255,0.4)',
           }}
         >
-          HOLD
+          {holdLabel}
         </div>
       )}
       <div
@@ -138,6 +154,7 @@ type Phase = 'idle' | 'dealt' | 'settled';
 type FocusZone = 'back' | 'bet' | 'card' | 'primary' | 'fair';
 
 const VideoPoker = ({ onBack }: VideoPokerProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
@@ -187,21 +204,21 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   }, [zone, cardIdx, betIdx]);
 
   const handleErr = (err: string) => {
-    if (err === 'insufficient_balance') setError('Not enough chips — grab your Daily Spin.');
-    else if (err === 'invalid_bet') setError("Couldn't place that bet — try again.");
-    else if (err === 'game_disabled') setError('Video Poker is temporarily disabled.');
-    else if (err === 'round_in_progress') setError('Finish drawing your current hand first.');
-    else if (err === 'no_active_round') setError('No active hand — deal a new one.');
-    else setError("Something went wrong — try again.");
+    if (err === 'insufficient_balance') setError(t('games.videoPoker.error.insufficientBalance'));
+    else if (err === 'invalid_bet') setError(t('games.videoPoker.error.invalidBet'));
+    else if (err === 'game_disabled') setError(t('games.videoPoker.error.gameDisabled'));
+    else if (err === 'round_in_progress') setError(t('games.videoPoker.error.roundInProgress'));
+    else if (err === 'no_active_round') setError(t('games.videoPoker.error.noActiveRound'));
+    else setError(t('games.videoPoker.error.generic'));
     setTimeout(() => setError(null), 3500);
   };
 
   const doDeal = useCallback(async () => {
     if (inFlight.current) return;
     if (busy) return;
-    if (!user) { setError('Sign in to play.'); return; }
-    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
-    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (!user) { setError(t('games.videoPoker.error.signIn')); return; }
+    if (balance === null) { setError(t('games.videoPoker.error.loadingChips')); return; }
+    if (balance < bet) { setError(t('games.videoPoker.error.insufficientBalance')); return; }
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -231,7 +248,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       }
     } catch {
       setFlipping([false, false, false, false, false]);
-      setError("Couldn't deal — try again.");
+      setError(t('games.videoPoker.error.dealFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -282,7 +299,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       }
     } catch {
       setFlipping([false, false, false, false, false]);
-      setError("Couldn't draw — try again.");
+      setError(t('games.videoPoker.error.drawFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
@@ -371,7 +388,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const ring = (active: boolean) =>
     active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
-  const primaryLabel = phase === 'dealt' ? 'DRAW' : 'DEAL';
+  const primaryLabel = phase === 'dealt' ? t('games.videoPoker.draw') : t('games.videoPoker.deal');
   const betsLocked = phase === 'dealt' || busy;
 
   const orderedPayouts = useMemo(
@@ -413,14 +430,14 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             className={`transition-all duration-200 ${ring(zone === 'back')}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.videoPoker.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.videoPoker.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.videoPoker.loadingChips')}
               </span>
             </div>
           </div>
@@ -428,17 +445,17 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Video Poker
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.videoPoker.gameTag')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Jacks or Better
+            {t('games.videoPoker.title')}
           </h1>
-          <p className="text-slate-200/90 mt-2">Hold the cards you want — draw to make your best hand.</p>
+          <p className="text-slate-200/90 mt-2">{t('games.videoPoker.subtitle')}</p>
         </div>
 
         {/* Paytable */}
         <Card className="p-4 mb-5 bg-slate-900/70 border-amber-400/30">
-          <div className="text-xs uppercase tracking-wider text-amber-200 font-bold mb-2">Paytable</div>
+          <div className="text-xs uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.videoPoker.paytable')}</div>
           <div className="grid grid-cols-3 md:grid-cols-3 gap-x-6 gap-y-1">
             {orderedPayouts.map((row) => {
               const winRow = resultWin && resultRank === row.name;
@@ -451,7 +468,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                       : 'text-slate-200'
                   }`}
                 >
-                  <span>{row.name}</span>
+                  <span>{HAND_KEY[row.name] ? t(HAND_KEY[row.name]) : row.name}</span>
                   <span className="font-black tabular-nums">×{row.mult}</span>
                 </div>
               );
@@ -483,7 +500,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   onClick={() => toggleHold(i)}
                   disabled={phase !== 'dealt'}
                   className="outline-none bg-transparent border-0 p-0 cursor-pointer disabled:cursor-default"
-                  aria-label={`Card ${i + 1}${holds[i] ? ' held' : ''}`}
+                  aria-label={holds[i] ? t('games.videoPoker.cardAriaLabelHeld', { number: i + 1 }) : t('games.videoPoker.cardAriaLabel', { number: i + 1 })}
                 >
                   <PokerCard
                     card={c}
@@ -491,6 +508,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                     flipping={flipping[i]}
                     delay={i * 90}
                     focused={zone === 'card' && cardIdx === i}
+                    holdLabel={t('games.videoPoker.hold')}
                   />
                 </button>
               );
@@ -504,12 +522,12 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   ? 'bg-gradient-to-br from-amber-400/30 to-amber-700/30 border-amber-300/60 text-amber-100'
                   : 'bg-slate-800/60 border-slate-500/40 text-slate-200'
               }`}>
-                {resultWin ? resultRank : 'No win'}
+                {resultWin && resultRank ? (HAND_KEY[resultRank] ? t(HAND_KEY[resultRank]) : resultRank) : t('games.videoPoker.noWin')}
               </div>
               {resultWin && (
                 <div className="mt-2 relative">
                   <div className="text-3xl font-black text-emerald-300 tabular-nums">
-                    +{(animPayout || resultPayout).toLocaleString()} chips
+                    {t('games.videoPoker.payoutChips', { amount: (animPayout || resultPayout).toLocaleString() })}
                   </div>
                   {celebrate && (
                     <>
@@ -531,7 +549,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
               )}
               {!resultWin && resultNet !== 0 && (
                 <div className="mt-2 text-lg font-bold text-rose-300 tabular-nums">
-                  {resultNet.toLocaleString()} chips
+                  {t('games.videoPoker.netChips', { amount: resultNet.toLocaleString() })}
                 </div>
               )}
             </div>
@@ -541,7 +559,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         {/* Bet selector + primary */}
         <Card className="p-5 bg-slate-900/70 border-emerald-400/30">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="text-xs uppercase tracking-wider text-amber-200 font-bold mr-1">Bet</div>
+            <div className="text-xs uppercase tracking-wider text-amber-200 font-bold mr-1">{t('games.videoPoker.bet')}</div>
             {BETS.map((amount, i) => {
               const selected = bet === amount;
               const unaffordable = (balance ?? 0) < amount && !betsLocked;
@@ -574,15 +592,15 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             >
               {busy ? (
                 <span className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" /> {phase === 'dealt' ? 'Drawing…' : 'Dealing…'}
+                  <Loader2 className="w-5 h-5 animate-spin" /> {phase === 'dealt' ? t('games.videoPoker.drawingEllipsis') : t('games.videoPoker.dealingEllipsis')}
                 </span>
-              ) : phase === 'dealt' ? `DRAW` : `${primaryLabel}  •  ${bet}`}
+              ) : phase === 'dealt' ? t('games.videoPoker.draw') : t('games.videoPoker.dealWithBet', { bet })}
             </Button>
           </div>
 
           {phase === 'dealt' && (
             <p className="mt-3 text-center text-xs text-slate-300">
-              Press OK / Enter on a card to HOLD. Press DRAW to replace the rest.
+              {t('games.videoPoker.holdHint')}
             </p>
           )}
         </Card>
@@ -595,7 +613,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
 
         {(phase === 'dealt' || phase === 'settled') && serverSeedHash && !fair && (
           <p className="mt-3 text-center text-[11px] text-slate-400 font-mono break-all">
-            seedHash: {serverSeedHash}
+            {t('games.videoPoker.seedHash', { hash: serverSeedHash })}
           </p>
         )}
 
@@ -607,24 +625,24 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
               onClick={() => setShowFair((s) => !s)}
               className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${zone === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
             >
-              Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {t('games.videoPoker.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
             {showFair && (
               <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
+                <div><span className="text-slate-400">{t('games.videoPoker.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
+                <div><span className="text-slate-400">{t('games.videoPoker.fairServerSeed')}</span> {fair.serverSeed}</div>
+                <div><span className="text-slate-400">{t('games.videoPoker.fairClientSeed')}</span> {fair.clientSeed}</div>
+                <div><span className="text-slate-400">{t('games.videoPoker.fairNonce')}</span> {fair.nonce}</div>
                 <div className="pt-1 flex items-center gap-2">
-                  <span className="text-slate-400">Verify SHA-256(serverSeed):</span>
+                  <span className="text-slate-400">{t('games.videoPoker.fairVerifyLabel')}</span>
                   {verifyOk === null ? (
-                    <span className="text-slate-400">checking…</span>
+                    <span className="text-slate-400">{t('games.videoPoker.fairChecking')}</span>
                   ) : verifyOk ? (
                     <span className="inline-flex items-center gap-1 text-emerald-300 font-bold">
-                      <Check className="w-3 h-3" /> matches seedHash
+                      <Check className="w-3 h-3" /> {t('games.videoPoker.fairMatches')}
                     </span>
                   ) : (
-                    <span className="text-rose-300 font-bold">mismatch</span>
+                    <span className="text-rose-300 font-bold">{t('games.videoPoker.fairMismatch')}</span>
                   )}
                 </div>
               </div>
