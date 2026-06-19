@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from 'react-i18next';
 
 interface GamesProps {
   onBack: () => void;
@@ -22,21 +23,21 @@ interface GamesProps {
 
 type GameCard = {
   id: string;
-  name: string;
-  tagline: string;
+  nameKey: string;
+  taglineKey: string;
   emoji: string;
-  badge: string;
+  badgeKey: string;
   playable: boolean;
 };
 
 const GAMES: GameCard[] = [
-  { id: 'daily-spin', name: 'Daily Spin', tagline: 'Free chips every 24 hours', emoji: '🎁', badge: 'PLAY NOW', playable: true },
-  { id: 'slots', name: 'Slots', tagline: 'Spin the reels — match three', emoji: '🎰', badge: 'PLAY NOW', playable: true },
-  { id: 'blackjack', name: 'Blackjack', tagline: 'Beat the dealer to 21', emoji: '🃏', badge: 'PLAY NOW', playable: true },
-  { id: 'video-poker', name: 'Video Poker', tagline: 'Jacks or better', emoji: '♠️', badge: 'PLAY NOW', playable: true },
-  { id: 'roulette', name: 'Roulette', tagline: 'Place your bets', emoji: '🎡', badge: 'PLAY NOW', playable: true },
-  { id: 'casino-holdem', name: "Casino Hold'em", tagline: 'Beat the dealer — 5 community cards', emoji: '♣️', badge: 'PLAY NOW', playable: true },
-  { id: 'leaderboard', name: 'Leaderboard', tagline: 'Climb the ranks — bragging rights only', emoji: '🏆', badge: 'Coming soon', playable: false },
+  { id: 'daily-spin', nameKey: 'games.hub.gameDailySpinName', taglineKey: 'games.hub.gameDailySpinTagline', emoji: '🎁', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'slots', nameKey: 'games.hub.gameSlotsName', taglineKey: 'games.hub.gameSlotsTagline', emoji: '🎰', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'blackjack', nameKey: 'games.hub.gameBlackjackName', taglineKey: 'games.hub.gameBlackjackTagline', emoji: '🃏', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'video-poker', nameKey: 'games.hub.gameVideoPokerName', taglineKey: 'games.hub.gameVideoPokerTagline', emoji: '♠️', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'roulette', nameKey: 'games.hub.gameRouletteName', taglineKey: 'games.hub.gameRouletteTagline', emoji: '🎡', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'casino-holdem', nameKey: 'games.hub.gameCasinoHoldemName', taglineKey: 'games.hub.gameCasinoHoldemTagline', emoji: '♣️', badgeKey: 'games.hub.badgePlayNow', playable: true },
+  { id: 'leaderboard', nameKey: 'games.hub.gameLeaderboardName', taglineKey: 'games.hub.gameLeaderboardTagline', emoji: '🏆', badgeKey: 'games.hub.badgeComingSoon', playable: false },
 ];
 
 const COLS = 3;
@@ -51,6 +52,7 @@ const VIEW_BY_ID: Record<string, string> = {
 };
 
 const Games = ({ onBack, onOpenGame }: GamesProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(1); // start on first game card
@@ -104,32 +106,32 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
     if (!user) {
       return (
         <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-amber-200 text-sm font-semibold">
-          Sign in to load your Play Chips
+          {t('games.hub.chipBadgeSignInPrompt')}
         </div>
       );
     }
     if (status === 'connecting' || (status === 'connected' && balance === null)) {
       return (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-emerald-100 text-sm font-semibold">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading chips…
+          <Loader2 className="w-4 h-4 animate-spin" /> {t('games.hub.chipBadgeLoading')}
         </div>
       );
     }
     if (status === 'error' || status === 'reconnecting') {
       return (
         <div className="flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-amber-100 text-sm font-semibold">
-          <WifiOff className="w-4 h-4" /> Couldn't load your chips — reconnecting…
+          <WifiOff className="w-4 h-4" /> {t('games.hub.chipBadgeReconnecting')}
         </div>
       );
     }
     return (
       <div
         className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)] backdrop-blur"
-        aria-label="Play Chips balance"
+        aria-label={t('games.hub.chipBadgeAriaLabel')}
       >
         <Coins className="w-6 h-6 text-amber-300 drop-shadow" />
         <div className="flex flex-col leading-tight">
-          <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Free chips</span>
+          <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.hub.chipBadgeFreeChipsLabel')}</span>
           <span className="text-2xl font-extrabold text-white tabular-nums">
             {balance !== null ? balance.toLocaleString() : '—'}
           </span>
@@ -160,7 +162,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
             className={`transition-all duration-200 ${focusIndex === 0 ? 'ring-4 ring-amber-300/70 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : ''}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.hub.back')}
           </Button>
           {renderChipBadge()}
         </div>
@@ -172,14 +174,13 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
           <div className="relative text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" />
-              Game Room
+              {t('games.hub.heroEyebrow')}
             </div>
             <h1 className="text-5xl md:text-6xl font-black text-white mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-              Welcome to the Lounge
+              {t('games.hub.heroTitle')}
             </h1>
             <p className="text-lg md:text-xl text-slate-100/90 max-w-2xl mx-auto font-medium">
-              Play with free Play Chips. Earn them daily, climb the leaderboard, and have fun —
-              just for bragging rights.
+              {t('games.hub.heroSubtitle')}
             </p>
           </div>
         </Card>
@@ -228,7 +229,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="text-xl font-bold text-white">{card.name}</h3>
+                      <h3 className="text-xl font-bold text-white">{t(card.nameKey)}</h3>
                       <span
                         className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full whitespace-nowrap border ${
                           playable
@@ -236,10 +237,10 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
                             : 'bg-slate-700/50 text-slate-200 border-slate-500/40'
                         }`}
                       >
-                        {card.badge}
+                        {t(card.badgeKey)}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-100/90 font-medium">{card.tagline}</p>
+                    <p className="text-sm text-slate-100/90 font-medium">{t(card.taglineKey)}</p>
                   </div>
                 </div>
               </Card>
@@ -250,12 +251,12 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
         {!user && (
           <Card className="mt-8 p-6 bg-slate-900/70 border-amber-400/40 flex items-center justify-center gap-3 text-amber-100 font-semibold">
             <LogIn className="w-5 h-5" />
-            Sign in to start collecting Play Chips.
+            {t('games.hub.signInBanner')}
           </Card>
         )}
 
         {errorMessage && user && (status === 'error' || status === 'reconnecting') && (
-          <p className="mt-6 text-center text-xs text-slate-400">Server: {errorMessage}</p>
+          <p className="mt-6 text-center text-xs text-slate-400">{t('games.hub.serverError', { errorMessage })}</p>
         )}
       </div>
     </div>

@@ -10,10 +10,22 @@
   },
   "home": {
     "tagline": "Your Premium Streaming Experience",
-    "mainApps": { "title": "Main Apps", "description": "Download APKs & Streaming Tools" },
-    "support": { "title": "Support", "description": "Help, AI Chat & Community" },
-    "store": { "title": "Snow Media Store", "description": "Visit Official Store" },
-    "player": { "title": "Player", "description": "Live TV, Movies & Series" }
+    "mainApps": {
+      "title": "Main Apps",
+      "description": "Download APKs & Streaming Tools"
+    },
+    "support": {
+      "title": "Support",
+      "description": "Help, AI Chat & Community"
+    },
+    "store": {
+      "title": "Snow Media Store",
+      "description": "Visit Official Store"
+    },
+    "player": {
+      "title": "Player",
+      "description": "Live TV, Movies & Series"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -39,6 +51,37 @@
     "language": {
       "title": "Language",
       "description": "Choose the app language. Translation coverage is still being expanded."
+    }
+  },
+  "games": {
+    "hub": {
+      "gameDailySpinName": "Daily Spin",
+      "gameDailySpinTagline": "Free chips every 4 hours",
+      "gameSlotsName": "Slots",
+      "gameSlotsTagline": "Spin the reels — match three",
+      "gameBlackjackName": "Blackjack",
+      "gameBlackjackTagline": "Beat the dealer to 21",
+      "gameVideoPokerName": "Video Poker",
+      "gameVideoPokerTagline": "Jacks or better",
+      "gameRouletteName": "Roulette",
+      "gameRouletteTagline": "Place your bets",
+      "gameCasinoHoldemName": "Casino Hold'em",
+      "gameCasinoHoldemTagline": "Beat the dealer — 5 community cards",
+      "gameLeaderboardName": "Leaderboard",
+      "gameLeaderboardTagline": "Climb the ranks — bragging rights only",
+      "badgePlayNow": "PLAY NOW",
+      "badgeComingSoon": "Coming soon",
+      "chipBadgeSignInPrompt": "Sign in to load your Play Chips",
+      "chipBadgeLoading": "Loading chips…",
+      "chipBadgeReconnecting": "Couldn't load your chips — reconnecting…",
+      "chipBadgeAriaLabel": "Play Chips balance",
+      "chipBadgeFreeChipsLabel": "Free chips",
+      "back": "Back",
+      "heroEyebrow": "Game Room",
+      "heroTitle": "Welcome to the Lounge",
+      "heroSubtitle": "Play with free Play Chips. Earn them daily, climb the leaderboard, and have fun — just for bragging rights.",
+      "signInBanner": "Sign in to start collecting Play Chips.",
+      "serverError": "Server: {{errorMessage}}"
     }
   }
 }

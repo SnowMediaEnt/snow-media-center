@@ -10,10 +10,22 @@
   },
   "home": {
     "tagline": "تجربة البث المتميزة الخاصة بك",
-    "mainApps": { "title": "التطبيقات الرئيسية", "description": "تنزيل ملفات APK وأدوات البث" },
-    "support": { "title": "الدعم", "description": "المساعدة ودردشة الذكاء الاصطناعي والمجتمع" },
-    "store": { "title": "متجر Snow Media", "description": "زيارة المتجر الرسمي" },
-    "player": { "title": "المشغل", "description": "البث المباشر والأفلام والمسلسلات" }
+    "mainApps": {
+      "title": "التطبيقات الرئيسية",
+      "description": "تنزيل ملفات APK وأدوات البث"
+    },
+    "support": {
+      "title": "الدعم",
+      "description": "المساعدة ودردشة الذكاء الاصطناعي والمجتمع"
+    },
+    "store": {
+      "title": "متجر Snow Media",
+      "description": "زيارة المتجر الرسمي"
+    },
+    "player": {
+      "title": "المشغل",
+      "description": "البث المباشر والأفلام والمسلسلات"
+    }
   },
   "settings": {
     "title": "الإعدادات",
@@ -39,6 +51,37 @@
     "language": {
       "title": "اللغة",
       "description": "اختر لغة التطبيق. لا تزال تغطية الترجمة قيد التوسيع."
+    }
+  },
+  "games": {
+    "hub": {
+      "gameDailySpinName": "الدورة اليومية",
+      "gameDailySpinTagline": "رقائق مجانية كل 4 ساعات",
+      "gameSlotsName": "ماكينات القمار",
+      "gameSlotsTagline": "أدِر البكرات — طابِق ثلاثة",
+      "gameBlackjackName": "بلاك جاك",
+      "gameBlackjackTagline": "اهزم الموزّع للوصول إلى 21",
+      "gameVideoPokerName": "فيديو بوكر",
+      "gameVideoPokerTagline": "جاكس أور بيتر",
+      "gameRouletteName": "روليت",
+      "gameRouletteTagline": "ضع رهاناتك",
+      "gameCasinoHoldemName": "Casino Hold'em",
+      "gameCasinoHoldemTagline": "اهزم الموزّع — 5 أوراق مشتركة",
+      "gameLeaderboardName": "لوحة المتصدرين",
+      "gameLeaderboardTagline": "تسلّق المراتب — للتباهي فقط",
+      "badgePlayNow": "العب الآن",
+      "badgeComingSoon": "قريبًا",
+      "chipBadgeSignInPrompt": "سجّل الدخول لتحميل رقائق Play Chips الخاصة بك",
+      "chipBadgeLoading": "جارٍ تحميل الرقائق…",
+      "chipBadgeReconnecting": "تعذّر تحميل رقائقك — جارٍ إعادة الاتصال…",
+      "chipBadgeAriaLabel": "رصيد Play Chips",
+      "chipBadgeFreeChipsLabel": "رقائق مجانية",
+      "back": "رجوع",
+      "heroEyebrow": "قاعة الألعاب",
+      "heroTitle": "مرحبًا بك في الصالة",
+      "heroSubtitle": "العب باستخدام رقائق Play Chips المجانية. اكسبها يوميًا، وتسلّق لوحة المتصدرين، واستمتع — للتباهي فقط.",
+      "signInBanner": "سجّل الدخول لتبدأ بجمع رقائق Play Chips.",
+      "serverError": "الخادم: {{errorMessage}}"
     }
   }
 }

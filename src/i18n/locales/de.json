@@ -10,10 +10,22 @@
   },
   "home": {
     "tagline": "Dein Premium-Streaming-Erlebnis",
-    "mainApps": { "title": "Haupt-Apps", "description": "APKs und Streaming-Tools herunterladen" },
-    "support": { "title": "Support", "description": "Hilfe, KI-Chat und Community" },
-    "store": { "title": "Snow Media Store", "description": "Offiziellen Store besuchen" },
-    "player": { "title": "Player", "description": "Live-TV, Filme und Serien" }
+    "mainApps": {
+      "title": "Haupt-Apps",
+      "description": "APKs und Streaming-Tools herunterladen"
+    },
+    "support": {
+      "title": "Support",
+      "description": "Hilfe, KI-Chat und Community"
+    },
+    "store": {
+      "title": "Snow Media Store",
+      "description": "Offiziellen Store besuchen"
+    },
+    "player": {
+      "title": "Player",
+      "description": "Live-TV, Filme und Serien"
+    }
   },
   "settings": {
     "title": "Einstellungen",
@@ -39,6 +51,37 @@
     "language": {
       "title": "Sprache",
       "description": "App-Sprache wählen. Die Übersetzungsabdeckung wird noch erweitert."
+    }
+  },
+  "games": {
+    "hub": {
+      "gameDailySpinName": "Täglicher Spin",
+      "gameDailySpinTagline": "Gratis-Chips alle 4 Stunden",
+      "gameSlotsName": "Slots",
+      "gameSlotsTagline": "Walzen drehen — drei gleiche treffen",
+      "gameBlackjackName": "Blackjack",
+      "gameBlackjackTagline": "Schlag den Dealer mit 21",
+      "gameVideoPokerName": "Video Poker",
+      "gameVideoPokerTagline": "Jacks or Better",
+      "gameRouletteName": "Roulette",
+      "gameRouletteTagline": "Platzieren Sie Ihre Einsätze",
+      "gameCasinoHoldemName": "Casino Hold'em",
+      "gameCasinoHoldemTagline": "Schlag den Dealer — 5 Gemeinschaftskarten",
+      "gameLeaderboardName": "Bestenliste",
+      "gameLeaderboardTagline": "Klettere nach oben — nur für den Ruhm",
+      "badgePlayNow": "JETZT SPIELEN",
+      "badgeComingSoon": "Demnächst",
+      "chipBadgeSignInPrompt": "Melde dich an, um deine Play Chips zu laden",
+      "chipBadgeLoading": "Chips werden geladen…",
+      "chipBadgeReconnecting": "Chips konnten nicht geladen werden — Verbindung wird wiederhergestellt…",
+      "chipBadgeAriaLabel": "Play-Chips-Guthaben",
+      "chipBadgeFreeChipsLabel": "Gratis-Chips",
+      "back": "Zurück",
+      "heroEyebrow": "Spielbereich",
+      "heroTitle": "Willkommen in der Lounge",
+      "heroSubtitle": "Spiele mit kostenlosen Play Chips. Verdiene sie täglich, klettere in der Bestenliste nach oben und hab Spaß — nur für den Ruhm.",
+      "signInBanner": "Melde dich an, um Play Chips zu sammeln.",
+      "serverError": "Server: {{errorMessage}}"
     }
   }
 }
