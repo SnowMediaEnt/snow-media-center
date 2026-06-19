@@ -346,7 +346,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
           <TabsContent value="media" className="mt-6">
             <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Media Manager</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">{t('settings.mediaManagerHeading')}</h2>
               <MediaManager
                 onBack={handleMediaManagerBack}
                 embedded={true}
@@ -369,17 +369,16 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <div className="flex items-start gap-3">
                   <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Content Bar</h3>
+                    <h3 className="text-lg font-bold text-white">{t('settings.contentBar.title')}</h3>
                     <p className="text-sm text-white/70 mt-1">
-                      Shows trending Plex titles and live sports on the home screen.
-                      Turn off on slower devices for a smoother experience.
+                      {t('settings.contentBar.description')}
                     </p>
                   </div>
                 </div>
                 <Switch
                   checked={mediaBarEnabled}
                   onCheckedChange={setMediaBarEnabledState}
-                  aria-label="Toggle home screen content bar"
+                  aria-label={t('settings.contentBar.aria')}
                   className="mt-1"
                 />
               </div>
@@ -391,19 +390,57 @@ const Settings = ({ onBack }: SettingsProps) => {
                   <div className="flex items-start gap-3">
                     <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                     <div>
-                      <h3 className="text-lg font-bold text-white">Player (Live TV)</h3>
+                      <h3 className="text-lg font-bold text-white">{t('settings.player.title')}</h3>
                       <p className="text-sm text-white/70 mt-1">
-                        Global kill-switch for the Player section (Live TV, Movies & Series).
-                        When off, the Player card is hidden on every device.
+                        {t('settings.player.description')}
                       </p>
                     </div>
                   </div>
                   <Switch
                     checked={playerEnabled}
                     onCheckedChange={togglePlayer}
-                    aria-label="Toggle Player section globally"
+                    aria-label={t('settings.player.aria')}
                     className="mt-1"
                   />
+                </div>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <Languages className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-white">{t('settings.language.title')}</h3>
+                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                        {t('common.beta')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white/70 mt-1">{t('settings.language.description')}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const selected = currentLang.startsWith(lang.code);
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => handleLanguageSelect(lang.code)}
+                        tabIndex={0}
+                        dir={lang.code === 'ar' ? 'rtl' : 'ltr'}
+                        className={`tv-focusable flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:scale-[1.04] ${
+                          selected
+                            ? 'bg-brand-gold/20 border-brand-gold text-white'
+                            : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
+                        }`}
+                      >
+                        <span className="font-medium">{lang.nativeName}</span>
+                        {selected && <Check className="w-4 h-4 text-brand-gold shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             )}
