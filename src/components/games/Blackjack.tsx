@@ -598,7 +598,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   ref={refs.fair}
                   onFocus={() => setFocusSettle('fair')}
                   onClick={() => setShowFair((s) => !s)}
-                  className={`text-xs text-slate-300 hover:text-white inline-flex items-center gap-1 rounded px-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/70 text-white' : ''}`}
+                  className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
                 >
                   Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
