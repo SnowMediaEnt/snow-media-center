@@ -626,7 +626,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                 const canAfford = (balance ?? 0) >= opt.cost;
                 const focused = focusDecision === `opt-${i}`;
                 const isCall = opt.multiplier === 2;
-                const label = isCall ? `CALL ${opt.multiplier}× (${opt.cost})` : `RAISE ${opt.multiplier}× (${opt.cost})`;
+                const label = isCall ? t('games.casinoHoldem.callOption', { multiplier: opt.multiplier, cost: opt.cost }) : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost });
                 return (
                   <Button
                     key={i}
