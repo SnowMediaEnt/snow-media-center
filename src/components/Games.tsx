@@ -16,7 +16,7 @@ const hubTiles = [
     name: 'Daily Spin',
     tagline: 'Free chips every 24 hours',
     icon: Gift,
-    badge: 'Coming next',
+    badge: 'Play now',
   },
   {
     id: 'chip-games',
