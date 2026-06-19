@@ -220,9 +220,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   };
 
   const deal = useCallback(async () => {
+    if (inFlight.current) return;
     if (busy) return;
     if (!user) { setError('Sign in to play.'); return; }
-    if ((balance ?? 0) < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    if (balance === null) { setError('Loading chips… try again in a moment.'); return; }
+    if (balance < bet) { setError('Not enough chips — grab your Daily Spin.'); return; }
+    inFlight.current = true;
     setError(null);
     setBusy(true);
     try {
@@ -234,11 +237,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setError("Couldn't deal right now — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, user, balance, bet, applyAck]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
+    if (inFlight.current) return;
     if (busy) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -252,6 +258,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setError("Couldn't reach the table — try again.");
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }, [busy, applyAck]);
 
