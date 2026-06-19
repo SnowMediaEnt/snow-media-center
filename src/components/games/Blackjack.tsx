@@ -21,12 +21,24 @@ interface FairInfo {
 }
 
 type Phase = 'bet' | 'playing' | 'settled';
-type FocusBet = `chip-${number}` | 'deal' | 'back' | 'seed';
+type FocusBet = `chip-${number}` | 'deal' | 'back';
 type FocusAction = 'hit' | 'stand' | 'double' | 'back';
 type FocusSettle = 'again' | 'back' | 'fair';
 
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const RED_SUITS = new Set(['H', 'D']);
+
+const computeBjTotal = (cards: BjCard[]): number => {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    if (c.rank === 'A') { total += 11; aces++; }
+    else if (c.rank === 'K' || c.rank === 'Q' || c.rank === 'J' || c.rank === '10') total += 10;
+    else total += parseInt(c.rank, 10) || 0;
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return total;
+};
 
 function PlayingCard({
   card,
