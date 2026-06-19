@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles, Check, Trash2 } from 'lucide-react';
@@ -46,6 +47,7 @@ interface FocusItem { id: string; el: HTMLElement }
 const focusRing = 'ring-4 ring-amber-300/90 shadow-[0_0_22px_rgba(252,211,77,0.7)] z-10';
 
 const Roulette = ({ onBack }: RouletteProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
 
@@ -200,11 +202,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Error handling
   const handleErr = (err: string, detail?: string) => {
-    if (err === 'insufficient_balance') setError('Not enough chips for this bet.');
-    else if (err === 'invalid_bet') setError(`Invalid bet${detail ? `: ${detail}` : '.'}`);
-    else if (err === 'game_disabled') setError('Roulette is temporarily disabled.');
-    else if (err === 'spin_failed') setError("Couldn't spin — try again.");
-    else setError("Something went wrong.");
+    if (err === 'insufficient_balance') setError(t('games.roulette.errInsufficientBalance'));
+    else if (err === 'invalid_bet') setError(detail ? t('games.roulette.errInvalidBetWithDetail', { detail }) : t('games.roulette.errInvalidBet'));
+    else if (err === 'game_disabled') setError(t('games.roulette.errGameDisabled'));
+    else if (err === 'spin_failed') setError(t('games.roulette.errSpinFailed'));
+    else setError(t('games.roulette.errGeneric'));
     setTimeout(() => setError(null), 3500);
   };
 
@@ -326,7 +328,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       setSpinning(false);
       setBusy(false);
       inFlight.current = false;
-      setError("Couldn't reach the table — try again.");
+      setError(t('games.roulette.errUnreachable'));
     }
   }, [canSpin, wheelRotation, ballRotation, wheel, chips, totalBet]);
 
@@ -543,14 +545,14 @@ const Roulette = ({ onBack }: RouletteProps) => {
             size="lg"
             className={`transition-all ${focusId === 'back' ? focusRing : ''}`}
           >
-            <ArrowLeft className="w-5 h-5 mr-2" /> Back
+            <ArrowLeft className="w-5 h-5 mr-2" /> {t('games.roulette.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.roulette.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.roulette.loadingChips')}
               </span>
             </div>
           </div>
@@ -558,12 +560,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
         <div className="text-center mb-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-2 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Roulette
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.roulette.title')}
           </div>
           <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Place your bets
+            {t('games.roulette.placeYourBets')}
           </h1>
-          <p className="text-slate-200/90 mt-1 text-sm">Play Chips only — free to play, never cashable.</p>
+          <p className="text-slate-200/90 mt-1 text-sm">{t('games.roulette.playChipsDisclaimer')}</p>
         </div>
 
         {/* Top row: wheel + bet summary */}
@@ -621,7 +623,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
             {/* Wheel kind toggle */}
             <div className="mt-4 w-full max-w-[360px]">
               <div className="text-[10px] uppercase tracking-wider text-amber-200 font-bold mb-1.5 text-center">
-                Wheel
+                {t('games.roulette.wheel')}
               </div>
               <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950/70 border border-amber-400/40">
                 {(['european', 'american'] as WheelKind[]).map((k) => {
@@ -640,7 +642,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                           : 'bg-slate-800/70 text-amber-100 border-transparent hover:bg-slate-700/70'
                       } ${focusId === `wheel-${k}` ? focusRing : ''}`}
                     >
-                      {k === 'european' ? 'European • 0' : 'American • 0 / 00'}
+                      {k === 'european' ? t('games.roulette.wheelEuropean') : t('games.roulette.wheelAmerican')}
                     </button>
                   );
                 })}
@@ -661,12 +663,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
           <Card className="p-4 bg-slate-900/70 border-emerald-400/30">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">Total Bet</div>
+                <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">{t('games.roulette.totalBet')}</div>
                 <div className="text-2xl font-black text-white tabular-nums">{totalBet.toLocaleString()}</div>
               </div>
               {result && (
                 <div className="text-right">
-                  <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">Net</div>
+                  <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">{t('games.roulette.net')}</div>
                   <div className={`text-2xl font-black tabular-nums ${
                     result.net > 0 ? 'text-emerald-300' : result.net < 0 ? 'text-rose-300' : 'text-slate-200'
                   }`}>
@@ -676,7 +678,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
               )}
             </div>
 
-            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-bold mb-2">Chip in hand</div>
+            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.roulette.chipInHand')}</div>
             <div className="flex gap-2 flex-wrap mb-4">
               {DENOMS.map((d) => (
                 <button
@@ -704,7 +706,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 disabled={spinning || history.length === 0}
                 className={`bg-slate-800 text-slate-100 border border-slate-500/60 hover:bg-slate-700 ${focusId === 'undo' ? focusRing : ''}`}
               >
-                ↶ Undo
+                {t('games.roulette.undo')}
               </Button>
               <Button
                 ref={registerFocus('clear') as any}
@@ -713,7 +715,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 disabled={spinning || chips.length === 0}
                 className={`bg-rose-900/70 text-rose-100 border border-rose-400/60 hover:bg-rose-800/70 ${focusId === 'clear' ? focusRing : ''}`}
               >
-                <Trash2 className="w-4 h-4 mr-2" /> Clear Bets
+                <Trash2 className="w-4 h-4 mr-2" /> {t('games.roulette.clearBets')}
               </Button>
               <Button
                 ref={registerFocus('spin') as any}
@@ -726,16 +728,16 @@ const Roulette = ({ onBack }: RouletteProps) => {
                     : 'bg-slate-700 text-slate-300 border-slate-500/40 opacity-60 cursor-not-allowed'}
                   ${focusId === 'spin' ? focusRing : ''}`}
               >
-                {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Spinning…</> : 'SPIN'}
+                {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t('games.roulette.spinning')}</> : t('games.roulette.spin')}
               </Button>
             </div>
             {balance !== null && totalBet > balance && chips.length > 0 && (
               <p className="mt-2 text-xs text-amber-200 font-semibold">
-                Bet exceeds your balance — press Undo or lower a stake.
+                {t('games.roulette.betExceedsBalance')}
               </p>
             )}
             {balance === null && (
-              <p className="mt-2 text-xs text-slate-300">Loading chips…</p>
+              <p className="mt-2 text-xs text-slate-300">{t('games.roulette.loadingChips')}</p>
             )}
           </Card>
         </div>
@@ -803,7 +805,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   color="neutral"
                   className="rounded-lg h-[60px] w-16 text-[11px] uppercase font-extrabold leading-tight"
                 >
-                  2 to 1
+                  {t('games.roulette.columnPayout')}
                 </Cell>
               ))}
             </div>
@@ -822,7 +824,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   color="neutral"
                   className="rounded-lg h-[44px] text-sm uppercase"
                 >
-                  {d === 1 ? '1st 12' : d === 2 ? '2nd 12' : '3rd 12'}
+                  {d === 1 ? t('games.roulette.dozenFirst') : d === 2 ? t('games.roulette.dozenSecond') : t('games.roulette.dozenThird')}
                 </Cell>
               ))}
             </div>
@@ -833,12 +835,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
           <div className="grid grid-cols-[60px_1fr_64px] gap-1 mt-1">
             <div />
             <div className="grid grid-cols-6 gap-1">
-              <Cell id="bet-low" type="low" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">1–18</Cell>
-              <Cell id="bet-even" type="even" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">EVEN</Cell>
-              <Cell id="bet-red" type="red" selection={null} color="red" className="rounded-lg h-[44px] text-sm">RED</Cell>
-              <Cell id="bet-black" type="black" selection={null} color="black" className="rounded-lg h-[44px] text-sm">BLACK</Cell>
-              <Cell id="bet-odd" type="odd" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">ODD</Cell>
-              <Cell id="bet-high" type="high" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">19–36</Cell>
+              <Cell id="bet-low" type="low" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betLow')}</Cell>
+              <Cell id="bet-even" type="even" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betEven')}</Cell>
+              <Cell id="bet-red" type="red" selection={null} color="red" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betRed')}</Cell>
+              <Cell id="bet-black" type="black" selection={null} color="black" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betBlack')}</Cell>
+              <Cell id="bet-odd" type="odd" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betOdd')}</Cell>
+              <Cell id="bet-high" type="high" selection={null} color="neutral" className="rounded-lg h-[44px] text-sm">{t('games.roulette.betHigh')}</Cell>
             </div>
             <div />
           </div>
@@ -848,11 +850,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
         {result && (
           <div className="mt-4 text-center relative">
             <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border bg-slate-900/70 border-amber-400/40">
-              <span className="text-xs uppercase tracking-wider text-amber-200 font-bold">Payout</span>
+              <span className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.roulette.payout')}</span>
               <span className="text-2xl font-black text-emerald-300 tabular-nums">
-                {result.totalPayout.toLocaleString()} chips
+                {t('games.roulette.payoutChips', { amount: result.totalPayout.toLocaleString() })}
               </span>
-              <span className="text-xs text-slate-300">on {result.totalBet} bet</span>
+              <span className="text-xs text-slate-300">{t('games.roulette.onBet', { amount: result.totalBet })}</span>
             </div>
             {celebrate && (
               <div className="absolute inset-x-0 -top-2 pointer-events-none flex justify-center gap-3">
@@ -866,7 +868,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
         {serverSeedHash && (
           <div className="mt-4 text-[11px] text-slate-400 font-mono break-all text-center">
-            seedHash: {serverSeedHash}
+            {t('games.roulette.seedHash', { hash: serverSeedHash })}
           </div>
         )}
 
@@ -884,24 +886,24 @@ const Roulette = ({ onBack }: RouletteProps) => {
               onClick={() => setShowFair((s) => !s)}
               className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusId === 'fair-toggle' ? 'ring-2 ring-amber-300/80' : ''}`}
             >
-              Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {t('games.roulette.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
             {showFair && (
               <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                <div><span className="text-slate-400">serverSeedHash:</span> {fair.serverSeedHash}</div>
-                <div><span className="text-slate-400">serverSeed:</span> {fair.serverSeed}</div>
-                <div><span className="text-slate-400">clientSeed:</span> {fair.clientSeed}</div>
-                <div><span className="text-slate-400">nonce:</span> {fair.nonce}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairServerSeed')}</span> {fair.serverSeed}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairClientSeed')}</span> {fair.clientSeed}</div>
+                <div><span className="text-slate-400">{t('games.roulette.fairNonce')}</span> {fair.nonce}</div>
                 <div className="pt-1 flex items-center gap-2">
-                  <span className="text-slate-400">Verify SHA-256(serverSeed):</span>
+                  <span className="text-slate-400">{t('games.roulette.fairVerifyLabel')}</span>
                   {verifyOk === null ? (
-                    <span className="text-slate-400">checking…</span>
+                    <span className="text-slate-400">{t('games.roulette.fairChecking')}</span>
                   ) : verifyOk ? (
                     <span className="inline-flex items-center gap-1 text-emerald-300 font-bold">
-                      <Check className="w-3 h-3" /> matches seedHash
+                      <Check className="w-3 h-3" /> {t('games.roulette.fairMatches')}
                     </span>
                   ) : (
-                    <span className="text-rose-300 font-bold">mismatch</span>
+                    <span className="text-rose-300 font-bold">{t('games.roulette.fairMismatch')}</span>
                   )}
                 </div>
               </div>
