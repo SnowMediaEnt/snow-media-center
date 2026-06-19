@@ -45,6 +45,12 @@ const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'
 const AIConversationSystem = lazy(() => import('@/components/AIConversationSystem'));
 const AdminSupportDashboard = lazy(() => import('@/components/AdminSupportDashboard'));
 const Games = lazy(() => import('@/components/Games'));
+const DailySpinGame = lazy(() => import('@/components/games/DailySpin'));
+const SlotsGame = lazy(() => import('@/components/games/Slots'));
+const BlackjackGame = lazy(() => import('@/components/games/Blackjack'));
+const VideoPokerGame = lazy(() => import('@/components/games/VideoPoker'));
+const RouletteGame = lazy(() => import('@/components/games/Roulette'));
+const CasinoHoldemGame = lazy(() => import('@/components/games/CasinoHoldem'));
 const WixBlog = lazy(() => import('@/components/WixBlog'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
@@ -586,7 +592,13 @@ const Index = () => {
         {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
         {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
         {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
-        {currentView === 'games' && <Games onBack={() => goBack()} />}
+        {currentView === 'games' && <Games onBack={() => goBack()} onOpenGame={(view) => navigateTo(view)} />}
+        {currentView === 'game-daily-spin' && <DailySpinGame onBack={() => goBack()} />}
+        {currentView === 'game-slots' && <SlotsGame onBack={() => goBack()} />}
+        {currentView === 'game-blackjack' && <BlackjackGame onBack={() => goBack()} />}
+        {currentView === 'game-video-poker' && <VideoPokerGame onBack={() => goBack()} />}
+        {currentView === 'game-roulette' && <RouletteGame onBack={() => goBack()} />}
+        {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={() => goBack()} />}
         {currentView === 'wix-blog' && <WixBlog onBack={() => goBack()} />}
         {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
         {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}

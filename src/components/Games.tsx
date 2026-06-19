@@ -14,15 +14,10 @@ import {
 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
-import DailySpin from './games/DailySpin';
-import Slots from './games/Slots';
-import Blackjack from './games/Blackjack';
-import VideoPoker from './games/VideoPoker';
-import Roulette from './games/Roulette';
-import CasinoHoldem from './games/CasinoHoldem';
 
 interface GamesProps {
   onBack: () => void;
+  onOpenGame: (view: string) => void;
 }
 
 type GameCard = {
@@ -46,33 +41,31 @@ const GAMES: GameCard[] = [
 
 const COLS = 3;
 
-const Games = ({ onBack }: GamesProps) => {
+const VIEW_BY_ID: Record<string, string> = {
+  'daily-spin': 'game-daily-spin',
+  'slots': 'game-slots',
+  'blackjack': 'game-blackjack',
+  'video-poker': 'game-video-poker',
+  'roulette': 'game-roulette',
+  'casino-holdem': 'game-casino-holdem',
+};
+
+const Games = ({ onBack, onOpenGame }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const [focusIndex, setFocusIndex] = useState(1); // start on first game card
-  const [screen, setScreen] = useState<'hub' | 'daily-spin' | 'slots' | 'blackjack' | 'video-poker' | 'roulette' | 'casino-holdem'>('hub');
 
   // Focusable items: back (0), then GAMES.length game cards (1..)
   const totalFocusable = 1 + GAMES.length;
 
   const openCard = (card: GameCard) => {
     if (!card.playable) return;
-    if (card.id === 'daily-spin') setScreen('daily-spin');
-    else if (card.id === 'slots') setScreen('slots');
-    else if (card.id === 'blackjack') setScreen('blackjack');
-    else if (card.id === 'video-poker') setScreen('video-poker');
-    else if (card.id === 'roulette') setScreen('roulette');
-    else if (card.id === 'casino-holdem') setScreen('casino-holdem');
+    const view = VIEW_BY_ID[card.id];
+    if (view) onOpenGame(view);
   };
 
   useEffect(() => {
-    if (screen !== 'hub') return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
-        e.preventDefault();
-        onBack();
-        return;
-      }
       if (e.key === 'Enter' || e.key === ' ') {
         if (focusIndex === 0) {
           onBack();
@@ -100,7 +93,7 @@ const Games = ({ onBack }: GamesProps) => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onBack, totalFocusable, screen, focusIndex]);
+  }, [onBack, totalFocusable, focusIndex]);
 
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(`[data-game-focus="${focusIndex}"]`);
