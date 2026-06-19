@@ -19,8 +19,10 @@ interface FairInfo {
 
 type Phase = 'bet' | 'decision' | 'reveal' | 'settled';
 type FocusBet = `chip-${number}` | 'deal' | 'back';
-type FocusDecision = 'call' | 'fold' | 'back' | 'fair';
+type FocusDecision = `opt-${number}` | 'fold' | 'back' | 'fair';
 type FocusSettle = 'again' | 'back' | 'fair';
+
+interface RaiseOption { multiplier: number; cost: number }
 
 const ANTES = [10, 25, 50, 100];
 const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
