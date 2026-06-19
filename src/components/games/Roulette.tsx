@@ -466,6 +466,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
       color === 'black' ? 'bg-slate-950 hover:bg-slate-800 border-slate-500/40' :
       color === 'green' ? 'bg-emerald-700/95 hover:bg-emerald-600 border-emerald-300/40' :
       'bg-slate-800/80 hover:bg-slate-700 border-slate-500/40';
+    // Register cell bet for D-pad decrement
+    useEffect(() => {
+      cellBets.current.set(id, { type, selection });
+      return () => { cellBets.current.delete(id); };
+    }, [id, type, selection]);
     return (
       <button
         ref={registerFocus(id)}
