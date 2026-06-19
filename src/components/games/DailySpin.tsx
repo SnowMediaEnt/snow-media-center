@@ -36,6 +36,7 @@ function fmtCountdown(ms: number) {
 }
 
 const DailySpin = ({ onBack }: DailySpinProps) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
