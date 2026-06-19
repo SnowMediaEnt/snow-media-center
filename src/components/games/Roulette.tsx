@@ -663,12 +663,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
           <Card className="p-4 bg-slate-900/70 border-emerald-400/30">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">Total Bet</div>
+                <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">{t('games.roulette.totalBet')}</div>
                 <div className="text-2xl font-black text-white tabular-nums">{totalBet.toLocaleString()}</div>
               </div>
               {result && (
                 <div className="text-right">
-                  <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">Net</div>
+                  <div className="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">{t('games.roulette.net')}</div>
                   <div className={`text-2xl font-black tabular-nums ${
                     result.net > 0 ? 'text-emerald-300' : result.net < 0 ? 'text-rose-300' : 'text-slate-200'
                   }`}>
