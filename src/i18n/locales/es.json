@@ -82,6 +82,30 @@
       "heroSubtitle": "Juega con Play Chips gratis. Gánalas a diario, sube en la clasificación y diviértete — solo por el orgullo.",
       "signInBanner": "Inicia sesión para empezar a acumular Play Chips.",
       "serverError": "Servidor: {{errorMessage}}"
+    },
+    "dailySpin": {
+      "back": "Atrás",
+      "playChips": "Fichas de juego",
+      "loadingChips": "Cargando fichas…",
+      "badge": "Giro diario",
+      "heading": "Un giro gratis cada 4 horas",
+      "subheading": "Cae en el segmento dorado para ganar el jackpot de 2000 fichas.",
+      "signInPrompt": "Inicia sesión para reclamar tu giro diario.",
+      "checkingSpin": "Comprobando tu giro diario…",
+      "comeBackIn": "Vuelve en",
+      "nextSpinReady": "Tu próximo giro estará listo entonces.",
+      "spinning": "Girando…",
+      "spin": "GIRAR",
+      "spinError": "No se pudo girar ahora mismo: inténtalo de nuevo.",
+      "jackpotResult": "🎉 ¡JACKPOT!",
+      "youWon": "Ganaste",
+      "winAmount": "+{{prize}} fichas",
+      "provablyFair": "Juego justo verificable",
+      "fairServerSeedHash": "serverSeedHash:",
+      "fairServerSeed": "serverSeed:",
+      "fairClientSeed": "clientSeed:",
+      "fairNonce": "nonce:",
+      "fairVerify": "Verifica: SHA-256(serverSeed) debe coincidir con el hash mostrado antes del giro."
     }
   }
 }

@@ -82,6 +82,30 @@
       "heroSubtitle": "Jouez avec des Play Chips gratuits. Gagnez-en chaque jour, grimpez au classement et amusez-vous — juste pour la gloire.",
       "signInBanner": "Connectez-vous pour commencer à accumuler des Play Chips.",
       "serverError": "Serveur : {{errorMessage}}"
+    },
+    "dailySpin": {
+      "back": "Retour",
+      "playChips": "Play Chips",
+      "loadingChips": "Chargement des jetons…",
+      "badge": "Tour quotidien",
+      "heading": "Un tour gratuit toutes les 4 heures",
+      "subheading": "Tombez sur le segment doré pour décrocher le jackpot de 2 000 jetons.",
+      "signInPrompt": "Connectez-vous pour récupérer votre tour quotidien.",
+      "checkingSpin": "Vérification de votre tour quotidien…",
+      "comeBackIn": "Revenez dans",
+      "nextSpinReady": "Votre prochain tour sera alors disponible.",
+      "spinning": "Rotation…",
+      "spin": "TOURNER",
+      "spinError": "Impossible de tourner pour l'instant — réessayez.",
+      "jackpotResult": "🎉 JACKPOT !",
+      "youWon": "Vous avez gagné",
+      "winAmount": "+{{prize}} jetons",
+      "provablyFair": "Équité vérifiable",
+      "fairServerSeedHash": "serverSeedHash :",
+      "fairServerSeed": "serverSeed :",
+      "fairClientSeed": "clientSeed :",
+      "fairNonce": "nonce :",
+      "fairVerify": "Vérifiez : SHA-256(serverSeed) doit correspondre au hash affiché avant le tour."
     }
   }
 }
