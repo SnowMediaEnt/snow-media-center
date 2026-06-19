@@ -154,6 +154,9 @@ const Games = ({ onBack }: GamesProps) => {
   if (screen === 'video-poker') {
     return <VideoPoker onBack={() => setScreen('hub')} />;
   }
+  if (screen === 'roulette') {
+    return <Roulette onBack={() => setScreen('hub')} />;
+  }
 
   return (
     <div
