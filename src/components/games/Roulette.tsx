@@ -886,7 +886,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
               onClick={() => setShowFair((s) => !s)}
               className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusId === 'fair-toggle' ? 'ring-2 ring-amber-300/80' : ''}`}
             >
-              Provably fair {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {t('games.roulette.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
             {showFair && (
               <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
