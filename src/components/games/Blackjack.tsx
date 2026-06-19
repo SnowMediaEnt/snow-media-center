@@ -123,6 +123,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [net, setNet] = useState<number>(0);
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
+  // Staggered dealer reveal on settle: number of dealer cards currently shown face-up
+  const [revealedDealer, setRevealedDealer] = useState<number>(0);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
   const [focusAction, setFocusAction] = useState<FocusAction>('hit');
