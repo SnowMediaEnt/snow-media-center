@@ -482,14 +482,14 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
             )}`}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            {t('games.casinoHoldem.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
             <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">Play Chips</span>
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.casinoHoldem.playChips')}</span>
               <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : 'Loading chips…'}
+                {balance !== null ? balance.toLocaleString() : t('games.casinoHoldem.loadingChips')}
               </span>
             </div>
           </div>
@@ -497,12 +497,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Casino Hold'em
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.casinoHoldem.title')}
           </div>
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Beat the dealer — five community cards
+            {t('games.casinoHoldem.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">Play Chips only — just for fun and bragging rights.</p>
+          <p className="text-slate-200/90 mt-2">{t('games.casinoHoldem.subheading')}</p>
         </div>
 
         {/* Felt Table */}
