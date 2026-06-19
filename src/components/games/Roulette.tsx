@@ -560,12 +560,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
         <div className="text-center mb-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-2 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> Roulette
+            <Sparkles className="w-3.5 h-3.5" /> {t('games.roulette.title')}
           </div>
           <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            Place your bets
+            {t('games.roulette.placeYourBets')}
           </h1>
-          <p className="text-slate-200/90 mt-1 text-sm">Play Chips only — free to play, never cashable.</p>
+          <p className="text-slate-200/90 mt-1 text-sm">{t('games.roulette.playChipsDisclaimer')}</p>
         </div>
 
         {/* Top row: wheel + bet summary */}
