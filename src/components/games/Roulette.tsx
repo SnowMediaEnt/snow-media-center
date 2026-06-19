@@ -545,7 +545,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
             size="lg"
             className={`transition-all ${focusId === 'back' ? focusRing : ''}`}
           >
-            <ArrowLeft className="w-5 h-5 mr-2" /> Back
+            <ArrowLeft className="w-5 h-5 mr-2" /> {t('games.roulette.back')}
           </Button>
           <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
             <Coins className="w-6 h-6 text-amber-300" />
