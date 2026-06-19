@@ -570,15 +570,15 @@ const Index = () => {
 
   const buttons = useMemo(() => {
     const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
-      { icon: Smartphone, title: 'Main Apps', description: 'Download APKs & Streaming Tools', variant: 'blue' },
-      { icon: LifeBuoy, title: 'Support', description: 'Help, AI Chat & Community', variant: 'gold' },
-      { icon: Store, title: 'Snow Media Store', description: 'Visit Official Store', variant: 'purple' },
+      { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
+      { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
+      { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
     ];
     if (playerEnabled) {
-      list.push({ icon: Tv, title: 'Player', description: 'Live TV, Movies & Series', variant: 'navy' });
+      list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
     }
     return list;
-  }, [playerEnabled]);
+  }, [playerEnabled, t]);
 
   
   return (
