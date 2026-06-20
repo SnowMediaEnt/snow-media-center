@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
+import { isFireTV } from '@/utils/platform';
 
 const KEY = 'snow-media-bar-enabled';
 const EVENT = 'snow-media-bar-enabled-changed';
 
-// Default ON for every device. Low-memory Android TV boxes get a slower
-// staggered fetch inside MediaBar itself, so we no longer disable at boot.
+// Default ON for every device EXCEPT Fire TV (2GB RAM, repeated WebMediaPlayer
+// creation, tile-memory limits). On Fire TV we default OFF so the trending
+// images row doesn't pre-load dozens of large posters; the user can opt in
+// from Settings and that choice is honored.
 export const readMediaBarEnabled = (): boolean => {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw === null) return true;
+    if (raw === null) return !isFireTV();
     return raw === '1' || raw === 'true';
   } catch {
-    return true;
+    return !isFireTV();
   }
 };
 
