@@ -210,11 +210,11 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       if (data?.newOrders > 0) {
         toast({
           title: 'Wix Purchases Synced',
-          description: `Added ${data.totalCreditsAdded} credits from ${data.newOrders} order${data.newOrders === 1 ? '' : 's'}.`,
+          description: `Added ${data.totalCreditsAdded} Snow Gems from ${data.newOrders} order${data.newOrders === 1 ? '' : 's'}.`,
         });
         setTimeout(() => window.location.reload(), 1200);
       } else {
-        toast({ title: 'All Synced', description: 'No new Wix credit purchases found.' });
+        toast({ title: 'All Synced', description: 'No new Wix Snow Gem purchases found.' });
       }
     } catch (e: any) {
       console.error('Wix sync error:', e);
@@ -298,7 +298,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           </CardContent>
         </Card>
 
-        {/* Credit Packages */}
+        {/* Snow Gem Packages */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {loading ? (
             [...Array(4)].map((_, i) => (
