@@ -24,6 +24,7 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
@@ -31,7 +32,7 @@ const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
-const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
