@@ -63,7 +63,7 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
     const raw = amounts[u.user_id] || '';
     const amount = Math.abs(parseFloat(raw));
     if (!amount || isNaN(amount)) {
-      toast({ title: 'Enter amount', description: 'Set a credit amount first', variant: 'destructive' });
+      toast({ title: 'Enter amount', description: 'Set a Snow Gem amount first', variant: 'destructive' });
       return;
     }
     setBusyId(u.user_id);
@@ -72,20 +72,20 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
         p_user_id: u.user_id,
         p_amount: amount,
         p_transaction_type: delta > 0 ? 'purchase' : 'deduction',
-        p_description: delta > 0 ? `Admin grant: +${amount} credits` : `Admin deduction: -${amount} credits`,
+        p_description: delta > 0 ? `Admin grant: +${amount} Snow Gems` : `Admin deduction: -${amount} Snow Gems`,
         p_paypal_transaction_id: null,
       });
       if (error) throw error;
       if (data === false) {
-        toast({ title: 'Insufficient credits', description: "User doesn't have enough credits to deduct", variant: 'destructive' });
+        toast({ title: 'Insufficient Snow Gems', description: "User doesn't have enough Snow Gems to deduct", variant: 'destructive' });
       } else {
-        toast({ title: 'Done', description: `${delta > 0 ? 'Added' : 'Removed'} ${amount} credits` });
+        toast({ title: 'Done', description: `${delta > 0 ? 'Added' : 'Removed'} ${amount} Snow Gems` });
         setAmounts(prev => ({ ...prev, [u.user_id]: '' }));
         await fetchUsers();
       }
     } catch (e: any) {
       console.error(e);
-      toast({ title: 'Error', description: e.message || 'Failed to adjust credits', variant: 'destructive' });
+      toast({ title: 'Error', description: e.message || 'Failed to adjust Snow Gems', variant: 'destructive' });
     } finally {
       setBusyId(null);
     }
@@ -131,7 +131,7 @@ const AdminUserManager = ({ onOpenUserTickets }: { onOpenUserTickets?: (userId: 
                 <div className="flex flex-col items-end gap-1">
                   <Badge className="bg-yellow-600/30 text-yellow-200 border border-yellow-500/40">
                     <Coins className="h-3 w-3 mr-1" />
-                    {Number(u.credits).toFixed(2)} credits
+                    {Number(u.credits).toFixed(2)} Snow Gems
                   </Badge>
                   <span className="text-xs text-slate-400">Spent: {Number(u.total_spent).toFixed(2)}</span>
                 </div>

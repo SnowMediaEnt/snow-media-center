@@ -279,7 +279,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm font-medium">Available Credits</p>
+                <p className="text-green-100 text-sm font-medium">Available Snow Gems</p>
                 <p className="text-3xl font-bold text-white">{profile?.credits?.toFixed(2) || '0.00'}</p>
               </div>
               <Wallet className="w-12 h-12 text-green-200" />
@@ -317,7 +317,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             }`}
           >
             <Plus className="w-5 h-5 mr-2" />
-            Purchase Credits
+            Purchase Snow Gems
           </Button>
           <Button 
             onClick={onCommunityChat}
@@ -360,7 +360,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
-              App Credits
+              Snow Gems
             </TabsTrigger>
             <TabsTrigger 
               value="store" 
@@ -396,7 +396,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   <h3 className="text-lg font-semibold text-white">Account Stats</h3>
                   <div className="space-y-2">
                     <p className="text-slate-300"><span className="font-medium">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
-                    <p className="text-slate-300"><span className="font-medium">Total Credits Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-slate-300"><span className="font-medium">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </div>
@@ -482,11 +482,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
               <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
                 <Sparkles className="w-6 h-6 mr-2" />
-                App Credits & AI Usage
+                Snow Gems & AI Usage
               </h2>
               
               {transactions.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No credit transactions yet</p>
+                <p className="text-slate-400 text-center py-8">No Snow Gem transactions yet</p>
               ) : (
                 <div className="space-y-3">
                   {transactions.map((transaction) => (
@@ -514,7 +514,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                           'text-blue-400'
                         }`}>
                           {transaction.transaction_type === 'deduction' ? '-' : '+'}
-                          {transaction.amount.toFixed(2)} credits
+                          {transaction.amount.toFixed(2)} Snow Gems
                         </p>
                         <Badge 
                           variant="secondary" 
@@ -687,7 +687,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
-              This permanently removes your Snow Media app account, profile, credits,
+              This permanently removes your Snow Media app account, profile, Snow Gems,
               chats, support tickets and media. This cannot be undone. Your separate
               Snow Media website (Wix) account is not affected.
             </AlertDialogDescription>
