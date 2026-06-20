@@ -272,8 +272,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           const next = i + GRID_COLS;
           setGridIdx(next < list.length ? next : i);
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) return;
+          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
           setGridIdx(i - GRID_COLS);
+        
         } else if (e.key === 'Enter' || e.key === ' ') {
           const s = list[i];
           if (s) openSeries(s);
