@@ -306,6 +306,7 @@ const Player = memo(({ onBack }: Props) => {
             creds={creds!}
             isActive={pane === 'content'}
             onExitLeft={onExitLeft}
+            onExitUp={onExitUp}
             onBack={onBack}
           />
         )}
@@ -315,6 +316,7 @@ const Player = memo(({ onBack }: Props) => {
               creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}
@@ -324,6 +326,7 @@ const Player = memo(({ onBack }: Props) => {
               creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}
