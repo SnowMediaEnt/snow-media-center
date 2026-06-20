@@ -441,53 +441,23 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.videoPoker.gameTag')}
-          </div>
+        <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.videoPoker.title')}
           </h1>
-          <p className="text-slate-200/90 mt-2">{t('games.videoPoker.subtitle')}</p>
         </div>
-
-        {/* Paytable */}
-        <Card className="p-4 mb-5 bg-slate-900/70 border-amber-400/30">
-          <div className="text-xs uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.videoPoker.paytable')}</div>
-          <div className="grid grid-cols-3 md:grid-cols-3 gap-x-6 gap-y-1">
-            {orderedPayouts.map((row) => {
-              const winRow = resultWin && resultRank === row.name;
-              return (
-                <div
-                  key={row.name}
-                  className={`flex items-center justify-between text-sm px-2 py-1 rounded transition-colors ${
-                    winRow
-                      ? 'bg-amber-400/25 text-amber-100 font-extrabold ring-1 ring-amber-300/60'
-                      : 'text-slate-200'
-                  }`}
-                >
-                  <span>{HAND_KEY[row.name] ? t(HAND_KEY[row.name]) : row.name}</span>
-                  <span className="font-black tabular-nums">×{row.mult}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
 
         {/* Felt table */}
         <div
-          className="relative rounded-[2rem] p-6 md:p-8 mb-5"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background: 'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
             border: '3px solid rgba(251,191,36,0.55)',
             boxShadow:
               '0 30px 60px -20px rgba(0,0,0,0.85), inset 0 0 80px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.08)',
-            transform: 'rotateX(4deg)',
-            transformStyle: 'preserve-3d',
-            perspective: '1400px',
           }}
         >
-          <div className="flex justify-center items-end gap-3 md:gap-4 min-h-[170px] pt-6">
+          <div className="flex justify-center items-end gap-2 md:gap-3 min-h-0 pt-2">
             {[0, 1, 2, 3, 4].map((i) => {
               const c = hand[i];
               return (
