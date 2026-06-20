@@ -57,6 +57,9 @@ const AutoUpdatePrompt = () => {
 
     let cancelled = false;
     const check = async () => {
+      // Streaming priority: skip update checks while playback is active so the
+      // fetch + JSON parse can't compete with the player on weak devices.
+      if (document.documentElement.classList.contains('streaming-active')) return;
       try {
         const url = `https://snowmediaapps.com/smc/update.json?ts=${Date.now()}`;
         const res = await robustFetch(url, {
