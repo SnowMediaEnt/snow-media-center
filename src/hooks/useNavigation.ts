@@ -137,6 +137,12 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     const setupBackHandler = async () => {
       try {
         const handle = await CapApp.addListener('backButton', ({ canGoBack }) => {
+          // If the auto-update modal (or any aria-modal dialog) is open, let it
+          // handle Back itself — do not pop the underlying nav stack.
+          if (typeof document !== 'undefined' &&
+              document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) {
+            return;
+          }
           // If an overlay (BufferingGuide, SpeedTest, etc.) just handled this
           // back press, do not also pop the underlying view.
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
