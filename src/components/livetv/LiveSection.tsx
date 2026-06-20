@@ -592,7 +592,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId
