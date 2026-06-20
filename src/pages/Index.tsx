@@ -130,6 +130,203 @@ const HomeActionCard = memo(({
 
 HomeActionCard.displayName = 'HomeActionCard';
 
+// ---------------------------------------------------------------------------
+// Memoised home-screen subtrees. Each takes only the props it needs (especially
+// `isFocused` booleans rather than the raw `focusedButton` index), so a D-pad
+// move only re-renders the slot whose focus actually flipped — not the entire
+// home tree. This is the FireTV main-thread fix.
+// ---------------------------------------------------------------------------
+
+type ScreenTier = 'xl' | 'lg' | 'md';
+
+const getScreenTier = (h: number): ScreenTier => (h >= 2160 ? 'xl' : h >= 1440 ? 'lg' : 'md');
+
+interface HomeHeaderProps {
+  tier: ScreenTier;
+  isAdmin: boolean;
+  hasUser: boolean;
+  isAdminFocused: boolean;
+  isAuthFocused: boolean;
+  isSettingsFocused: boolean;
+  adminLabel: string;
+  dashboardLabel: string;
+  signInLabel: string;
+  settingsLabel: string;
+  onOpenAdmin: () => void;
+  onOpenUser: () => void;
+  onOpenAuth: () => void;
+  onOpenSettings: () => void;
+  onOpenDashboard: () => void;
+}
+
+const HomeHeader = memo((props: HomeHeaderProps) => {
+  const {
+    tier, isAdmin, hasUser,
+    isAdminFocused, isAuthFocused, isSettingsFocused,
+    adminLabel, dashboardLabel, signInLabel, settingsLabel,
+    onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings, onOpenDashboard,
+  } = props;
+
+  const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
+  const iconClass = tier === 'xl' ? 'w-6 h-6' : tier === 'lg' ? 'w-5 h-5' : 'w-4 h-4';
+  const btnSize = tier === 'md' ? 'sm' : 'default';
+  const inset = tier === 'xl' ? '2rem' : tier === 'lg' ? '1.5rem' : '1rem';
+  const gap = tier === 'xl' ? '1rem' : tier === 'lg' ? '0.75rem' : '0.5rem';
+
+  return (
+    <div
+      className="absolute z-20 flex flex-wrap items-center justify-end"
+      style={{
+        top: `max(env(safe-area-inset-top, 0px), ${inset})`,
+        right: `max(env(safe-area-inset-right, 0px), ${inset})`,
+        gap,
+        maxWidth: 'min(50vw, 32rem)',
+      }}
+    >
+      <ServiceExpirationBanner onOpenDashboard={onOpenDashboard} />
+
+      {isAdmin && (
+        <Button
+          onClick={onOpenAdmin}
+          variant="purple"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isAdminFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <Shield className={`mr-2 ${iconClass}`} />
+          {adminLabel}
+        </Button>
+      )}
+      {hasUser ? (
+        <Button
+          onClick={onOpenUser}
+          variant="white"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isAuthFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <User className={`mr-2 text-gray-800 ${iconClass}`} />
+          <span className="text-gray-800">{dashboardLabel}</span>
+        </Button>
+      ) : (
+        <Button
+          onClick={onOpenAuth}
+          variant="gold"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isAuthFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <LogIn className={`mr-2 text-gray-400 ${iconClass}`} />
+          <span style={{ color: '#333333' }}>{signInLabel}</span>
+        </Button>
+      )}
+      <Button
+        onClick={onOpenSettings}
+        variant="gold"
+        size={btnSize}
+        tabIndex={0}
+        data-focused={isSettingsFocused ? 'true' : 'false'}
+        className={`tv-focusable home-focus-surface ${btnClass}`}
+      >
+        <SettingsIcon className={`mr-2 ${iconClass}`} />
+        {settingsLabel}
+      </Button>
+    </div>
+  );
+});
+HomeHeader.displayName = 'HomeHeader';
+
+const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
+  <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
+    <div className="text-center home-watermark">
+      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
+        <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
+        <span> </span>
+        <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
+      </h1>
+      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
+        {tagline}
+      </p>
+    </div>
+    {mediaBarEnabled && (
+      <div
+        className="absolute left-0 right-0 z-20"
+        style={{ top: '38%', transform: 'translateY(-50%)' }}
+      >
+        <NewsTicker compact />
+      </div>
+    )}
+  </div>
+));
+WatermarkTitle.displayName = 'WatermarkTitle';
+
+const LogoButton = memo(({ isFocused, onActivate, onFocus }: { isFocused: boolean; onActivate: () => void; onFocus: () => void }) => (
+  <button
+    type="button"
+    onClick={onActivate}
+    onFocus={onFocus}
+    tabIndex={0}
+    data-focused={isFocused ? 'true' : 'false'}
+    aria-label="Snow Media Entertainment"
+    className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
+    style={{
+      top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
+      left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+      height: 'clamp(72px, 11vh, 140px)',
+    }}
+  >
+    <img
+      src={smeLogo}
+      alt="Snow Media Entertainment"
+      className="h-full w-auto pointer-events-none select-none"
+      draggable={false}
+    />
+  </button>
+));
+LogoButton.displayName = 'LogoButton';
+
+// Memoised route switch — isolated so D-pad focus changes on the home screen
+// don't re-evaluate the 22-gate `currentView ===` ladder. Only re-renders when
+// `currentView`, navigation callbacks, or layoutMode actually change.
+interface RouteSwitchProps {
+  currentView: string;
+  goBack: () => void;
+  navigateTo: (view: string) => void;
+  layoutMode: 'grid' | 'row';
+  onLayoutChange: (mode: 'grid' | 'row') => void;
+}
+
+const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
+  <Suspense fallback={<RouteFallback />}>
+    {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} />}
+    {currentView === 'store' && <MediaStore onBack={goBack} />}
+    {currentView === 'support' && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
+    {currentView === 'support-videos' && <SupportVideos onBack={goBack} />}
+    {currentView === 'chat' && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
+    {currentView === 'community' && <CommunityChat onBack={goBack} />}
+    {currentView === 'credits' && <CreditStore onBack={goBack} />}
+    {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
+    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
+    {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
+    {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}
+    {currentView === 'game-slots' && <SlotsGame onBack={goBack} />}
+    {currentView === 'game-blackjack' && <BlackjackGame onBack={goBack} />}
+    {currentView === 'game-video-poker' && <VideoPokerGame onBack={goBack} />}
+    {currentView === 'game-roulette' && <RouletteGame onBack={goBack} />}
+    {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={goBack} />}
+    {currentView === 'wix-blog' && <WixBlog onBack={goBack} />}
+    {currentView === 'support-tickets' && <SupportTicketSystem onBack={goBack} />}
+    {currentView === 'ai-conversations' && <AIConversationSystem onBack={goBack} />}
+    {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
+    {currentView === 'admin-support' && <AdminSupportDashboard onBack={goBack} />}
+    {currentView === 'livetv' && <LiveTV onBack={goBack} />}
+  </Suspense>
+));
+RouteSwitch.displayName = 'RouteSwitch';
+
 type LaunchableApp = {
   id?: string;
   name: string;
@@ -324,10 +521,10 @@ const Index = () => {
   }, [backPressCount, currentView, toast]);
 
 
-  const handleLayoutChange = (newMode: 'grid' | 'row') => {
+  const handleLayoutChange = useCallback((newMode: 'grid' | 'row') => {
     setLayoutMode(newMode);
     localStorage.setItem('snow-media-layout', newMode);
-  };
+  }, []);
 
   // Easter egg — 7 logo clicks (or 7 Enter presses while focused) reveals the image.
   // Counter resets after 2 seconds of inactivity.
@@ -376,6 +573,46 @@ const Index = () => {
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
+
+  // Stable callbacks for memoised children. These read the latest values from
+  // refs, so their identity is constant for the life of the component — which
+  // is what lets HomeHeader / RouteSwitch / MediaBar / PinnedAppsPopup skip
+  // re-renders when only `focusedButton` changes.
+  const stableGoBack = useCallback(() => goBackRef.current(), []);
+  const stableNavigateTo = useCallback((view: string) => navigateToRef.current(view), []);
+  const onOpenAdmin = useCallback(() => navigateToRef.current('admin-support'), []);
+  const onOpenUser = useCallback(() => navigateToRef.current('user'), []);
+  const onOpenAuth = useCallback(() => navigateRef.current('/auth'), []);
+  const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
+  const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
+  const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
+
+  // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
+  const onPopupInstallApp = useCallback((app: InstalledApp) => {
+    toast({
+      title: 'Install ' + app.name,
+      description: 'Opening Main Apps so you can download and install it.',
+    });
+    setIsInPopup(false);
+    setPopupFocusIndex(-1);
+    navigateToRef.current('apps');
+  }, [toast]);
+  const onPopupFocusChange = useCallback((index: number) => setPopupFocusIndex(index), []);
+  const onPopupExitFocus = useCallback(() => {
+    setIsInPopup(false);
+    setPopupFocusIndex(-1);
+  }, []);
+
+  // MediaBar callbacks — stable so its memo can skip re-renders on focus ticks.
+  const onMediaBarExitDown = useCallback(() => { setIsInMediaBar(false); setFocusedButton(0); }, []);
+  const onMediaBarExitUp = useCallback(() => { setIsInMediaBar(false); setFocusedButton(-2); }, []);
+
+  // Clock callback — stable (HomeClock already memoised).
+  const onClockUpdate = useCallback(() => navigateToRef.current('settings'), []);
+  const onCloseEasterEgg = useCallback(() => setShowEasterEgg(false), []);
+
+  // Screen-height derived classes computed once per tier change, not per render.
+  const screenTier = useMemo(() => getScreenTier(screenHeight), [screenHeight]);
 
   // Stable per-index activation callbacks — referentially constant for the
   // life of the component so HomeActionCard's React.memo can skip re-renders
@@ -582,141 +819,48 @@ const Index = () => {
     return list;
   }, [playerEnabled, t]);
 
-  
+  const tagline = t('home.tagline');
+  const adminLabel = t('common.admin');
+  const dashboardLabel = t('common.dashboard');
+  const signInLabel = t('common.signIn');
+  const settingsLabel = t('common.settings');
+
   return (
     <div className="min-h-screen">
-      {/* Lazy-loaded navigation views — Suspense gives a lightweight fallback on STB */}
-      <Suspense fallback={<RouteFallback />}>
-        {currentView === 'apps' && <InstallApps onBack={() => goBack()} onNavigateToChat={() => navigateTo('support')} />}
-        {currentView === 'store' && <MediaStore onBack={() => goBack()} />}
-        {currentView === 'support' && <Support onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
-        {currentView === 'support-videos' && <SupportVideos onBack={() => goBack()} />}
-        {currentView === 'chat' && <ChatCommunity onBack={() => goBack()} onNavigate={(section) => navigateTo(section)} />}
-        {currentView === 'community' && <CommunityChat onBack={() => goBack()} />}
-        {currentView === 'credits' && <CreditStore onBack={() => goBack()} />}
-        {currentView === 'settings' && <Settings onBack={() => goBack()} layoutMode={layoutMode} onLayoutChange={handleLayoutChange} />}
-        {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
-        {currentView === 'games' && <Games onBack={() => goBack()} onOpenGame={(view) => navigateTo(view)} />}
-        {currentView === 'game-daily-spin' && <DailySpinGame onBack={() => goBack()} />}
-        {currentView === 'game-slots' && <SlotsGame onBack={() => goBack()} />}
-        {currentView === 'game-blackjack' && <BlackjackGame onBack={() => goBack()} />}
-        {currentView === 'game-video-poker' && <VideoPokerGame onBack={() => goBack()} />}
-        {currentView === 'game-roulette' && <RouletteGame onBack={() => goBack()} />}
-        {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={() => goBack()} />}
-        {currentView === 'wix-blog' && <WixBlog onBack={() => goBack()} />}
-        {currentView === 'support-tickets' && <SupportTicketSystem onBack={() => goBack()} />}
-        {currentView === 'ai-conversations' && <AIConversationSystem onBack={() => goBack()} />}
-        {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={() => goBack()} />}
-        {currentView === 'admin-support' && <AdminSupportDashboard onBack={() => goBack()} />}
-        {currentView === 'livetv' && <LiveTV onBack={() => goBack()} />}
-      </Suspense>
+      {/* Lazy-loaded navigation views — isolated under memo so D-pad focus
+          changes on the home screen don't re-evaluate the route ladder. */}
+      <RouteSwitch
+        currentView={currentView}
+        goBack={stableGoBack}
+        navigateTo={stableNavigateTo}
+        layoutMode={layoutMode}
+        onLayoutChange={handleLayoutChange}
+      />
 
       {/* Home screen content */}
       {currentView === 'home' && (
         <div className="h-screen w-screen overflow-hidden text-white relative flex flex-col">
           {/* Background is provided by App.tsx (single static gradient on all devices). */}
 
-
           {/* User/Auth Controls — safe-area-aware so X96 / T95 / FireTV overscan
               doesn't crop the buttons or overlap them with the clock. */}
-          <div
-            className="absolute z-20 flex flex-wrap items-center justify-end"
-            style={{
-              top: `max(env(safe-area-inset-top, 0px), ${
-                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
-              })`,
-              right: `max(env(safe-area-inset-right, 0px), ${
-                screenHeight >= 2160 ? '2rem' : screenHeight >= 1440 ? '1.5rem' : '1rem'
-              })`,
-              gap: screenHeight >= 2160 ? '1rem' : screenHeight >= 1440 ? '0.75rem' : '0.5rem',
-              maxWidth: 'min(50vw, 32rem)',
-            }}
-          >
-            <ServiceExpirationBanner onOpenDashboard={() => navigateTo('user')} />
-
-            {/* Admin Button - only show for admins */}
-            {isAdmin && (
-              <Button
-                onClick={() => navigateTo('admin-support')}
-                variant="purple"
-                size={screenHeight >= 1440 ? "default" : "sm"}
-                tabIndex={0}
-                data-focused={focusedButton === -3 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
-                  ''
-                }`}
-              >
-                <Shield className={`mr-2 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
-                  'w-4 h-4'
-                }`} />
-                {t('common.admin')}
-              </Button>
-            )}
-            {user ? (
-              <Button
-                onClick={() => navigateTo('user')}
-                variant="white"
-                size={screenHeight >= 1440 ? "default" : "sm"}
-                tabIndex={0}
-                data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
-                  ''
-                }`}
-              >
-                <User className={`mr-2 text-gray-800 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
-                  'w-4 h-4'
-                }`} />
-                <span className="text-gray-800">{t('common.dashboard')}</span>
-              </Button>
-            ) : (
-              <Button
-                onClick={() => navigate('/auth')}
-                variant="gold"
-                size={screenHeight >= 1440 ? "default" : "sm"}
-                tabIndex={0}
-                data-focused={focusedButton === -2 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${
-                  screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                  screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
-                  ''
-                }`}
-              >
-                <LogIn className={`mr-2 text-gray-400 ${
-                  screenHeight >= 2160 ? 'w-6 h-6' :
-                  screenHeight >= 1440 ? 'w-5 h-5' :
-                  'w-4 h-4'
-                }`} />
-                <span style={{ color: '#333333' }}>{t('common.signIn')}</span>
-              </Button>
-            )}
-            <Button
-              onClick={() => navigateTo('settings')}
-              variant="gold"
-              size={screenHeight >= 1440 ? "default" : "sm"}
-              tabIndex={0}
-              data-focused={focusedButton === -1 ? 'true' : 'false'}
-              className={`tv-focusable home-focus-surface ${
-                screenHeight >= 2160 ? 'text-xl px-6 py-3' :
-                screenHeight >= 1440 ? 'text-lg px-5 py-2.5' :
-                ''
-              }`}
-            >
-              <SettingsIcon className={`mr-2 ${
-                screenHeight >= 2160 ? 'w-6 h-6' :
-                screenHeight >= 1440 ? 'w-5 h-5' :
-                'w-4 h-4'
-              }`} />
-              {t('common.settings')}
-            </Button>
-          </div>
+          <HomeHeader
+            tier={screenTier}
+            isAdmin={isAdmin}
+            hasUser={!!user}
+            isAdminFocused={focusedButton === -3}
+            isAuthFocused={focusedButton === -2}
+            isSettingsFocused={focusedButton === -1}
+            adminLabel={adminLabel}
+            dashboardLabel={dashboardLabel}
+            signInLabel={signInLabel}
+            settingsLabel={settingsLabel}
+            onOpenAdmin={onOpenAdmin}
+            onOpenUser={onOpenUser}
+            onOpenAuth={onOpenAuth}
+            onOpenSettings={onOpenSettings}
+            onOpenDashboard={onOpenDashboardFromBanner}
+          />
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
@@ -724,26 +868,7 @@ const Index = () => {
           {/* Header - tight container around title. When the content menu is ON,
               the thin RSS ticker overlays through the middle of the title.
               When OFF, a thicker standalone RSS row sits below the title. */}
-          <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
-            <div className="text-center home-watermark">
-              <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
-                <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
-                <span> </span>
-                <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
-              </h1>
-              <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
-                {t('home.tagline')}
-              </p>
-            </div>
-            {mediaBarEnabled && (
-              <div
-                className="absolute left-0 right-0 z-20"
-                style={{ top: '38%', transform: 'translateY(-50%)' }}
-              >
-                <NewsTicker compact />
-              </div>
-            )}
-          </div>
+          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} />
           {!mediaBarEnabled && (
             <div className="relative z-10 flex-shrink-0 mt-2">
               <NewsTicker />
@@ -751,33 +876,17 @@ const Index = () => {
           )}
 
           {/* SME logo top-left — secret 7-click easter egg */}
-          <button
-            type="button"
-            onClick={handleLogoActivate}
-            onFocus={() => setFocusedButton(-3)}
-            tabIndex={0}
-            data-focused={focusedButton === -3 ? 'true' : 'false'}
-            aria-label="Snow Media Entertainment"
-            className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
-            style={{
-              top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
-              left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
-              height: 'clamp(72px, 11vh, 140px)',
-            }}
-          >
-            <img
-              src={smeLogo}
-              alt="Snow Media Entertainment"
-              className="h-full w-auto pointer-events-none select-none"
-              draggable={false}
-            />
-          </button>
+          <LogoButton
+            isFocused={focusedButton === -3}
+            onActivate={handleLogoActivate}
+            onFocus={onLogoFocus}
+          />
 
           {/* Easter egg overlay */}
           {showEasterEgg && (
             <div
               className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-pointer animate-fade-in"
-              onClick={() => setShowEasterEgg(false)}
+              onClick={onCloseEasterEgg}
               role="button"
               aria-label="Close"
             >
@@ -791,22 +900,30 @@ const Index = () => {
           )}
 
           {/* Date/Time Display - isolated to avoid re-rendering the whole home tree every second */}
-          <HomeClock version={version} onUpdateClick={() => navigateTo('settings')} />
+          <HomeClock version={version} onUpdateClick={onClockUpdate} />
 
-          {/* New Content Bar - pulled up so pinned apps don't block it. Toggleable in Settings for slower devices. */}
-          {mediaBarEnabled && (
-            <div style={{ marginTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
+          {/* Bottom region — MediaBar (if enabled) sits directly above the cards,
+              so the empty space falls between the title and the bar instead of
+              between the bar and the cards. */}
+          <div
+            className="relative z-10 flex-1 min-h-0 flex flex-col justify-end"
+            style={{
+              gap: 'clamp(0.75rem, 2vh, 1.5rem)',
+              paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))',
+              paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)',
+              paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)',
+            }}
+          >
+            {mediaBarEnabled && (
               <Suspense fallback={<div className="h-[180px]" />}>
                 <MediaBar
                   active={isInMediaBar}
-                  onExitDown={() => { setIsInMediaBar(false); setFocusedButton(0); }}
-                  onExitUp={() => { setIsInMediaBar(false); setFocusedButton(-2); }}
+                  onExitDown={onMediaBarExitDown}
+                  onExitUp={onMediaBarExitUp}
                 />
               </Suspense>
-            </div>
-          )}
-          {/* Main Content - Cards positioned at bottom */}
-          <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-end" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))', paddingLeft: 'max(env(safe-area-inset-left, 0px), 3vw)', paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)' }}>
+            )}
+
             {(() => {
               // 3 cards now — always lay out in a single row for clean spacing.
               const effectiveLayout: 'grid' | 'row' = 'row';
@@ -845,15 +962,7 @@ const Index = () => {
                         apps={apps}
                         isVisible={isFocused}
                         onLaunchApp={handleLaunchPinnedApp}
-                        onInstallApp={(app) => {
-                          toast({
-                            title: 'Install ' + app.name,
-                            description: 'Opening Main Apps so you can download and install it.',
-                          });
-                          setIsInPopup(false);
-                          setPopupFocusIndex(-1);
-                          navigateTo('apps');
-                        }}
+                        onInstallApp={onPopupInstallApp}
 
                         onPinApp={handlePinFromPopup}
                         onReplacePinnedApp={handleReplacePinnedFromPopup}
@@ -861,11 +970,8 @@ const Index = () => {
                         isPinned={isPinned}
                         canPinMore={canPinMore}
                         focusedIndex={isInPopup && focusedButton === 0 ? popupFocusIndex : -1}
-                        onFocusChange={(index) => setPopupFocusIndex(index)}
-                        onExitFocus={() => {
-                          setIsInPopup(false);
-                          setPopupFocusIndex(-1);
-                        }}
+                        onFocusChange={onPopupFocusChange}
+                        onExitFocus={onPopupExitFocus}
                       />
                       {cardContent}
                     </div>
