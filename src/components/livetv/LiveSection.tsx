@@ -296,7 +296,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     count: visibleChannels.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
+    overscan: isFireTV() ? 2 : 8,
     getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
   });
 
