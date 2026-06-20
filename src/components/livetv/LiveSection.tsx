@@ -17,6 +17,7 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
+import { isFireTV } from '@/utils/platform';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
@@ -295,7 +296,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     count: visibleChannels.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
+    overscan: isFireTV() ? 2 : 8,
     getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
   });
 
@@ -711,7 +712,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
       <div className="flex-1 min-w-0 flex flex-col bg-black/30">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {previewUrl ? (
+            {isFireTV() ? (
+              // Fire TV: NEVER mount the always-on preview <video>. Each
+              // <video> spawns a WebMediaPlayer (and a hardware decoder slot)
+              // on Amazon WebView — that 2nd pipeline alongside the
+              // fullscreen player is the direct cause of black-screen /
+              // freeze. Only the fullscreen player gets a <video> here.
+              <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
+                {focusedChannel ? 'Press OK to play' : 'No channel selected'}
+              </div>
+            ) : previewUrl ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
                 <VideoPlayer src={previewUrl} volume={0} className="w-full h-full" />
               </Suspense>

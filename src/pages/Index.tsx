@@ -725,7 +725,7 @@ const Index = () => {
               the thin RSS ticker overlays through the middle of the title.
               When OFF, a thicker standalone RSS row sits below the title. */}
           <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
-            <div className="text-center">
+            <div className="text-center home-watermark">
               <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
                 <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
                 <span> </span>

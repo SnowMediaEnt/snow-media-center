@@ -15,6 +15,7 @@ import {
   type XtreamVodInfo,
 } from '@/lib/xtream';
 import PosterCard from './PosterCard';
+import { isFireTV } from '@/utils/platform';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -281,7 +282,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     count: rowCount,
     getScrollElement: () => gridScrollRef.current,
     estimateSize: () => rowHRef.current,
-    overscan: 3,
+    overscan: isFireTV() ? 1 : 3,
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
 
@@ -319,7 +320,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         </Button>
         <div className="flex gap-8 max-w-6xl">
           <div className="w-64 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
-            {cover ? <img src={cover} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+            {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-4xl font-quicksand font-bold mb-3">{selectedMovie.name}</h2>
