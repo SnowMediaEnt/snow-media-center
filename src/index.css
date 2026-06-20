@@ -308,6 +308,48 @@ html.nav-active .news-ticker-track {
     0 0 14px hsl(var(--brand-gold) / 0.5);
 }
 
+/* ============================================================
+   Fire TV Cube / 1-2GB Android tile-memory rescue.
+   Chromium logs "tile memory limits exceeded, some content may
+   not draw" at boot — blur, multi-stop gradients, and large box
+   shadows are the worst offenders. Strip them under low-memory
+   mode (Fire TV is force-enabled in main.tsx). Regular Android
+   TV boxes never see this class unless RAM ≤ 2GB.
+   ============================================================ */
+.native-low-memory *,
+.native-low-memory *::before,
+.native-low-memory *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Replace the huge faded "SNOW MEDIA CENTER" watermark and tagline
+   with nothing — it's a 10vw text node painted over the gradient and
+   contributes meaningfully to tile pressure. */
+.native-low-memory .home-watermark {
+  display: none !important;
+}
+/* Flatten the rotating multi-stop linear gradient on the app root
+   to a single solid color. App.tsx writes the gradient via inline
+   style, so override at the data-app-scroll-root element. */
+.native-low-memory [data-app-scroll-root] {
+  background: #0b1220 !important;
+}
+/* Kill ALL non-essential transitions and animations except the news
+   ticker (which is already a single transform). Focus highlight uses
+   transform/box-shadow without transition under this class. */
+.native-low-memory *:not(.news-ticker):not(.news-ticker-track) {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  transition: none !important;
+}
+/* Drop heavy outer glow shadows app-wide; keep the home focus indicator
+   defined above. */
+.native-low-memory [class*="shadow-["],
+.native-low-memory [class*="drop-shadow"] {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 
 .news-ticker-track {
   display: inline-flex;
