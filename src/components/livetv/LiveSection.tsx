@@ -580,7 +580,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
       // pane === 'channels'
       if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
-      else if (e.key === 'ArrowUp') setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
+      else if (e.key === 'ArrowUp') {
+        if (channelIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+        setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
+      }
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
         const ch = chans[channelIdxRef.current];
