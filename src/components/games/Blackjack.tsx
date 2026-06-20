@@ -427,7 +427,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           }}
         >
           {/* Dealer row */}
-          <div className="mb-6">
+          <div className="mb-2">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.dealer')}</div>
               {(phase === 'playing' || phase === 'settled') && (
@@ -438,7 +438,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 </span>
               )}
             </div>
-            <div className="flex items-end gap-2 min-h-[128px]">
+            <div className="flex items-end gap-2 min-h-0">
               {phase === 'bet' && (
                 <div className="text-slate-300/70 italic">{t('games.blackjack.placeBetPrompt')}</div>
               )}
@@ -473,7 +473,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 </span>
               )}
             </div>
-            <div className="flex items-end gap-2 min-h-[128px]">
+            <div className="flex items-end gap-2 min-h-0">
               {phase === 'bet' && (
                 <div className="text-slate-300/70 italic">{t('games.blackjack.cardsAppearHere')}</div>
               )}
