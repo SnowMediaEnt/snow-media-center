@@ -17,6 +17,7 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
+import { isFireTV } from '@/utils/platform';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
