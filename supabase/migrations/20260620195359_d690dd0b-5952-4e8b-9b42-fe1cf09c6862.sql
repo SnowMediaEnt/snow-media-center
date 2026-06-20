@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.grant_coins_on_gem_purchase() FROM PUBLIC, anon, authenticated;
