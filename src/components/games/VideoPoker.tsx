@@ -123,23 +123,23 @@ function PokerCard({
           <>
             <div
               className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 20 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(12px, 2.8cqh, 20px)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 18, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(11px, 2.4cqh, 18px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
             <div
               className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 46 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(24px, 6.5cqh, 46px)' }}
             >
               {SUIT_GLYPH[card.suit]}
             </div>
             <div
               className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 20, transform: 'rotate(180deg)' }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(12px, 2.8cqh, 20px)', transform: 'rotate(180deg)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 18, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(11px, 2.4cqh, 18px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
           </>
         )}
