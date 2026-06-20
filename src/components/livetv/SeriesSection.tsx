@@ -316,7 +316,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, openSeries, playEpisode]);
+  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode]);
 
   // Virtualize series grid by row — measure row height from real layout so
   // virtual stride matches what's rendered at any TV resolution.
