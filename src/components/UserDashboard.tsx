@@ -687,7 +687,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
-              This permanently removes your Snow Media app account, profile, credits,
+              This permanently removes your Snow Media app account, profile, Snow Gems,
               chats, support tickets and media. This cannot be undone. Your separate
               Snow Media website (Wix) account is not affected.
             </AlertDialogDescription>
