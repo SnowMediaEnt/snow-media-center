@@ -511,8 +511,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           }}
         >
           {/* Dealer */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
+          <div className="flex flex-col items-center mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = dealerHole[i];
@@ -540,8 +540,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           </div>
 
           {/* Community */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.community')}</div>
+          <div className="flex flex-col items-center mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.community')}</div>
             <div className="flex gap-2">
               {[0, 1, 2, 3, 4].map((i) => {
                 const card = community[i];
@@ -553,7 +553,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
           {/* Player */}
           <div className="flex flex-col items-center">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.you')}</div>
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.you')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = playerHole[i];
