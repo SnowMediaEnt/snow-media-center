@@ -23,13 +23,14 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 
-const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
@@ -211,7 +212,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
         if (e.key === 'ArrowDown') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0); }
-        else if (e.key === 'ArrowUp') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0); }
+        else if (e.key === 'ArrowUp') {
+          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+          userMovedRef.current = true;
+          setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
+        }
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
@@ -234,8 +239,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
           const next = i + GRID_COLS;
           setGridIdx(next < list.length ? next : i); // stay on last row
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) return;
+          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
           setGridIdx(i - GRID_COLS);
+        
         } else if (e.key === 'Enter' || e.key === ' ') {
           const m = list[i];
           if (m) openMovie(m);
@@ -249,7 +255,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, openMovie, playMovie]);
+  }, [isActive, onExitLeft, onExitUp, openMovie, playMovie]);
 
   // --- Virtualize grid by rows ---
   const gridScrollRef = useRef<HTMLDivElement | null>(null);

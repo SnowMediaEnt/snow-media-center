@@ -84,6 +84,10 @@ const Player = memo(({ onBack }: Props) => {
   }, [creds, user?.id, user?.email]);
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
+  const onExitUp = useCallback(() => {
+    headerReturnPaneRef.current = 'content';
+    setPane('header');
+  }, []);
 
   const signOut = useCallback(async () => {
     await clearCreds();
@@ -302,6 +306,7 @@ const Player = memo(({ onBack }: Props) => {
             creds={creds!}
             isActive={pane === 'content'}
             onExitLeft={onExitLeft}
+            onExitUp={onExitUp}
             onBack={onBack}
           />
         )}
@@ -311,6 +316,7 @@ const Player = memo(({ onBack }: Props) => {
               creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}
@@ -320,6 +326,7 @@ const Player = memo(({ onBack }: Props) => {
               creds={creds!}
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}

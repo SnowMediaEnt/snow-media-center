@@ -28,6 +28,7 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
   onBack: () => void;
 }
 
@@ -53,7 +54,7 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   epg_channel_id: f.epg_channel_id,
 });
 
-const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Props) => {
+const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
@@ -564,6 +565,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
           setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowUp') {
+          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
@@ -578,7 +580,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
 
       // pane === 'channels'
       if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
-      else if (e.key === 'ArrowUp') setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
+      else if (e.key === 'ArrowUp') {
+        if (channelIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+        setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
+      }
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
         const ch = chans[channelIdxRef.current];
@@ -587,7 +592,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onBack: _onBack }: Prop
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId

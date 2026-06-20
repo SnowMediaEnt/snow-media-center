@@ -24,6 +24,7 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
@@ -31,7 +32,7 @@ const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
 
-const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
@@ -244,7 +245,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
         if (e.key === 'ArrowDown') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0); }
-        else if (e.key === 'ArrowUp') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0); }
+        else if (e.key === 'ArrowUp') {
+          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+          userMovedRef.current = true;
+          setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
+        }
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
@@ -267,8 +272,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
           const next = i + GRID_COLS;
           setGridIdx(next < list.length ? next : i);
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) return;
+          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
           setGridIdx(i - GRID_COLS);
+        
         } else if (e.key === 'Enter' || e.key === ' ') {
           const s = list[i];
           if (s) openSeries(s);
@@ -310,7 +316,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, openSeries, playEpisode]);
+  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode]);
 
   // Virtualize series grid by row — measure row height from real layout so
   // virtual stride matches what's rendered at any TV resolution.
