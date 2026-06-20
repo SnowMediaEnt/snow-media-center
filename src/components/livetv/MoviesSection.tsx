@@ -255,7 +255,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, openMovie, playMovie]);
+  }, [isActive, onExitLeft, onExitUp, openMovie, playMovie]);
 
   // --- Virtualize grid by rows ---
   const gridScrollRef = useRef<HTMLDivElement | null>(null);
