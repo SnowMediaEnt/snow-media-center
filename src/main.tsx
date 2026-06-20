@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import './styles/tv.css'
-import { isNativePlatform, getPlatform } from './utils/platform'
+import { isNativePlatform, getPlatform, isFireTV } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
 
@@ -16,9 +16,16 @@ try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('js'); } ca
 const dm = (navigator as any).deviceMemory;
 const lowRam = typeof dm === 'number' && dm > 0 && dm <= 2;          // genuine 1–2 GB boxes
 const ancientAndroid = /Android [4-7]\b/i.test(navigator.userAgent);  // very old OS fallback
-const nativeLowMemory = isNativePlatform() && (lowRam || ancientAndroid);
+// Fire TV Cube / Firestick: ~2GB RAM, weak GPU tile budget, repeated
+// WebMediaPlayer creation. Force low-memory mode regardless of native flag
+// (Fire TV WebView sometimes lies about deviceMemory).
+const fireTv = isFireTV();
+const nativeLowMemory = (isNativePlatform() && (lowRam || ancientAndroid)) || fireTv;
 if (nativeLowMemory) {
   document.documentElement.classList.add('native-low-memory');
+}
+if (fireTv) {
+  document.documentElement.classList.add('is-firetv');
 }
 
 // While the user is D-pad navigating, add html.nav-active so index.css can
