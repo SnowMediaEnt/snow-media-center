@@ -23,13 +23,14 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
 }
 
 type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 
-const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
+const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
