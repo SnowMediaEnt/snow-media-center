@@ -85,15 +85,27 @@ const Player = memo(({ onBack }: Props) => {
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
 
+  const signOut = useCallback(async () => {
+    await clearCreds();
+    await clearPlayerAccount();
+    setCreds(null);
+    setAccountFormOpen(false);
+    toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
+  }, [toast]);
+
   const showCredsForm = !creds || accountFormOpen;
 
-  // Keyboard for shell (only when on the sections pane and no form is up)
+  // Keyboard for shell (header pane + sections pane; content pane is owned by child)
   const paneRef = useRef(pane);
   const sectionIdxRef = useRef(sectionIdx);
+  const headerIdxRef = useRef(headerIdx);
   const showCredsFormRef = useRef(showCredsForm);
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { sectionIdxRef.current = sectionIdx; }, [sectionIdx]);
+  useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
+
+  const HEADER_COUNT = 3; // [Back, Account, SignOut]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -107,11 +119,40 @@ const Player = memo(({ onBack }: Props) => {
         }
         return;
       }
-      if (paneRef.current !== 'sections') return;
 
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
+
+      // --- Header pane owns the keyboard ---
+      if (paneRef.current === 'header') {
+        if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
+          e.preventDefault(); e.stopPropagation();
+          onBack();
+          return;
+        }
+        const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+        if (!arrows.includes(e.key)) return;
+        e.preventDefault(); e.stopPropagation();
+
+        if (e.key === 'ArrowLeft') {
+          setHeaderIdx(i => (i - 1 + HEADER_COUNT) % HEADER_COUNT);
+        } else if (e.key === 'ArrowRight') {
+          setHeaderIdx(i => (i + 1) % HEADER_COUNT);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          // Return focus to the player area where the user came from.
+          setPane(headerReturnPaneRef.current);
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          const idx = headerIdxRef.current;
+          if (idx === 0) onBack();
+          else if (idx === 1) setAccountFormOpen(true);
+          else if (idx === 2) void signOut();
+        }
+        return;
+      }
+
+      // --- Sections pane: Up at idx 0 enters the header ---
+      if (paneRef.current !== 'sections') return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
@@ -124,7 +165,14 @@ const Player = memo(({ onBack }: Props) => {
       e.preventDefault();
 
       if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(SECTIONS.length - 1, i + 1));
-      else if (e.key === 'ArrowUp') setSectionIdx(i => Math.max(0, i - 1));
+      else if (e.key === 'ArrowUp') {
+        if (sectionIdxRef.current === 0) {
+          headerReturnPaneRef.current = 'sections';
+          setPane('header');
+        } else {
+          setSectionIdx(i => Math.max(0, i - 1));
+        }
+      }
       else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
         setSection(SECTIONS[sectionIdxRef.current].id);
         setPane('content');
@@ -132,7 +180,8 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, creds]);
+  }, [onBack, accountFormOpen, creds, signOut]);
+
 
   if (!credsLoaded) {
     return (
