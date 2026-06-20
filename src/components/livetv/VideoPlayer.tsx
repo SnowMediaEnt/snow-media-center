@@ -488,11 +488,18 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       setTimeout(() => { if (!cancelled) attach(); }, delay);
     };
 
-    const onPlaying = () => { setLoading(false); setFatal(null); onPlayStateRef.current?.(false); };
-    const onPause   = () => { onPlayStateRef.current?.(true); };
-    const onPlay    = () => { onPlayStateRef.current?.(false); };
+    const markStreaming = (on: boolean) => {
+      try {
+        if (on) document.documentElement.classList.add('streaming-active');
+        else document.documentElement.classList.remove('streaming-active');
+      } catch { /* ignore */ }
+    };
+
+    const onPlaying = () => { setLoading(false); setFatal(null); onPlayStateRef.current?.(false); markStreaming(true); };
+    const onPause   = () => { onPlayStateRef.current?.(true); markStreaming(false); };
+    const onPlay    = () => { onPlayStateRef.current?.(false); markStreaming(true); };
     const onWaiting = () => setLoading(true);
-    const onEndedInner = () => { onEnded?.(); };
+    const onEndedInner = () => { markStreaming(false); onEnded?.(); };
     const onLoadedMeta = () => { try { onTracksChangedRef.current?.(); } catch { /* ignore */ } };
     video.addEventListener('playing', onPlaying);
     video.addEventListener('play', onPlay);
@@ -506,6 +513,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
     return () => {
       cancelled = true;
       clearWatchdogs();
+      markStreaming(false);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);

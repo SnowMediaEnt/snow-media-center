@@ -260,9 +260,10 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
   // Auto-check on mount (single one-shot). Periodic polling lives in
   // AutoUpdatePrompt — the single source of truth for update checks.
   useEffect(() => {
-    if (autoCheck) {
-      checkForUpdates();
-    }
+    if (!autoCheck) return;
+    // Streaming priority: don't auto-check while a stream is playing.
+    if (document.documentElement.classList.contains('streaming-active')) return;
+    checkForUpdates();
   }, [autoCheck]);
 
   if (!updateAvailable && autoCheck) {
