@@ -534,9 +534,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
         @keyframes rl-confetti { 0% { opacity: 0; transform: translateY(0) scale(.5);} 50%{opacity:1;} 100% { opacity: 0; transform: translateY(-80px) scale(1.2);} }
       `}</style>
 
-      <div className="max-w-6xl mx-auto pb-16 px-3 pt-4">
+      <div className="tv-game-body px-3" style={{ overflow: 'auto' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
           <Button
             ref={registerFocus('back') as any}
             onFocus={() => setFocusId('back')}
