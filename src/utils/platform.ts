@@ -3,6 +3,17 @@
 
 let _isNative: boolean | null = null;
 
+/**
+ * True when running on an Amazon Fire TV / Firestick / Fire TV Cube.
+ * Detected via the WebView User-Agent (AFTxx model codes, "Fire TV", "FireOS").
+ * Used to apply Amazon-WebView-specific workarounds in the video player
+ * (mpegts.js for live, conservative hls.js config, stall watchdogs).
+ * Returns false on regular Android TV boxes — they keep the default path.
+ */
+export const isFireTV = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  /\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS/i.test(navigator.userAgent || '');
+
 export const isNativePlatform = (): boolean => {
   if (_isNative !== null) return _isNative;
   
