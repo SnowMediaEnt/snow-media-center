@@ -245,7 +245,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
         if (e.key === 'ArrowDown') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i + 1) % cats.length : 0); }
-        else if (e.key === 'ArrowUp') { userMovedRef.current = true; setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0); }
+        else if (e.key === 'ArrowUp') {
+          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+          userMovedRef.current = true;
+          setCategoryIdx(i => cats.length ? (i - 1 + cats.length) % cats.length : 0);
+        }
         else if (e.key === 'ArrowLeft') onExitLeft();
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
