@@ -215,7 +215,17 @@ const Player = memo(({ onBack }: Props) => {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Button variant="white" size="sm" onClick={onBack} className="tv-focusable home-focus-surface">
+          <Button
+            variant="white"
+            size="sm"
+            onClick={onBack}
+            data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 0
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <div className="flex items-center gap-2">
@@ -229,26 +239,36 @@ const Player = memo(({ onBack }: Props) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="gold" size="sm" onClick={() => setAccountFormOpen(true)} className="tv-focusable home-focus-surface">
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => setAccountFormOpen(true)}
+            data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 1
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
             <SettingsIcon className="w-4 h-4 mr-2" />
             Account
           </Button>
           <Button
             variant="white"
             size="sm"
-            onClick={async () => {
-              await clearCreds();
-              await clearPlayerAccount();
-              setCreds(null);
-              setAccountFormOpen(false);
-              toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
-            }}
-            className="tv-focusable home-focus-surface"
+            onClick={() => { void signOut(); }}
+            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 2
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
           >
             <X className="w-4 h-4 mr-2" /> Sign Out
           </Button>
         </div>
       </div>
+
 
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex">
