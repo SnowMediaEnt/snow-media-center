@@ -459,9 +459,9 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         }
       `}</style>
 
-      <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
+      <div className="tv-game-body px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <Button
             ref={refs.back}
             onClick={onBack}
