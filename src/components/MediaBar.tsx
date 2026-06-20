@@ -256,7 +256,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   useEffect(() => {
     if (paused || active || totalPages <= 1 || items.length === 0) return;
     return setPausableInterval(() => {
-      if (document.documentElement.classList.contains('nav-active')) return;
+      const html = document.documentElement;
+      if (html.classList.contains('nav-active')) return;
+      if (html.classList.contains('streaming-active')) return;
       setPageIdx((p) => (p + 1) % totalPages);
     }, AUTO_ROTATE_MS);
   }, [paused, active, totalPages, items.length]);
