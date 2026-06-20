@@ -227,7 +227,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       cancelIdleFirst = runWhenIdle(load, 3500);
     });
     // Periodic refresh stays — non-essential but pause-aware via setPausableInterval.
-    const cancelInterval = setPausableInterval(load, REFRESH_MS);
+    // Skip while streaming so the fetch can't compete with active playback.
+    const cancelInterval = setPausableInterval(() => {
+      if (document.documentElement.classList.contains('streaming-active')) return;
+      load();
+    }, REFRESH_MS);
     return () => {
       cancelled = true;
       cancelFirst();
