@@ -342,7 +342,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
     count: rowCount,
     getScrollElement: () => gridScrollRef.current,
     estimateSize: () => rowHRef.current,
-    overscan: 3,
+    overscan: isFireTV() ? 1 : 3,
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
   useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
