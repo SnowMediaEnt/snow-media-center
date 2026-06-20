@@ -565,6 +565,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowUp') {
+          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
