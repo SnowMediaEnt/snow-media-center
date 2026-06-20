@@ -102,8 +102,7 @@ function PlayingCard({
 function CardSlot() {
   return (
     <div
-      style={{ width: 76, height: 110 }}
-      className="rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
+      className="tv-game-card rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
     />
   );
 }
