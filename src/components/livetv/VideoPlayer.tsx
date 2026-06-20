@@ -428,7 +428,14 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       if (mpegts.getFeatureList().mseLivePlayback) {
         const player = mpegts.createPlayer(
           { type: 'mpegts', url, isLive: true, hasAudio: true, hasVideo: true },
-          { enableStashBuffer: false, liveBufferLatencyChasing: true },
+          {
+            enableStashBuffer: true,
+            stashInitialSize: 1024 * 384,
+            liveBufferLatencyChasing: false,
+            liveBufferLatencyMaxLatency: 8,
+            liveBufferLatencyMinRemain: 2,
+            autoCleanupSourceBuffer: true,
+          },
         );
         engineRef.current = 'mpegts';
         player.attachMediaElement(video);
