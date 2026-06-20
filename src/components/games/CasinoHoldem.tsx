@@ -492,19 +492,16 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.casinoHoldem.title')}
-          </div>
+        <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.casinoHoldem.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">{t('games.casinoHoldem.subheading')}</p>
+          <p className="text-slate-200/90 mt-1">{t('games.casinoHoldem.subheading')}</p>
         </div>
 
         {/* Felt Table */}
         <div
-          className="relative rounded-[2rem] p-6 md:p-8 mb-6"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
