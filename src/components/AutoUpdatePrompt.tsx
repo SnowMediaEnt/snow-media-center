@@ -135,17 +135,41 @@ const AutoUpdatePrompt = () => {
     };
     document.addEventListener('focusin', onFocusIn);
 
-    // Swallow Back/Escape at capture phase so it doesn't bubble to global nav
+    // Swallow keys at capture phase so the home-screen global D-pad handler
+    // can't move the highlight behind the dialog.
     const onKey = (e: KeyboardEvent) => {
+      // While the modal is open it OWNS the keyboard so the home-screen's
+      // global D-pad handler can't move the highlight behind the dialog.
+      e.stopImmediatePropagation();
+      const dialog = document.querySelector('[data-autoupdate-dialog="true"]');
+      const btns = dialog
+        ? Array.from(dialog.querySelectorAll<HTMLButtonElement>('button:not([tabindex="-1"]):not([disabled])'))
+        : [];
+      const idx = btns.indexOf(document.activeElement as HTMLButtonElement);
       if (e.key === 'Escape' || e.key === 'GoBack' || (e as any).keyCode === 4) {
-        e.stopPropagation();
         e.preventDefault();
         if (!installing) {
-          if (info?.version) {
-            try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ }
-          }
+          if (info?.version) { try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ } }
           setOpen(false);
         }
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (btns.length) btns[idx <= 0 ? 0 : idx - 1].focus();
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (btns.length) btns[idx < 0 ? 0 : Math.min(btns.length - 1, idx + 1)].focus();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        if (idx < 0) {
+          e.preventDefault();
+          dialog?.querySelector<HTMLButtonElement>('[data-autoupdate-primary="true"]')?.focus();
+        }
+        return; // let the focused button activate natively
       }
     };
     window.addEventListener('keydown', onKey, true);
