@@ -322,18 +322,6 @@ html.nav-active .news-ticker-track {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-/* Replace the huge faded "SNOW MEDIA CENTER" watermark and tagline
-   with nothing — it's a 10vw text node painted over the gradient and
-   contributes meaningfully to tile pressure. */
-.native-low-memory .home-watermark {
-  display: none !important;
-}
-/* Flatten the rotating multi-stop linear gradient on the app root
-   to a single solid color. App.tsx writes the gradient via inline
-   style, so override at the data-app-scroll-root element. */
-.native-low-memory [data-app-scroll-root] {
-  background: #0b1220 !important;
-}
 /* Kill ALL non-essential transitions and animations except the news
    ticker (which is already a single transform). Focus highlight uses
    transform/box-shadow without transition under this class. */
