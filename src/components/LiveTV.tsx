@@ -43,7 +43,10 @@ const Player = memo(({ onBack }: Props) => {
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
-  const [pane, setPane] = useState<'sections' | 'content'>('sections');
+  const [pane, setPane] = useState<'header' | 'sections' | 'content'>('sections');
+  const [headerIdx, setHeaderIdx] = useState(0);
+  // Where to return when leaving the header via Down.
+  const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
 
   // Load creds on mount
   useEffect(() => {
@@ -82,15 +85,27 @@ const Player = memo(({ onBack }: Props) => {
 
   const onExitLeft = useCallback(() => setPane('sections'), []);
 
+  const signOut = useCallback(async () => {
+    await clearCreds();
+    await clearPlayerAccount();
+    setCreds(null);
+    setAccountFormOpen(false);
+    toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
+  }, [toast]);
+
   const showCredsForm = !creds || accountFormOpen;
 
-  // Keyboard for shell (only when on the sections pane and no form is up)
+  // Keyboard for shell (header pane + sections pane; content pane is owned by child)
   const paneRef = useRef(pane);
   const sectionIdxRef = useRef(sectionIdx);
+  const headerIdxRef = useRef(headerIdx);
   const showCredsFormRef = useRef(showCredsForm);
   useEffect(() => { paneRef.current = pane; }, [pane]);
   useEffect(() => { sectionIdxRef.current = sectionIdx; }, [sectionIdx]);
+  useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
+
+  const HEADER_COUNT = 3; // [Back, Account, SignOut]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,11 +119,40 @@ const Player = memo(({ onBack }: Props) => {
         }
         return;
       }
-      if (paneRef.current !== 'sections') return;
 
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
+
+      // --- Header pane owns the keyboard ---
+      if (paneRef.current === 'header') {
+        if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
+          e.preventDefault(); e.stopPropagation();
+          onBack();
+          return;
+        }
+        const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+        if (!arrows.includes(e.key)) return;
+        e.preventDefault(); e.stopPropagation();
+
+        if (e.key === 'ArrowLeft') {
+          setHeaderIdx(i => (i - 1 + HEADER_COUNT) % HEADER_COUNT);
+        } else if (e.key === 'ArrowRight') {
+          setHeaderIdx(i => (i + 1) % HEADER_COUNT);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          // Return focus to the player area where the user came from.
+          setPane(headerReturnPaneRef.current);
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          const idx = headerIdxRef.current;
+          if (idx === 0) onBack();
+          else if (idx === 1) setAccountFormOpen(true);
+          else if (idx === 2) void signOut();
+        }
+        return;
+      }
+
+      // --- Sections pane: Up at idx 0 enters the header ---
+      if (paneRef.current !== 'sections') return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
@@ -121,7 +165,14 @@ const Player = memo(({ onBack }: Props) => {
       e.preventDefault();
 
       if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(SECTIONS.length - 1, i + 1));
-      else if (e.key === 'ArrowUp') setSectionIdx(i => Math.max(0, i - 1));
+      else if (e.key === 'ArrowUp') {
+        if (sectionIdxRef.current === 0) {
+          headerReturnPaneRef.current = 'sections';
+          setPane('header');
+        } else {
+          setSectionIdx(i => Math.max(0, i - 1));
+        }
+      }
       else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
         setSection(SECTIONS[sectionIdxRef.current].id);
         setPane('content');
@@ -129,7 +180,8 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, creds]);
+  }, [onBack, accountFormOpen, creds, signOut]);
+
 
   if (!credsLoaded) {
     return (
@@ -163,7 +215,17 @@ const Player = memo(({ onBack }: Props) => {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Button variant="white" size="sm" onClick={onBack} className="tv-focusable home-focus-surface">
+          <Button
+            variant="white"
+            size="sm"
+            onClick={onBack}
+            data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 0
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <div className="flex items-center gap-2">
@@ -177,26 +239,36 @@ const Player = memo(({ onBack }: Props) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="gold" size="sm" onClick={() => setAccountFormOpen(true)} className="tv-focusable home-focus-surface">
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => setAccountFormOpen(true)}
+            data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 1
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
             <SettingsIcon className="w-4 h-4 mr-2" />
             Account
           </Button>
           <Button
             variant="white"
             size="sm"
-            onClick={async () => {
-              await clearCreds();
-              await clearPlayerAccount();
-              setCreds(null);
-              setAccountFormOpen(false);
-              toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
-            }}
-            className="tv-focusable home-focus-surface"
+            onClick={() => { void signOut(); }}
+            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 2
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
           >
             <X className="w-4 h-4 mr-2" /> Sign Out
           </Button>
         </div>
       </div>
+
 
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex">
