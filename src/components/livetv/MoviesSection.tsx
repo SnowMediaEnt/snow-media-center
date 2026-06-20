@@ -101,6 +101,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   // Lazy-load focused category's movies.
   // "All Movies" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
+    if (pane !== 'grid') return;
     if (!currentCat) return;
     if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (moviesByCat.has(currentCat.id)) return;
@@ -119,7 +120,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [currentCat, creds, moviesByCat]);
+  }, [pane, currentCat, creds, moviesByCat]);
 
   const visibleMovies = useMemo(() => {
     if (!currentCat) return [];

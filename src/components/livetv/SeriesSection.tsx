@@ -112,6 +112,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
   // Lazy-load focused category's series.
   // "All Series" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
+    if (pane !== 'grid') return;
     if (!currentCat) return;
     if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
     if (seriesByCat.has(currentCat.id)) return;
@@ -130,7 +131,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [currentCat, creds, seriesByCat]);
+  }, [pane, currentCat, creds, seriesByCat]);
 
   const visibleSeries = useMemo(() => {
     if (!currentCat) return [];
