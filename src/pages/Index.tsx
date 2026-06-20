@@ -1008,6 +1008,14 @@ const Index = () => {
         </Suspense>
       )}
 
+      {/* First-run opt-in prompt for the home content bar. Only shows after
+          the welcome popup is dismissed and only if the bar is currently OFF. */}
+      {deferredOverlaysReady && currentView === 'home' && (
+        <Suspense fallback={null}>
+          <MediaBarPrompt />
+        </Suspense>
+      )}
+
       {/* Background auto-update check (native only). On by default; users can
           disable via localStorage key smc-auto-update-enabled = "false". */}
       {deferredOverlaysReady && (
