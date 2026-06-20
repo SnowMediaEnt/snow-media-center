@@ -16,6 +16,7 @@ import {
   type XtreamEpisode,
 } from '@/lib/xtream';
 import PosterCard from './PosterCard';
+import { isFireTV } from '@/utils/platform';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
