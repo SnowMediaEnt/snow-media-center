@@ -78,10 +78,8 @@ function PokerCard({
   const isRed = card && RED.has(card.suit);
   return (
     <div
-      className="relative"
+      className="tv-game-card"
       style={{
-        width: 96,
-        height: 138,
         perspective: '800px',
       }}
     >
