@@ -457,7 +457,7 @@ const Slots = ({ onBack }: SlotsProps) => {
 
   return (
     <div
-      className="tv-scroll-container tv-safe text-white relative min-h-screen"
+      className="tv-game-shell text-white relative"
       style={{
         background: inFreeSpins
           ? 'radial-gradient(1200px 600px at 50% -10%, rgba(168,85,247,0.28), transparent 60%),' +

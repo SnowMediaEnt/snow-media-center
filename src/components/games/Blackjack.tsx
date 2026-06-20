@@ -362,7 +362,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
 
   return (
     <div
-      className="tv-scroll-container tv-safe text-white relative min-h-screen"
+      className="tv-game-shell text-white relative"
       style={{
         background:
           'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
