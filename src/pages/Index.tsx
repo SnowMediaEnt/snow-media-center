@@ -54,6 +54,7 @@ const RouletteGame = lazy(() => import('@/components/games/Roulette'));
 const CasinoHoldemGame = lazy(() => import('@/components/games/CasinoHoldem'));
 const WixBlog = lazy(() => import('@/components/WixBlog'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
+const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 
