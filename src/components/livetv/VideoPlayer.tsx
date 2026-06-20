@@ -208,12 +208,97 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
     setFatal(null);
 
     let cancelled = false;
+    // Watchdog timers — cleared on src change / unmount / first real frame.
+    let watchdogIv: ReturnType<typeof setInterval> | null = null;
+    let nativeLoadTimer: ReturnType<typeof setTimeout> | null = null;
+    // mpegts.js fallback already attempted? (prevents loops)
+    let mpegtsFellBack = false;
+    // hls.js MEDIA_ERROR recovery bookkeeping
+    let mediaErrorCount = 0;
+    let lastMediaErrorAt = 0;
 
-    const attach = async () => {
-      // Tear down previous engine
-      teardownRef.current?.();
+    const clearWatchdogs = () => {
+      if (watchdogIv) { clearInterval(watchdogIv); watchdogIv = null; }
+      if (nativeLoadTimer) { clearTimeout(nativeLoadTimer); nativeLoadTimer = null; }
+    };
+
+    // The fullscreen player is opened by user action and passes a non-zero
+    // volume. The preview tile passes volume={0} and must stay muted.
+    const isFullscreenPlayer = (volume ?? 0) > 0;
+
+    // Autoplay safety: muted=true cannot be blocked by Chromium autoplay policy.
+    const safePlay = async () => {
+      try { video.muted = true; } catch { /* ignore */ }
+      try {
+        await video.play();
+        if (isFullscreenPlayer) {
+          // User-initiated → safe to unmute and restore intended volume.
+          try { video.muted = false; } catch { /* ignore */ }
+          try { video.volume = Math.min(1, Math.max(0, volume)); } catch { /* ignore */ }
+        }
+      } catch {
+        /* play() can still reject in rare cases (e.g. detached element) */
+      }
+    };
+
+    // Tear down whatever engine is currently attached. Idempotent.
+    const teardownEngine = () => {
+      try { teardownRef.current?.(); } catch { /* ignore */ }
       teardownRef.current = null;
       hlsRef.current = null;
+    };
+
+    // Start the no-frames watchdog. Targets the "black video but timer advances"
+    // failure mode: MSE samples appended but the decoder emits nothing.
+    const startWatchdog = (recover: () => Promise<boolean> | boolean, fallback: () => Promise<void> | void) => {
+      clearWatchdogs();
+      const startedAt = Date.now();
+      let noFramesSince = startedAt;
+      let lowReadySince = startedAt;
+      let recoveryTriedAt = 0;
+      let fallbackTried = false;
+      watchdogIv = setInterval(async () => {
+        if (cancelled || !video) return;
+        if (video.paused) { noFramesSince = Date.now(); lowReadySince = Date.now(); return; }
+        const hasFrames = video.videoWidth > 0;
+        if (hasFrames) { noFramesSince = Date.now(); }
+        if (video.readyState >= 3) { lowReadySince = Date.now(); }
+
+        // Frames are rendering — happy path, stop watching.
+        if (hasFrames && video.readyState >= 3) {
+          clearWatchdogs();
+          return;
+        }
+
+        const now = Date.now();
+        const noFramesFor = now - noFramesSince;
+        const lowReadyFor = now - lowReadySince;
+        const stuck = noFramesFor >= 8000 || lowReadyFor >= 10000;
+        if (!stuck) return;
+
+        // First remediation: ask the engine to recover.
+        if (!recoveryTriedAt) {
+          recoveryTriedAt = now;
+          try { await recover(); } catch { /* ignore */ }
+          // Give recovery ~6s before escalating to fallback.
+          noFramesSince = now;
+          lowReadySince = now;
+          return;
+        }
+        if (now - recoveryTriedAt < 6000) return;
+
+        // Escalate to fallback engine, once.
+        if (fallbackTried) return;
+        fallbackTried = true;
+        clearWatchdogs();
+        try { await fallback(); } catch { /* ignore */ }
+      }, 2000);
+    };
+
+    const attach = async () => {
+      // Tear down previous engine + watchdogs before mounting a new one.
+      clearWatchdogs();
+      teardownEngine();
       setLoading(true);
 
       const engine = pickEngine(src);
@@ -224,12 +309,19 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
           // Safari has native HLS — prefer it when available
           if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = src;
-            await video.play().catch(() => { /* autoplay may need a user gesture */ });
+            await safePlay();
             return;
           }
           const Hls = (await import('hls.js')).default;
           if (Hls.isSupported()) {
-            const hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: true });
+            const hls = new Hls({
+              liveDurationInfinity: true,
+              // lowLatencyMode:true triggers MSE end-of-stream bugs on older
+              // (Fire OS) Chromium WebViews. The default off is safer everywhere.
+              lowLatencyMode: false,
+              enableWorker: true,
+              backBufferLength: 30,
+            });
             hlsRef.current = hls;
             hls.loadSource(src);
             hls.attachMedia(video);
@@ -240,55 +332,141 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
             hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, fireTracks);
             hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, fireTracks);
             hls.on(Hls.Events.ERROR, (_evt, data) => {
+              // MEDIA_ERROR recovery ladder — handles decoder hiccups that
+              // would otherwise leave the screen black with audio drifting.
+              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                const now = Date.now();
+                const recent = now - lastMediaErrorAt < 3000;
+                lastMediaErrorAt = now;
+                mediaErrorCount = recent ? mediaErrorCount + 1 : 1;
+                try {
+                  if (mediaErrorCount === 1) {
+                    hls.recoverMediaError();
+                  } else if (mediaErrorCount === 2) {
+                    hls.swapAudioCodec();
+                    hls.recoverMediaError();
+                  } else if (data.fatal) {
+                    // Recovery exhausted — surface + retry/destroy path.
+                    onError?.(`HLS ${data.type}: ${data.details}`);
+                    scheduleRetry();
+                  }
+                } catch {
+                  if (data.fatal) {
+                    onError?.(`HLS ${data.type}: ${data.details}`);
+                    scheduleRetry();
+                  }
+                }
+                return;
+              }
               if (data.fatal) {
                 onError?.(`HLS ${data.type}: ${data.details}`);
                 scheduleRetry();
               }
             });
             teardownRef.current = () => { try { hls.destroy(); } catch { /* ignore */ } };
-            await video.play().catch(() => { /* autoplay */ });
+            await safePlay();
+
+            // Watchdog: if no frames render, try hls.recoverMediaError() once;
+            // if still stuck, fall back to mpegts.js with the .ts URL.
+            startWatchdog(
+              () => { try { hls.recoverMediaError(); } catch { /* ignore */ } return true; },
+              async () => {
+                if (cancelled || mpegtsFellBack) return;
+                if (!isLiveSrc(src)) return; // VOD has no .ts fallback
+                mpegtsFellBack = true;
+                teardownEngine();
+                await attachMpegts(swapM3u8ToTs(src));
+              },
+            );
             return;
           }
           // Last resort
           video.src = src;
-          await video.play().catch(() => { /* autoplay */ });
+          await safePlay();
           return;
         }
 
         if (engine === 'mpegts') {
-          const mpegts = (await import('mpegts.js')).default;
-          if (mpegts.getFeatureList().mseLivePlayback) {
-            const player = mpegts.createPlayer(
-              { type: 'mpegts', url: src, isLive: true, hasAudio: true, hasVideo: true },
-              { enableStashBuffer: false, liveBufferLatencyChasing: true },
-            );
-            player.attachMediaElement(video);
-            player.load();
-            player.on(mpegts.Events.ERROR, (errType: string, errDetail: string) => {
-              onError?.(`TS ${errType}: ${errDetail}`);
-              scheduleRetry();
-            });
-            teardownRef.current = () => {
-              try { player.unload(); } catch { /* ignore */ }
-              try { player.detachMediaElement(); } catch { /* ignore */ }
-              try { player.destroy(); } catch { /* ignore */ }
-            };
-            await player.play();
-            return;
-          }
-          // Fallback to native
-          video.src = src;
-          await video.play().catch(() => { /* autoplay */ });
+          // Live engine swap (Fire TV) — pick .ts URL when caller still has .m3u8.
+          const tsUrl = /\.m3u8(\?|$)/i.test(src) ? swapM3u8ToTs(src) : src;
+          await attachMpegts(tsUrl);
           return;
         }
 
-        // Native <video>
+        // Native <video> (VOD: mp4/mkv/avi/…)
         video.src = src;
-        await video.play().catch(() => { /* autoplay */ });
+        await safePlay();
+
+        // VOD load-timeout watchdog — replaces the swallowed catch. If
+        // nothing meaningful happens in 12s, the device can't decode this
+        // container/codec: surface an error instead of freezing the UI.
+        let loadProgressed = false;
+        const markProgress = () => { loadProgressed = true; };
+        video.addEventListener('loadeddata', markProgress, { once: true });
+        video.addEventListener('canplay', markProgress, { once: true });
+        video.addEventListener('timeupdate', markProgress, { once: true });
+        const startCt = video.currentTime;
+        nativeLoadTimer = setTimeout(() => {
+          if (cancelled) return;
+          const moved = video.currentTime > startCt + 0.1;
+          if (!loadProgressed && !moved) {
+            setLoading(false);
+            setFatal("This title's format may not be supported on this device.");
+            onError?.("This title's format may not be supported on this device.");
+            try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
+          }
+        }, 12000);
       } catch (e) {
         onError?.((e as Error).message || 'Playback error');
         scheduleRetry();
       }
+    };
+
+    // Mpegts engine attachment, extracted so the HLS watchdog can fall back to it.
+    const attachMpegts = async (url: string) => {
+      const mpegts = (await import('mpegts.js')).default;
+      if (mpegts.getFeatureList().mseLivePlayback) {
+        const player = mpegts.createPlayer(
+          { type: 'mpegts', url, isLive: true, hasAudio: true, hasVideo: true },
+          { enableStashBuffer: false, liveBufferLatencyChasing: true },
+        );
+        engineRef.current = 'mpegts';
+        player.attachMediaElement(video);
+        player.load();
+        player.on(mpegts.Events.ERROR, (errType: string, errDetail: string) => {
+          onError?.(`TS ${errType}: ${errDetail}`);
+          scheduleRetry();
+        });
+        teardownRef.current = () => {
+          try { player.unload(); } catch { /* ignore */ }
+          try { player.detachMediaElement(); } catch { /* ignore */ }
+          try { player.destroy(); } catch { /* ignore */ }
+        };
+        try { video.muted = true; } catch { /* ignore */ }
+        try {
+          await player.play();
+          if (isFullscreenPlayer) {
+            try { video.muted = false; } catch { /* ignore */ }
+            try { video.volume = Math.min(1, Math.max(0, volume)); } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+
+        // Watchdog: if still no frames, give up gracefully (no further fallback).
+        startWatchdog(
+          () => false,
+          async () => {
+            if (cancelled) return;
+            setLoading(false);
+            setFatal('Stream unavailable on this device.');
+            onError?.('Stream unavailable on this device.');
+            teardownEngine();
+          },
+        );
+        return;
+      }
+      // mpegts unsupported — fall back to native
+      video.src = url;
+      await safePlay();
     };
 
     const scheduleRetry = () => {
@@ -320,17 +498,20 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
 
     return () => {
       cancelled = true;
+      clearWatchdogs();
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('ended', onEndedInner);
       video.removeEventListener('loadedmetadata', onLoadedMeta);
-      teardownRef.current?.();
-      teardownRef.current = null;
-      hlsRef.current = null;
+      teardownEngine();
       try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
     };
+    // `volume` is intentionally not a dep: it's consumed at attach time only
+    // (autoplay-mute then restore). The separate effect above keeps live volume
+    // changes in sync without forcing a full engine teardown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, maxRetries, onError, onEnded, retryNonce]);
 
   const handleRetry = useCallback(() => {
