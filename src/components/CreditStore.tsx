@@ -74,7 +74,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
       console.error('Error fetching credit packages:', error);
       toast({
         title: "Error",
-        description: "Failed to load credit packages",
+        description: "Failed to load Snow Gem packages",
         variant: "destructive",
       });
     } finally {
@@ -95,7 +95,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     if (!user) {
       toast({
         title: "Authentication Required",
-        description: "Please sign in to purchase credits",
+        description: "Please sign in to purchase Snow Gems",
         variant: "destructive",
       });
       return;
@@ -178,7 +178,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         setAltWixEmail(null);
         toast({
           title: 'Purchase Successful!',
-          description: `Added ${data.totalCreditsAdded} credits from your Wix purchase.`,
+          description: `Added ${data.totalCreditsAdded} Snow Gems from your Wix purchase.`,
         });
         setTimeout(() => window.location.reload(), 1200);
       } else {
@@ -250,8 +250,8 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               Back
             </Button>
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Credit Store</h1>
-              <p className="text-xl text-blue-200">Purchase credits for AI image generation</p>
+              <h1 className="text-4xl font-bold text-white mb-2">Snow Gems Store</h1>
+              <p className="text-xl text-blue-200">Purchase Snow Gems for AI image generation</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -267,24 +267,24 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             {profile && (
               <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
                 <div className="text-green-400 font-medium">Your Balance</div>
-                <div className="text-2xl font-bold text-white">{profile.credits} credits</div>
+                <div className="text-2xl font-bold text-white">{profile.credits} Snow Gems</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Credit Usage Info */}
+        {/* Snow Gems Usage Info */}
         <Card className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 mb-8">
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-white mb-3">How Credits Work</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">How Snow Gems Work</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-white/80">AI Image Generation: <strong>1 credit</strong> per image</span>
+                <span className="text-white/80">AI Image Generation: <strong>1 Snow Gem</strong> per image</span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                <span className="text-white/80">AI Chat Message: <strong>0.01 credits</strong> per message</span>
+                <span className="text-white/80">AI Chat Message: <strong>0.01 Snow Gems</strong> per message</span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
@@ -292,7 +292,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                <span className="text-white/80">Credits never expire</span>
+                <span className="text-white/80">Snow Gems never expire</span>
               </div>
             </div>
           </CardContent>
@@ -341,7 +341,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                     </div>
                     <CardTitle className="text-xl text-white">{pkg.name}</CardTitle>
                     <div className="text-3xl font-bold text-white">${pkg.price.toFixed(2)}</div>
-                    <div className="text-blue-200">{pkg.credits} credits</div>
+                    <div className="text-blue-200">{pkg.credits} Snow Gems</div>
                   </CardHeader>
                   
                   <CardContent className="text-center">
@@ -380,11 +380,11 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             <h3 className="text-lg font-semibold text-white mb-3">Secure Payment</h3>
             <p className="text-white/70 text-sm mb-4">
               All transactions are secure and processed through trusted payment providers. 
-              Credits are added to your account instantly after purchase.
+              Snow Gems are added to your account instantly after purchase.
             </p>
             <div className="flex justify-center space-x-4 text-xs text-white/60">
               <span>• Secure SSL encryption</span>
-              <span>• Instant credit delivery</span>
+              <span>• Instant Snow Gem delivery</span>
               <span>• No monthly fees</span>
             </div>
           </CardContent>
@@ -396,7 +396,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         onOpenChange={(o) => { setQrOpen(o); if (!o) { setPendingOrderId(null); setQrUrl(null); } }}
         url={qrUrl}
         title="Scan to Checkout on Snow Media"
-        description="Scan with your phone, complete checkout on snowmediaent.com (PayPal available there), then tap the button below to add your credits."
+        description="Scan with your phone, complete checkout on snowmediaent.com (PayPal available there), then tap the button below to add your Snow Gems."
         onConfirmPaid={handleVerifyPayment}
         confirming={verifying}
       />

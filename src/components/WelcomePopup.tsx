@@ -182,7 +182,7 @@ const WelcomePopup = () => {
             </ul>
             <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
               Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
-              keep track of purchases and AI credits.
+              keep track of purchases and Snow Gems.
             </div>
           </>
         ) : (

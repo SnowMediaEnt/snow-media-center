@@ -461,8 +461,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     if (!isOwnerAdmin && !checkCredits(imageCost)) {
       toast({
-        title: "Insufficient credits",
-        description: `You need ${imageCost.toFixed(2)} credits to generate an image. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
+        title: "Insufficient Snow Gems",
+        description: `You need ${imageCost.toFixed(2)} Snow Gems to generate an image. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
         variant: "destructive",
       });
       return;
@@ -546,14 +546,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         const creditDeducted = await deductCredits(imageCost, `AI Image Generation - ${generatePrompt}`);
         if (!creditDeducted) {
           toast({
-            title: "Credit deduction failed",
-            description: "Image generated but couldn't deduct credits. Contact support.",
+            title: "Snow Gem deduction failed",
+            description: "Image generated but couldn't deduct Snow Gems. Contact support.",
             variant: "destructive",
           });
         } else {
           toast({
             title: "Image complete!",
-            description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} credits used.`,
+            description: `Your AI-generated background is ready. ${imageCost.toFixed(2)} Snow Gems used.`,
           });
         }
       }
@@ -624,11 +624,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   </span>
                 </div>
                 <p className="text-sm text-purple-200">
-                  Cost: {(imageConfig.credits * 0.01).toFixed(2)} credits - {imageConfig.description}
+                  Cost: {(imageConfig.credits * 0.01).toFixed(2)} Snow Gems - {imageConfig.description}
                 </p>
                 {user && profile && (
                   <p className="text-sm text-purple-200">
-                    Your balance: {profile.credits.toFixed(2)} credits
+                    Your balance: {profile.credits.toFixed(2)} Snow Gems
                   </p>
                 )}
               </div>
