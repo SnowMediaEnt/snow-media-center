@@ -461,12 +461,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           onNavigate('credits');
         }
         toast({
-          title: "Credits",
+          title: "Snow Gems",
           description: args.action === 'balance' 
-            ? `Current balance: ${profile?.credits?.toFixed(2) || '0.00'} credits`
+            ? `Current balance: ${profile?.credits?.toFixed(2) || '0.00'} Snow Gems`
             : args.action === 'purchase'
-            ? "Opening credit store"
-            : "Showing credit information",
+            ? "Opening Snow Gems store"
+            : "Showing Snow Gems information",
         });
         break;
       
@@ -543,8 +543,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     if (!isOwnerAdmin && !checkCredits(aiCost)) {
       toast({
-        title: "Insufficient credits",
-        description: `You need ${aiCost.toFixed(2)} credits. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
+        title: "Insufficient Snow Gems",
+        description: `You need ${aiCost.toFixed(2)} Snow Gems. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
         variant: "destructive",
       });
       return;
@@ -1567,7 +1567,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
               <h3 className="text-2xl font-bold text-white">Snow Media AI Assistant</h3>
               {user && profile && (
                 <div className="text-purple-200 text-sm">
-                  Balance: {profile.credits.toFixed(2)} credits
+                  Balance: {profile.credits.toFixed(2)} Snow Gems
                 </div>
               )}
             </div>
@@ -1575,8 +1575,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             <p className="text-purple-200 mb-6">
               Ask me about snow media, streaming apps, or get help with your SMC app.
               <br />
-              <span className="block text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 credits per message</span>
-              <span className="block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 credits per voice message · multilingual (32+ languages)</span>
+              <span className="block text-sm font-semibold text-brand-gold drop-shadow-[0_0_6px_rgba(255,200,80,0.5)]">Text chat: 0.01 Snow Gems per message</span>
+              <span className="block text-sm font-semibold text-brand-ice drop-shadow-[0_0_6px_rgba(160,220,255,0.5)]">Voice reply: 0.04 Snow Gems per voice message · multilingual (32+ languages)</span>
             </p>
             
             {/* AI Chat Messages */}
