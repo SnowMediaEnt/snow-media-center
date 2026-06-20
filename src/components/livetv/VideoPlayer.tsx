@@ -43,7 +43,21 @@ interface VideoPlayerProps {
 
 type Engine = 'hls' | 'mpegts' | 'native';
 
+// True when the URL looks like an Xtream LIVE stream (vs movie/series VOD).
+function isLiveSrc(src: string): boolean {
+  return /\/live\//i.test(src);
+}
+
+// Fire TV's WebView is unreliable with HLS-in-MSE on many Xtream channels —
+// decoder silently rejects samples (black screen, timer advances). Swap the
+// .m3u8 extension to .ts so we can route through mpegts.js instead.
+function swapM3u8ToTs(src: string): string {
+  return src.replace(/\.m3u8(\?|$)/i, '.ts$1');
+}
+
 function pickEngine(src: string): Engine {
+  // Fire TV + live HLS → force mpegts.js path (handled by caller via URL swap).
+  if (isFireTV() && isLiveSrc(src) && /\.m3u8(\?|$)/i.test(src)) return 'mpegts';
   const lower = src.split('?')[0].toLowerCase();
   if (lower.endsWith('.m3u8')) return 'hls';
   if (lower.endsWith('.ts'))   return 'mpegts';
