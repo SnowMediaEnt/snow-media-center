@@ -390,7 +390,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft }: Props) => {
         </Button>
         <div className="flex gap-6 mb-6">
           <div className="w-48 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
-            {cover ? <img src={cover} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+            {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-3xl font-quicksand font-bold mb-2">{selectedSeries.name}</h2>
