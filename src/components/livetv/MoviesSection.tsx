@@ -239,8 +239,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           const next = i + GRID_COLS;
           setGridIdx(next < list.length ? next : i); // stay on last row
         } else if (e.key === 'ArrowUp') {
-          if (i < GRID_COLS) return;
+          if (i < GRID_COLS) { if (onExitUp) onExitUp(); return; }
           setGridIdx(i - GRID_COLS);
+        
         } else if (e.key === 'Enter' || e.key === ' ') {
           const m = list[i];
           if (m) openMovie(m);
