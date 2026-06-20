@@ -51,10 +51,8 @@ function PlayingCard({
   const isRed = card && RED_SUITS.has(card.suit);
   return (
     <div
-      className="relative"
+      className="tv-game-card"
       style={{
-        width: 76,
-        height: 110,
         perspective: '800px',
         animation: `ch-deal-in 420ms ease-out ${delay}ms both`,
       }}
