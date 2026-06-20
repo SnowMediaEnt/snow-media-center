@@ -124,7 +124,7 @@ const PlayerControlBar = memo(({
         <div className="flex items-start gap-4 max-w-6xl mx-auto pointer-events-auto">
           <div className="w-16 h-16 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
             {channelLogo
-              ? <img src={channelLogo} alt="" className="w-full h-full object-contain" />
+              ? <img src={channelLogo} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
               : <Tv className="w-8 h-8 text-brand-ice/60" />}
           </div>
           <div className="flex-1 min-w-0">
