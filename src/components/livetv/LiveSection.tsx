@@ -28,6 +28,7 @@ interface Props {
   creds: XtreamCreds;
   isActive: boolean;
   onExitLeft: () => void;
+  onExitUp?: () => void;
   onBack: () => void;
 }
 
