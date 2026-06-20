@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
+import { isFireTV } from '@/utils/platform';
 
 export interface VideoTrackInfo {
   id: number;
