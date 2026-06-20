@@ -43,7 +43,10 @@ const Player = memo(({ onBack }: Props) => {
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
-  const [pane, setPane] = useState<'sections' | 'content'>('sections');
+  const [pane, setPane] = useState<'header' | 'sections' | 'content'>('sections');
+  const [headerIdx, setHeaderIdx] = useState(0);
+  // Where to return when leaving the header via Down.
+  const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
 
   // Load creds on mount
   useEffect(() => {
