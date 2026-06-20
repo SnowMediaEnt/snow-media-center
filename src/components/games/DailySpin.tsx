@@ -302,8 +302,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
           'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
       }}
     >
-      <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div className="tv-game-body px-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <Button ref={backBtnRef} onClick={onBack} variant="gold" size="lg" className="focus:outline-none focus:ring-4 focus:ring-amber-300/80">
             <ArrowLeft className="w-5 h-5 mr-2" />
             {t('games.dailySpin.back')}
