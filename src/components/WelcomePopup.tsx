@@ -11,6 +11,15 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.1': [
+    'New Snow Gems & Snow Coins — buy Snow Gems for AI features and image generation, and get bonus free Snow Coins to play in the Game Room',
+    'Game Room now fits your TV screen properly — no more games getting cut off at the top or bottom',
+    'Movies & Series open instantly and scroll smoothly — no more freezing when you open them',
+    'Smoother video playback, plus you can now reach Account right from the player',
+    'The Content Bar now starts off, with a quick one-tap option to turn it on (lighter on older devices)',
+    'New languages: Spanish, French, German, and Arabic',
+    'Performance improvements across older and lower-powered devices',
+  ],
   '1.1.0': [
     'New, more intuitive layout — easier to find your way around',
     'All support is now in one place: tickets, AI chat, videos, and the buffering guide together under Support',
