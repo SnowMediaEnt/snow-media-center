@@ -389,6 +389,8 @@ const Index = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // If the auto-update modal (or any aria-modal dialog) is open, let it own the keyboard.
+      if (document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) return;
       // Skip navigation handling when user is typing in an input or textarea
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
