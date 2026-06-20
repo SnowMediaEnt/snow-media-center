@@ -481,9 +481,9 @@ const Slots = ({ onBack }: SlotsProps) => {
         }
       `}</style>
 
-      <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
+      <div className="tv-game-body px-4" style={{ overflow: 'auto' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
           <Button
             ref={backBtnRef}
             onClick={onBack}
@@ -506,16 +506,10 @@ const Slots = ({ onBack }: SlotsProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.slots.luckySlotsWays')}
-          </div>
-          <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
+        <div className="text-center tv-compact-head">
+          <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.slots.spinToWin')}
           </h1>
-          <p className="text-slate-200/90 mt-1 text-sm">
-            <Star className="inline w-4 h-4 mb-0.5 text-amber-300" /> {t('games.slots.subtitleWildScatter')}
-          </p>
         </div>
 
         {/* Free spins banner */}

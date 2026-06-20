@@ -51,10 +51,8 @@ function PlayingCard({
   const isRed = card && RED_SUITS.has(card.suit);
   return (
     <div
-      className="relative"
+      className="tv-game-card"
       style={{
-        width: 76,
-        height: 110,
         perspective: '800px',
         animation: `ch-deal-in 420ms ease-out ${delay}ms both`,
       }}
@@ -76,23 +74,23 @@ function PlayingCard({
           <>
             <div
               className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 16 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 14, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
             <div
               className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 36 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(20px, 5.5cqh, 36px)' }}
             >
               {SUIT_GLYPH[card.suit]}
             </div>
             <div
               className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 16, transform: 'rotate(180deg)' }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)', transform: 'rotate(180deg)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 14, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
           </>
         )}
@@ -104,8 +102,7 @@ function PlayingCard({
 function CardSlot() {
   return (
     <div
-      style={{ width: 76, height: 110 }}
-      className="rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
+      className="tv-game-card rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
     />
   );
 }
@@ -462,9 +459,9 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         }
       `}</style>
 
-      <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
+      <div className="tv-game-body px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <Button
             ref={refs.back}
             onClick={onBack}
@@ -495,19 +492,16 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.casinoHoldem.title')}
-          </div>
+        <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.casinoHoldem.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">{t('games.casinoHoldem.subheading')}</p>
+          <p className="text-slate-200/90 mt-1">{t('games.casinoHoldem.subheading')}</p>
         </div>
 
         {/* Felt Table */}
         <div
-          className="relative rounded-[2rem] p-6 md:p-8 mb-6"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
@@ -517,8 +511,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           }}
         >
           {/* Dealer */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
+          <div className="flex flex-col items-center mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = dealerHole[i];
@@ -546,8 +540,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           </div>
 
           {/* Community */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.community')}</div>
+          <div className="flex flex-col items-center mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.community')}</div>
             <div className="flex gap-2">
               {[0, 1, 2, 3, 4].map((i) => {
                 const card = community[i];
@@ -559,7 +553,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
           {/* Player */}
           <div className="flex flex-col items-center">
-            <div className="text-xs uppercase tracking-wider text-amber-100/80 mb-2 font-semibold">{t('games.casinoHoldem.label.you')}</div>
+            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.you')}</div>
             <div className="flex gap-2">
               {[0, 1].map((i) => {
                 const card = playerHole[i];

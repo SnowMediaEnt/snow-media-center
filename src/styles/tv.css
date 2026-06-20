@@ -68,23 +68,63 @@
   padding-bottom: 10vh;
 }
 
-/* Game shell — bounded viewport height with safe-area padding so
-   tall game UIs scroll *inside* the visible area instead of bleeding
-   past TV overscan at top/bottom. Used by all /components/games/*. */
+/* Game shell — fit-to-viewport flex column. Content MUST fit; no scroll.
+   svh excludes overscan-affected chrome on Fire TV. container-type enables
+   cqh/cqw units inside so games can scale to the shell. */
 .tv-game-shell {
-  height: 100vh;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scroll-behavior: auto;
-  padding-top: max(env(safe-area-inset-top), 3vh);
-  padding-bottom: max(env(safe-area-inset-bottom), 6vh);
-  padding-left: max(env(safe-area-inset-left), 4vw);
-  padding-right: max(env(safe-area-inset-right), 4vw);
-  scroll-padding-top: max(env(safe-area-inset-top), 3vh);
-  scroll-padding-bottom: max(env(safe-area-inset-bottom), 6vh);
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  container-type: size;
+  padding:
+    max(env(safe-area-inset-top), 2.5vh)
+    max(env(safe-area-inset-right), 3vw)
+    max(env(safe-area-inset-bottom), 3vh)
+    max(env(safe-area-inset-left), 3vw);
+}
+
+/* Inner flex column that fills the shell — no scroll, content shrinks. */
+.tv-game-body {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.35rem, 1cqh, 0.85rem);
+  overflow: hidden;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+.tv-game-body > * { flex: 0 0 auto; }
+.tv-game-board {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  overflow: hidden;
+}
+.tv-game-board canvas,
+.tv-game-canvas {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
+.tv-game-board > * { max-width: 100%; }
+.tv-compact-head h1 { font-size: clamp(1.1rem, 3cqh, 2rem) !important; line-height: 1.1 !important; }
+.tv-compact-head p { font-size: clamp(0.7rem, 1.4cqh, 0.9rem) !important; margin: 0 !important; }
+.tv-compact-head { margin-bottom: clamp(0.2rem, 0.8cqh, 0.6rem) !important; }
+/* Fluid playing card */
+.tv-game-card {
+  aspect-ratio: 2/3;
+  height: clamp(56px, 14cqh, 130px) !important;
+  width: auto !important;
+  position: relative;
 }
 /* Keep D-pad focus from slamming controls against overscan edges
    (native .focus() triggers an implicit scrollIntoView). */

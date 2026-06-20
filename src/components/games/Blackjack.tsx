@@ -50,10 +50,8 @@ function PlayingCard({
   const isRed = card && RED_SUITS.has(card.suit);
   return (
     <div
-      className="relative"
+      className="tv-game-card"
       style={{
-        width: 84,
-        height: 120,
         perspective: '800px',
         animation: `bj-deal-in 420ms ease-out ${delay}ms both`,
       }}
@@ -75,23 +73,23 @@ function PlayingCard({
           <>
             <div
               className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 18 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 16, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
             <div
               className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 40 }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(22px, 6cqh, 40px)' }}
             >
               {SUIT_GLYPH[card.suit]}
             </div>
             <div
               className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 18, transform: 'rotate(180deg)' }}
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)', transform: 'rotate(180deg)' }}
             >
               {card.rank}
-              <div style={{ fontSize: 16, marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
             </div>
           </>
         )}
@@ -377,9 +375,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         }
       `}</style>
 
-      <div className="max-w-5xl mx-auto pb-16 px-4 pt-4">
+      <div className="tv-game-body px-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <Button
             ref={refs.back}
             onClick={onBack}
@@ -410,32 +408,26 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.blackjack.title')}
-          </div>
+        <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.blackjack.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">{t('games.blackjack.subheading')}</p>
+          <p className="text-slate-200/90 mt-1">{t('games.blackjack.subheading')}</p>
         </div>
 
         {/* Felt Table */}
         <div
-          className="relative rounded-[2rem] p-6 md:p-8 mb-6"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
             border: '3px solid rgba(251,191,36,0.55)',
             boxShadow:
               '0 30px 60px -20px rgba(0,0,0,0.85), inset 0 0 80px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.08)',
-            transform: 'rotateX(4deg)',
-            transformStyle: 'preserve-3d',
-            perspective: '1400px',
           }}
         >
           {/* Dealer row */}
-          <div className="mb-6">
+          <div className="mb-2">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.dealer')}</div>
               {(phase === 'playing' || phase === 'settled') && (
@@ -446,7 +438,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 </span>
               )}
             </div>
-            <div className="flex items-end gap-2 min-h-[128px]">
+            <div className="flex items-end gap-2 min-h-0">
               {phase === 'bet' && (
                 <div className="text-slate-300/70 italic">{t('games.blackjack.placeBetPrompt')}</div>
               )}
@@ -481,7 +473,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 </span>
               )}
             </div>
-            <div className="flex items-end gap-2 min-h-[128px]">
+            <div className="flex items-end gap-2 min-h-0">
               {phase === 'bet' && (
                 <div className="text-slate-300/70 italic">{t('games.blackjack.cardsAppearHere')}</div>
               )}
