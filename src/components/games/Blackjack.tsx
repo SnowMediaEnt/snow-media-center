@@ -408,28 +408,22 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" /> {t('games.blackjack.title')}
-          </div>
+        <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
             {t('games.blackjack.heading')}
           </h1>
-          <p className="text-slate-200/90 mt-2">{t('games.blackjack.subheading')}</p>
+          <p className="text-slate-200/90 mt-1">{t('games.blackjack.subheading')}</p>
         </div>
 
         {/* Felt Table */}
         <div
-          className="relative rounded-[2rem] p-6 md:p-8 mb-6"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
             border: '3px solid rgba(251,191,36,0.55)',
             boxShadow:
               '0 30px 60px -20px rgba(0,0,0,0.85), inset 0 0 80px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.08)',
-            transform: 'rotateX(4deg)',
-            transformStyle: 'preserve-3d',
-            perspective: '1400px',
           }}
         >
           {/* Dealer row */}
