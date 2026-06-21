@@ -378,9 +378,11 @@ const Auth = () => {
             </TabsList>
 
             <TabsContent value="login">
-              <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3 mb-4">
-                Already have an account on the Snow Media website (snowmediaent.com)? You can sign in here using the same email and password.
-              </p>
+              {isSnowMedia && (
+                <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3 mb-4">
+                  Already have an account on the Snow Media website (snowmediaent.com)? You can sign in here using the same email and password.
+                </p>
+              )}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <Label htmlFor="login-email" className="text-white">Email</Label>
