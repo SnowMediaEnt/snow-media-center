@@ -241,17 +241,25 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
 });
 HomeHeader.displayName = 'HomeHeader';
 
-const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
+const WatermarkTitle = memo(({ tagline, mediaBarEnabled, displayName, isSnowMedia }: { tagline: string; mediaBarEnabled: boolean; displayName: string; isSnowMedia: boolean }) => (
   <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
     <div className="text-center home-watermark">
       <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
-        <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
-        <span> </span>
-        <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
+        {isSnowMedia ? (
+          <>
+            <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
+            <span> </span>
+            <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
+          </>
+        ) : (
+          <span className="font-center text-white">{displayName.toUpperCase()}</span>
+        )}
       </h1>
-      <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
-        {tagline}
-      </p>
+      {tagline && (
+        <p className="text-brand-ice font-nunito font-medium text-shadow-soft" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', marginTop: '-4px', opacity: 0.5 }}>
+          {tagline}
+        </p>
+      )}
     </div>
     {mediaBarEnabled && (
       <div
@@ -265,29 +273,42 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; me
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
 
-const LogoButton = memo(({ isFocused, onActivate, onFocus }: { isFocused: boolean; onActivate: () => void; onFocus: () => void }) => (
-  <button
-    type="button"
-    onClick={onActivate}
-    onFocus={onFocus}
-    tabIndex={0}
-    data-focused={isFocused ? 'true' : 'false'}
-    aria-label="Snow Media Entertainment"
-    className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
-    style={{
-      top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
-      left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
-      height: 'clamp(72px, 11vh, 140px)',
-    }}
-  >
-    <img
-      src={smeLogo}
-      alt="Snow Media Entertainment"
-      className="h-full w-auto pointer-events-none select-none"
-      draggable={false}
-    />
-  </button>
-));
+const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, isSnowMedia }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; isSnowMedia: boolean }) => {
+  const showImage = !!logoUrl || isSnowMedia;
+  const imgSrc = logoUrl || smeLogo;
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      onFocus={onFocus}
+      tabIndex={0}
+      data-focused={isFocused ? 'true' : 'false'}
+      aria-label={displayName}
+      className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
+      style={{
+        top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
+        left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+        height: 'clamp(72px, 11vh, 140px)',
+      }}
+    >
+      {showImage ? (
+        <img
+          src={imgSrc}
+          alt={displayName}
+          className="h-full w-auto pointer-events-none select-none"
+          draggable={false}
+        />
+      ) : (
+        <span
+          className="h-full flex items-center text-white font-bold font-quicksand text-shadow-strong pointer-events-none select-none"
+          style={{ fontSize: 'clamp(1.25rem, 2.2vw, 2rem)' }}
+        >
+          {displayName}
+        </span>
+      )}
+    </button>
+  );
+});
 LogoButton.displayName = 'LogoButton';
 
 // Memoised route switch — isolated so D-pad focus changes on the home screen
