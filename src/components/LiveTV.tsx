@@ -42,6 +42,8 @@ const Player = memo(({ onBack }: Props) => {
   // When true, the user has explicitly opened the Account form even though
   // valid creds already exist (i.e. to change account).
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+  // Read-only "Account info" view, shown from the header Account button.
+  const [accountInfoOpen, setAccountInfoOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
@@ -49,6 +51,7 @@ const Player = memo(({ onBack }: Props) => {
   const [headerIdx, setHeaderIdx] = useState(0);
   // Where to return when leaving the header via Down.
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
+
 
   // Load creds on mount
   useEffect(() => {
