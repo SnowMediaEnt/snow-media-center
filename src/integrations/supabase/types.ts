@@ -1342,6 +1342,8 @@ export type Database = {
         Row: {
           accent_color: string | null
           app_display_name: string | null
+          background_image_url: string | null
+          background_manifest_url: string | null
           background_style: string | null
           in_app_logo_url: string | null
           primary_color: string | null
@@ -1352,6 +1354,8 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           app_display_name?: string | null
+          background_image_url?: string | null
+          background_manifest_url?: string | null
           background_style?: string | null
           in_app_logo_url?: string | null
           primary_color?: string | null
@@ -1362,6 +1366,8 @@ export type Database = {
         Update: {
           accent_color?: string | null
           app_display_name?: string | null
+          background_image_url?: string | null
+          background_manifest_url?: string | null
           background_style?: string | null
           in_app_logo_url?: string | null
           primary_color?: string | null
