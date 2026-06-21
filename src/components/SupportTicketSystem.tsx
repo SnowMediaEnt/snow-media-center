@@ -54,6 +54,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
 
   const { user, signUp } = useAuth();
+  const { settings } = useTenant();
+  const supportEmail = settings.support_email || 'support@snowmediaent.com';
   const { toast } = useToast();
   const navigate = useNavigate();
 
