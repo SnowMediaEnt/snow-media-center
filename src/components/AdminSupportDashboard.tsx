@@ -467,6 +467,12 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
               <AppAlertsManager />
             </Card>
           </TabsContent>
+
+          <TabsContent value="tenants">
+            <Card className="bg-gradient-to-br from-emerald-900/30 to-slate-900/40 border-emerald-700/40 p-6">
+              <AdminTenantManager />
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
