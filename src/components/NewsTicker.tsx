@@ -92,8 +92,8 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
           xmlText = await proxyRes.text();
         } catch (proxyErr) {
           console.warn('[NewsTicker] proxy failed, trying direct:', (proxyErr as Error).message);
-          const rssUrl = `https://snowmediaapps.com/smc/newsfeed.xml?ts=${Date.now()}`;
-          const direct = await robustFetch(rssUrl, {
+          const directUrl = `${rssUrl}${rssUrl.includes('?') ? '&' : '?'}ts=${Date.now()}`;
+          const direct = await robustFetch(directUrl, {
             timeout: isNative ? 12000 : 8000,
             retries: 1,
             useCorsProxy: !isNative,
