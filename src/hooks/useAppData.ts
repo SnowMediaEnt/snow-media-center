@@ -75,6 +75,10 @@ const fallbackApps: AppData[] = [
 const REMOTE_APPS_URL = 'https://snowmediaapps.com/apps/apps.json.php';
 
 export const useAppData = () => {
+  const { settings } = useTenant();
+  // Tenants without an apps_source_url skip the PHP-sync edge function entirely
+  // and rely on Supabase + the bundled fallback list.
+  const appsSourceUrl = settings.apps_source_url;
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
