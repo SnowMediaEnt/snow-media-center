@@ -15,6 +15,10 @@ const Auth = () => {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
+  const { code: tenantCode, branding } = useTenant();
+  const isSnowMedia = tenantCode === 'snowmedia';
+  const displayName = branding.app_display_name;
+
   
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
