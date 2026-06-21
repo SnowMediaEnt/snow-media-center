@@ -1930,7 +1930,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
     bullets: [
       'Re-check speed test closer to the router (15+ Mbps).',
       'Try VPN with a different nearby city/server and re-test speed (15+ Mbps).',
-      `Email ${SUPPORT_EMAIL} with the results below so we can help quickly.`,
+      `Email ${SUPPORT_EMAIL_FALLBACK} with the results below so we can help quickly.`,
     ],
   };
 }
