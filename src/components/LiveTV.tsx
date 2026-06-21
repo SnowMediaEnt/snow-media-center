@@ -196,7 +196,7 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, creds, signOut]);
+  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut]);
 
 
   if (!credsLoaded) {
@@ -224,6 +224,19 @@ const Player = memo(({ onBack }: Props) => {
       </div>
     );
   }
+
+  // Read-only Account info screen (from header "Account" button).
+  if (showAccountInfo) {
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+        <AccountInfoScreen
+          onBack={() => setAccountInfoOpen(false)}
+          onSignOut={() => { void signOut(); }}
+        />
+      </Suspense>
+    );
+  }
+
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
