@@ -345,7 +345,7 @@ const Auth = () => {
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
-            Snow Media Center
+            {displayName}
           </h1>
           <p className="text-xl text-blue-200">Sign in to your account</p>
         </div>
