@@ -27,6 +27,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useTenant } from '@/contexts/TenantContext';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
