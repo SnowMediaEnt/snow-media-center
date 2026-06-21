@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import { initAnalytics } from "@/lib/analytics";
 import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
+import { TenantProvider } from "@/contexts/TenantContext";
 
 // Kick off silent background analytics AFTER first interaction (or 3.5s idle
 // fallback) so it never competes with the boot/render path on weak boxes.
