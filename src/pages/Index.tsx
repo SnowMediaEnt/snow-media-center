@@ -842,7 +842,10 @@ const Index = () => {
     return list;
   }, [playerEnabled, t]);
 
-  const tagline = t('home.tagline');
+  const { code: tenantCode, branding } = useTenant();
+  const isSnowMedia = tenantCode === 'snowmedia';
+  const displayName = branding.app_display_name;
+  const tagline = branding.tagline || (isSnowMedia ? t('home.tagline') : '');
   const adminLabel = t('common.admin');
   const dashboardLabel = t('common.dashboard');
   const signInLabel = t('common.signIn');
