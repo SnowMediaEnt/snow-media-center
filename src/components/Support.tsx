@@ -41,10 +41,12 @@ type Tab = 'help' | 'ai' | 'community';
 type HelpView = 'menu' | 'videos' | 'tickets';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
-  const { isFeatureEnabled } = useTenant();
+  const { isFeatureEnabled, code: tenantCode } = useTenant();
   const aiEnabled = isFeatureEnabled('ai');
   const communityEnabled = isFeatureEnabled('community');
-  const supportVideosEnabled = isFeatureEnabled('support_videos');
+  // Snow Media's Vimeo source is hardwired — hide Support Videos for all
+  // other tenants until per-tenant video sources are wired up.
+  const supportVideosEnabled = isFeatureEnabled('support_videos') && tenantCode === 'snowmedia';
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
