@@ -271,7 +271,7 @@ const Player = memo(({ onBack }: Props) => {
           <Button
             variant="gold"
             size="sm"
-            onClick={() => setAccountFormOpen(true)}
+            onClick={() => setAccountInfoOpen(true)}
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1
