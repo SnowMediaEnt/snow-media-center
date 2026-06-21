@@ -906,6 +906,9 @@ const Index = () => {
             isFocused={focusedButton === -3}
             onActivate={handleLogoActivate}
             onFocus={onLogoFocus}
+            logoUrl={branding.in_app_logo_url}
+            displayName={displayName}
+            isSnowMedia={isSnowMedia}
           />
 
           {/* Easter egg overlay */}
