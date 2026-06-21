@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useTenant } from '@/contexts/TenantContext';
 import { User } from '@supabase/supabase-js';
+
+const DEFAULT_SUPPORT_EMAIL = 'support@snowmediaent.com';
 
 export interface SupportTicket {
   id: string;
