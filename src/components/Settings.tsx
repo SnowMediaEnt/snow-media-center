@@ -38,6 +38,7 @@ type SettingsFocus =
 const Settings = ({ onBack }: SettingsProps) => {
   const { t, i18n } = useTranslation();
   const { isAdmin } = useAdminRole();
+  const { isUniversalBuild, clearTenantCode, code: tenantCode } = useTenant();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
