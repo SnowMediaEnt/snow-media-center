@@ -33,6 +33,8 @@ export const useSupportTickets = (user: User | null) => {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Record<string, SupportMessage[]>>({});
   const { toast } = useToast();
+  const { settings } = useTenant();
+  const supportEmail = settings.support_email || DEFAULT_SUPPORT_EMAIL;
 
   // Fetch all user's tickets
   const fetchTickets = async () => {
