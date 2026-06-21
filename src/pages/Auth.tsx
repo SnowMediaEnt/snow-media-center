@@ -9,6 +9,7 @@ import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff, Loader2 } from 'luc
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
 
 const Auth = () => {
   const navigate = useNavigate();
