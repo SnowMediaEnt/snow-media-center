@@ -16,6 +16,7 @@ import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface SettingsProps {
   onBack: () => void;
@@ -37,6 +38,7 @@ type SettingsFocus =
 const Settings = ({ onBack }: SettingsProps) => {
   const { t, i18n } = useTranslation();
   const { isAdmin } = useAdminRole();
+  const { isUniversalBuild, clearTenantCode, code: tenantCode } = useTenant();
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
@@ -383,6 +385,29 @@ const Settings = ({ onBack }: SettingsProps) => {
                 />
               </div>
             </Card>
+
+            {isUniversalBuild && (
+              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Sliders className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Change reseller code</h3>
+                      <p className="text-sm text-white/70 mt-1">
+                        Currently active: <span className="font-mono text-brand-gold">{tenantCode}</span>. Clearing returns you to the code-entry screen on next launch.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => { clearTenantCode(); window.location.reload(); }}
+                    className="bg-slate-800 border-slate-500 text-white hover:bg-slate-700"
+                  >
+                    Change
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {isAdmin && (
               <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">

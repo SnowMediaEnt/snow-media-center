@@ -8,6 +8,7 @@ import NewsTicker from '@/components/NewsTicker';
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo-512.png';
+import { useCachedImage } from '@/hooks/useCachedImage';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
@@ -274,8 +275,11 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled, displayName, isSnowMedi
 WatermarkTitle.displayName = 'WatermarkTitle';
 
 const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, isSnowMedia }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; isSnowMedia: boolean }) => {
-  const showImage = !!logoUrl || isSnowMedia;
-  const imgSrc = logoUrl || smeLogo;
+  // Cached + auto-refreshing tenant logo (no-op for null URLs).
+  const cachedRemote = useCachedImage(logoUrl);
+  const remoteSrc = cachedRemote ?? logoUrl ?? null; // fall back to direct URL while cache warms
+  const showImage = !!remoteSrc || isSnowMedia;
+  const imgSrc = remoteSrc || smeLogo;
   return (
     <button
       type="button"
