@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { useTenant } from '@/contexts/TenantContext';
 
 const FALLBACK_NEWS = [
   '🚀 New streaming app update available',
