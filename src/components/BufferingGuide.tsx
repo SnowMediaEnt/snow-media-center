@@ -27,6 +27,7 @@ import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useTenant } from '@/contexts/TenantContext';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -60,7 +61,7 @@ interface State {
   vpnTest: VpnTest;
 }
 
-const SUPPORT_EMAIL = 'support@snowmediaent.com';
+const SUPPORT_EMAIL_FALLBACK = 'support@snowmediaent.com';
 
 const STEPS = ['intro', 'step1', 'step2', 'step3', 'step4', 'summary'] as const;
 type StepKey = typeof STEPS[number];
@@ -126,6 +127,8 @@ const BufferingGuide = ({
   const { user } = useAuth();
   const navigate = useNavigate();
   const { createTicket } = useSupportTickets(user);
+  const { settings } = useTenant();
+  const SUPPORT_EMAIL = settings.support_email || SUPPORT_EMAIL_FALLBACK;
   const [submittingTicket, setSubmittingTicket] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<State>({
@@ -879,7 +882,7 @@ const BufferingGuide = ({
       const ts = new Date().toLocaleString();
       await supabase.functions.invoke('send-custom-email', {
         body: {
-          to: 'support@snowmediaent.com',
+          to: SUPPORT_EMAIL,
           subject: `[Anonymous Report] ${report.subject}`,
           html: `
             <h3>Anonymous Channel/Title Report</h3>
@@ -1927,7 +1930,7 @@ function getDiagnosis(state: State): { title: string; bullets: string[] } {
     bullets: [
       'Re-check speed test closer to the router (15+ Mbps).',
       'Try VPN with a different nearby city/server and re-test speed (15+ Mbps).',
-      `Email ${SUPPORT_EMAIL} with the results below so we can help quickly.`,
+      `Email ${SUPPORT_EMAIL_FALLBACK} with the results below so we can help quickly.`,
     ],
   };
 }
