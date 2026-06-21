@@ -99,10 +99,13 @@ const Player = memo(({ onBack }: Props) => {
     await clearPlayerAccount();
     setCreds(null);
     setAccountFormOpen(false);
+    setAccountInfoOpen(false);
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
   const showCredsForm = !creds || accountFormOpen;
+  const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
+
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
   const paneRef = useRef(pane);
