@@ -8,6 +8,7 @@ import NewsTicker from '@/components/NewsTicker';
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo-512.png';
+import canvasLogo from '@/assets/canvas-logo.svg';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
@@ -274,12 +275,16 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled, displayName, isSnowMedi
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
 
-const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, isSnowMedia }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; isSnowMedia: boolean }) => {
+const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, tenantCode }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; tenantCode: string }) => {
   // Cached + auto-refreshing tenant logo (no-op for null URLs).
   const cachedRemote = useCachedImage(logoUrl);
   const remoteSrc = cachedRemote ?? logoUrl ?? null; // fall back to direct URL while cache warms
-  const showImage = !!remoteSrc || isSnowMedia;
-  const imgSrc = remoteSrc || smeLogo;
+  // Priority: remote branding logo → bundled tenant default → text fallback
+  let imgSrc: string | null = remoteSrc;
+  if (!imgSrc) {
+    if (tenantCode === 'snowmedia') imgSrc = smeLogo;
+    else if (tenantCode === 'canvas') imgSrc = canvasLogo;
+  }
   return (
     <button
       type="button"
@@ -295,7 +300,7 @@ const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName,
         height: 'clamp(72px, 11vh, 140px)',
       }}
     >
-      {showImage ? (
+      {imgSrc ? (
         <img
           src={imgSrc}
           alt={displayName}
