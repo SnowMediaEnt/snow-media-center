@@ -1338,147 +1338,6 @@ export type Database = {
         }
         Relationships: []
       }
-      tenant_branding: {
-        Row: {
-          accent_color: string | null
-          app_display_name: string | null
-          attribution: string | null
-          background_image_url: string | null
-          background_manifest_url: string | null
-          background_style: string | null
-          in_app_logo_url: string | null
-          primary_color: string | null
-          splash_bg: string | null
-          tagline: string | null
-          tenant_id: string
-        }
-        Insert: {
-          accent_color?: string | null
-          app_display_name?: string | null
-          attribution?: string | null
-          background_image_url?: string | null
-          background_manifest_url?: string | null
-          background_style?: string | null
-          in_app_logo_url?: string | null
-          primary_color?: string | null
-          splash_bg?: string | null
-          tagline?: string | null
-          tenant_id: string
-        }
-        Update: {
-          accent_color?: string | null
-          app_display_name?: string | null
-          attribution?: string | null
-          background_image_url?: string | null
-          background_manifest_url?: string | null
-          background_style?: string | null
-          in_app_logo_url?: string | null
-          primary_color?: string | null
-          splash_bg?: string | null
-          tagline?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tenant_branding_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tenant_features: {
-        Row: {
-          enabled: boolean
-          feature_key: string
-          tenant_id: string
-        }
-        Insert: {
-          enabled?: boolean
-          feature_key: string
-          tenant_id: string
-        }
-        Update: {
-          enabled?: boolean
-          feature_key?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tenant_features_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tenant_settings: {
-        Row: {
-          apps_source_url: string | null
-          community_enabled: boolean
-          content_bar_default: boolean
-          plex_autoconnect: boolean
-          rss_url: string | null
-          support_email: string | null
-          tenant_id: string
-        }
-        Insert: {
-          apps_source_url?: string | null
-          community_enabled?: boolean
-          content_bar_default?: boolean
-          plex_autoconnect?: boolean
-          rss_url?: string | null
-          support_email?: string | null
-          tenant_id: string
-        }
-        Update: {
-          apps_source_url?: string | null
-          community_enabled?: boolean
-          content_bar_default?: boolean
-          plex_autoconnect?: boolean
-          rss_url?: string | null
-          support_email?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tenant_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tenants: {
-        Row: {
-          code: string
-          created_at: string
-          id: string
-          name: string
-          plan: string
-          status: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          id?: string
-          name: string
-          plan?: string
-          status?: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          id?: string
-          name?: string
-          plan?: string
-          status?: string
-        }
-        Relationships: []
-      }
       unmatched_leads: {
         Row: {
           created_at: string
@@ -1666,10 +1525,6 @@ export type Database = {
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
-      create_tenant: {
-        Args: { p_code?: string; p_name: string }
-        Returns: Json
-      }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
@@ -1681,7 +1536,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_tenant_config: { Args: { p_code: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

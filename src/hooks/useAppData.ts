@@ -4,7 +4,6 @@ import { isNativePlatform } from '@/utils/platform';
 import { robustFetch, isOnline } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
-import { useTenant } from '@/contexts/TenantContext';
 
 export interface AppData {
   id: string;
@@ -75,10 +74,6 @@ const fallbackApps: AppData[] = [
 const REMOTE_APPS_URL = 'https://snowmediaapps.com/apps/apps.json.php';
 
 export const useAppData = () => {
-  const { settings } = useTenant();
-  // Tenants without an apps_source_url skip the PHP-sync edge function entirely
-  // and rely on Supabase + the bundled fallback list.
-  const appsSourceUrl = settings.apps_source_url;
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -240,16 +235,11 @@ export const useAppData = () => {
   };
 
   // Background sync — triggers PHP→Supabase sync without blocking the UI.
-  // Skipped entirely when the tenant has no apps_source_url configured.
   const triggerBackgroundSync = async (): Promise<boolean> => {
-    if (!appsSourceUrl) {
-      console.log('[AppData] No tenant apps_source_url — skipping remote sync.');
-      return false;
-    }
     try {
-      console.log('[AppData] Triggering background PHP→DB sync from:', appsSourceUrl);
+      console.log('[AppData] Triggering background PHP→DB sync...');
       const { data, error } = await supabase.functions.invoke('sync-apps-from-php', {
-        body: { source_url: appsSourceUrl },
+        body: {},
       });
       if (error) {
         console.warn('[AppData] Background sync failed:', error.message);

@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useTenant } from '@/contexts/TenantContext';
 import { User } from '@supabase/supabase-js';
-
-const DEFAULT_SUPPORT_EMAIL = 'support@snowmediaent.com';
 
 export interface SupportTicket {
   id: string;
@@ -33,8 +30,6 @@ export const useSupportTickets = (user: User | null) => {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Record<string, SupportMessage[]>>({});
   const { toast } = useToast();
-  const { settings } = useTenant();
-  const supportEmail = settings.support_email || DEFAULT_SUPPORT_EMAIL;
 
   // Fetch all user's tickets
   const fetchTickets = async () => {
@@ -270,7 +265,7 @@ export const useSupportTickets = (user: User | null) => {
       
       await supabase.functions.invoke('send-custom-email', {
         body: {
-          to: supportEmail,
+          to: 'support@snowmediaent.com',
           subject: `[Ticket #${ticketId.slice(-8)}] ${subject}`,
           html: `
             <h3>New Support Message</h3>

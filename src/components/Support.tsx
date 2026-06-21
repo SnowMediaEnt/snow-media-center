@@ -24,7 +24,6 @@ import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
-import { useTenant } from '@/contexts/TenantContext';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -41,12 +40,6 @@ type Tab = 'help' | 'ai' | 'community';
 type HelpView = 'menu' | 'videos' | 'tickets';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
-  const { isFeatureEnabled, code: tenantCode } = useTenant();
-  const aiEnabled = isFeatureEnabled('ai');
-  const communityEnabled = isFeatureEnabled('community');
-  // Snow Media's Vimeo source is hardwired — hide Support Videos for all
-  // other tenants until per-tenant video sources are wired up.
-  const supportVideosEnabled = isFeatureEnabled('support_videos') && tenantCode === 'snowmedia';
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
@@ -55,16 +48,6 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
-
-  // If a feature flips off while user is on its tab, snap back to Help.
-  useEffect(() => {
-    if ((tab === 'ai' && !aiEnabled) || (tab === 'community' && !communityEnabled)) {
-      setTab('help');
-    }
-    if (helpView === 'videos' && !supportVideosEnabled) {
-      setHelpView('menu');
-    }
-  }, [tab, helpView, aiEnabled, communityEnabled, supportVideosEnabled]);
   const { resolvePackageName, isPackageInstalled } = useDeviceInstalledApps();
   const { toast } = useToast();
 
@@ -294,38 +277,32 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => { setChildFocusActive(false); setTab(v as Tab); }} className="w-full">
-          {(aiEnabled || communityEnabled) && (
-            <TabsList className={`grid w-full ${aiEnabled && communityEnabled ? 'grid-cols-3' : 'grid-cols-2'} mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch`}>
-              <TabsTrigger
-                value="help"
-                data-support-tv-focus-id="tab-help"
-                className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
-              >
-                <HelpCircle className="w-5 h-5 mr-2" />
-                Help
-              </TabsTrigger>
-              {aiEnabled && (
-                <TabsTrigger
-                  value="ai"
-                  data-support-tv-focus-id="tab-ai"
-                  className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
-                >
-                  <Brain className="w-5 h-5 mr-2" />
-                  AI Chat
-                </TabsTrigger>
-              )}
-              {communityEnabled && (
-                <TabsTrigger
-                  value="community"
-                  data-support-tv-focus-id="tab-community"
-                  className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
-                >
-                  <MessageSquare className="w-5 h-5 mr-2" />
-                  Community
-                </TabsTrigger>
-              )}
-            </TabsList>
-          )}
+          <TabsList className="grid w-full grid-cols-3 mb-16 bg-slate-800/50 border border-slate-600 p-1 gap-1 h-14 items-stretch">
+            <TabsTrigger
+              value="help"
+              data-support-tv-focus-id="tab-help"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-brand-gold data-[state=active]:text-slate-900 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+            >
+              <HelpCircle className="w-5 h-5 mr-2" />
+              Help
+            </TabsTrigger>
+            <TabsTrigger
+              value="ai"
+              data-support-tv-focus-id="tab-ai"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-purple-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+            >
+              <Brain className="w-5 h-5 mr-2" />
+              AI Chat
+            </TabsTrigger>
+            <TabsTrigger
+              value="community"
+              data-support-tv-focus-id="tab-community"
+              className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
+            >
+              <MessageSquare className="w-5 h-5 mr-2" />
+              Community
+            </TabsTrigger>
+          </TabsList>
 
 
 
@@ -359,22 +336,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   Step-by-step buffering fixes
                 </span>
               </Button>
-              {supportVideosEnabled && (
-                <Button
-                  onClick={() => setHelpView('videos')}
-                  variant="outline"
-                  size="lg"
-                  tabIndex={0}
-                  data-support-tv-focus-id="help-videos"
-                  className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
-                >
-                  <Video className="w-7 h-7 justify-self-center" />
-                  <span className="text-xl font-medium truncate">Support Videos</span>
-                  <span className="text-sm text-blue-100 justify-self-end">
-                    Tutorials and walkthroughs
-                  </span>
-                </Button>
-              )}
+              <Button
+                onClick={() => setHelpView('videos')}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-videos"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+              >
+                <Video className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Support Videos</span>
+                <span className="text-sm text-blue-100 justify-self-end">
+                  Tutorials and walkthroughs
+                </span>
+              </Button>
               <Button
                 onClick={() => setHelpView('tickets')}
                 variant="outline"
@@ -393,26 +368,22 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           </TabsContent>
 
 
-          {aiEnabled && (
-            <TabsContent value="ai" className="mt-0">
-              <Suspense fallback={null}>
-                <ChatCommunity
-                  onBack={onBack}
-                  onNavigate={onNavigate}
-                  embedded
-                  lockedTab="ai"
-                />
-              </Suspense>
-            </TabsContent>
-          )}
+          <TabsContent value="ai" className="mt-0">
+            <Suspense fallback={null}>
+              <ChatCommunity
+                onBack={onBack}
+                onNavigate={onNavigate}
+                embedded
+                lockedTab="ai"
+              />
+            </Suspense>
+          </TabsContent>
 
-          {communityEnabled && (
-            <TabsContent value="community" className="mt-0">
-              <Suspense fallback={null}>
-                <CommunityChat onBack={onBack} embedded />
-              </Suspense>
-            </TabsContent>
-          )}
+          <TabsContent value="community" className="mt-0">
+            <Suspense fallback={null}>
+              <CommunityChat onBack={onBack} embedded />
+            </Suspense>
+          </TabsContent>
         </Tabs>
       </div>
 

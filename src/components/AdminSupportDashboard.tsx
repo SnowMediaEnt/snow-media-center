@@ -30,8 +30,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import AdminUserManager from '@/components/AdminUserManager';
-import AdminTenantManager from '@/components/AdminTenantManager';
-import { AlertTriangle, Users, Building2 } from 'lucide-react';
+import { AlertTriangle, Users } from 'lucide-react';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -43,7 +42,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'tenants'>('tickets');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts'>('tickets');
 
   const {
     tickets,
@@ -347,7 +346,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
-        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts' | 'tenants')} className="w-full">
+        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts')} className="w-full">
           <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
             <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               <MessageCircle className="h-4 w-4 mr-2" />
@@ -360,10 +359,6 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
             <TabsTrigger value="alerts" className="data-[state=active]:bg-yellow-600 data-[state=active]:text-white">
               <AlertTriangle className="h-4 w-4 mr-2" />
               App Alerts
-            </TabsTrigger>
-            <TabsTrigger value="tenants" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Building2 className="h-4 w-4 mr-2" />
-              Tenants
             </TabsTrigger>
           </TabsList>
 
@@ -465,12 +460,6 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           <TabsContent value="alerts">
             <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
               <AppAlertsManager />
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="tenants">
-            <Card className="bg-gradient-to-br from-emerald-900/30 to-slate-900/40 border-emerald-700/40 p-6">
-              <AdminTenantManager />
             </Card>
           </TabsContent>
         </Tabs>

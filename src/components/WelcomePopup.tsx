@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Smartphone, Store, Video, MessageCircle, Sparkles } from 'lucide-react';
 import { useVersion } from '@/hooks/useVersion';
-import { useTenant } from '@/contexts/TenantContext';
 
 /**
  * Per-version "What's New" entries. When a new build ships, add a new entry
@@ -61,10 +60,6 @@ const STORAGE_KEY = 'smc-welcome-shown-version';
 
 const WelcomePopup = () => {
   const { version, isLoading } = useVersion();
-  const { code: tenantCode, branding } = useTenant();
-  const isSnowMedia = tenantCode === 'snowmedia';
-  const displayName = branding.app_display_name;
-  const tagline = branding.tagline;
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'first' | 'whatsnew'>('first');
 
@@ -157,7 +152,7 @@ const WelcomePopup = () => {
           <>
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-6 h-6 text-yellow-300" />
-              <h2 className="text-2xl font-bold text-white">Welcome to {displayName}</h2>
+              <h2 className="text-2xl font-bold text-white">Welcome to Snow Media Center</h2>
             </div>
             <p className="text-sm text-white/80 mb-4">
               Here's what each section does:
@@ -167,14 +162,14 @@ const WelcomePopup = () => {
                 <Smartphone className="w-5 h-5 mt-0.5 text-cyan-300 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Main Apps</p>
-                  <p className="text-white/75">Download apps for {displayName}.</p>
+                  <p className="text-white/75">Download all apps pertaining to Snow Media.</p>
                 </div>
               </li>
               <li className="flex gap-3">
                 <Store className="w-5 h-5 mt-0.5 text-yellow-300 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Store</p>
-                  <p className="text-white/75">Takes you to the {displayName} store.</p>
+                  <p className="text-white/75">Takes you to the Snow Media store.</p>
                 </div>
               </li>
               <li className="flex gap-3">
@@ -194,12 +189,10 @@ const WelcomePopup = () => {
                 </div>
               </li>
             </ul>
-            {isSnowMedia && (
-              <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
-                Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
-                keep track of purchases and Snow Gems.
-              </div>
-            )}
+            <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
+              Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
+              keep track of purchases and Snow Gems.
+            </div>
           </>
         ) : (
           <>
@@ -216,11 +209,9 @@ const WelcomePopup = () => {
         )}
 
         <div className="mt-6 flex items-center justify-between gap-3">
-          {tagline ? (
-            <p className="text-sm italic text-yellow-300/90 font-quicksand">
-              {tagline}
-            </p>
-          ) : <span />}
+          <p className="text-sm italic text-yellow-300/90 font-quicksand">
+            Stay Streamin — Stay Dreamin
+          </p>
           <Button
             data-welcome-primary="true"
             onClick={dismiss}

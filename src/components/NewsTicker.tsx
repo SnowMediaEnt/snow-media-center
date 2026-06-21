@@ -2,13 +2,12 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
-import { useTenant } from '@/contexts/TenantContext';
 
 const FALLBACK_NEWS = [
   '🚀 New streaming app update available',
-  '📺 Live support available now',
+  '📺 Live support available now - Chat with Snow Media',
   '🎬 Fresh video tutorials added to Support section',
-  '💫 Store updated with new content',
+  '💫 Snow Media Store updated with new content',
 ];
 
 const INITIAL_NEWS = ['Loading news feed...'];
@@ -53,20 +52,12 @@ interface NewsTickerProps {
 }
 
 const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
-  const { settings } = useTenant();
-  const rssUrl = settings.rss_url;
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
   const refreshMs = isNative ? NATIVE_REFRESH_MS : WEB_REFRESH_MS;
 
   useEffect(() => {
-    // Tenants without an RSS URL skip the remote feed entirely and use the
-    // bundled fallback strings.
-    if (!rssUrl) {
-      setNewsItems((prev) => (sameItems(prev, FALLBACK_NEWS) ? prev : FALLBACK_NEWS));
-      return;
-    }
     let cancelled = false;
     let timeoutId: number | null = null;
 
@@ -92,8 +83,8 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
           xmlText = await proxyRes.text();
         } catch (proxyErr) {
           console.warn('[NewsTicker] proxy failed, trying direct:', (proxyErr as Error).message);
-          const directUrl = `${rssUrl}${rssUrl.includes('?') ? '&' : '?'}ts=${Date.now()}`;
-          const direct = await robustFetch(directUrl, {
+          const rssUrl = `https://snowmediaapps.com/smc/newsfeed.xml?ts=${Date.now()}`;
+          const direct = await robustFetch(rssUrl, {
             timeout: isNative ? 12000 : 8000,
             retries: 1,
             useCorsProxy: !isNative,
@@ -156,7 +147,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
       if (timeoutId) clearTimeout(timeoutId);
       cancelInterval();
     };
-  }, [cached?.updatedAt, isNative, refreshMs, rssUrl]);
+  }, [cached?.updatedAt, isNative, refreshMs]);
 
   // Build one continuous string so the marquee never restarts mid-cycle.
   // Trailing separator ensures the join between the duplicated copies looks
