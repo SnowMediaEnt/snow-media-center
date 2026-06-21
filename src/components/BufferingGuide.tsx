@@ -61,7 +61,7 @@ interface State {
   vpnTest: VpnTest;
 }
 
-const SUPPORT_EMAIL = 'support@snowmediaent.com';
+const SUPPORT_EMAIL_FALLBACK = 'support@snowmediaent.com';
 
 const STEPS = ['intro', 'step1', 'step2', 'step3', 'step4', 'summary'] as const;
 type StepKey = typeof STEPS[number];
