@@ -270,7 +270,7 @@ export const useSupportTickets = (user: User | null) => {
       
       await supabase.functions.invoke('send-custom-email', {
         body: {
-          to: 'support@snowmediaent.com',
+          to: supportEmail,
           subject: `[Ticket #${ticketId.slice(-8)}] ${subject}`,
           html: `
             <h3>New Support Message</h3>
