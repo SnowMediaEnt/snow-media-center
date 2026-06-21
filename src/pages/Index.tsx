@@ -894,7 +894,7 @@ const Index = () => {
           {/* Header - tight container around title. When the content menu is ON,
               the thin RSS ticker overlays through the middle of the title.
               When OFF, a thicker standalone RSS row sits below the title. */}
-          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} />
+          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} displayName={displayName} isSnowMedia={isSnowMedia} />
           {!mediaBarEnabled && (
             <div className="relative z-10 flex-shrink-0 mt-2">
               <NewsTicker />
