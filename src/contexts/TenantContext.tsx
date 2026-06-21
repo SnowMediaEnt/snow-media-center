@@ -20,6 +20,7 @@ export type TenantConfig = {
     splash_bg: string;
     background_image_url: string | null;
     background_manifest_url: string | null;
+    attribution: string | null;
   };
   settings: {
     support_email: string | null;
@@ -46,6 +47,7 @@ export const DEFAULTS: TenantConfig = {
     splash_bg: '#092145',
     background_image_url: null,
     background_manifest_url: null,
+    attribution: null,
   },
   settings: {
     support_email: 'support@snowmediaent.com',

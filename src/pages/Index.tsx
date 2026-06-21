@@ -8,6 +8,7 @@ import NewsTicker from '@/components/NewsTicker';
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo-512.png';
+import canvasLogo from '@/assets/canvas-logo.svg';
 import { useCachedImage } from '@/hooks/useCachedImage';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
@@ -274,12 +275,16 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled, displayName, isSnowMedi
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
 
-const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, isSnowMedia }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; isSnowMedia: boolean }) => {
+const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName, tenantCode }: { isFocused: boolean; onActivate: () => void; onFocus: () => void; logoUrl: string | null; displayName: string; tenantCode: string }) => {
   // Cached + auto-refreshing tenant logo (no-op for null URLs).
   const cachedRemote = useCachedImage(logoUrl);
   const remoteSrc = cachedRemote ?? logoUrl ?? null; // fall back to direct URL while cache warms
-  const showImage = !!remoteSrc || isSnowMedia;
-  const imgSrc = remoteSrc || smeLogo;
+  // Priority: remote branding logo → bundled tenant default → text fallback
+  let imgSrc: string | null = remoteSrc;
+  if (!imgSrc) {
+    if (tenantCode === 'snowmedia') imgSrc = smeLogo;
+    else if (tenantCode === 'canvas') imgSrc = canvasLogo;
+  }
   return (
     <button
       type="button"
@@ -295,7 +300,7 @@ const LogoButton = memo(({ isFocused, onActivate, onFocus, logoUrl, displayName,
         height: 'clamp(72px, 11vh, 140px)',
       }}
     >
-      {showImage ? (
+      {imgSrc ? (
         <img
           src={imgSrc}
           alt={displayName}
@@ -856,10 +861,13 @@ const Index = () => {
     games: isFeatureEnabled('games'),
     wix_store: isFeatureEnabled('wix_store'),
     ai: isFeatureEnabled('ai'),
-    support_videos: isFeatureEnabled('support_videos'),
+    // Support Videos is currently hardwired to Snow Media's Vimeo account, so
+    // it must NEVER appear on resellers/canvas regardless of the feature flag.
+    // A per-tenant video source will re-enable this for other tenants later.
+    support_videos: isFeatureEnabled('support_videos') && tenantCode === 'snowmedia',
     community: isFeatureEnabled('community'),
     content_bar: isFeatureEnabled('content_bar'),
-  }), [isFeatureEnabled]);
+  }), [isFeatureEnabled, tenantCode]);
 
   // Build home cards from features. Each card carries its target route key so
   // the keyboard handler can navigate by index without hardcoded positions.
@@ -971,8 +979,24 @@ const Index = () => {
             onFocus={onLogoFocus}
             logoUrl={branding.in_app_logo_url}
             displayName={displayName}
-            isSnowMedia={isSnowMedia}
+            tenantCode={tenantCode}
           />
+
+          {/* Tiny tenant attribution credit (top-right, above the action buttons).
+              Snowmedia's attribution is null, so this renders nothing for SMC. */}
+          {branding.attribution && (
+            <div
+              className="absolute z-10 pointer-events-none select-none text-white/50 font-nunito"
+              style={{
+                top: 'max(env(safe-area-inset-top, 0px), 0.25rem)',
+                right: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
+                fontSize: 'clamp(0.65rem, 0.75vw, 0.85rem)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {branding.attribution}
+            </div>
+          )}
 
           {/* Easter egg overlay */}
           {showEasterEgg && (
