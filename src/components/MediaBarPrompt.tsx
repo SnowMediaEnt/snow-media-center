@@ -122,17 +122,41 @@ const MediaBarPrompt = () => {
         <div className="bg-black/40 border border-white/10 rounded-xl p-3 mb-4">
           <div className="text-[11px] uppercase tracking-wider text-white/60 mb-2">Preview</div>
           <div className="flex gap-2 overflow-hidden">
-            {[
-              'from-purple-600 to-indigo-800',
-              'from-rose-600 to-red-800',
-              'from-emerald-600 to-teal-800',
-              'from-amber-500 to-orange-700',
-            ].map((g, i) => (
-              <div
-                key={i}
-                className={`flex-1 aspect-[2/3] rounded-lg bg-gradient-to-br ${g} ring-1 ring-white/10 shadow-md`}
-              />
-            ))}
+            {/* LIVE sports cards */}
+            <div className="relative flex-shrink-0 w-[88px] aspect-[2/3] rounded-lg bg-gradient-to-br from-blue-700 to-blue-900 ring-1 ring-white/10 shadow-md overflow-hidden">
+              <span className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm tracking-wide">LIVE</span>
+              <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                <div className="text-[10px] font-bold text-white leading-tight truncate">Mariners @ Rays</div>
+                <div className="text-[9px] text-white/70 leading-tight truncate">MLB · Live</div>
+              </div>
+            </div>
+            <div className="relative flex-shrink-0 w-[88px] aspect-[2/3] rounded-lg bg-gradient-to-br from-emerald-700 to-emerald-900 ring-1 ring-white/10 shadow-md overflow-hidden">
+              <span className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm tracking-wide">LIVE</span>
+              <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                <div className="text-[10px] font-bold text-white leading-tight truncate">Chiefs vs Bills</div>
+                <div className="text-[9px] text-white/70 leading-tight truncate">NFL · Live</div>
+              </div>
+            </div>
+            <div className="relative flex-shrink-0 w-[88px] aspect-[2/3] rounded-lg bg-gradient-to-br from-rose-700 to-rose-900 ring-1 ring-white/10 shadow-md overflow-hidden">
+              <span className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm tracking-wide">LIVE</span>
+              <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                <div className="text-[10px] font-bold text-white leading-tight truncate">Heat @ Celtics</div>
+                <div className="text-[9px] text-white/70 leading-tight truncate">NBA · Live</div>
+              </div>
+            </div>
+            {/* Show / movie poster cards */}
+            <div className="relative flex-shrink-0 w-[88px] aspect-[2/3] rounded-lg bg-gradient-to-br from-slate-800 to-slate-950 ring-1 ring-white/10 shadow-md overflow-hidden">
+              <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                <div className="text-[10px] font-bold text-white leading-tight truncate">Moving On</div>
+                <div className="text-[9px] text-white/70 leading-tight truncate">Continue · S03E12</div>
+              </div>
+            </div>
+            <div className="relative flex-shrink-0 w-[88px] aspect-[2/3] rounded-lg bg-gradient-to-br from-indigo-900 to-slate-950 ring-1 ring-white/10 shadow-md overflow-hidden">
+              <div className="absolute bottom-0 inset-x-0 p-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                <div className="text-[10px] font-bold text-white leading-tight truncate">Dark Waters</div>
+                <div className="text-[9px] text-white/70 leading-tight truncate">Start · S01E01</div>
+              </div>
+            </div>
           </div>
         </div>
 
