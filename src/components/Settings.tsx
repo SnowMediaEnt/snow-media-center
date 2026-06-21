@@ -16,6 +16,7 @@ import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface SettingsProps {
   onBack: () => void;
