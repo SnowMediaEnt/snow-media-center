@@ -156,7 +156,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
       if (timeoutId) clearTimeout(timeoutId);
       cancelInterval();
     };
-  }, [cached?.updatedAt, isNative, refreshMs]);
+  }, [cached?.updatedAt, isNative, refreshMs, rssUrl]);
 
   // Build one continuous string so the marquee never restarts mid-cycle.
   // Trailing separator ensures the join between the duplicated copies looks
