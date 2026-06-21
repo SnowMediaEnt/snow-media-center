@@ -157,7 +157,7 @@ const WelcomePopup = () => {
           <>
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-6 h-6 text-yellow-300" />
-              <h2 className="text-2xl font-bold text-white">Welcome to Snow Media Center</h2>
+              <h2 className="text-2xl font-bold text-white">Welcome to {displayName}</h2>
             </div>
             <p className="text-sm text-white/80 mb-4">
               Here's what each section does:
@@ -167,14 +167,14 @@ const WelcomePopup = () => {
                 <Smartphone className="w-5 h-5 mt-0.5 text-cyan-300 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Main Apps</p>
-                  <p className="text-white/75">Download all apps pertaining to Snow Media.</p>
+                  <p className="text-white/75">Download apps for {displayName}.</p>
                 </div>
               </li>
               <li className="flex gap-3">
                 <Store className="w-5 h-5 mt-0.5 text-yellow-300 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Store</p>
-                  <p className="text-white/75">Takes you to the Snow Media store.</p>
+                  <p className="text-white/75">Takes you to the {displayName} store.</p>
                 </div>
               </li>
               <li className="flex gap-3">
@@ -194,10 +194,12 @@ const WelcomePopup = () => {
                 </div>
               </li>
             </ul>
-            <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
-              Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
-              keep track of purchases and Snow Gems.
-            </div>
+            {isSnowMedia && (
+              <div className="mt-4 bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/80">
+                Sign in with your <strong>snowmediaent.com</strong> account, or create a new one to
+                keep track of purchases and Snow Gems.
+              </div>
+            )}
           </>
         ) : (
           <>
