@@ -882,7 +882,7 @@ const BufferingGuide = ({
       const ts = new Date().toLocaleString();
       await supabase.functions.invoke('send-custom-email', {
         body: {
-          to: 'support@snowmediaent.com',
+          to: SUPPORT_EMAIL,
           subject: `[Anonymous Report] ${report.subject}`,
           html: `
             <h3>Anonymous Channel/Title Report</h3>
