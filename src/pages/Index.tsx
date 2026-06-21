@@ -976,8 +976,24 @@ const Index = () => {
             onFocus={onLogoFocus}
             logoUrl={branding.in_app_logo_url}
             displayName={displayName}
-            isSnowMedia={isSnowMedia}
+            tenantCode={tenantCode}
           />
+
+          {/* Tiny tenant attribution credit (top-right, above the action buttons).
+              Snowmedia's attribution is null, so this renders nothing for SMC. */}
+          {branding.attribution && (
+            <div
+              className="absolute z-10 pointer-events-none select-none text-white/50 font-nunito"
+              style={{
+                top: 'max(env(safe-area-inset-top, 0px), 0.25rem)',
+                right: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
+                fontSize: 'clamp(0.65rem, 0.75vw, 0.85rem)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {branding.attribution}
+            </div>
+          )}
 
           {/* Easter egg overlay */}
           {showEasterEgg && (
