@@ -30,7 +30,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import AdminUserManager from '@/components/AdminUserManager';
-import { AlertTriangle, Users } from 'lucide-react';
+import AdminTenantManager from '@/components/AdminTenantManager';
+import { AlertTriangle, Users, Building2 } from 'lucide-react';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
