@@ -293,7 +293,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       try {
         await supabase.functions.invoke('send-custom-email', {
           body: {
-            to: 'support@snowmediaent.com',
+            to: supportEmail,
             subject: `[Guest Ticket] ${newSubject}`,
             fromName: 'Snow Media Support System',
             html: `
