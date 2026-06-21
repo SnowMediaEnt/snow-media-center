@@ -53,12 +53,20 @@ interface NewsTickerProps {
 }
 
 const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
+  const { settings } = useTenant();
+  const rssUrl = settings.rss_url;
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
   const refreshMs = isNative ? NATIVE_REFRESH_MS : WEB_REFRESH_MS;
 
   useEffect(() => {
+    // Tenants without an RSS URL skip the remote feed entirely and use the
+    // bundled fallback strings.
+    if (!rssUrl) {
+      setNewsItems((prev) => (sameItems(prev, FALLBACK_NEWS) ? prev : FALLBACK_NEWS));
+      return;
+    }
     let cancelled = false;
     let timeoutId: number | null = null;
 
