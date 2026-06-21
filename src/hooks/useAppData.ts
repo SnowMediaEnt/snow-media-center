@@ -240,11 +240,16 @@ export const useAppData = () => {
   };
 
   // Background sync — triggers PHP→Supabase sync without blocking the UI.
+  // Skipped entirely when the tenant has no apps_source_url configured.
   const triggerBackgroundSync = async (): Promise<boolean> => {
+    if (!appsSourceUrl) {
+      console.log('[AppData] No tenant apps_source_url — skipping remote sync.');
+      return false;
+    }
     try {
-      console.log('[AppData] Triggering background PHP→DB sync...');
+      console.log('[AppData] Triggering background PHP→DB sync from:', appsSourceUrl);
       const { data, error } = await supabase.functions.invoke('sync-apps-from-php', {
-        body: {},
+        body: { source_url: appsSourceUrl },
       });
       if (error) {
         console.warn('[AppData] Background sync failed:', error.message);
