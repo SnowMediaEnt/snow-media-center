@@ -167,6 +167,7 @@ export interface PlayerAccount {
   isTrial: boolean;
   maxConnections: number | null;
   activeCons: number | null;
+  createdAt: number | null;     // unix seconds
   lastCheckedAt: number;        // ms epoch
 }
 
@@ -198,8 +199,10 @@ export const buildPlayerAccount = (
   isTrial: toBool(ui?.is_trial),
   maxConnections: toNumberOrNull(ui?.max_connections),
   activeCons: toNumberOrNull(ui?.active_cons),
+  createdAt: toNumberOrNull(ui?.created_at),
   lastCheckedAt: Date.now(),
 });
+
 
 export async function loadPlayerAccount(): Promise<PlayerAccount | null> {
   try {

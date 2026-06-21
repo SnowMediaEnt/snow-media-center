@@ -11,7 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.2': [
+    'Your Account screen now shows your full subscription — expiration, connections, and your login details',
+    'Improved the content-bar preview',
+  ],
   '1.5.1': [
+
     'New Snow Gems & Snow Coins — buy Snow Gems for AI features and image generation, and get bonus free Snow Coins to play in the Game Room',
     'Game Room now fits your TV screen properly — no more games getting cut off at the top or bottom',
     'Movies & Series open instantly and scroll smoothly — no more freezing when you open them',

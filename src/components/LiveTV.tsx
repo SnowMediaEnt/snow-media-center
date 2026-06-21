@@ -19,6 +19,8 @@ import LiveSection from './livetv/LiveSection';
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
+const AccountInfoScreen = lazy(() => import('./livetv/AccountInfoScreen'));
+
 
 interface Props {
   onBack: () => void;
@@ -40,6 +42,8 @@ const Player = memo(({ onBack }: Props) => {
   // When true, the user has explicitly opened the Account form even though
   // valid creds already exist (i.e. to change account).
   const [accountFormOpen, setAccountFormOpen] = useState(false);
+  // Read-only "Account info" view, shown from the header Account button.
+  const [accountInfoOpen, setAccountInfoOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
@@ -47,6 +51,7 @@ const Player = memo(({ onBack }: Props) => {
   const [headerIdx, setHeaderIdx] = useState(0);
   // Where to return when leaving the header via Down.
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
+
 
   // Load creds on mount
   useEffect(() => {
@@ -94,10 +99,13 @@ const Player = memo(({ onBack }: Props) => {
     await clearPlayerAccount();
     setCreds(null);
     setAccountFormOpen(false);
+    setAccountInfoOpen(false);
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
   const showCredsForm = !creds || accountFormOpen;
+  const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
+
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
   const paneRef = useRef(pane);
@@ -113,6 +121,9 @@ const Player = memo(({ onBack }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // AccountInfoScreen owns the keyboard while open.
+      if (accountInfoOpen && creds && !accountFormOpen) return;
+
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -149,11 +160,12 @@ const Player = memo(({ onBack }: Props) => {
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
-          else if (idx === 1) setAccountFormOpen(true);
+          else if (idx === 1) setAccountInfoOpen(true);
           else if (idx === 2) void signOut();
         }
         return;
       }
+
 
       // --- Sections pane: Up at idx 0 enters the header ---
       if (paneRef.current !== 'sections') return;
@@ -184,7 +196,7 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, creds, signOut]);
+  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut]);
 
 
   if (!credsLoaded) {
@@ -212,6 +224,19 @@ const Player = memo(({ onBack }: Props) => {
       </div>
     );
   }
+
+  // Read-only Account info screen (from header "Account" button).
+  if (showAccountInfo) {
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+        <AccountInfoScreen
+          onBack={() => setAccountInfoOpen(false)}
+          onSignOut={() => { void signOut(); }}
+        />
+      </Suspense>
+    );
+  }
+
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
@@ -246,7 +271,7 @@ const Player = memo(({ onBack }: Props) => {
           <Button
             variant="gold"
             size="sm"
-            onClick={() => setAccountFormOpen(true)}
+            onClick={() => setAccountInfoOpen(true)}
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1

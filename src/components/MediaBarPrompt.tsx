@@ -118,23 +118,57 @@ const MediaBarPrompt = () => {
           It shows trending titles &amp; live sports at the top of the home screen.
         </p>
 
-        {/* Mini preview of the content bar */}
+        {/* Mini preview of the content bar — realistic compact cards */}
         <div className="bg-black/40 border border-white/10 rounded-xl p-3 mb-4">
           <div className="text-[11px] uppercase tracking-wider text-white/60 mb-2">Preview</div>
           <div className="flex gap-2 overflow-hidden">
-            {[
-              'from-purple-600 to-indigo-800',
-              'from-rose-600 to-red-800',
-              'from-emerald-600 to-teal-800',
-              'from-amber-500 to-orange-700',
-            ].map((g, i) => (
-              <div
-                key={i}
-                className={`flex-1 aspect-[2/3] rounded-lg bg-gradient-to-br ${g} ring-1 ring-white/10 shadow-md`}
-              />
-            ))}
+            {/* LIVE 1 */}
+            <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 relative">
+              <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                <div className="text-[9px] font-bold text-white leading-tight truncate">Mariners @ Rays</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">MLB · Live</div>
+              </div>
+            </div>
+            {/* LIVE 2 */}
+            <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-orange-600 via-rose-700 to-slate-900 relative">
+              <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                <div className="text-[9px] font-bold text-white leading-tight truncate">Lakers @ Celtics</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">NBA · Live</div>
+              </div>
+            </div>
+            {/* LIVE 3 */}
+            <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-indigo-600 via-purple-800 to-slate-900 relative">
+              <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />LIVE
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                <div className="text-[9px] font-bold text-white leading-tight truncate">Chiefs @ 49ers</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">NFL · Live</div>
+              </div>
+            </div>
+            {/* SHOW 1 */}
+            <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-slate-700 via-slate-800 to-black relative">
+              <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/95 to-transparent">
+                <div className="text-[9px] font-bold text-white leading-tight truncate">Moving On</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">Continue · S03E12</div>
+              </div>
+            </div>
+            {/* SHOW 2 */}
+            <div className="flex-1 min-w-0 aspect-[2/3] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-md bg-gradient-to-br from-zinc-700 via-zinc-900 to-black relative">
+              <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/95 to-transparent">
+                <div className="text-[9px] font-bold text-white leading-tight truncate">Northern Lights</div>
+                <div className="text-[7px] text-white/70 leading-tight truncate">Continue · S01E04</div>
+              </div>
+            </div>
           </div>
         </div>
+
 
         <p className="text-xs text-yellow-300/90 mb-5">
           On older or less powerful devices this may make things a little laggy.
