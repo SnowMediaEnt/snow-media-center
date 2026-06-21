@@ -9,11 +9,16 @@ import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff, Loader2 } from 'luc
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
 
 const Auth = () => {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
+  const { code: tenantCode, branding } = useTenant();
+  const isSnowMedia = tenantCode === 'snowmedia';
+  const displayName = branding.app_display_name;
+
   
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -340,7 +345,7 @@ const Auth = () => {
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
-            Snow Media Center
+            {displayName}
           </h1>
           <p className="text-xl text-blue-200">Sign in to your account</p>
         </div>
@@ -373,9 +378,11 @@ const Auth = () => {
             </TabsList>
 
             <TabsContent value="login">
-              <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3 mb-4">
-                Already have an account on the Snow Media website (snowmediaent.com)? You can sign in here using the same email and password.
-              </p>
+              {isSnowMedia && (
+                <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3 mb-4">
+                  Already have an account on the Snow Media website (snowmediaent.com)? You can sign in here using the same email and password.
+                </p>
+              )}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <Label htmlFor="login-email" className="text-white">Email</Label>

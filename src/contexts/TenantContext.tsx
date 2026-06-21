@@ -111,6 +111,17 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Apply branding to document: CSS vars + title. Snow Media's defaults
+    // already match the current hard-coded values, so no visible change.
+    try {
+      const root = document.documentElement;
+      root.style.setProperty('--brand-gold', config.branding.primary_color);
+      root.style.setProperty('--brand-ice', config.branding.accent_color);
+      document.title = config.branding.app_display_name;
+    } catch { /* noop */ }
+  }, [config.branding.primary_color, config.branding.accent_color, config.branding.app_display_name]);
+
+  useEffect(() => {
     let cancelled = false;
     const cancelIdle = runWhenIdle(async () => {
       try {

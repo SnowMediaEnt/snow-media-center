@@ -5,9 +5,9 @@ import { setPausableInterval } from '@/utils/pausableInterval';
 
 const FALLBACK_NEWS = [
   '🚀 New streaming app update available',
-  '📺 Live support available now - Chat with Snow Media',
+  '📺 Live support available now',
   '🎬 Fresh video tutorials added to Support section',
-  '💫 Snow Media Store updated with new content',
+  '💫 Store updated with new content',
 ];
 
 const INITIAL_NEWS = ['Loading news feed...'];
