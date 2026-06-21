@@ -43,7 +43,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts'>('tickets');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'tenants'>('tickets');
 
   const {
     tickets,
