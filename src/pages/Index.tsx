@@ -861,10 +861,13 @@ const Index = () => {
     games: isFeatureEnabled('games'),
     wix_store: isFeatureEnabled('wix_store'),
     ai: isFeatureEnabled('ai'),
-    support_videos: isFeatureEnabled('support_videos'),
+    // Support Videos is currently hardwired to Snow Media's Vimeo account, so
+    // it must NEVER appear on resellers/canvas regardless of the feature flag.
+    // A per-tenant video source will re-enable this for other tenants later.
+    support_videos: isFeatureEnabled('support_videos') && tenantCode === 'snowmedia',
     community: isFeatureEnabled('community'),
     content_bar: isFeatureEnabled('content_bar'),
-  }), [isFeatureEnabled]);
+  }), [isFeatureEnabled, tenantCode]);
 
   // Build home cards from features. Each card carries its target route key so
   // the keyboard handler can navigate by index without hardcoded positions.
