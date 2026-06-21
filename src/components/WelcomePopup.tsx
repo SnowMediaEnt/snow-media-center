@@ -61,6 +61,10 @@ const STORAGE_KEY = 'smc-welcome-shown-version';
 
 const WelcomePopup = () => {
   const { version, isLoading } = useVersion();
+  const { code: tenantCode, branding } = useTenant();
+  const isSnowMedia = tenantCode === 'snowmedia';
+  const displayName = branding.app_display_name;
+  const tagline = branding.tagline;
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'first' | 'whatsnew'>('first');
 
