@@ -1657,6 +1657,10 @@ export type Database = {
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
+      create_tenant: {
+        Args: { p_code?: string; p_name: string }
+        Returns: Json
+      }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
