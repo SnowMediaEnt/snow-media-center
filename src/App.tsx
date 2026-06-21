@@ -68,9 +68,15 @@ const App = () => {
     };
   }, []);
   
-  // ONE static gradient background on every device (Android box, FireTV, preview).
-  const rootBackground =
+  // Root background — default 'snow' keeps the exact current gradient.
+  // Other styles (e.g. 'plain') derive a neutral dark background from splash_bg.
+  const { branding } = useTenant();
+  const snowBackground =
     'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)';
+  const rootBackground =
+    branding.background_style === 'plain'
+      ? `linear-gradient(180deg, ${branding.splash_bg || '#0b1220'} 0%, #000000 100%)`
+      : snowBackground;
 
   return (
     <TenantProvider>
