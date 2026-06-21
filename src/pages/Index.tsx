@@ -320,30 +320,37 @@ interface RouteSwitchProps {
   navigateTo: (view: string) => void;
   layoutMode: 'grid' | 'row';
   onLayoutChange: (mode: 'grid' | 'row') => void;
+  features: {
+    games: boolean;
+    wix_store: boolean;
+    ai: boolean;
+    support_videos: boolean;
+    community: boolean;
+  };
 }
 
-const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
+const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange, features }: RouteSwitchProps) => (
   <Suspense fallback={<RouteFallback />}>
     {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} />}
-    {currentView === 'store' && <MediaStore onBack={goBack} />}
+    {currentView === 'store' && features.wix_store && <MediaStore onBack={goBack} />}
     {currentView === 'support' && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
-    {currentView === 'support-videos' && <SupportVideos onBack={goBack} />}
-    {currentView === 'chat' && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
-    {currentView === 'community' && <CommunityChat onBack={goBack} />}
+    {currentView === 'support-videos' && features.support_videos && <SupportVideos onBack={goBack} />}
+    {currentView === 'chat' && features.ai && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
+    {currentView === 'community' && features.community && <CommunityChat onBack={goBack} />}
     {currentView === 'credits' && <CreditStore onBack={goBack} />}
     {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
     {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
-    {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
-    {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}
-    {currentView === 'game-slots' && <SlotsGame onBack={goBack} />}
-    {currentView === 'game-blackjack' && <BlackjackGame onBack={goBack} />}
-    {currentView === 'game-video-poker' && <VideoPokerGame onBack={goBack} />}
-    {currentView === 'game-roulette' && <RouletteGame onBack={goBack} />}
-    {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={goBack} />}
+    {currentView === 'games' && features.games && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
+    {currentView === 'game-daily-spin' && features.games && <DailySpinGame onBack={goBack} />}
+    {currentView === 'game-slots' && features.games && <SlotsGame onBack={goBack} />}
+    {currentView === 'game-blackjack' && features.games && <BlackjackGame onBack={goBack} />}
+    {currentView === 'game-video-poker' && features.games && <VideoPokerGame onBack={goBack} />}
+    {currentView === 'game-roulette' && features.games && <RouletteGame onBack={goBack} />}
+    {currentView === 'game-casino-holdem' && features.games && <CasinoHoldemGame onBack={goBack} />}
     {currentView === 'wix-blog' && <WixBlog onBack={goBack} />}
     {currentView === 'support-tickets' && <SupportTicketSystem onBack={goBack} />}
-    {currentView === 'ai-conversations' && <AIConversationSystem onBack={goBack} />}
-    {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
+    {currentView === 'ai-conversations' && features.ai && <AIConversationSystem onBack={goBack} />}
+    {currentView === 'create-ai-conversation' && features.ai && <AIConversationSystem onBack={goBack} />}
     {currentView === 'admin-support' && <AdminSupportDashboard onBack={goBack} />}
     {currentView === 'livetv' && <LiveTV onBack={goBack} />}
   </Suspense>
@@ -418,10 +425,11 @@ const Index = () => {
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
-  // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
+  // If the player flag flips off and the user was on the (now-removed) Player card,
+  // clamp focus back into the valid range.
   useEffect(() => {
     if (!playerEnabled) {
-      setFocusedButton(b => (b === 3 ? 2 : b));
+      setFocusedButton(b => (b >= 3 ? 2 : b));
     }
   }, [playerEnabled]);
   const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
@@ -577,12 +585,13 @@ const Index = () => {
   const isInPopupRef = useRef(isInPopup);
   const isInMediaBarRef = useRef(isInMediaBar);
   const showEasterEggRef = useRef(showEasterEgg);
-  const mediaBarEnabledRef = useRef(mediaBarEnabled);
+  const mediaBarEnabledRef = useRef(mediaBarEnabled); // updated below to use mediaBarVisible
   const playerEnabledRef = useRef(playerEnabled);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
   const handleLogoActivateRef = useRef(handleLogoActivate);
+  const buttonsRef = useRef<Array<{ key: 'apps' | 'support' | 'store' | 'livetv' }>>([]);
 
   useEffect(() => { focusedButtonRef.current = focusedButton; }, [focusedButton]);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
@@ -590,7 +599,8 @@ const Index = () => {
   useEffect(() => { isInPopupRef.current = isInPopup; }, [isInPopup]);
   useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
-  useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
+  // Note: actual sync uses `mediaBarVisible` (computed below) so the keyboard
+  // handler can't enter a content bar that the tenant has disabled.
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
@@ -637,15 +647,15 @@ const Index = () => {
   // Screen-height derived classes computed once per tier change, not per render.
   const screenTier = useMemo(() => getScreenTier(screenHeight), [screenHeight]);
 
-  // Stable per-index activation callbacks — referentially constant for the
-  // life of the component so HomeActionCard's React.memo can skip re-renders
-  // on unfocused cards when only `focusedButton` changes.
-  const activateByIndex = useMemo(() => [
-    () => navigateToRef.current('apps'),
-    () => navigateToRef.current('support'),
-    () => navigateToRef.current('store'),
-    () => navigateToRef.current('livetv'),
-  ], []);
+  // Stable per-index activation callback — reads the current buttons array
+  // from a ref so it stays referentially constant even when the tenant tweaks
+  // which cards are present.
+  const activateByIndex = useMemo(() => ({
+    get: (i: number) => () => {
+      const b = buttonsRef.current[i];
+      if (b) navigateToRef.current(b.key);
+    },
+  }), []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -734,8 +744,10 @@ const Index = () => {
         event.preventDefault();
       }
 
-      // Home screen navigation
-      const maxButtons = playerEnabledRef.current ? 3 : 2;
+      // Home screen navigation — driven by the active buttons array, so when
+      // tenants drop cards the indices/wrap behavior stay correct.
+      const buttonsLen = buttonsRef.current.length || 1;
+      const maxButtons = buttonsLen - 1;
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -779,8 +791,8 @@ const Index = () => {
               setIsInMediaBar(true);
             } else {
               // No content bar — jump directly to the top row.
-              // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton === 3 ? -1 : -2);
+              // Rightmost card lands on Settings, others on Sign In / Dashboard.
+              setFocusedButton(focusedButton === maxButtons ? -1 : -2);
             }
           }
           break;
@@ -806,14 +818,9 @@ const Index = () => {
           } else if (focusedButton === -1) {
             // Navigate to settings
             navigateToRef.current('settings');
-          } else if (focusedButton === 0) {
-            navigateToRef.current('apps');
-          } else if (focusedButton === 1) {
-            navigateToRef.current('support');
-          } else if (focusedButton === 2) {
-            navigateToRef.current('store');
-          } else if (focusedButton === 3 && playerEnabledRef.current) {
-            navigateToRef.current('livetv');
+          } else if (focusedButton >= 0) {
+            const b = buttonsRef.current[focusedButton];
+            if (b) navigateToRef.current(b.key);
           }
           break;
 
@@ -830,19 +837,7 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const buttons = useMemo(() => {
-    const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
-      { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
-      { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
-      { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
-    ];
-    if (playerEnabled) {
-      list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
-    }
-    return list;
-  }, [playerEnabled, t]);
-
-  const { code: tenantCode, branding } = useTenant();
+  const { code: tenantCode, branding, isFeatureEnabled, settings } = useTenant();
   const isSnowMedia = tenantCode === 'snowmedia';
   const displayName = branding.app_display_name;
   const tagline = branding.tagline || (isSnowMedia ? t('home.tagline') : '');
@@ -850,6 +845,69 @@ const Index = () => {
   const dashboardLabel = t('common.dashboard');
   const signInLabel = t('common.signIn');
   const settingsLabel = t('common.settings');
+
+  // Feature gates (tenant-driven). Snow Media has every feature ON so the
+  // current layout (Apps / Support / Store / [Player]) is unchanged.
+  const feat = useMemo(() => ({
+    games: isFeatureEnabled('games'),
+    wix_store: isFeatureEnabled('wix_store'),
+    ai: isFeatureEnabled('ai'),
+    support_videos: isFeatureEnabled('support_videos'),
+    community: isFeatureEnabled('community'),
+    content_bar: isFeatureEnabled('content_bar'),
+  }), [isFeatureEnabled]);
+
+  // Build home cards from features. Each card carries its target route key so
+  // the keyboard handler can navigate by index without hardcoded positions.
+  const buttons = useMemo(() => {
+    const list: Array<{ key: 'apps' | 'support' | 'store' | 'livetv'; icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
+      { key: 'apps', icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
+      { key: 'support', icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
+    ];
+    if (feat.wix_store) {
+      list.push({ key: 'store', icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' });
+    }
+    if (playerEnabled) {
+      list.push({ key: 'livetv', icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
+    }
+    return list;
+  }, [playerEnabled, feat.wix_store, t]);
+
+  // Redirect to home if the user is on a now-disabled view (e.g. tenant flips
+  // a feature off, or deep-link/cached navigation into a disabled route).
+  useEffect(() => {
+    const blocked: Record<string, boolean> = {
+      store: !feat.wix_store,
+      games: !feat.games,
+      'game-daily-spin': !feat.games,
+      'game-slots': !feat.games,
+      'game-blackjack': !feat.games,
+      'game-video-poker': !feat.games,
+      'game-roulette': !feat.games,
+      'game-casino-holdem': !feat.games,
+      chat: !feat.ai,
+      'ai-conversations': !feat.ai,
+      'create-ai-conversation': !feat.ai,
+      'support-videos': !feat.support_videos,
+      community: !feat.community,
+    };
+    if (blocked[currentView]) {
+      goBack();
+    }
+  }, [currentView, feat.wix_store, feat.games, feat.ai, feat.support_videos, feat.community, goBack]);
+
+  // Content-bar availability: even if the user previously enabled it, force
+  // OFF when the tenant has the feature disabled.
+  const contentBarAvailable = feat.content_bar;
+  const mediaBarVisible = mediaBarEnabled && contentBarAvailable;
+  useEffect(() => { mediaBarEnabledRef.current = mediaBarVisible; }, [mediaBarVisible]);
+
+  // Sync the buttons array into a ref so the always-on keydown handler can
+  // navigate by index without rebinding when cards add/remove.
+  useEffect(() => {
+    buttonsRef.current = buttons;
+    setFocusedButton(b => (b >= buttons.length ? Math.max(0, buttons.length - 1) : b));
+  }, [buttons]);
 
   return (
     <div className="min-h-screen">
@@ -861,6 +919,7 @@ const Index = () => {
         navigateTo={stableNavigateTo}
         layoutMode={layoutMode}
         onLayoutChange={handleLayoutChange}
+        features={feat}
       />
 
       {/* Home screen content */}
@@ -894,8 +953,8 @@ const Index = () => {
           {/* Header - tight container around title. When the content menu is ON,
               the thin RSS ticker overlays through the middle of the title.
               When OFF, a thicker standalone RSS row sits below the title. */}
-          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarEnabled} displayName={displayName} isSnowMedia={isSnowMedia} />
-          {!mediaBarEnabled && (
+          <WatermarkTitle tagline={tagline} mediaBarEnabled={mediaBarVisible} displayName={displayName} isSnowMedia={isSnowMedia} />
+          {!mediaBarVisible && (
             <div className="relative z-10 flex-shrink-0 mt-2">
               <NewsTicker />
             </div>
@@ -943,7 +1002,7 @@ const Index = () => {
               paddingRight: 'max(env(safe-area-inset-right, 0px), 3vw)',
             }}
           >
-            {mediaBarEnabled && (
+            {mediaBarVisible && (
               <Suspense fallback={<div className="h-[180px]" />}>
                 <MediaBar
                   active={isInMediaBar}
@@ -967,9 +1026,8 @@ const Index = () => {
 
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
-                // Stable callback (created once in activateByIndex via useMemo)
-                // — keeps HomeActionCard.memo effective for the unfocused cards.
-                const activateCard = activateByIndex[index];
+                // Stable per-index activation derived from buttonsRef.
+                const activateCard = activateByIndex.get(index);
 
                 const cardContent = (
                   <HomeActionCard
@@ -978,7 +1036,7 @@ const Index = () => {
                     isFocused={isFocused}
                     layoutMode={effectiveLayout}
                     onActivate={activateCard}
-                    boostSize={!mediaBarEnabled}
+                    boostSize={!mediaBarVisible}
                   />
                 );
 
@@ -1038,7 +1096,7 @@ const Index = () => {
 
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
-      {deferredOverlaysReady && currentView === 'home' && (
+      {deferredOverlaysReady && currentView === 'home' && contentBarAvailable && (
         <Suspense fallback={null}>
           <MediaBarPrompt />
         </Suspense>

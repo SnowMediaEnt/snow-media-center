@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { trackAppLaunch } from '@/lib/analytics';
 import { onFirstInteraction, runWhenIdle } from '@/utils/idle';
+import { useTenant } from '@/contexts/TenantContext';
 import {
   Dialog,
   DialogContent,
@@ -174,6 +175,8 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 };
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
+  const { settings } = useTenant();
+  const plexAuto = settings.plex_autoconnect;
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
   const [pageIdx, setPageIdx] = useState(0);
@@ -207,6 +210,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   // onFirstInteraction), then scheduled via requestIdleCallback so it never
   // competes with the first few seconds of boot on weak TV boxes.
   useEffect(() => {
+    // Tenants without plex_autoconnect skip the feed fetch + periodic refresh.
+    // The empty-state UI still renders, but no Plex/TMDB items appear.
+    if (!plexAuto) return;
     let cancelled = false;
     let cancelIdleFirst: (() => void) | null = null;
     const load = async () => {
@@ -238,7 +244,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
       cancelIdleFirst?.();
       cancelInterval();
     };
-  }, []);
+  }, [plexAuto]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   // Endless wrap: fill every page to PAGE_SIZE by looping back to the start.
