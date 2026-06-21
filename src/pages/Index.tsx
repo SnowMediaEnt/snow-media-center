@@ -8,6 +8,7 @@ import NewsTicker from '@/components/NewsTicker';
 const MediaBar = lazy(() => import('@/components/MediaBar'));
 import HomeClock from '@/components/HomeClock';
 import smeLogo from '@/assets/sme-logo-512.png';
+import { useCachedImage } from '@/hooks/useCachedImage';
 import easterEggImg from '@/assets/easter-egg.png';
 import PinnedAppsPopup from '@/components/PinnedAppsPopup';
 import AppAlertDialog from '@/components/AppAlertDialog';
