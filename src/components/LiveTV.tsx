@@ -121,6 +121,9 @@ const Player = memo(({ onBack }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // AccountInfoScreen owns the keyboard while open.
+      if (accountInfoOpen && creds && !accountFormOpen) return;
+
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -157,11 +160,12 @@ const Player = memo(({ onBack }: Props) => {
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
-          else if (idx === 1) setAccountFormOpen(true);
+          else if (idx === 1) setAccountInfoOpen(true);
           else if (idx === 2) void signOut();
         }
         return;
       }
+
 
       // --- Sections pane: Up at idx 0 enters the header ---
       if (paneRef.current !== 'sections') return;
