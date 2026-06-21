@@ -27,6 +27,7 @@ import { AppManager, isWebUnsupportedError } from '@/capacitor/AppManager';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { useTenant } from '@/contexts/TenantContext';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 
 import { supabase } from '@/integrations/supabase/client';
