@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import { initAnalytics } from "@/lib/analytics";
 import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
+import { TenantProvider } from "@/contexts/TenantContext";
 
 // Kick off silent background analytics AFTER first interaction (or 3.5s idle
 // fallback) so it never competes with the boot/render path on weak boxes.
@@ -72,31 +73,33 @@ const App = () => {
     'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)';
 
   return (
-    <TooltipProvider>
-      <div 
-        data-app-scroll-root
-        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
-        style={{ background: rootBackground }}
-      >
-        <div className="min-h-dvh bg-black/10">
-          <Toaster />
+    <TenantProvider>
+      <TooltipProvider>
+        <div 
+          data-app-scroll-root
+          className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
+          style={{ background: rootBackground }}
+        >
+          <div className="min-h-dvh bg-black/10">
+            <Toaster />
 
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/qr-login" element={<QRLogin />} />
-              <Route path="/sso" element={<SsoConsume />} />
-              <Route path="/admin/knowledge" element={<AdminKnowledge />} />
-              <Route path="/welcome" element={<Welcome />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/qr-login" element={<QRLogin />} />
+                <Route path="/sso" element={<SsoConsume />} />
+                <Route path="/admin/knowledge" element={<AdminKnowledge />} />
+                <Route path="/welcome" element={<Welcome />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </div>
         </div>
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </TenantProvider>
   );
 };
 
