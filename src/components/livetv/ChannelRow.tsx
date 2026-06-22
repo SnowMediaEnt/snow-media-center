@@ -21,10 +21,25 @@ const formatTime = (ms?: number) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate }: Props) => {
+const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, nowNext, onSelect, onActivate, onLongPress }: Props) => {
   const [iconError, setIconError] = useState(false);
   const [iconLoaded, setIconLoaded] = useState(false);
   const showIcon = channel.stream_icon && !iconError;
+
+  // Touch long-press → report. Mouse clicks still activate normally.
+  const lpTimerRef = useRef<number | null>(null);
+  const lpFiredRef = useRef(false);
+  const startLongPress = () => {
+    lpFiredRef.current = false;
+    if (lpTimerRef.current) window.clearTimeout(lpTimerRef.current);
+    lpTimerRef.current = window.setTimeout(() => {
+      lpFiredRef.current = true;
+      onLongPress?.(index);
+    }, 600) as unknown as number;
+  };
+  const cancelLongPress = () => {
+    if (lpTimerRef.current) { window.clearTimeout(lpTimerRef.current); lpTimerRef.current = null; }
+  };
 
   const now = nowNext?.now;
   const progress = (() => {
@@ -35,8 +50,13 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
   return (
     <div
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={() => onActivate(index)}
+      onClick={() => { if (!lpFiredRef.current) onActivate(index); }}
       onMouseEnter={() => onSelect(index)}
+      onTouchStart={() => { onSelect(index); startLongPress(); }}
+      onTouchEnd={cancelLongPress}
+      onTouchMove={cancelLongPress}
+      onTouchCancel={cancelLongPress}
+      onContextMenu={(e) => { e.preventDefault(); onLongPress?.(index); }}
       className={`
         flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer
         transition-transform duration-150 will-change-transform
@@ -48,6 +68,7 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
       <span className={`w-8 text-right font-quicksand font-bold tabular-nums text-sm ${isFocused ? 'text-brand-gold' : 'text-brand-ice/60'}`}>
         {channel.num ?? ''}
       </span>
+
 
       <div className="w-14 h-14 rounded-lg bg-black/40 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {showIcon ? (
