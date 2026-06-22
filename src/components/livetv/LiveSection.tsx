@@ -23,6 +23,8 @@ import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
+const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
 
 interface Props {
   creds: XtreamCreds;
