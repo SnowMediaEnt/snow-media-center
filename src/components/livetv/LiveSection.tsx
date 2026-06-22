@@ -116,13 +116,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const cancelEnterTimer = useCallback(() => {
     if (enterTimerRef.current) { window.clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
   }, []);
-  const openReportForFocused = useCallback(() => {
-    const ch = visibleChannelsRefHolder.current?.[channelIdxRefHolder.current];
-    if (ch) setReportFor(ch);
-  }, []);
-  // forward-refs filled below after the actual refs are declared
-  const visibleChannelsRefHolder = useRef<XtreamLiveStream[]>([]);
-  const channelIdxRefHolder = useRef(0);
+
 
 
   // --- Fullscreen control bar (TiviMate-style) ---
