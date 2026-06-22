@@ -900,8 +900,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
       </div>
+      {reportFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={reportFor.name}
+            channelId={reportFor.stream_id}
+            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
+          />
+        </Suspense>
+      )}
     </div>
   );
+
 });
 
 LiveSection.displayName = 'LiveSection';
