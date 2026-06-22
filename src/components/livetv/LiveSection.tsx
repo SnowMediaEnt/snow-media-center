@@ -106,6 +106,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const infoTimerRef = useRef<number | null>(null);
 
+  // "Report a problem" dialog — owns the keyboard while open.
+  const [reportFor, setReportFor] = useState<XtreamLiveStream | null>(null);
+  const reportForRef = useRef<XtreamLiveStream | null>(null);
+  useEffect(() => { reportForRef.current = reportFor; }, [reportFor]);
+  // D-pad long-press (hold OK ~600ms) on a focused channel → open report.
+  const enterTimerRef = useRef<number | null>(null);
+  const enterFiredRef = useRef(false);
+  const cancelEnterTimer = useCallback(() => {
+    if (enterTimerRef.current) { window.clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
+  }, []);
+  const openReportForFocused = useCallback(() => {
+    const ch = visibleChannelsRefHolder.current?.[channelIdxRefHolder.current];
+    if (ch) setReportFor(ch);
+  }, []);
+  // forward-refs filled below after the actual refs are declared
+  const visibleChannelsRefHolder = useRef<XtreamLiveStream[]>([]);
+  const channelIdxRefHolder = useRef(0);
+
+
   // --- Fullscreen control bar (TiviMate-style) ---
   const videoControllerRef = useRef<VideoController | null>(null);
   const [barVisible, setBarVisible] = useState(true);
