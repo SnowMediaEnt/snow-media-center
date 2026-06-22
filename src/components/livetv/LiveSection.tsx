@@ -23,6 +23,8 @@ import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
+const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
 
 interface Props {
   creds: XtreamCreds;
@@ -103,6 +105,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [fullscreen, setFullscreen] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const infoTimerRef = useRef<number | null>(null);
+
+  // "Report a problem" dialog — owns the keyboard while open.
+  const [reportFor, setReportFor] = useState<XtreamLiveStream | null>(null);
+  const reportForRef = useRef<XtreamLiveStream | null>(null);
+  useEffect(() => { reportForRef.current = reportFor; }, [reportFor]);
+  // D-pad long-press (hold OK ~600ms) on a focused channel → open report.
+  const enterTimerRef = useRef<number | null>(null);
+  const enterFiredRef = useRef(false);
+  const cancelEnterTimer = useCallback(() => {
+    if (enterTimerRef.current) { window.clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
+  }, []);
+
+
 
   // --- Fullscreen control bar (TiviMate-style) ---
   const videoControllerRef = useRef<VideoController | null>(null);
@@ -417,8 +432,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // Report dialog owns the keyboard while open.
+      if (reportForRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Remote "Menu" / context key — open report for the focused channel.
+      // Only when on the channels pane and not fullscreen/typing.
+      if (
+        !fullscreenRef.current &&
+        !typing &&
+        paneRef.current === 'channels' &&
+        (e.key === 'ContextMenu' || e.keyCode === 82)
+      ) {
+        const ch = visibleChannelsRef.current[channelIdxRef.current];
+        if (ch) {
+          e.preventDefault(); e.stopPropagation();
+          cancelEnterTimer();
+          enterFiredRef.current = true;
+          setReportFor(ch);
+          return;
+        }
+      }
+
 
       if (fullscreenRef.current) {
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
@@ -586,13 +622,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
-        const ch = chans[channelIdxRef.current];
-        if (ch) playChannel(ch);
+        // D-pad long-press detection. Short press = play; long press (~600ms) = report.
+        // Ignore key repeats so holding doesn't restart the timer or re-fire play.
+        if (e.repeat) return;
+        if (enterTimerRef.current || enterFiredRef.current) return;
+        enterFiredRef.current = false;
+        enterTimerRef.current = window.setTimeout(() => {
+          enterTimerRef.current = null;
+          enterFiredRef.current = true;
+          const c = visibleChannelsRef.current[channelIdxRef.current];
+          if (c) setReportFor(c);
+        }, 600) as unknown as number;
       }
     };
+    const keyupHandler = (e: KeyboardEvent) => {
+      if (reportForRef.current) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (paneRef.current !== 'channels' || fullscreenRef.current) {
+        cancelEnterTimer();
+        enterFiredRef.current = false;
+        return;
+      }
+      if (enterTimerRef.current) {
+        // Released before long-press threshold → treat as short press (play).
+        cancelEnterTimer();
+        const ch = visibleChannelsRef.current[channelIdxRef.current];
+        if (ch) playChannel(ch);
+      }
+      // If long-press already fired, just consume the keyup.
+      enterFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
+    window.addEventListener('keyup', keyupHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', keyupHandler, true);
+      cancelEnterTimer();
+    };
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer]);
+
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId
@@ -822,7 +890,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       nowNext={epgCacheRef.current.get(s.stream_id)}
                       onSelect={(idx) => { setChannelIdx(idx); setPane('channels'); }}
                       onActivate={(idx) => { setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
+                      onLongPress={(idx) => { setChannelIdx(idx); setReportFor(visibleChannels[idx]); }}
                     />
+
                   </div>
                 );
               })}
@@ -830,8 +900,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
       </div>
+      {reportFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={reportFor.name}
+            channelId={reportFor.stream_id}
+            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
+          />
+        </Suspense>
+      )}
     </div>
   );
+
 });
 
 LiveSection.displayName = 'LiveSection';

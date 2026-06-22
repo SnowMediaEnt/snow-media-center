@@ -520,6 +520,193 @@ export type Database = {
         }
         Relationships: []
       }
+      canvas_customer_notes: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          customer_id: string
+          flag: string | null
+          id: string
+          tenant_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          customer_id: string
+          flag?: string | null
+          id?: string
+          tenant_id: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          customer_id?: string
+          flag?: string | null
+          id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_customer_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canvas_customer_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_customers: {
+        Row: {
+          blocked: boolean
+          created_at: string
+          device_types: string[]
+          email: string | null
+          expiration_date: string | null
+          id: string
+          last_seen_at: string | null
+          server_label: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          blocked?: boolean
+          created_at?: string
+          device_types?: string[]
+          email?: string | null
+          expiration_date?: string | null
+          id?: string
+          last_seen_at?: string | null
+          server_label?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          blocked?: boolean
+          created_at?: string
+          device_types?: string[]
+          email?: string | null
+          expiration_date?: string | null
+          id?: string
+          last_seen_at?: string | null
+          server_label?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_support_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          sender_type: string
+          tenant_id: string
+          ticket_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          sender_type?: string
+          tenant_id: string
+          ticket_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          sender_type?: string
+          tenant_id?: string
+          ticket_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_support_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canvas_support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_support_tickets: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string
+          priority: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          priority?: string
+          status?: string
+          subject: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          priority?: string
+          status?: string
+          subject?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_support_tickets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chip_ledger: {
         Row: {
           change: number
@@ -1338,6 +1525,47 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_apps: {
+        Row: {
+          created_at: string
+          description: string | null
+          download_url: string
+          icon_url: string | null
+          id: string
+          sort: number
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          download_url: string
+          icon_url?: string | null
+          id?: string
+          sort?: number
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          download_url?: string
+          icon_url?: string | null
+          id?: string
+          sort?: number
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_apps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_branding: {
         Row: {
           accent_color: string | null
@@ -1414,15 +1642,85 @@ export type Database = {
           },
         ]
       }
+      tenant_members: {
+        Row: {
+          created_at: string
+          role: Database["public"]["Enums"]["tenant_member_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["tenant_member_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["tenant_member_role"]
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_news: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          message: string
+          sort: number
+          tenant_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          message: string
+          sort?: number
+          tenant_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          message?: string
+          sort?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_news_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_settings: {
         Row: {
           apps_source_url: string | null
           community_enabled: boolean
           content_bar_default: boolean
+          discord_guild_id: string | null
+          discord_webhook: string | null
+          player_name: string | null
+          player_url: string | null
           plex_autoconnect: boolean
           rss_url: string | null
+          sms_phone: string | null
           support_email: string | null
           support_videos_url: string | null
+          telegram_chat_id: string | null
           tenant_id: string
           website_url: string | null
         }
@@ -1430,10 +1728,16 @@ export type Database = {
           apps_source_url?: string | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          discord_guild_id?: string | null
+          discord_webhook?: string | null
+          player_name?: string | null
+          player_url?: string | null
           plex_autoconnect?: boolean
           rss_url?: string | null
+          sms_phone?: string | null
           support_email?: string | null
           support_videos_url?: string | null
+          telegram_chat_id?: string | null
           tenant_id: string
           website_url?: string | null
         }
@@ -1441,10 +1745,16 @@ export type Database = {
           apps_source_url?: string | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          discord_guild_id?: string | null
+          discord_webhook?: string | null
+          player_name?: string | null
+          player_url?: string | null
           plex_autoconnect?: boolean
           rss_url?: string | null
+          sms_phone?: string | null
           support_email?: string | null
           support_videos_url?: string | null
+          telegram_chat_id?: string | null
           tenant_id?: string
           website_url?: string | null
         }
@@ -1641,6 +1951,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_customer_coins: {
+        Args: { p_customer_id: string; p_delta: number; p_reason: string }
+        Returns: number
+      }
       ai_tokens_last_hour: { Args: never; Returns: number }
       analytics_active_users: {
         Args: { p_period?: string }
@@ -1672,10 +1986,15 @@ export type Database = {
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
+      create_canvas_ticket: {
+        Args: { p_code: string; p_message: string; p_subject: string }
+        Returns: string
+      }
       create_tenant: {
         Args: { p_code?: string; p_name: string }
         Returns: Json
       }
+      get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
       get_qr_session: {
         Args: { p_token: string }
         Returns: {
@@ -1695,7 +2014,9 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_master: { Args: never; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
+      is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
       update_user_credits: {
         Args: {
           p_amount: number
@@ -1706,12 +2027,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      upsert_my_canvas_customer: {
+        Args: {
+          p_code: string
+          p_devices?: string[]
+          p_expiration?: string
+          p_server?: string
+          p_username?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
       asset_type: "background" | "icon" | "logo" | "other"
       service_type: "dreamstreams" | "plex"
       subscription_status: "active" | "inactive" | "pending" | "cancelled"
+      tenant_member_role: "owner" | "reseller"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1843,6 +2175,7 @@ export const Constants = {
       asset_type: ["background", "icon", "logo", "other"],
       service_type: ["dreamstreams", "plex"],
       subscription_status: ["active", "inactive", "pending", "cancelled"],
+      tenant_member_role: ["owner", "reseller"],
     },
   },
 } as const
