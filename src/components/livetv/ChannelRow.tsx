@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { Tv, Star, Radio } from 'lucide-react';
 import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 
@@ -11,7 +11,9 @@ interface Props {
   nowNext?: EpgNowNext;
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
+  onLongPress?: (index: number) => void;
 }
+
 
 const formatTime = (ms?: number) => {
   if (!ms) return '';
