@@ -432,8 +432,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // Report dialog owns the keyboard while open.
+      if (reportForRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Remote "Menu" / context key — open report for the focused channel.
+      // Only when on the channels pane and not fullscreen/typing.
+      if (
+        !fullscreenRef.current &&
+        !typing &&
+        paneRef.current === 'channels' &&
+        (e.key === 'ContextMenu' || e.keyCode === 82)
+      ) {
+        const ch = visibleChannelsRef.current[channelIdxRef.current];
+        if (ch) {
+          e.preventDefault(); e.stopPropagation();
+          cancelEnterTimer();
+          enterFiredRef.current = true;
+          setReportFor(ch);
+          return;
+        }
+      }
+
 
       if (fullscreenRef.current) {
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
