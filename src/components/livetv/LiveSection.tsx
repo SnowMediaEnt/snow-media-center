@@ -622,13 +622,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
       else if (e.key === 'ArrowLeft') setPane('categories');
       else if (e.key === 'Enter' || e.key === ' ') {
-        const ch = chans[channelIdxRef.current];
-        if (ch) playChannel(ch);
+        // D-pad long-press detection. Short press = play; long press (~600ms) = report.
+        // Ignore key repeats so holding doesn't restart the timer or re-fire play.
+        if (e.repeat) return;
+        if (enterTimerRef.current || enterFiredRef.current) return;
+        enterFiredRef.current = false;
+        enterTimerRef.current = window.setTimeout(() => {
+          enterTimerRef.current = null;
+          enterFiredRef.current = true;
+          const c = visibleChannelsRef.current[channelIdxRef.current];
+          if (c) setReportFor(c);
+        }, 600) as unknown as number;
       }
     };
+    const keyupHandler = (e: KeyboardEvent) => {
+      if (reportForRef.current) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (paneRef.current !== 'channels' || fullscreenRef.current) {
+        cancelEnterTimer();
+        enterFiredRef.current = false;
+        return;
+      }
+      if (enterTimerRef.current) {
+        // Released before long-press threshold → treat as short press (play).
+        cancelEnterTimer();
+        const ch = visibleChannelsRef.current[channelIdxRef.current];
+        if (ch) playChannel(ch);
+      }
+      // If long-press already fired, just consume the keyup.
+      enterFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow]);
+    window.addEventListener('keyup', keyupHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', keyupHandler, true);
+      cancelEnterTimer();
+    };
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer]);
+
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId
