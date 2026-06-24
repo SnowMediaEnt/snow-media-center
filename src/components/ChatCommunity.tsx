@@ -1754,13 +1754,30 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         {/* AI Tab Content */}
         {activeTab === 'ai' && (
           <Card className="bg-gradient-to-br from-purple-900/30 to-slate-900 border-purple-700 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <h3 className="text-2xl font-bold text-white">Snow Media AI Assistant</h3>
-              {user && profile && (
-                <div className="text-purple-200 text-sm">
-                  Balance: {profile.credits.toFixed(2)} Snow Gems
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setVoiceRepliesEnabled(v => !v)}
+                  aria-pressed={voiceRepliesEnabled}
+                  aria-label={voiceRepliesEnabled ? 'Disable voice replies' : 'Enable voice replies'}
+                  title={voiceRepliesEnabled ? 'Voice replies: ON — tap to disable' : 'Voice replies: OFF — tap to enable'}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold border transition-colors ${
+                    voiceRepliesEnabled
+                      ? 'bg-brand-ice/15 border-brand-ice/40 text-brand-ice'
+                      : 'bg-slate-800 border-slate-600 text-slate-300'
+                  }`}
+                >
+                  {voiceRepliesEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  Voice {voiceRepliesEnabled ? 'ON' : 'OFF'}
+                </button>
+                {user && profile && (
+                  <div className="text-purple-200 text-sm">
+                    Balance: {profile.credits.toFixed(2)} Snow Gems
+                  </div>
+                )}
+              </div>
             </div>
             
             <p className="text-purple-200 mb-6">
@@ -1801,6 +1818,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       </span>
                     </div>
                     <p className="text-white whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'ai' && pendingTtsMessageIndex === index && (
+                      <button
+                        type="button"
+                        onClick={() => { void playPendingTts(); }}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-ice/20 border border-brand-ice/40 px-3 py-1.5 text-sm font-semibold text-brand-ice hover:bg-brand-ice/30 transition-colors"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                        Tap to hear reply
+                      </button>
+                    )}
                   </div>
                 ))
               )}
