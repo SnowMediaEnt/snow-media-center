@@ -411,7 +411,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
-  const { toast } = useToast();
+  // toast hoisted earlier (see useToast() near voiceRepliesEnabled).
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
