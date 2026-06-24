@@ -14,3 +14,16 @@ verify_jwt = false
 
 [functions.news-feed-proxy]
 verify_jwt = false
+
+# Free-AI Phase 1: anonymous device-gated requests must reach these functions.
+# Auth is still enforced IN CODE — the authed path validates the Bearer JWT,
+# and the anon path requires free_ai_enabled + a device_id + per-device caps.
+[functions.snow-media-ai]
+verify_jwt = false
+
+[functions.generate-hf-image]
+verify_jwt = false
+
+[functions.generate-ai-image]
+verify_jwt = false
+

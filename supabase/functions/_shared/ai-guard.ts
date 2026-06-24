@@ -127,3 +127,147 @@ export async function enforceThreshold(): Promise<boolean> {
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Free-AI (anonymous) helpers — Phase 1.
+// These are ADDITIVE; existing authed flows in the edge functions are
+// unchanged. The caller decides which branch to run via resolveCaller().
+// ---------------------------------------------------------------------------
+
+export type Caller =
+  | { authed: true; userId: string; userEmail: string | null; token: string }
+  | { authed: false; deviceId: string | null };
+
+/**
+ * Detect whether the request is signed in (valid Bearer JWT) or anonymous.
+ * For anonymous callers we read `device_id` from the JSON body so the edge
+ * function can enforce per-device caps via check_free_ai / record_free_ai.
+ *
+ * Returns the body alongside the caller so handlers don't have to re-read
+ * the request stream.
+ */
+export async function resolveCaller(
+  req: Request
+): Promise<{ caller: Caller; body: Record<string, unknown> }> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await req.json()) ?? {};
+  } catch {
+    body = {};
+  }
+
+  const authHeader = req.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.replace('Bearer ', '');
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        return {
+          caller: {
+            authed: true,
+            userId: data.user.id,
+            userEmail: data.user.email ?? null,
+            token,
+          },
+          body,
+        };
+      }
+    } catch (e) {
+      console.log('[ai-guard] resolveCaller getUser failed:', e);
+    }
+  }
+
+  const rawDeviceId = (body?.device_id ?? body?.deviceId ?? null) as
+    | string
+    | null;
+  const deviceId =
+    typeof rawDeviceId === 'string' && rawDeviceId.trim().length > 0
+      ? rawDeviceId.trim().slice(0, 128)
+      : null;
+
+  return { caller: { authed: false, deviceId }, body };
+}
+
+export interface FreeAllowed {
+  allowed: boolean;
+  reason: string;
+}
+
+/**
+ * Ask the DB whether this anonymous device is allowed to make a free AI call.
+ * Reason values: 'disabled' | 'paused' | 'total_cap' | 'device_cap' | 'rate_limited' | 'ok'.
+ */
+export async function freeAllowed(
+  deviceId: string | null,
+  feature: 'chat' | 'image',
+): Promise<FreeAllowed> {
+  if (!deviceId) return { allowed: false, reason: 'disabled' };
+  try {
+    const admin = getAdminClient();
+    const { data, error } = await admin.rpc('check_free_ai', {
+      p_device_id: deviceId,
+      p_feature: feature,
+    });
+    if (error) {
+      console.error('[ai-guard] check_free_ai error:', error);
+      return { allowed: false, reason: 'disabled' };
+    }
+    const row = (data ?? {}) as Partial<FreeAllowed>;
+    return {
+      allowed: !!row.allowed,
+      reason: typeof row.reason === 'string' ? row.reason : 'disabled',
+    };
+  } catch (e) {
+    console.error('[ai-guard] freeAllowed threw:', e);
+    return { allowed: false, reason: 'disabled' };
+  }
+}
+
+/**
+ * Record a successful anonymous AI call against the device + global ledger.
+ * Best-effort: failures are swallowed so they never break the user response.
+ */
+export async function recordFree(
+  deviceId: string | null,
+  feature: 'chat' | 'image',
+  costUsd: number,
+  images: number,
+): Promise<void> {
+  if (!deviceId) return;
+  try {
+    const admin = getAdminClient();
+    const { error } = await admin.rpc('record_free_ai', {
+      p_device_id: deviceId,
+      p_feature: feature,
+      p_cost_usd: costUsd ?? 0,
+      p_images: images ?? 0,
+    });
+    if (error) console.error('[ai-guard] record_free_ai error:', error);
+  } catch (e) {
+    console.error('[ai-guard] recordFree threw:', e);
+  }
+}
+
+// gpt-4o-mini pricing (USD per 1K tokens). Used to compute anon chat cost
+// from OpenAI's data.usage. Update if pricing changes.
+export const GPT_4O_MINI_INPUT_PER_1K = 0.00015;
+export const GPT_4O_MINI_OUTPUT_PER_1K = 0.0006;
+
+export function gpt4oMiniCostUsd(
+  promptTokens: number,
+  completionTokens: number,
+): number {
+  return (
+    (promptTokens / 1000) * GPT_4O_MINI_INPUT_PER_1K +
+    (completionTokens / 1000) * GPT_4O_MINI_OUTPUT_PER_1K
+  );
+}
+
+// Flat per-image USD cost used for anon image caps + ai_usage_log.
+export const ANON_IMAGE_COST_USD = 0.04;
+

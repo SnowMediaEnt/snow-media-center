@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
-import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts'
+import {
+  checkPause,
+  logUsage,
+  enforceThreshold,
+  isOwnerEmail,
+  resolveCaller,
+  freeAllowed,
+  recordFree,
+  ANON_IMAGE_COST_USD,
+} from '../_shared/ai-guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,46 +23,28 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication header exists
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: 'Please sign in to generate images.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+    const { caller, body } = await resolveCaller(req);
+
+    if (!caller.authed) {
+      if (!caller.deviceId) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized', details: 'Please sign in to generate images.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+      const gate = await freeAllowed(caller.deviceId, 'image');
+      if (!gate.allowed) {
+        return new Response(
+          JSON.stringify({ blocked: true, reason: gate.reason }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
-    // Create Supabase client with auth context
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    // Verify JWT using getUser (validates signature and returns user)
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      console.error('JWT verification failed:', userError?.message);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token. Please sign in again.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    const userId = user.id;
-    const userEmail = user.email;
-    
-    if (!userId) {
-      console.error('No user ID in verified claims');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: 'Invalid token format.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    console.log('Authenticated user:', userId, 'email:', userEmail);
+    const userId = caller.authed ? caller.userId : null;
+    const userEmail = caller.authed ? caller.userEmail : null;
+    const anonDeviceId = caller.authed ? null : caller.deviceId;
+    console.log('[generate-hf-image] caller:', caller.authed ? `user:${userId}` : `anon:${anonDeviceId}`);
 
     // Safety pause check (admins bypass)
     if (!isOwnerEmail(userEmail)) {
@@ -66,7 +57,7 @@ serve(async (req) => {
       }
     }
 
-    const { prompt } = await req.json()
+    const { prompt } = body as { prompt?: string };
 
     if (!prompt) {
       return new Response(
@@ -74,6 +65,7 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
+
 
     console.log(`Generating image with Lovable AI Gateway (Gemini), prompt:`, prompt)
 
@@ -162,19 +154,24 @@ serve(async (req) => {
     try {
       await logUsage({
         user_id: userId,
-        user_email: userEmail,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'image',
         model: usedModel,
         prompt,
         response_preview: imageUrl.slice(0, 200),
         total_tokens: 1500, // approximate per-image budget for threshold accounting
-        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.10 : ANON_IMAGE_COST_USD),
         status: 'ok',
       });
       await enforceThreshold();
     } catch (e) {
       console.error('[generate-hf-image] log/threshold failed:', e);
     }
+
+    if (!caller.authed) {
+      await recordFree(anonDeviceId, 'image', ANON_IMAGE_COST_USD, 1);
+    }
+
 
     return new Response(
       JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),

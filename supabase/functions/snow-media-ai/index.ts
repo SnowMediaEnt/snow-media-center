@@ -1,7 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts';
+import {
+  checkPause,
+  logUsage,
+  enforceThreshold,
+  isOwnerEmail,
+  resolveCaller,
+  freeAllowed,
+  recordFree,
+  gpt4oMiniCostUsd,
+} from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,40 +24,37 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Please sign in to use the AI assistant.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
+    // resolveCaller also parses the JSON body once so we don't re-read the stream.
+    const { caller, body } = await resolveCaller(req);
+
+    // Anonymous branch: gate via free_ai_enabled + per-device caps.
+    if (!caller.authed) {
+      if (!caller.deviceId) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized', message: 'Please sign in to use the AI assistant.' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      const gate = await freeAllowed(caller.deviceId, 'chat');
+      if (!gate.allowed) {
+        // 200 (not 401) so the client can branch on `blocked` and show
+        // "sign in or buy Snow Gems" instead of a hard error.
+        return new Response(
+          JSON.stringify({ blocked: true, reason: gate.reason }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    
-    // Create client with user's auth token
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
 
-    // Verify the JWT and get user
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
-    
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Invalid or expired session. Please sign in again.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const userId = caller.authed ? caller.userId : null;
+    const userEmail = caller.authed ? caller.userEmail : null;
+    const anonDeviceId = caller.authed ? null : caller.deviceId;
+    console.log('[snow-media-ai] caller:', caller.authed ? `user:${userId}` : `anon:${anonDeviceId}`);
 
-    const userId = user.id;
-    const userEmail = user.email ?? null;
-    console.log('Authenticated user:', userId);
-
-    // Safety pause check (admins bypass)
+    // Safety pause check (admins bypass). Applies to both authed and anon.
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
@@ -62,13 +68,22 @@ serve(async (req) => {
     const {
       message,
       conversationId: incomingConversationId,
-      saveConversation = false,
+      saveConversation: rawSaveConversation = false,
       currentVersion: clientCurrentVersion,
-    } = await req.json();
+    } = body as {
+      message?: string;
+      conversationId?: string;
+      saveConversation?: boolean;
+      currentVersion?: string;
+    };
+
+    // Never persist for anonymous callers (no user_id to scope to).
+    const saveConversation = caller.authed ? rawSaveConversation : false;
 
     if (!message) {
       throw new Error('Message is required');
     }
+
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
@@ -122,30 +137,34 @@ serve(async (req) => {
     }
 
     // ---- USER ACCOUNT CONTEXT (profile + subscriptions/services) ----
+    // Only available for signed-in callers; anon callers skip this entirely.
     let userContext = '';
-    try {
-      const [{ data: profile }, { data: subs }] = await Promise.all([
-        supabaseAdmin.from('profiles').select('username, full_name, email, credits, total_spent').eq('user_id', userId).maybeSingle(),
-        supabaseAdmin.from('user_subscriptions').select('plan_name, service_type, status, monthly_price, connection_count, next_billing_date').eq('user_id', userId),
-      ]);
-      const lines: string[] = [];
-      if (profile) {
-        lines.push(`User: ${profile.full_name || profile.username || profile.email || 'Unknown'} (${profile.email || 'no email'})`);
-        lines.push(`Credits: ${profile.credits ?? 0} | Total spent: $${profile.total_spent ?? 0}`);
-      }
-      if (subs && subs.length) {
-        lines.push('Subscriptions / Services:');
-        for (const s of subs) {
-          const expires = s.next_billing_date ? ` | next billing/expires: ${s.next_billing_date}` : '';
-          lines.push(`  - ${s.plan_name} (${s.service_type}) — status: ${s.status}, $${s.monthly_price}/mo, ${s.connection_count} connection(s)${expires}`);
+    if (userId) {
+      try {
+        const [{ data: profile }, { data: subs }] = await Promise.all([
+          supabaseAdmin.from('profiles').select('username, full_name, email, credits, total_spent').eq('user_id', userId).maybeSingle(),
+          supabaseAdmin.from('user_subscriptions').select('plan_name, service_type, status, monthly_price, connection_count, next_billing_date').eq('user_id', userId),
+        ]);
+        const lines: string[] = [];
+        if (profile) {
+          lines.push(`User: ${profile.full_name || profile.username || profile.email || 'Unknown'} (${profile.email || 'no email'})`);
+          lines.push(`Credits: ${profile.credits ?? 0} | Total spent: $${profile.total_spent ?? 0}`);
         }
-      } else {
-        lines.push('Subscriptions: none on file.');
+        if (subs && subs.length) {
+          lines.push('Subscriptions / Services:');
+          for (const s of subs) {
+            const expires = s.next_billing_date ? ` | next billing/expires: ${s.next_billing_date}` : '';
+            lines.push(`  - ${s.plan_name} (${s.service_type}) — status: ${s.status}, $${s.monthly_price}/mo, ${s.connection_count} connection(s)${expires}`);
+          }
+        } else {
+          lines.push('Subscriptions: none on file.');
+        }
+        userContext = lines.join('\n');
+      } catch (e) {
+        console.log('[user-context] failed:', e);
       }
-      userContext = lines.join('\n');
-    } catch (e) {
-      console.log('[user-context] failed:', e);
     }
+
 
     // ---- SMC APP UPDATE CHECK ----
     // Triggered if the user asks about updates / version, OR always lightly included so the AI can volunteer it.
@@ -453,25 +472,37 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       };
     }
 
-    // Log usage + enforce platform-wide token threshold
+    // Log usage + enforce platform-wide token threshold (kept for BOTH
+    // authed and anon callers so the auto-pause + observability still work).
+    const promptTokens = data.usage?.prompt_tokens ?? 0;
+    const completionTokens = data.usage?.completion_tokens ?? 0;
+    const totalTokens = data.usage?.total_tokens ?? 0;
+    const anonCostUsd = caller.authed ? 0 : gpt4oMiniCostUsd(promptTokens, completionTokens);
     try {
       await logUsage({
         user_id: userId,
-        user_email: userEmail,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
         model: 'gpt-4o-mini',
         prompt: message,
         response_preview: assistantContent,
-        prompt_tokens: data.usage?.prompt_tokens ?? 0,
-        completion_tokens: data.usage?.completion_tokens ?? 0,
-        total_tokens: data.usage?.total_tokens ?? 0,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.01,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.01 : anonCostUsd),
         status: 'ok',
       });
       await enforceThreshold();
     } catch (e) {
       console.error('[snow-media-ai] log/threshold failed:', e);
     }
+
+    // Anonymous ledger: record the call against device + global config.
+    if (!caller.authed) {
+      await recordFree(anonDeviceId, 'chat', anonCostUsd, 0);
+    }
+
+
 
 
     if (saveConversation && savedConversationId) {
