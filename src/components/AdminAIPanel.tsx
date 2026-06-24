@@ -4,8 +4,15 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Pause, Play, RefreshCw, Search } from 'lucide-react';
+import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
+import { AlertTriangle, Pause, Play, RefreshCw, Search, Sparkles, RotateCcw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface SafetyState {
