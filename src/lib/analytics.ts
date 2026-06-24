@@ -90,6 +90,16 @@ const getOrCreateDeviceId = (): string => {
   return id;
 };
 
+/**
+ * Returns the persisted per-device id, creating it on first use.
+ * Safe to call from any module — used to attribute anonymous AI usage.
+ */
+export const getDeviceId = (): string => {
+  if (deviceId) return deviceId;
+  deviceId = getOrCreateDeviceId();
+  return deviceId;
+};
+
 const flush = async () => {
   if (queue.length === 0) return;
   const batch = queue.splice(0, BATCH_SIZE);
