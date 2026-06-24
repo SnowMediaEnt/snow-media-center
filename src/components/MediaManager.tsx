@@ -48,6 +48,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     description: ''
   });
   const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
