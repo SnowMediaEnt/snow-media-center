@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, Pause, Play, RefreshCw, Search } from 'lucide-react';
 import FreeAISection from '@/components/FreeAISection';
+import { formatDistanceToNow } from 'date-fns';
 
 
 interface SafetyState {
