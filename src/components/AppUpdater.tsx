@@ -146,52 +146,46 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
 
   const downloadUpdate = async () => {
     if (!updateInfo) return;
-    
+
     setIsDownloading(true);
     setDownloadProgress(0);
-    
+
     try {
       if (isNativePlatform()) {
-        // Native: download via Capacitor Filesystem (bypasses CORS) with real progress.
-        const fileName = `snow_media_center_${updateInfo.version}.apk`;
-        const { downloadApkToCache } = await import('@/utils/downloadApk');
-        const { AppManager } = await import('@/capacitor/AppManager');
+        // Reuse the shared cache helper so a previously-downloaded APK for
+        // this versionCode installs instantly without re-downloading.
+        const { prepareSmcUpdate, installPreparedUpdate } = await import('@/utils/updateCache');
 
-        const filePath = await downloadApkToCache(
-          updateInfo.downloadUrl,
-          fileName,
-          (pct) => setDownloadProgress(pct)
+        await refreshInstalledVersion();
+        const prepared = await prepareSmcUpdate(
+          {
+            version: updateInfo.version,
+            versionCode: updateInfo.versionCode,
+            downloadUrl: updateInfo.downloadUrl,
+          },
+          (pct) => setDownloadProgress(pct),
         );
 
-        const installed = await refreshInstalledVersion();
-        const apkInfo = await AppManager.getApkInfo({ filePath });
-
-        if (apkInfo.packageName && installed.packageName && apkInfo.packageName !== installed.packageName) {
-          throw new Error(`Downloaded APK is for ${apkInfo.packageName}, not ${installed.packageName}`);
-        }
-
-        if (apkInfo.versionName && apkInfo.versionName !== updateInfo.version) {
-          console.warn(`[AppUpdater] APK reports v${apkInfo.versionName} but update.json lists v${updateInfo.version} — proceeding to installer anyway.`);
+        if (prepared.apkVersionName && prepared.apkVersionName !== updateInfo.version) {
+          console.warn(
+            `[AppUpdater] APK reports v${prepared.apkVersionName} but update.json lists v${updateInfo.version} — proceeding to installer anyway.`,
+          );
           toast({
             title: 'Version mismatch',
-            description: `Downloaded APK is v${apkInfo.versionName}. Opening installer…`,
+            description: `Downloaded APK is v${prepared.apkVersionName}. Opening installer…`,
           });
         }
 
-        if (apkInfo.versionCode && installed.versionCode && apkInfo.versionCode <= installed.versionCode) {
-          throw new Error(`Downloaded APK is not newer than installed v${installed.versionName || currentVersion}. Upload a build with a higher versionCode.`);
-        }
-
         toast({
-          title: "Update Downloaded",
-          description: `Opening Android installer for v${apkInfo.versionName || updateInfo.version}…`,
+          title: prepared.fromCache ? 'Using cached update' : 'Update Downloaded',
+          description: `Opening Android installer for v${prepared.apkVersionName || updateInfo.version}…`,
         });
 
-        await AppManager.installApk({ filePath });
+        await installPreparedUpdate(prepared);
 
         toast({
-          title: "Installer Opened",
-          description: "After Android finishes, reopen Snow Media Center to verify the new version.",
+          title: 'Installer Opened',
+          description: 'After Android finishes, reopen Snow Media Center to verify the new version.',
         });
       } else {
         // Web fallback - direct download
@@ -201,29 +195,30 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         toast({
-          title: "Download Started",
+          title: 'Download Started',
           description: `Version ${updateInfo.version} download initiated`,
         });
-        
+
         setCurrentVersion(updateInfo.version);
         setUpdateAvailable(false);
         setUpdateInfo(null);
       }
-      
+
     } catch (error) {
       console.error('Download failed:', error);
       toast({
-        title: "Download Failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
+        title: 'Download Failed',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
       });
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
     }
   };
+
 
   // TV remote navigation — only respond when one of OUR buttons is focused.
   // Otherwise we move the highlight in the background while the user is
