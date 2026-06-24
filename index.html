@@ -112,6 +112,34 @@
         stages.push('UA: ' + (navigator.userAgent || 'unknown'));
         render();
 
+        function isChunkLoadError(msg, file) {
+          if (!msg) return false;
+          var m = String(msg);
+          if (/Importing a module script failed/i.test(m)) return true;
+          if (/Failed to fetch dynamically imported module/i.test(m)) return true;
+          if (/error loading dynamically imported module/i.test(m)) return true;
+          if (/ChunkLoadError/i.test(m)) return true;
+          if (/Unable to preload CSS/i.test(m)) return true;
+          if (file && /\/assets\/.*\.(js|mjs|css)$/i.test(String(file)) && /Load failed|NetworkError|Failed to fetch/i.test(m)) return true;
+          return false;
+        }
+
+        function maybeReloadForStaleChunk(msg, file) {
+          try {
+            if (!isChunkLoadError(msg, file)) return;
+            var KEY = 'smc_chunk_reload_at';
+            var now = Date.now();
+            var last = 0;
+            try { last = parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0; } catch (_) {}
+            // Only auto-reload once per minute to avoid loops
+            if (now - last < 60000) return;
+            try { sessionStorage.setItem(KEY, String(now)); } catch (_) {}
+            // Cache-bust to force fresh index.html + asset manifest
+            var url = location.pathname + '?_r=' + now + (location.hash || '');
+            location.replace(url);
+          } catch (_) {}
+        }
+
         function errorHandler(event) {
           hasError = true;
           var msg = '';
@@ -132,6 +160,7 @@
           var loc = file + (line ? ':' + line : '') + (col ? ':' + col : '');
           stages.push('ERR: ' + msg + (loc ? ' @ ' + loc : ''));
           render();
+          maybeReloadForStaleChunk(msg, file);
         }
 
         window.addEventListener('error', errorHandler);
