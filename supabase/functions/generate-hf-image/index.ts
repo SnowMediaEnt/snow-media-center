@@ -154,19 +154,24 @@ serve(async (req) => {
     try {
       await logUsage({
         user_id: userId,
-        user_email: userEmail,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'image',
         model: usedModel,
         prompt,
         response_preview: imageUrl.slice(0, 200),
         total_tokens: 1500, // approximate per-image budget for threshold accounting
-        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.10 : ANON_IMAGE_COST_USD),
         status: 'ok',
       });
       await enforceThreshold();
     } catch (e) {
       console.error('[generate-hf-image] log/threshold failed:', e);
     }
+
+    if (!caller.authed) {
+      await recordFree(anonDeviceId, 'image', ANON_IMAGE_COST_USD, 1);
+    }
+
 
     return new Response(
       JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),
