@@ -480,3 +480,64 @@ html.nav-active .news-ticker-track {
     background-attachment: scroll !important;
   }
 }
+
+/* =========================================================================
+   LEGACY WEBVIEW FALLBACKS (Chrome <79, e.g. T95/X96 Android 9 WebView)
+   All selectors MUST be scoped under `html.legacy-webview`. Modern devices
+   never receive this class, so the modern path is byte-identical.
+   Fixes for: missing clamp()/min()/max(), missing flexbox gap, missing dvh.
+   ========================================================================= */
+html.legacy-webview,
+html.legacy-webview body,
+html.legacy-webview #root {
+  min-height: 100vh !important;
+  max-height: none !important;
+}
+
+/* App scroll root uses min-h-dvh/max-h-dvh — fall back to vh */
+html.legacy-webview [data-app-scroll-root] {
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+}
+
+/* Home cards: clamp() widths collapse to 0 on Chrome 66.
+   Give a usable proportional width + height and horizontal margins for spacing
+   (flex `gap` is unsupported on Chrome <84). */
+html.legacy-webview [data-home-card] {
+  width: 21vw !important;
+  min-width: 180px !important;
+  height: auto !important;
+  min-height: 18vh !important;
+  margin: 0 1.25% !important;
+  flex: 0 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Home cards inner typography (clamp font-sizes -> fixed rem fallbacks) */
+html.legacy-webview [data-home-card] h3 {
+  font-size: 1.25rem !important;
+}
+html.legacy-webview [data-home-card] p {
+  font-size: 0.95rem !important;
+}
+html.legacy-webview [data-home-card] svg,
+html.legacy-webview [data-home-card] img {
+  /* card icon area uses inline clamp() width */
+  max-width: 64px !important;
+}
+
+/* Big watermark title "SNOW MEDIA CENTER" + tagline */
+html.legacy-webview .home-watermark h1 {
+  font-size: 6rem !important;
+  line-height: 1 !important;
+}
+html.legacy-webview .home-watermark p {
+  font-size: 1.5rem !important;
+}
+
+/* Logo button top-left (uses clamp() for top/left/height) */
+html.legacy-webview [aria-label="Snow Media Entertainment"] {
+  top: 0.5rem !important;
+  left: 0.75rem !important;
+  height: 6rem !important;
+}
