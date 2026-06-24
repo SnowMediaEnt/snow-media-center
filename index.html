@@ -49,6 +49,15 @@
         };
       }
     </script>
+    <script>
+      // Legacy WebView detection — add `legacy-webview` only on Chrome <79-class
+      // WebViews that lack CSS clamp() support. Modern devices never get this class.
+      try {
+        if (!(window.CSS && window.CSS.supports && window.CSS.supports('width','clamp(1rem,2vw,3rem)'))) {
+          document.documentElement.className += ' legacy-webview';
+        }
+      } catch (e) {}
+    </script>
 
     <script>
       // BOOT HEARTBEAT diagnostic — silent on success; visible only on error or when debug flag is set.
