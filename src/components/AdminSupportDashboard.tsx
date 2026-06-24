@@ -23,7 +23,8 @@ import {
   User,
   Mail,
   Shield,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
 import { formatDistanceToNow } from 'date-fns';
@@ -43,7 +44,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts'>('tickets');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai'>('tickets');
 
   const {
     tickets,
@@ -347,15 +348,15 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
-        <div className="mb-6">
-          <FreeAISection />
-        </div>
-
-        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts')} className="w-full">
+        <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts' | 'ai')} className="w-full">
           <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
             <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               <MessageCircle className="h-4 w-4 mr-2" />
               Tickets {unreadCount > 0 && <Badge className="ml-2 bg-purple-500">{unreadCount}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Free AI
             </TabsTrigger>
             <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               <Users className="h-4 w-4 mr-2" />
@@ -460,6 +461,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
                 }}
               />
             </Card>
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <FreeAISection />
           </TabsContent>
 
           <TabsContent value="alerts">
