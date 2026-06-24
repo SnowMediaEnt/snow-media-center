@@ -415,6 +415,7 @@ const AdminAIPanel = () => {
 
   return (
     <div className="space-y-4">
+      <FreeAISection />
       <Card className="bg-slate-900/80 border-slate-700 p-4 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
