@@ -874,8 +874,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           )}
         </div>
 
-        {/* AI Chat History - purple section */}
-        <div className="mt-10">
+        {/* AI Chat History - purple section (saved history requires sign-in; anon users use the Support → AI tab for ephemeral chat) */}
+        {user && <div className="mt-10">
           <Card className="bg-purple-950/40 border-purple-700/50">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -894,15 +894,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={aiNewMessage}
                   onChange={(e) => setAiNewMessage(e.target.value)}
-                  placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
-                  disabled={!user}
+                  placeholder="Ask the AI anything..."
                   data-tv-focus-id="ai-new-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
-                  disabled={!user || !aiNewMessage.trim() || aiLoading}
+                  disabled={!aiNewMessage.trim() || aiLoading}
                   data-tv-focus-id="ai-new-send"
                   className="bg-purple-600 hover:bg-purple-700 "
                 >
@@ -948,7 +947,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               )}
             </CardContent>
           </Card>
-        </div>
+        </div>}
       </div>
 
       <Dialog open={accountPromptOpen} onOpenChange={setAccountPromptOpen}>
