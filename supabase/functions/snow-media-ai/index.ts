@@ -49,10 +49,6 @@ serve(async (req) => {
 
     const ipHash = await hashClientIp(req);
 
-    // Reservation state for anon path (so we can settle on success/failure)
-    let anonReserved = false;
-    let anonEstCostUsd = 0;
-
     // Anonymous branch: atomically reserve spend BEFORE any paid call.
     if (!caller.authed) {
       if (!caller.deviceId) {
@@ -79,7 +75,10 @@ serve(async (req) => {
         );
       }
       anonReserved = true;
+      anonDeviceIdForSettle = caller.deviceId;
+      anonIpHashForSettle = ipHash;
     }
+
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 
