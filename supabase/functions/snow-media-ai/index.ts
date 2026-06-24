@@ -378,20 +378,19 @@ APP CONTROL FUNCTIONS (call when relevant): navigate_to_section, find_support_vi
 
 All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
-        functions: [
+        model: 'gpt-5.4-nano',
+        instructions: systemPrompt,
+        input: message,
+        tools: [
           {
+            type: 'function',
             name: 'navigate_to_section',
             description: 'Navigate user to a specific section of the app',
             parameters: {
@@ -411,6 +410,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           },
           {
+            type: 'function',
             name: 'find_support_video',
             description: 'Navigate to support videos and search for specific videos',
             parameters: {
@@ -429,6 +429,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           },
           {
+            type: 'function',
             name: 'change_background',
             description: 'Help user change the app background or theme',
             parameters: {
@@ -444,6 +445,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           },
           {
+            type: 'function',
             name: 'open_store_section',
             description: 'Navigate to store and optionally search for specific items',
             parameters: {
@@ -463,6 +465,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           },
           {
+            type: 'function',
             name: 'show_credits_info',
             description: 'Show information about user credits and usage',
             parameters: {
@@ -478,6 +481,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           },
           {
+            type: 'function',
             name: 'help_with_installation',
             description: 'Guide user through app installation process',
             parameters: {
@@ -497,9 +501,9 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
             }
           }
         ],
-        function_call: 'auto',
-        temperature: 0.7,
-        max_tokens: 500
+        tool_choice: 'auto',
+        max_output_tokens: 2000,
+        reasoning: { effort: 'low' }
       }),
     });
 
@@ -512,30 +516,46 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
     const data = await response.json();
     console.log('AI Response for user', userId, ':', data.usage);
 
-    const aiMessage = data.choices[0].message;
-    const assistantContent = aiMessage.content || "I can help with that.";
-    let functionCall = null;
-
-    if (aiMessage.function_call) {
-      functionCall = {
-        name: aiMessage.function_call.name,
-        arguments: JSON.parse(aiMessage.function_call.arguments)
-      };
+    // ---- RESPONSES API PARSING ----
+    // data.output is an array. Assistant text lives in items where
+    // item.type === 'message' under item.content[] entries with c.type === 'output_text'.
+    // Function calls are top-level items with item.type === 'function_call'.
+    let assistantText = '';
+    let functionCall: { name: string; arguments: any } | null = null;
+    const outputItems: any[] = Array.isArray(data.output) ? data.output : [];
+    for (const item of outputItems) {
+      if (item?.type === 'message' && Array.isArray(item.content)) {
+        for (const c of item.content) {
+          if (c?.type === 'output_text' && typeof c.text === 'string') {
+            assistantText += c.text;
+          }
+        }
+      } else if (item?.type === 'function_call' && !functionCall) {
+        let parsedArgs: any = {};
+        try {
+          parsedArgs = item.arguments ? JSON.parse(item.arguments) : {};
+        } catch (e) {
+          console.error('[snow-media-ai] function_call arg parse failed:', e, item.arguments);
+        }
+        functionCall = { name: item.name, arguments: parsedArgs };
+      }
     }
+    const assistantContent = assistantText.trim() || (functionCall ? "I can help with that." : "I can help with that.");
 
     // Log usage + enforce platform-wide token threshold (kept for BOTH
     // authed and anon callers so the auto-pause + observability still work).
-    const promptTokens = data.usage?.prompt_tokens ?? 0;
-    const completionTokens = data.usage?.completion_tokens ?? 0;
-    const totalTokens = data.usage?.total_tokens ?? 0;
+    const promptTokens = data.usage?.input_tokens ?? 0;
+    const completionTokens = data.usage?.output_tokens ?? 0;
+    const totalTokens = data.usage?.total_tokens ?? (promptTokens + completionTokens);
     const anonCostUsd = caller.authed ? 0 : gpt54NanoCostUsd(promptTokens, completionTokens);
     try {
       await logUsage({
         user_id: userId,
         user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.4-nano',
         prompt: message,
+
         response_preview: assistantContent,
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,

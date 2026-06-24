@@ -338,10 +338,7 @@ export async function settleFree(params: {
   }
 }
 
-// gpt-4o-mini pricing (USD per 1K tokens). Used to compute anon chat cost
-// from OpenAI's data.usage. Update if pricing changes.
-// NOTE: gpt-5.4-nano swap was rolled back — gpt-5.4-nano with function tools
-// requires the OpenAI Responses API (/v1/responses), not /v1/chat/completions.
+// gpt-4o-mini pricing (USD per 1K tokens). Retained for any legacy callers.
 export const GPT_4O_MINI_INPUT_PER_1K = 0.00015;
 export const GPT_4O_MINI_OUTPUT_PER_1K = 0.0006;
 
@@ -355,20 +352,38 @@ export function gpt4oMiniCostUsd(
   );
 }
 
-/**
- * Conservative chat cost estimate for the RESERVE step, before we know the
- * real token count. Reconciled to actual after the call.
- */
 export function gpt4oMiniReserveEstimateUsd(inputChars: number): number {
   const estPromptTokens = Math.min(4000, Math.ceil((inputChars || 0) / 4) + 1500);
-  const estCompletionTokens = 500; // matches max_tokens in snow-media-ai
+  const estCompletionTokens = 500;
   return gpt4oMiniCostUsd(estPromptTokens, estCompletionTokens);
 }
 
-// Back-compat aliases for the gpt-5.4-nano rename (rolled back, kept so any
-// in-flight imports keep resolving).
-export const gpt54NanoCostUsd = gpt4oMiniCostUsd;
-export const gpt54NanoReserveEstimateUsd = gpt4oMiniReserveEstimateUsd;
+// gpt-5.4-nano pricing (USD per 1K tokens): $0.20/1M in, $1.25/1M out.
+// Used by snow-media-ai via the OpenAI Responses API. output_tokens already
+// includes reasoning tokens.
+export const GPT_5_4_NANO_INPUT_PER_1K = 0.0002;
+export const GPT_5_4_NANO_OUTPUT_PER_1K = 0.00125;
+
+export function gpt54NanoCostUsd(
+  promptTokens: number,
+  completionTokens: number,
+): number {
+  return (
+    (promptTokens / 1000) * GPT_5_4_NANO_INPUT_PER_1K +
+    (completionTokens / 1000) * GPT_5_4_NANO_OUTPUT_PER_1K
+  );
+}
+
+/**
+ * Conservative reserve for the gpt-5.4-nano chat call: ~800 completion tokens
+ * to cover reasoning + visible output under concurrency.
+ */
+export function gpt54NanoReserveEstimateUsd(inputChars: number): number {
+  const estPromptTokens = Math.min(4000, Math.ceil((inputChars || 0) / 4) + 1500);
+  const estCompletionTokens = 800;
+  return gpt54NanoCostUsd(estPromptTokens, estCompletionTokens);
+}
+
 
 // True worst-case DALL·E-3 HD price (USD per image, 1024x1024 only for anon).
 export const DALLE3_HD_1024_COST_USD = 0.12;

@@ -1,0 +1,1 @@
+UPDATE ai_free_config SET chat_spent_usd = GREATEST(0, chat_spent_usd - (SELECT COALESCE(SUM(chat_cost_usd),0) FROM ai_anon_usage WHERE device_id IN ('smoke-resp-1','smoke-resp-2'))); DELETE FROM ai_anon_usage WHERE device_id IN ('smoke-resp-1','smoke-resp-2');
