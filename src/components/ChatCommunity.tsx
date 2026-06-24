@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2, Volume2, VolumeX } from 'lucide-react';
 import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -61,6 +61,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
   const voiceControlsRef = useRef<VoiceLifecycleControls | null>(null);
+  // Buffered TTS audio that failed to autoplay (Fire TV activation lapse).
+  // Kept so the user can replay via a fresh gesture without re-fetching.
+  const ttsPendingBufferRef = useRef<AudioBuffer | null>(null);
+  const ttsPendingBytesRef = useRef<Uint8Array | null>(null);
+  const [pendingTtsMessageIndex, setPendingTtsMessageIndex] = useState<number | null>(null);
+  const [voiceRepliesEnabled, setVoiceRepliesEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try { return window.localStorage.getItem('snowmedia.voiceRepliesEnabled') !== 'off'; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('snowmedia.voiceRepliesEnabled', voiceRepliesEnabled ? 'on' : 'off');
+    } catch { /* localStorage unavailable */ }
+  }, [voiceRepliesEnabled]);
+
+  // Hoisted early so the speakReply/markPendingTts callbacks below can use it
+  // (the rest of the hook calls live further down, after the voice helpers).
+  const { toast } = useToast();
+
+
 
   const stopVoicePlayback = useCallback((closeAudioContext = false) => {
     ttsPlaybackIdRef.current += 1;
@@ -130,7 +151,92 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     });
   }, [embedded]);
 
-  const speakReply = useCallback(async (text: string) => {
+  // Mark a reply message as needing a manual tap to play (Fire TV activation
+  // lapse, autoplay-rejection, etc.). Buffers are kept on refs so the
+  // tap-to-hear button can play instantly without a refetch.
+  const markPendingTts = useCallback((messageIndex: number | null, reason: string) => {
+    setPendingTtsMessageIndex(messageIndex);
+    if (messageIndex !== null) {
+      toast({
+        title: "Couldn't play the voice reply",
+        description: 'Tap 🔊 on the message to hear it.',
+      });
+    }
+    console.warn('VOICE_TTS_PENDING_MANUAL_PLAY:', reason);
+  }, [toast]);
+
+  const playPendingTts = useCallback(async () => {
+    const buf = ttsPendingBufferRef.current;
+    const bytes = ttsPendingBytesRef.current;
+    if (!buf && !bytes) return;
+    const playbackId = ++ttsPlaybackIdRef.current;
+
+    let ctx = audioCtxRef.current;
+    if (!ctx) {
+      const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+      if (Ctx) {
+        ctx = new Ctx();
+        audioCtxRef.current = ctx;
+      }
+    }
+
+    if (ctx && buf) {
+      try { await ctx.resume(); } catch { /* may already be running */ }
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        ttsSourceRef.current = src;
+        src.onended = () => {
+          if (ttsSourceRef.current === src) ttsSourceRef.current = null;
+          console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio replay ended');
+        };
+        src.start(0);
+        setPendingTtsMessageIndex(null);
+        ttsPendingBufferRef.current = null;
+        ttsPendingBytesRef.current = null;
+        console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio replay');
+        return;
+      } catch (err) {
+        console.warn('[TTS] replay via Web Audio failed, trying HTMLAudio:', err);
+      }
+    }
+
+    // Last-resort HTMLAudioElement replay
+    if (bytes) {
+      try {
+        const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'audio/mpeg' }));
+        ttsObjectUrlRef.current = url;
+        let audio = ttsAudioRef.current;
+        if (!audio) {
+          audio = new Audio();
+          ttsAudioRef.current = audio;
+        }
+        if (playbackId !== ttsPlaybackIdRef.current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        audio.pause();
+        audio.src = url;
+        audio.volume = 1;
+        audio.currentTime = 0;
+        await audio.play();
+        setPendingTtsMessageIndex(null);
+        ttsPendingBufferRef.current = null;
+        ttsPendingBytesRef.current = null;
+        console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio replay');
+      } catch (err) {
+        console.error('VOICE_ERROR: replay failed', err);
+        toast({
+          title: 'Audio playback failed',
+          description: 'Your device blocked audio playback.',
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [toast]);
+
+  const speakReply = useCallback(async (text: string, messageIndex: number) => {
     stopVoicePlayback();
     voiceControlsRef.current?.cleanupAudio();
     voiceControlsRef.current?.setVoiceState('speaking');
@@ -147,6 +253,11 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         console.warn('VOICE_ERROR: TTS_NO_AUDIO/no audioContent returned/tts');
         voiceControlsRef.current?.setVoiceState('idle');
         restoreAiVoiceFocus();
+        toast({
+          title: "Voice reply unavailable",
+          description: 'The server returned no audio. Try again in a moment.',
+          variant: 'destructive',
+        });
         return;
       }
 
@@ -176,6 +287,24 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           // implementations detach the buffer after decoding.
           const buf = await ctx.decodeAudioData(bytes.buffer.slice(0));
           if (playbackId !== ttsPlaybackIdRef.current) return;
+
+          // Stash decoded buffer + mp3 bytes so a tap-to-hear fallback can
+          // replay instantly without re-fetching from the TTS server.
+          ttsPendingBufferRef.current = buf;
+          ttsPendingBytesRef.current = bytes;
+
+          // Fire-TV gotcha: after returning from the RecognizerIntent activity
+          // the AudioContext can resolve resume() yet still report 'suspended',
+          // and src.start() then silently plays nothing. Detect and offer a
+          // tap-to-hear button instead of failing quietly.
+          if (ctx.state !== 'running') {
+            console.warn('VOICE_TTS_CTX_SUSPENDED after resume — needs manual tap');
+            voiceControlsRef.current?.setVoiceState('idle');
+            restoreAiVoiceFocus();
+            markPendingTts(messageIndex, 'audio-context-suspended');
+            return;
+          }
+
           const src = ctx.createBufferSource();
           src.buffer = buf;
           src.connect(ctx.destination);
@@ -185,6 +314,9 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio ended');
             voiceControlsRef.current?.setVoiceState('idle');
             restoreAiVoiceFocus();
+            // Played successfully — clear any stashed buffer.
+            ttsPendingBufferRef.current = null;
+            ttsPendingBytesRef.current = null;
           };
           src.start(0);
           console.log('VOICE_AUDIO_PLAY_SUCCESS: web-audio', buf.duration.toFixed(1), 's');
@@ -216,16 +348,33 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio ended');
         voiceControlsRef.current?.setVoiceState('idle');
         restoreAiVoiceFocus();
+        ttsPendingBufferRef.current = null;
+        ttsPendingBytesRef.current = null;
       };
-      await audio.play();
-      console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio');
-      console.log('VOICE_TTS_END');
+      // Stash bytes before play(): if play() rejects (autoplay block) we keep
+      // them for the tap-to-hear retry.
+      ttsPendingBytesRef.current = bytes;
+      try {
+        await audio.play();
+        console.log('VOICE_AUDIO_PLAY_SUCCESS: html-audio');
+        console.log('VOICE_TTS_END');
+      } catch (playErr) {
+        console.warn('[TTS] HTMLAudio play() rejected — needs manual tap', playErr);
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
+        markPendingTts(messageIndex, 'html-audio-play-rejected');
+      }
     } catch (err) {
       console.error('VOICE_ERROR: TTS_PLAYBACK_FAILED/audio playback failed/tts', err);
       voiceControlsRef.current?.setVoiceState('idle');
       restoreAiVoiceFocus();
+      toast({
+        title: 'Voice reply failed',
+        description: err instanceof Error ? err.message : 'Could not generate voice reply.',
+        variant: 'destructive',
+      });
     }
-  }, [restoreAiVoiceFocus, stopVoicePlayback]);
+  }, [restoreAiVoiceFocus, stopVoicePlayback, toast, markPendingTts]);
 
   useEffect(() => {
     return () => stopVoicePlayback(true);
@@ -262,7 +411,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
-  const { toast } = useToast();
+  // toast hoisted earlier (see useToast() near voiceRepliesEnabled).
   const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
@@ -620,7 +769,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       if (voiceModeRef.current && responseText) {
         voiceModeRef.current = false;
-        await speakReply(responseText);
+        // Pass the index of the AI message that was just appended so a
+        // tap-to-hear fallback can attach the 🔊 button to the right row.
+        const replyIndex = (prevLen: number) => prevLen; // placeholder for readability
+        void replyIndex;
+        // We just appended one AI message, so its index is current length - 1.
+        // Use a setter trick to read aiChat length safely without an extra hook.
+        let _idx = 0;
+        setAiChat(prev => { _idx = prev.length - 1; return prev; });
+        if (!voiceRepliesEnabled) {
+          voiceControlsRef.current?.setVoiceState('idle');
+          voiceControlsRef.current?.restoreFocus();
+        } else {
+          await speakReply(responseText, _idx);
+        }
       } else if (voiceControlsRef.current) {
         voiceControlsRef.current.setVoiceState('idle');
         voiceControlsRef.current.restoreFocus();
@@ -1592,13 +1754,30 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         {/* AI Tab Content */}
         {activeTab === 'ai' && (
           <Card className="bg-gradient-to-br from-purple-900/30 to-slate-900 border-purple-700 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <h3 className="text-2xl font-bold text-white">Snow Media AI Assistant</h3>
-              {user && profile && (
-                <div className="text-purple-200 text-sm">
-                  Balance: {profile.credits.toFixed(2)} Snow Gems
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setVoiceRepliesEnabled(v => !v)}
+                  aria-pressed={voiceRepliesEnabled}
+                  aria-label={voiceRepliesEnabled ? 'Disable voice replies' : 'Enable voice replies'}
+                  title={voiceRepliesEnabled ? 'Voice replies: ON — tap to disable' : 'Voice replies: OFF — tap to enable'}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold border transition-colors ${
+                    voiceRepliesEnabled
+                      ? 'bg-brand-ice/15 border-brand-ice/40 text-brand-ice'
+                      : 'bg-slate-800 border-slate-600 text-slate-300'
+                  }`}
+                >
+                  {voiceRepliesEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  Voice {voiceRepliesEnabled ? 'ON' : 'OFF'}
+                </button>
+                {user && profile && (
+                  <div className="text-purple-200 text-sm">
+                    Balance: {profile.credits.toFixed(2)} Snow Gems
+                  </div>
+                )}
+              </div>
             </div>
             
             <p className="text-purple-200 mb-6">
@@ -1639,6 +1818,16 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                       </span>
                     </div>
                     <p className="text-white whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'ai' && pendingTtsMessageIndex === index && (
+                      <button
+                        type="button"
+                        onClick={() => { void playPendingTts(); }}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-ice/20 border border-brand-ice/40 px-3 py-1.5 text-sm font-semibold text-brand-ice hover:bg-brand-ice/30 transition-colors"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                        Tap to hear reply
+                      </button>
+                    )}
                   </div>
                 ))
               )}
