@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_anon_usage: {
+        Row: {
+          calls_this_hour: number
+          chat_calls: number
+          chat_cost_usd: number
+          device_id: string
+          first_used_at: string
+          hour_bucket: string | null
+          images_used: number
+          last_used_at: string
+          total_calls: number
+        }
+        Insert: {
+          calls_this_hour?: number
+          chat_calls?: number
+          chat_cost_usd?: number
+          device_id: string
+          first_used_at?: string
+          hour_bucket?: string | null
+          images_used?: number
+          last_used_at?: string
+          total_calls?: number
+        }
+        Update: {
+          calls_this_hour?: number
+          chat_calls?: number
+          chat_cost_usd?: number
+          device_id?: string
+          first_used_at?: string
+          hour_bucket?: string | null
+          images_used?: number
+          last_used_at?: string
+          total_calls?: number
+        }
+        Relationships: []
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -38,6 +74,42 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      ai_free_config: {
+        Row: {
+          chat_per_device_limit_usd: number
+          chat_spent_usd: number
+          chat_total_limit_usd: number
+          id: number
+          images_per_device_limit: number
+          images_total_limit: number
+          images_used: number
+          rate_limit_per_hour: number
+          updated_at: string
+        }
+        Insert: {
+          chat_per_device_limit_usd?: number
+          chat_spent_usd?: number
+          chat_total_limit_usd?: number
+          id?: number
+          images_per_device_limit?: number
+          images_total_limit?: number
+          images_used?: number
+          rate_limit_per_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          chat_per_device_limit_usd?: number
+          chat_spent_usd?: number
+          chat_total_limit_usd?: number
+          id?: number
+          images_per_device_limit?: number
+          images_total_limit?: number
+          images_used?: number
+          rate_limit_per_hour?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1985,6 +2057,10 @@ export type Database = {
         Returns: number
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
+      check_free_ai: {
+        Args: { p_device_id: string; p_feature: string }
+        Returns: Json
+      }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
       create_canvas_ticket: {
         Args: { p_code: string; p_message: string; p_subject: string }
@@ -2017,6 +2093,15 @@ export type Database = {
       is_master: { Args: never; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
+      record_free_ai: {
+        Args: {
+          p_cost_usd: number
+          p_device_id: string
+          p_feature: string
+          p_images: number
+        }
+        Returns: undefined
+      }
       update_user_credits: {
         Args: {
           p_amount: number
