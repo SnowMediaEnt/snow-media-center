@@ -347,6 +347,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </Select>
         </div>
 
+        <div className="mb-6">
+          <FreeAISection />
+        </div>
+
         <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts')} className="w-full">
           <TabsList className="bg-slate-800/60 border border-slate-700 mb-4">
             <TabsTrigger value="tickets" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
