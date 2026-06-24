@@ -12,6 +12,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getDeviceId } from '@/lib/analytics';
+import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 
 interface MediaManagerProps {
   onBack: () => void;
@@ -46,6 +48,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     description: ''
   });
   const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -446,20 +449,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       return;
     }
 
-    // Check for session first, then fall back to user state
+    // Anonymous users use the free AI tier (gated server-side).
+    // Signed-in users keep the existing credit-check behavior.
     const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (!currentSession?.user) {
-      toast({
-        title: "Login required",
-        description: "Please sign in to generate AI images.",
-        variant: "destructive",
-      });
-      return;
-    }
+    const anonMode = !currentSession?.user;
 
-    const imageCost = imageConfig.credits * 0.01; // Convert credits to dollars
+    const imageCost = imageConfig.credits * 0.01;
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
-    if (!isOwnerAdmin && !checkCredits(imageCost)) {
+    if (!anonMode && !isOwnerAdmin && !checkCredits(imageCost)) {
       toast({
         title: "Insufficient Snow Gems",
         description: `You need ${imageCost.toFixed(2)} Snow Gems to generate an image. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
@@ -470,22 +467,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     try {
       setGenerating(true);
-      
-      // No client-side prompt restrictions — pass user prompt straight through
+
       const enhancedPrompt = generatePrompt;
-      
-      // Get the user's session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('Please sign in to generate images');
-      }
 
       // Calculate optimal dimensions based on screen resolution (capped at 1536)
       const maxDim = 1536;
       const targetWidth = Math.min(screenInfo.width, maxDim);
       const targetHeight = Math.min(screenInfo.height, maxDim);
-      
-      // Ensure dimensions are multiples of 64 for best results
       const width = Math.round(targetWidth / 64) * 64;
       const height = Math.round(targetHeight / 64) * 64;
 
@@ -494,49 +482,65 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         description: "Please wait...",
       });
 
-      // Call our Hugging Face edge function with user's auth token and screen dimensions
+      // Authed path: send Bearer; anon path: let supabase client default to anon key.
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (currentSession?.access_token) {
+        headers['Authorization'] = `Bearer ${currentSession.access_token}`;
+      }
+
       const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers,
         body: JSON.stringify({
           prompt: enhancedPrompt,
           width,
-          height
+          height,
+          device_id: getDeviceId(),
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate image');
+      const result = await response.json().catch(() => ({}));
+
+      // Free-AI gate denied (anon only).
+      if (result?.blocked) {
+        setBlockedReason(result.reason ?? null);
+        return;
       }
 
-      const result = await response.json();
-      
-      if (!result.image) {
-        throw new Error(result.error || 'Generation failed');
+      if (!response.ok || !result?.image) {
+        throw new Error(result?.error || result?.details || 'Failed to generate image');
       }
 
-      // Re-verify session before upload (session may have changed during generation)
+      // Anonymous = ephemeral: don't write to media_assets. Open the image
+      // and nudge the user to sign in to save it.
+      if (anonMode) {
+        try {
+          const w = window.open();
+          if (w) {
+            w.document.write(`<title>Snow Media AI</title><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${result.image}" style="max-width:100%;max-height:100vh" alt="generated"/></body>`);
+          }
+        } catch { /* popup blocked — silent */ }
+        toast({
+          title: "Image ready!",
+          description: "Sign in to save your AI images to your library.",
+        });
+        setGeneratePrompt('');
+        return;
+      }
+
+      // Signed-in path: persist exactly as before.
       const { data: { session: uploadSession } } = await supabase.auth.getSession();
       if (!uploadSession?.user) {
         throw new Error('Session expired during generation. Please sign in and try again.');
       }
 
-      // Convert base64 to blob
       const base64Response = await fetch(result.image);
       const blob = await base64Response.blob();
-      
-      // Create file from blob
       const fileName = `ai-generated-${Date.now()}.jpg`;
       const file = new File([blob], fileName, { type: 'image/jpeg' });
 
-      // Upload the generated image
       await uploadAsset(file, 'background', uploadForm.section, `AI Generated: ${generatePrompt}`);
 
-      // Deduct credits after successful generation (admin gets free usage)
       if (result.isAdmin) {
         toast({
           title: "Image complete!",
@@ -557,7 +561,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           });
         }
       }
-      
+
       setGeneratePrompt('');
     } catch (error) {
       console.error('Generate image error:', error);
@@ -570,6 +574,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       setGenerating(false);
     }
   };
+
 
   const groupedAssets = assets.reduce((acc, asset) => {
     const key = `${asset.asset_type}-${asset.section}`;
@@ -633,7 +638,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 )}
               </div>
               {!isAuthenticated && (
-                <p className="text-sm text-purple-200 italic">Sign in to generate images</p>
+                <p className="text-sm text-purple-200 italic">Sign in to save your AI images.</p>
               )}
             </div>
             <div className="flex gap-4">
@@ -646,13 +651,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                   placeholder="e.g., A serene mountain landscape at sunset with purple sky"
                   className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={generating || !isAuthenticated}
+                  disabled={generating}
                 />
               </div>
               <div className="flex items-end">
                 <Button
                   onClick={handleGenerateImage}
-                  disabled={generating || !generatePrompt.trim() || !isAuthenticated || (profile && profile.credits < (imageConfig.credits * 0.01))}
+                  disabled={generating || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < (imageConfig.credits * 0.01))}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
                 >
@@ -783,6 +788,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         )}
       </div>
+      <FreeAiBlockedDialog
+        open={blockedReason !== null}
+        reason={blockedReason}
+        onSignIn={() => { setBlockedReason(null); window.location.href = '/auth'; }}
+        onBuyCredits={() => { setBlockedReason(null); onBack(); }}
+        onClose={() => setBlockedReason(null)}
+      />
     </div>
   );
 };

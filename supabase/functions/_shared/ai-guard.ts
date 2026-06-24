@@ -140,12 +140,38 @@ export type Caller =
   | { authed: false; authError: true };
 
 /**
- * Detect whether the request is signed in (valid Bearer JWT) or anonymous.
+ * Decode the `role` claim from a JWT payload without verifying the signature.
+ * Returns null if the token is malformed. We only use the claim to ROUTE the
+ * request (authed-validate vs anon-free); a real user token is always
+ * re-validated via `supabase.auth.getUser(token)` below.
+ */
+function decodeJwtRole(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const json = JSON.parse(atob(payload));
+    return typeof json?.role === 'string' ? json.role : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Detect whether the request is signed in (valid user Bearer JWT) or anonymous.
  *
- * Fails CLOSED on auth: if an Authorization: Bearer header IS present but
- * getUser fails or throws, return { authed: false, authError: true } so the
- * caller can reject the request with 401 — never silently downgrade a real
- * signed-in user (or the owner) to the anonymous free branch.
+ * Routing rules:
+ *   - No Authorization header                        → anonymous candidate.
+ *   - Bearer JWT with role === 'anon' (project key)  → anonymous candidate.
+ *   - Bearer JWT with role === 'authenticated':
+ *       - validates via getUser() → authed caller.
+ *       - validation fails/throws → 401 (fail closed; don't downgrade real users).
+ *   - Bearer with unknown/missing role               → anonymous candidate
+ *     (cannot impersonate a user; treat like a public/unknown key).
+ *
+ * Note: supabase-js ALWAYS sends a Bearer header — for logged-out users that
+ * token is the project anon key (role === 'anon'). We must NOT 401 that.
  */
 export async function resolveCaller(
   req: Request,
@@ -157,12 +183,27 @@ export async function resolveCaller(
     body = {};
   }
 
+  const rawDeviceId = (body?.device_id ?? body?.deviceId ?? null) as string | null;
+  const deviceId =
+    typeof rawDeviceId === 'string' && rawDeviceId.trim().length > 0
+      ? rawDeviceId.trim().slice(0, 128)
+      : null;
+
   const authHeader = req.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.replace('Bearer ', '').trim();
     if (!token) {
-      return { caller: { authed: false, authError: true }, body };
+      return { caller: { authed: false, deviceId }, body };
     }
+    const role = decodeJwtRole(token);
+
+    // Anon project key or unknown-role token → free branch, NOT 401.
+    if (role !== 'authenticated') {
+      return { caller: { authed: false, deviceId }, body };
+    }
+
+    // Real user token: validate. Fail closed on transient/expired so we
+    // never silently downgrade a signed-in user (losing credits/saves).
     try {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
@@ -181,7 +222,6 @@ export async function resolveCaller(
           body,
         };
       }
-      // Bearer present but invalid/expired/transient — fail closed.
       console.log('[ai-guard] resolveCaller getUser rejected:', error?.message);
       return { caller: { authed: false, authError: true }, body };
     } catch (e) {
@@ -190,15 +230,7 @@ export async function resolveCaller(
     }
   }
 
-  // No Authorization header at all → legitimately anonymous candidate.
-  const rawDeviceId = (body?.device_id ?? body?.deviceId ?? null) as
-    | string
-    | null;
-  const deviceId =
-    typeof rawDeviceId === 'string' && rawDeviceId.trim().length > 0
-      ? rawDeviceId.trim().slice(0, 128)
-      : null;
-
+  // No Authorization header at all → legitimately anonymous.
   return { caller: { authed: false, deviceId }, body };
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getDeviceId } from '@/lib/analytics';
 
 export interface AIConversation {
   id: string;
@@ -193,6 +194,7 @@ export const useAIConversations = () => {
           context: context,
           conversationId,
           currentVersion,
+          device_id: getDeviceId(),
         }
       });
 
