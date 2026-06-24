@@ -26,6 +26,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Hoisted so the outer catch can release an unsettled reservation.
+  let anonReserved = false;
+  let anonReservationSettled = false;
+  let anonEstCostUsd = 0;
+  let anonDeviceIdForSettle: string | null = null;
+  let anonIpHashForSettle: string | null = null;
+
   try {
     // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
     // resolveCaller parses the JSON body once so we don't re-read the stream.
