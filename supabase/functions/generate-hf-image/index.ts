@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import {
   checkPause,
   logUsage,
   enforceThreshold,
   isOwnerEmail,
   resolveCaller,
-  freeAllowed,
-  recordFree,
+  isAuthError,
+  hashClientIp,
+  reserveFree,
+  settleFree,
   ANON_IMAGE_COST_USD,
 } from '../_shared/ai-guard.ts'
 
@@ -17,13 +18,27 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
+  let anonReserved = false;
+  let anonSettled = false;
+  let anonDeviceIdForSettle: string | null = null;
+  let anonIpHashForSettle: string | null = null;
+  const ANON_EST_COST_USD = ANON_IMAGE_COST_USD;
+
   try {
     const { caller, body } = await resolveCaller(req);
+
+    if (isAuthError(caller)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Your session expired. Please sign in again.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 },
+      );
+    }
+
+    const ipHash = await hashClientIp(req);
 
     if (!caller.authed) {
       if (!caller.deviceId) {
@@ -32,13 +47,22 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
         );
       }
-      const gate = await freeAllowed(caller.deviceId, 'image');
+      const gate = await reserveFree({
+        deviceId: caller.deviceId,
+        ipHash,
+        feature: 'image',
+        estCostUsd: ANON_EST_COST_USD,
+        estImages: 1,
+      });
       if (!gate.allowed) {
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+      anonReserved = true;
+      anonDeviceIdForSettle = caller.deviceId;
+      anonIpHashForSettle = ipHash;
     }
 
     const userId = caller.authed ? caller.userId : null;
@@ -46,7 +70,6 @@ serve(async (req) => {
     const anonDeviceId = caller.authed ? null : caller.deviceId;
     console.log('[generate-hf-image] caller:', caller.authed ? `user:${userId}` : `anon:${anonDeviceId}`);
 
-    // Safety pause check (admins bypass)
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
@@ -66,7 +89,6 @@ serve(async (req) => {
       )
     }
 
-
     console.log(`Generating image with Lovable AI Gateway (Gemini), prompt:`, prompt)
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
@@ -74,11 +96,9 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not set')
     }
 
-    // Use Lovable AI Gateway for image generation, with automatic fallback
-    // between models so a single bad model day doesn't break the feature.
     const MODELS = [
       'google/gemini-2.5-flash-image',
-      'google/gemini-3.1-flash-image-preview', // nano banana 2 fallback
+      'google/gemini-3.1-flash-image-preview',
     ];
 
     let imageUrl: string | undefined;
@@ -105,7 +125,6 @@ serve(async (req) => {
         lastErrorStatus = response.status;
         lastErrorBody = await response.text();
         console.error(`[generate-hf-image] gateway error (${model}):`, response.status, lastErrorBody);
-        // 402/429 are global — bailing out early is correct.
         if (response.status === 429 || response.status === 402) break;
         continue;
       }
@@ -122,6 +141,20 @@ serve(async (req) => {
     }
 
     if (!imageUrl) {
+      // Release the anon reservation since no image was produced.
+      if (anonReserved && !anonSettled) {
+        await settleFree({
+          deviceId: anonDeviceIdForSettle,
+          ipHash: anonIpHashForSettle,
+          feature: 'image',
+          estCostUsd: ANON_EST_COST_USD,
+          estImages: 1,
+          actualCostUsd: 0,
+          actualImages: 0,
+          succeeded: false,
+        });
+        anonSettled = true;
+      }
       if (lastErrorStatus === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limited', details: 'Too many image requests. Please wait a moment and try again.' }),
@@ -159,7 +192,7 @@ serve(async (req) => {
         model: usedModel,
         prompt,
         response_preview: imageUrl.slice(0, 200),
-        total_tokens: 1500, // approximate per-image budget for threshold accounting
+        total_tokens: 1500,
         cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.10 : ANON_IMAGE_COST_USD),
         status: 'ok',
       });
@@ -168,10 +201,19 @@ serve(async (req) => {
       console.error('[generate-hf-image] log/threshold failed:', e);
     }
 
-    if (!caller.authed) {
-      await recordFree(anonDeviceId, 'image', ANON_IMAGE_COST_USD, 1);
+    if (!caller.authed && anonReserved) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'image',
+        estCostUsd: ANON_EST_COST_USD,
+        estImages: 1,
+        actualCostUsd: ANON_IMAGE_COST_USD,
+        actualImages: 1,
+        succeeded: true,
+      });
+      anonSettled = true;
     }
-
 
     return new Response(
       JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),
@@ -179,6 +221,18 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('Error in generate-hf-image function:', error)
+    if (anonReserved && !anonSettled) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'image',
+        estCostUsd: ANON_EST_COST_USD,
+        estImages: 1,
+        actualCostUsd: 0,
+        actualImages: 0,
+        succeeded: false,
+      });
+    }
     return new Response(
       JSON.stringify({ error: 'Failed to generate image', details: error instanceof Error ? error.message : String(error) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }

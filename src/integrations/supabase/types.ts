@@ -82,10 +82,18 @@ export type Database = {
           chat_per_device_limit_usd: number
           chat_spent_usd: number
           chat_total_limit_usd: number
+          global_calls_per_hour: number
+          global_calls_this_hour: number
+          global_hour_bucket: string | null
+          global_images_per_hour: number
+          global_images_this_hour: number
           id: number
           images_per_device_limit: number
           images_total_limit: number
           images_used: number
+          ip_calls_per_hour: number
+          ip_chat_per_hour_usd: number
+          ip_images_per_hour: number
           rate_limit_per_hour: number
           updated_at: string
         }
@@ -93,10 +101,18 @@ export type Database = {
           chat_per_device_limit_usd?: number
           chat_spent_usd?: number
           chat_total_limit_usd?: number
+          global_calls_per_hour?: number
+          global_calls_this_hour?: number
+          global_hour_bucket?: string | null
+          global_images_per_hour?: number
+          global_images_this_hour?: number
           id?: number
           images_per_device_limit?: number
           images_total_limit?: number
           images_used?: number
+          ip_calls_per_hour?: number
+          ip_chat_per_hour_usd?: number
+          ip_images_per_hour?: number
           rate_limit_per_hour?: number
           updated_at?: string
         }
@@ -104,10 +120,18 @@ export type Database = {
           chat_per_device_limit_usd?: number
           chat_spent_usd?: number
           chat_total_limit_usd?: number
+          global_calls_per_hour?: number
+          global_calls_this_hour?: number
+          global_hour_bucket?: string | null
+          global_images_per_hour?: number
+          global_images_this_hour?: number
           id?: number
           images_per_device_limit?: number
           images_total_limit?: number
           images_used?: number
+          ip_calls_per_hour?: number
+          ip_chat_per_hour_usd?: number
+          ip_images_per_hour?: number
           rate_limit_per_hour?: number
           updated_at?: string
         }
@@ -137,6 +161,36 @@ export type Database = {
           image_url?: string | null
           prompt?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      ai_ip_usage: {
+        Row: {
+          calls_this_hour: number
+          chat_cost_usd: number
+          first_seen_at: string
+          hour_bucket: string | null
+          images_this_hour: number
+          ip_hash: string
+          last_seen_at: string
+        }
+        Insert: {
+          calls_this_hour?: number
+          chat_cost_usd?: number
+          first_seen_at?: string
+          hour_bucket?: string | null
+          images_this_hour?: number
+          ip_hash: string
+          last_seen_at?: string
+        }
+        Update: {
+          calls_this_hour?: number
+          chat_cost_usd?: number
+          first_seen_at?: string
+          hour_bucket?: string | null
+          images_this_hour?: number
+          ip_hash?: string
+          last_seen_at?: string
         }
         Relationships: []
       }
@@ -2070,6 +2124,7 @@ export type Database = {
         Args: { p_code?: string; p_name: string }
         Returns: Json
       }
+      free_ai_available: { Args: never; Returns: Json }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
       get_qr_session: {
         Args: { p_token: string }
@@ -2099,6 +2154,29 @@ export type Database = {
           p_device_id: string
           p_feature: string
           p_images: number
+        }
+        Returns: undefined
+      }
+      reserve_free_ai: {
+        Args: {
+          p_device_id: string
+          p_est_cost: number
+          p_est_images: number
+          p_feature: string
+          p_ip_hash: string
+        }
+        Returns: Json
+      }
+      settle_free_ai: {
+        Args: {
+          p_actual_cost: number
+          p_actual_images: number
+          p_device_id: string
+          p_est_cost: number
+          p_est_images: number
+          p_feature: string
+          p_ip_hash: string
+          p_succeeded: boolean
         }
         Returns: undefined
       }

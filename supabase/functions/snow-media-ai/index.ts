@@ -7,9 +7,12 @@ import {
   enforceThreshold,
   isOwnerEmail,
   resolveCaller,
-  freeAllowed,
-  recordFree,
+  isAuthError,
+  hashClientIp,
+  reserveFree,
+  settleFree,
   gpt4oMiniCostUsd,
+  gpt4oMiniReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
@@ -23,12 +26,30 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Hoisted so the outer catch can release an unsettled reservation.
+  let anonReserved = false;
+  let anonReservationSettled = false;
+  let anonEstCostUsd = 0;
+  let anonDeviceIdForSettle: string | null = null;
+  let anonIpHashForSettle: string | null = null;
+
   try {
     // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
-    // resolveCaller also parses the JSON body once so we don't re-read the stream.
+    // resolveCaller parses the JSON body once so we don't re-read the stream.
     const { caller, body } = await resolveCaller(req);
 
-    // Anonymous branch: gate via free_ai_enabled + per-device caps.
+    // Fail closed: a Bearer header that didn't validate is a real signed-in
+    // user with a transient/expired token — never silently downgrade to free.
+    if (isAuthError(caller)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', message: 'Your session expired. Please sign in again.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const ipHash = await hashClientIp(req);
+
+    // Anonymous branch: atomically reserve spend BEFORE any paid call.
     if (!caller.authed) {
       if (!caller.deviceId) {
         return new Response(
@@ -36,16 +57,28 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
-      const gate = await freeAllowed(caller.deviceId, 'chat');
+      const bodyMessage = typeof (body as { message?: unknown }).message === 'string'
+        ? ((body as { message?: string }).message as string)
+        : '';
+      anonEstCostUsd = gpt4oMiniReserveEstimateUsd(bodyMessage.length);
+      const gate = await reserveFree({
+        deviceId: caller.deviceId,
+        ipHash,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+      });
       if (!gate.allowed) {
-        // 200 (not 401) so the client can branch on `blocked` and show
-        // "sign in or buy Snow Gems" instead of a hard error.
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+      anonReserved = true;
+      anonDeviceIdForSettle = caller.deviceId;
+      anonIpHashForSettle = ipHash;
     }
+
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 
@@ -497,13 +530,20 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       console.error('[snow-media-ai] log/threshold failed:', e);
     }
 
-    // Anonymous ledger: record the call against device + global config.
-    if (!caller.authed) {
-      await recordFree(anonDeviceId, 'chat', anonCostUsd, 0);
+    // Anonymous ledger: SETTLE the reservation to actual cost.
+    if (!caller.authed && anonReserved) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+        actualCostUsd: anonCostUsd,
+        actualImages: 0,
+        succeeded: true,
+      });
+      anonReservationSettled = true;
     }
-
-
-
 
     if (saveConversation && savedConversationId) {
       const { error: assistantMessageError } = await supabaseAdmin
@@ -534,6 +574,19 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
 
   } catch (error) {
     console.error('Error in snow-media-ai function:', error);
+    // Release the anon reservation if we hadn't settled it on success.
+    if (anonReserved && !anonReservationSettled) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+        actualCostUsd: 0,
+        actualImages: 0,
+        succeeded: false,
+      });
+    }
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : String(error),
       message: "I'm having trouble right now. Please try again in a moment."
