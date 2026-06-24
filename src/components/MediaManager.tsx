@@ -638,7 +638,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                 )}
               </div>
               {!isAuthenticated && (
-                <p className="text-sm text-purple-200 italic">Sign in to generate images</p>
+                <p className="text-sm text-purple-200 italic">Sign in to save your AI images.</p>
               )}
             </div>
             <div className="flex gap-4">
@@ -651,13 +651,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                   placeholder="e.g., A serene mountain landscape at sunset with purple sky"
                   className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={generating || !isAuthenticated}
+                  disabled={generating}
                 />
               </div>
               <div className="flex items-end">
                 <Button
                   onClick={handleGenerateImage}
-                  disabled={generating || !generatePrompt.trim() || !isAuthenticated || (profile && profile.credits < (imageConfig.credits * 0.01))}
+                  disabled={generating || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < (imageConfig.credits * 0.01))}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
                 >
