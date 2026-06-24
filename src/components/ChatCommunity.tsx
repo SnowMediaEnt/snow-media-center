@@ -231,16 +231,23 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     return () => stopVoicePlayback(true);
   }, [stopVoicePlayback]);
 
-  // Hardware voice-key support: Fire TV / Alexa mic, Android voice remote, Bixby, etc.
-  // These remotes typically dispatch keys 231 (CALL), 84 (SEARCH), 79 (HEADSETHOOK), or "MicrophoneToggle"/"AudioVolumeMute"
+  // Hardware voice-key support: Fire TV / Alexa mic, Android voice-assist remote, etc.
+  // IMPORTANT: only match unambiguous named keys + the dedicated VOICE_ASSIST keyCode (231).
+  // Previously this also matched keyCodes 84/79/220 — which collide with letters T, O and "\"
+  // on a normal keyboard, so typing those into the AI input was clicking the mic button,
+  // starting recording, and stealing focus back from the input.
   useEffect(() => {
     if (activeTab !== 'ai') return;
     const VOICE_KEYS = new Set([
-      'MicrophoneToggle', 'BrowserSearch', 'LaunchMail', 'MediaPlayPause',
+      'MicrophoneToggle', 'AudioVolumeMute',
     ]);
-    const VOICE_CODES = new Set([231, 84, 79, 220]); // CALL, SEARCH, HEADSETHOOK, MIC
     const handler = (e: KeyboardEvent) => {
-      const isVoiceKey = VOICE_KEYS.has(e.key) || VOICE_CODES.has(e.keyCode);
+      // Never hijack keystrokes while the user is typing into a text field.
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || active?.isContentEditable) return;
+
+      const isVoiceKey = VOICE_KEYS.has(e.key) || e.keyCode === 231; // 231 = KEYCODE_VOICE_ASSIST
       if (!isVoiceKey) return;
       const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
       if (btn) {
