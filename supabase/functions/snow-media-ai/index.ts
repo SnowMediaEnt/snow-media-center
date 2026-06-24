@@ -529,7 +529,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
     }
 
     const data = await response.json();
-    console.log('AI Response for user', userId, ':', data.usage);
+    console.log('AI Response for user', userId, ':', data.usage, 'model:', data.model, 'replyLang:', replyLanguage);
 
     // ---- RESPONSES API PARSING ----
     // data.output is an array. Assistant text lives in items where
