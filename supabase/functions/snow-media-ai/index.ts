@@ -322,13 +322,22 @@ serve(async (req) => {
       }
     }
 
+    // Server-side language detection — the model has shown bias toward Spanish
+    // even with strong prompt rules, so we deterministically force the reply language.
+    const detectReplyLanguage = (text: string): 'English' | 'Spanish' => {
+      const t = (text || '').toLowerCase();
+      if (/[ñ¿¡]/.test(t)) return 'Spanish';
+      if (/[áéíóúü]/.test(t)) return 'Spanish';
+      const esWords = /\b(hola|cómo|como|qué|que|cuál|cual|dónde|donde|gracias|por\s+favor|partido|fútbol|futbol|canal(es)?|ver|tengo|quiero|necesito|ayuda|noche|días|tardes|señor|señora|usted|estás|estoy|para|pero|también|tambien|porque|sí|si|no)\b/;
+      if (esWords.test(t)) return 'Spanish';
+      return 'English';
+    };
+    const replyLanguage = detectReplyLanguage(message);
+
     // System prompt with Snow Media context and app control functions
     const systemPrompt = `LANGUAGE RULE (HIGHEST PRIORITY — OVERRIDES EVERYTHING BELOW):
-Detect the language of the customer's latest user message and reply ONLY in that exact language. If their message is in English, reply 100% in English. If their message is in Spanish, reply 100% in Spanish. Default to English when in doubt. Do NOT translate, mix, or switch languages on your own. The knowledge base, examples, and any context below may be in English — that does NOT change what language you reply in; only the customer's message decides. Examples:
-- Customer: "What is Snow Media Center?" → reply in English.
-- Customer: "How do I fix buffering?" → reply in English.
-- Customer: "What channels do you have for NFL games?" → reply in English.
-- Customer: "Hola, ¿cómo veo los partidos?" → reply in Spanish.
+You MUST write your entire reply in ${replyLanguage}. Do NOT use any other language. Do NOT translate or mix languages. The knowledge base, examples, and any context below may be in English — that does NOT change what language you reply in. Your reply language for THIS turn is: ${replyLanguage}.
+
 
 You are Snow Media AI, the customer-support assistant inside the Snow Media Center (SMC) Android app. You help customers with Snow Media's streaming devices, IPTV services (DreamStreams, VibezTV), Plex, the SMC app, accessories, setup, and troubleshooting. Snow Media is a veteran-owned, family-run streaming company founded in 2016.
 
