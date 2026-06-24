@@ -1733,12 +1733,19 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             
             {!user && (
               <p className="text-purple-300 text-sm mt-4 text-center">
-                Please sign in to use Snow Media AI
+                Sign in to save your chats &amp; images.
               </p>
             )}
           </Card>
         )}
       </div>
+      <FreeAiBlockedDialog
+        open={blockedReason !== null}
+        reason={blockedReason}
+        onSignIn={() => { setBlockedReason(null); window.location.href = '/auth'; }}
+        onBuyCredits={() => { setBlockedReason(null); onNavigate?.('credits'); }}
+        onClose={() => setBlockedReason(null)}
+      />
     </div>
   );
 };
