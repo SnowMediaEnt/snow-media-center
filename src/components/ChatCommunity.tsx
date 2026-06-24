@@ -52,6 +52,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [activeAIConversationId, setActiveAIConversationId] = useState<string | null>(null);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const voiceModeRef = useRef(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const ttsSourceRef = useRef<AudioBufferSourceNode | null>(null);
