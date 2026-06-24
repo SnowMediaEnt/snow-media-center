@@ -30,6 +30,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import AdminUserManager from '@/components/AdminUserManager';
+import FreeAISection from '@/components/FreeAISection';
 import { AlertTriangle, Users } from 'lucide-react';
 
 interface AdminSupportDashboardProps {
@@ -344,6 +345,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="mb-6">
+          <FreeAISection />
         </div>
 
         <Tabs value={activeSection} onValueChange={(v) => setActiveSection(v as 'tickets' | 'users' | 'alerts')} className="w-full">
