@@ -27,46 +27,50 @@ const apkFileName = (version: string) => `snow_media_center_${version}.apk`;
 export async function findCachedSmcApk(info: SmcUpdateInfo): Promise<PreparedUpdate | null> {
   if (!isNativePlatform()) return null;
   const target = apkFileName(info.version);
+
+  // 1) Resolve a file URI for the target APK. Prefer Filesystem (that's where
+  //    downloadApkToCache writes); fall back to the native plugin listing.
+  let filePath: string | null = null;
   try {
-    const listing = await AppManager.listCachedApks();
-    const match = listing.files.find((f) => f.name === target);
-    if (!match) return null;
+    await Filesystem.stat({ directory: Directory.Cache, path: `apk/${target}` });
+    const uri = await Filesystem.getUri({
+      directory: Directory.Cache,
+      path: `apk/${target}`,
+    });
+    filePath = uri.uri;
+  } catch { /* not in Filesystem cache */ }
 
-    let filePath = match.path;
-    if (!filePath || !filePath.startsWith('file:') && !filePath.startsWith('content:')) {
-      try {
-        const uri = await Filesystem.getUri({
-          directory: Directory.Cache,
-          path: `apk/${target}`,
-        });
-        filePath = uri.uri;
-      } catch { /* keep raw path */ }
-    }
-
+  if (!filePath) {
     try {
-      const apkInfo = await AppManager.getApkInfo({ filePath });
-      // Only trust the cached APK if it actually advertises the right version.
-      const codeOk = info.versionCode
-        ? !!apkInfo.versionCode && apkInfo.versionCode === info.versionCode
-        : true;
-      const nameOk = apkInfo.versionName
-        ? apkInfo.versionName === info.version
-        : true;
-      if (!codeOk && !nameOk) return null;
-      return {
-        filePath,
-        apkVersionName: apkInfo.versionName,
-        apkVersionCode: apkInfo.versionCode,
-        apkPackageName: apkInfo.packageName,
-        fromCache: true,
-      };
-    } catch {
-      return null;
-    }
+      const listing = await AppManager.listCachedApks();
+      const match = listing.files.find((f) => f.name === target);
+      if (match?.path) filePath = match.path;
+    } catch { /* no plugin listing */ }
+  }
+
+  if (!filePath) return null;
+
+  try {
+    const apkInfo = await AppManager.getApkInfo({ filePath });
+    const codeOk = info.versionCode
+      ? !!apkInfo.versionCode && apkInfo.versionCode === info.versionCode
+      : true;
+    const nameOk = apkInfo.versionName
+      ? apkInfo.versionName === info.version
+      : true;
+    if (!codeOk && !nameOk) return null;
+    return {
+      filePath,
+      apkVersionName: apkInfo.versionName,
+      apkVersionCode: apkInfo.versionCode,
+      apkPackageName: apkInfo.packageName,
+      fromCache: true,
+    };
   } catch {
     return null;
   }
 }
+
 
 /**
  * Ensure the APK for `info` is available on local cache, downloading it if
