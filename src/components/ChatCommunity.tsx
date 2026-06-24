@@ -532,25 +532,21 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const sendAiMessage = async (messageOverride?: string) => {
     const messageToSend = typeof messageOverride === 'string' ? messageOverride : aiMessage;
     if (!messageToSend.trim()) return;
-    
-    if (!user) {
-      toast({
-        title: "Login required",
-        description: "Please sign in to use Snow Media AI.",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    const aiCost = 0.01;
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
-    if (!isOwnerAdmin && !checkCredits(aiCost)) {
-      toast({
-        title: "Insufficient Snow Gems",
-        description: `You need ${aiCost.toFixed(2)} Snow Gems. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
-        variant: "destructive",
-      });
-      return;
+
+    // Anonymous users use the free AI tier (gated server-side).
+    // Signed-in users keep the existing credit-check behavior.
+    if (user) {
+      const aiCost = 0.01;
+      if (!isOwnerAdmin && !checkCredits(aiCost)) {
+        toast({
+          title: "Insufficient Snow Gems",
+          description: `You need ${aiCost.toFixed(2)} Snow Gems. Your balance: ${profile?.credits?.toFixed(2) || '0.00'}`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const userMessage = messageToSend;
@@ -569,21 +565,43 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
         body: {
           message: userMessage,
-          userId: user.id,
-          conversationId: activeAIConversationId,
-          saveConversation: true,
+          userId: user?.id,
+          // Anon: don't persist; signed-in: persist conversations as before.
+          conversationId: user ? activeAIConversationId : null,
+          saveConversation: !!user,
           currentVersion,
+          device_id: getDeviceId(),
         }
       });
 
       if (error) throw error;
-      if (data.conversationId) {
+
+      // Free-AI gate denied (flag off / cap reached / rate-limited / paused).
+      if (data && (data as { blocked?: boolean }).blocked) {
+        const reason = (data as { reason?: string }).reason ?? null;
+        // Roll back the optimistic user message — nothing was sent.
+        setAiChat(prev => prev.slice(0, -1));
+        if (!user) {
+          setBlockedReason(reason);
+        } else {
+          toast({
+            title: "AI unavailable",
+            description: reason || "Snow Media AI is briefly unavailable. Please try again.",
+            variant: "destructive",
+          });
+        }
+        voiceControlsRef.current?.setVoiceState('idle');
+        voiceControlsRef.current?.restoreFocus();
+        return;
+      }
+
+      if (user && data?.conversationId) {
         setActiveAIConversationId(data.conversationId);
         await fetchAIConversations();
       }
 
-      if (!isOwnerAdmin) {
-        await deductCredits(aiCost, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
+      if (user && !isOwnerAdmin) {
+        await deductCredits(0.01, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
       }
 
       const responseText = data.response || data.message;
@@ -618,6 +636,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       setAiLoading(false);
     }
   };
+
 
   // Define all focusable elements by index
   // 0: back, 1: tab-admin, 2: tab-community, 3: tab-ai
