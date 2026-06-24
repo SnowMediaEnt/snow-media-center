@@ -77,6 +77,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     } catch { /* localStorage unavailable */ }
   }, [voiceRepliesEnabled]);
 
+  // Hoisted early so the speakReply/markPendingTts callbacks below can use it
+  // (the rest of the hook calls live further down, after the voice helpers).
+  const { toast } = useToast();
+
+
+
   const stopVoicePlayback = useCallback((closeAudioContext = false) => {
     ttsPlaybackIdRef.current += 1;
     voiceModeRef.current = false;
