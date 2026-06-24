@@ -147,19 +147,24 @@ serve(async (req) => {
     try {
       await logUsage({
         user_id: userId,
-        user_email: userEmail,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'image',
         model: 'dall-e-3',
         prompt,
         response_preview: '[image]',
         total_tokens: 2000,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.10,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.10 : ANON_IMAGE_COST_USD),
         status: 'ok',
       });
       await enforceThreshold();
     } catch (e) {
       console.error('[generate-ai-image] log/threshold failed:', e);
     }
+
+    if (!caller.authed) {
+      await recordFree(anonDeviceId, 'image', ANON_IMAGE_COST_USD, 1);
+    }
+
 
     return new Response(JSON.stringify({ 
       success: true, 
