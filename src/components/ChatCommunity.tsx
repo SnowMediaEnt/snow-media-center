@@ -199,7 +199,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     // Last-resort HTMLAudioElement replay
     if (bytes) {
       try {
-        const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+        const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'audio/mpeg' }));
         ttsObjectUrlRef.current = url;
         let audio = ttsAudioRef.current;
         if (!audio) {
@@ -763,7 +763,20 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
       if (voiceModeRef.current && responseText) {
         voiceModeRef.current = false;
-        await speakReply(responseText);
+        // Pass the index of the AI message that was just appended so a
+        // tap-to-hear fallback can attach the 🔊 button to the right row.
+        const replyIndex = (prevLen: number) => prevLen; // placeholder for readability
+        void replyIndex;
+        // We just appended one AI message, so its index is current length - 1.
+        // Use a setter trick to read aiChat length safely without an extra hook.
+        let _idx = 0;
+        setAiChat(prev => { _idx = prev.length - 1; return prev; });
+        if (!voiceRepliesEnabled) {
+          voiceControlsRef.current?.setVoiceState('idle');
+          voiceControlsRef.current?.restoreFocus();
+        } else {
+          await speakReply(responseText, _idx);
+        }
       } else if (voiceControlsRef.current) {
         voiceControlsRef.current.setVoiceState('idle');
         voiceControlsRef.current.restoreFocus();
