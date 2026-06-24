@@ -1,0 +1,1 @@
+UPDATE ai_free_config SET chat_per_device_limit_usd = 0.000001 WHERE id=1;
