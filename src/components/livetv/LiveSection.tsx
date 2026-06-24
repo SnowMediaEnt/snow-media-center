@@ -308,6 +308,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Virtualizer
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
+  const categoriesScrollRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: visibleChannels.length,
     getScrollElement: () => scrollParentRef.current,
@@ -324,8 +325,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (!visibleChannels.length) return;
     rowVirtualizer.scrollToIndex(channelIdx, { align: 'auto' });
+    // Safety fallback: after the virtualizer renders the row, ensure the
+    // focused DOM node is actually on-screen. Covers the case where
+    // scrollToIndex no-ops (parent height still settling on huge lists)
+    // which manifested as "can't scroll past the first screen".
+    const raf = requestAnimationFrame(() => {
+      const el = scrollParentRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
+
+  // Keep the focused category visible in the (non-virtualized) category pane.
+  // Without this, D-pad DOWN advances focus past the visible window but the
+  // scroll container never moves — Vibez exposes ~100 categories so the
+  // user sees focus "disappear" and thinks the list is stuck.
+  useEffect(() => {
+    const root = categoriesScrollRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [categoryIdx]);
 
   // EPG lazy fetch with concurrency cap
   const enqueueEpg = useCallback((id: number) => {
