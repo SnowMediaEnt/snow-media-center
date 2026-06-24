@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.3': [
+    'Free AI assistant is now open to everyone — no sign-in needed to chat or make images',
+    'Upgraded to a faster, smarter AI model',
+    'Voice replies are more reliable on Fire TV (new "tap to hear" option)',
+    'Fixed a glitch where typing in AI chat could trigger the mic / hide the keyboard',
+  ],
   '1.5.2': [
     'Your Account screen now shows your full subscription — expiration, connections, and your login details',
     'Improved the content-bar preview',
