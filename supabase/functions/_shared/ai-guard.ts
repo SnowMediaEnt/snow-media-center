@@ -338,41 +338,37 @@ export async function settleFree(params: {
   }
 }
 
-// gpt-5.4-nano pricing (USD per 1K tokens). Used to compute anon chat cost
-// from OpenAI's data.usage. completion_tokens for gpt-5.4-nano INCLUDES
-// reasoning tokens, which is correct for billing.
-// Source rates: INPUT $0.20 / 1M tokens, OUTPUT $1.25 / 1M tokens.
-export const GPT_5_4_NANO_INPUT_PER_1K = 0.0002;
-export const GPT_5_4_NANO_OUTPUT_PER_1K = 0.00125;
+// gpt-4o-mini pricing (USD per 1K tokens). Used to compute anon chat cost
+// from OpenAI's data.usage. Update if pricing changes.
+// NOTE: gpt-5.4-nano swap was rolled back — gpt-5.4-nano with function tools
+// requires the OpenAI Responses API (/v1/responses), not /v1/chat/completions.
+export const GPT_4O_MINI_INPUT_PER_1K = 0.00015;
+export const GPT_4O_MINI_OUTPUT_PER_1K = 0.0006;
 
-export function gpt54NanoCostUsd(
+export function gpt4oMiniCostUsd(
   promptTokens: number,
   completionTokens: number,
 ): number {
   return (
-    (promptTokens / 1000) * GPT_5_4_NANO_INPUT_PER_1K +
-    (completionTokens / 1000) * GPT_5_4_NANO_OUTPUT_PER_1K
+    (promptTokens / 1000) * GPT_4O_MINI_INPUT_PER_1K +
+    (completionTokens / 1000) * GPT_4O_MINI_OUTPUT_PER_1K
   );
 }
 
 /**
  * Conservative chat cost estimate for the RESERVE step, before we know the
- * real token count. Reconciled to actual after the call. Bumped for the
- * GPT-5 family because completion_tokens includes hidden reasoning tokens.
+ * real token count. Reconciled to actual after the call.
  */
-export function gpt54NanoReserveEstimateUsd(inputChars: number): number {
-  // ~4 chars/token rough heuristic; cap so a giant prompt can't single-handedly
-  // exhaust the per-device cap before we have actuals.
+export function gpt4oMiniReserveEstimateUsd(inputChars: number): number {
   const estPromptTokens = Math.min(4000, Math.ceil((inputChars || 0) / 4) + 1500);
-  // ~800 tokens of output (response + minimal reasoning) so concurrent anon
-  // calls can't under-reserve and slip past the $50 cap before settle.
-  const estCompletionTokens = 800;
-  return gpt54NanoCostUsd(estPromptTokens, estCompletionTokens);
+  const estCompletionTokens = 500; // matches max_tokens in snow-media-ai
+  return gpt4oMiniCostUsd(estPromptTokens, estCompletionTokens);
 }
 
-// Back-compat aliases so older imports keep working.
-export const gpt4oMiniCostUsd = gpt54NanoCostUsd;
-export const gpt4oMiniReserveEstimateUsd = gpt54NanoReserveEstimateUsd;
+// Back-compat aliases for the gpt-5.4-nano rename (rolled back, kept so any
+// in-flight imports keep resolving).
+export const gpt54NanoCostUsd = gpt4oMiniCostUsd;
+export const gpt54NanoReserveEstimateUsd = gpt4oMiniReserveEstimateUsd;
 
 // True worst-case DALL·E-3 HD price (USD per image, 1024x1024 only for anon).
 export const DALLE3_HD_1024_COST_USD = 0.12;
