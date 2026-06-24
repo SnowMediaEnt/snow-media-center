@@ -472,25 +472,37 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       };
     }
 
-    // Log usage + enforce platform-wide token threshold
+    // Log usage + enforce platform-wide token threshold (kept for BOTH
+    // authed and anon callers so the auto-pause + observability still work).
+    const promptTokens = data.usage?.prompt_tokens ?? 0;
+    const completionTokens = data.usage?.completion_tokens ?? 0;
+    const totalTokens = data.usage?.total_tokens ?? 0;
+    const anonCostUsd = caller.authed ? 0 : gpt4oMiniCostUsd(promptTokens, completionTokens);
     try {
       await logUsage({
         user_id: userId,
-        user_email: userEmail,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
         model: 'gpt-4o-mini',
         prompt: message,
         response_preview: assistantContent,
-        prompt_tokens: data.usage?.prompt_tokens ?? 0,
-        completion_tokens: data.usage?.completion_tokens ?? 0,
-        total_tokens: data.usage?.total_tokens ?? 0,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : 0.01,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.01 : anonCostUsd),
         status: 'ok',
       });
       await enforceThreshold();
     } catch (e) {
       console.error('[snow-media-ai] log/threshold failed:', e);
     }
+
+    // Anonymous ledger: record the call against device + global config.
+    if (!caller.authed) {
+      await recordFree(anonDeviceId, 'chat', anonCostUsd, 0);
+    }
+
+
 
 
     if (saveConversation && savedConversationId) {
