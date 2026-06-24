@@ -137,30 +137,34 @@ serve(async (req) => {
     }
 
     // ---- USER ACCOUNT CONTEXT (profile + subscriptions/services) ----
+    // Only available for signed-in callers; anon callers skip this entirely.
     let userContext = '';
-    try {
-      const [{ data: profile }, { data: subs }] = await Promise.all([
-        supabaseAdmin.from('profiles').select('username, full_name, email, credits, total_spent').eq('user_id', userId).maybeSingle(),
-        supabaseAdmin.from('user_subscriptions').select('plan_name, service_type, status, monthly_price, connection_count, next_billing_date').eq('user_id', userId),
-      ]);
-      const lines: string[] = [];
-      if (profile) {
-        lines.push(`User: ${profile.full_name || profile.username || profile.email || 'Unknown'} (${profile.email || 'no email'})`);
-        lines.push(`Credits: ${profile.credits ?? 0} | Total spent: $${profile.total_spent ?? 0}`);
-      }
-      if (subs && subs.length) {
-        lines.push('Subscriptions / Services:');
-        for (const s of subs) {
-          const expires = s.next_billing_date ? ` | next billing/expires: ${s.next_billing_date}` : '';
-          lines.push(`  - ${s.plan_name} (${s.service_type}) — status: ${s.status}, $${s.monthly_price}/mo, ${s.connection_count} connection(s)${expires}`);
+    if (userId) {
+      try {
+        const [{ data: profile }, { data: subs }] = await Promise.all([
+          supabaseAdmin.from('profiles').select('username, full_name, email, credits, total_spent').eq('user_id', userId).maybeSingle(),
+          supabaseAdmin.from('user_subscriptions').select('plan_name, service_type, status, monthly_price, connection_count, next_billing_date').eq('user_id', userId),
+        ]);
+        const lines: string[] = [];
+        if (profile) {
+          lines.push(`User: ${profile.full_name || profile.username || profile.email || 'Unknown'} (${profile.email || 'no email'})`);
+          lines.push(`Credits: ${profile.credits ?? 0} | Total spent: $${profile.total_spent ?? 0}`);
         }
-      } else {
-        lines.push('Subscriptions: none on file.');
+        if (subs && subs.length) {
+          lines.push('Subscriptions / Services:');
+          for (const s of subs) {
+            const expires = s.next_billing_date ? ` | next billing/expires: ${s.next_billing_date}` : '';
+            lines.push(`  - ${s.plan_name} (${s.service_type}) — status: ${s.status}, $${s.monthly_price}/mo, ${s.connection_count} connection(s)${expires}`);
+          }
+        } else {
+          lines.push('Subscriptions: none on file.');
+        }
+        userContext = lines.join('\n');
+      } catch (e) {
+        console.log('[user-context] failed:', e);
       }
-      userContext = lines.join('\n');
-    } catch (e) {
-      console.log('[user-context] failed:', e);
     }
+
 
     // ---- SMC APP UPDATE CHECK ----
     // Triggered if the user asks about updates / version, OR always lightly included so the AI can volunteer it.
