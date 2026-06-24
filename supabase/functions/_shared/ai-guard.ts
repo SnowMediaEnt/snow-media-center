@@ -129,25 +129,26 @@ export async function enforceThreshold(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Free-AI (anonymous) helpers — Phase 1.
+// Free-AI (anonymous) helpers — hardened.
 // These are ADDITIVE; existing authed flows in the edge functions are
 // unchanged. The caller decides which branch to run via resolveCaller().
 // ---------------------------------------------------------------------------
 
 export type Caller =
   | { authed: true; userId: string; userEmail: string | null; token: string }
-  | { authed: false; deviceId: string | null };
+  | { authed: false; deviceId: string | null }
+  | { authed: false; authError: true };
 
 /**
  * Detect whether the request is signed in (valid Bearer JWT) or anonymous.
- * For anonymous callers we read `device_id` from the JSON body so the edge
- * function can enforce per-device caps via check_free_ai / record_free_ai.
  *
- * Returns the body alongside the caller so handlers don't have to re-read
- * the request stream.
+ * Fails CLOSED on auth: if an Authorization: Bearer header IS present but
+ * getUser fails or throws, return { authed: false, authError: true } so the
+ * caller can reject the request with 401 — never silently downgrade a real
+ * signed-in user (or the owner) to the anonymous free branch.
  */
 export async function resolveCaller(
-  req: Request
+  req: Request,
 ): Promise<{ caller: Caller; body: Record<string, unknown> }> {
   let body: Record<string, unknown> = {};
   try {
@@ -158,7 +159,10 @@ export async function resolveCaller(
 
   const authHeader = req.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) {
+      return { caller: { authed: false, authError: true }, body };
+    }
     try {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
@@ -177,11 +181,16 @@ export async function resolveCaller(
           body,
         };
       }
+      // Bearer present but invalid/expired/transient — fail closed.
+      console.log('[ai-guard] resolveCaller getUser rejected:', error?.message);
+      return { caller: { authed: false, authError: true }, body };
     } catch (e) {
-      console.log('[ai-guard] resolveCaller getUser failed:', e);
+      console.log('[ai-guard] resolveCaller getUser threw:', e);
+      return { caller: { authed: false, authError: true }, body };
     }
   }
 
+  // No Authorization header at all → legitimately anonymous candidate.
   const rawDeviceId = (body?.device_id ?? body?.deviceId ?? null) as
     | string
     | null;
@@ -193,63 +202,107 @@ export async function resolveCaller(
   return { caller: { authed: false, deviceId }, body };
 }
 
-export interface FreeAllowed {
+export function isAuthError(caller: Caller): boolean {
+  return !caller.authed && (caller as { authError?: boolean }).authError === true;
+}
+
+/**
+ * Hash the client IP (first hop in x-forwarded-for, falling back to
+ * cf-connecting-ip / x-real-ip). Returns a hex SHA-256 string, or null
+ * if no IP could be determined.
+ */
+export async function hashClientIp(req: Request): Promise<string | null> {
+  const xff = req.headers.get('x-forwarded-for');
+  const cf = req.headers.get('cf-connecting-ip');
+  const real = req.headers.get('x-real-ip');
+  let ip: string | null = null;
+  if (xff) ip = xff.split(',')[0]?.trim() || null;
+  if (!ip && cf) ip = cf.trim();
+  if (!ip && real) ip = real.trim();
+  if (!ip) return null;
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
+export interface ReserveResult {
   allowed: boolean;
   reason: string;
 }
 
 /**
- * Ask the DB whether this anonymous device is allowed to make a free AI call.
- * Reason values: 'disabled' | 'paused' | 'total_cap' | 'device_cap' | 'rate_limited' | 'ok'.
+ * Atomically check ALL caps and reserve the spend BEFORE making the paid
+ * upstream call. The reservation is later reconciled with settleFree().
  */
-export async function freeAllowed(
-  deviceId: string | null,
-  feature: 'chat' | 'image',
-): Promise<FreeAllowed> {
-  if (!deviceId) return { allowed: false, reason: 'disabled' };
+export async function reserveFree(params: {
+  deviceId: string | null;
+  ipHash: string | null;
+  feature: 'chat' | 'image';
+  estCostUsd: number;
+  estImages: number;
+}): Promise<ReserveResult> {
+  if (!params.deviceId) return { allowed: false, reason: 'disabled' };
   try {
     const admin = getAdminClient();
-    const { data, error } = await admin.rpc('check_free_ai', {
-      p_device_id: deviceId,
-      p_feature: feature,
+    const { data, error } = await admin.rpc('reserve_free_ai', {
+      p_device_id: params.deviceId,
+      p_ip_hash: params.ipHash,
+      p_feature: params.feature,
+      p_est_cost: params.estCostUsd ?? 0,
+      p_est_images: params.estImages ?? 0,
     });
     if (error) {
-      console.error('[ai-guard] check_free_ai error:', error);
+      console.error('[ai-guard] reserve_free_ai error:', error);
       return { allowed: false, reason: 'disabled' };
     }
-    const row = (data ?? {}) as Partial<FreeAllowed>;
+    const row = (data ?? {}) as Partial<ReserveResult>;
     return {
       allowed: !!row.allowed,
       reason: typeof row.reason === 'string' ? row.reason : 'disabled',
     };
   } catch (e) {
-    console.error('[ai-guard] freeAllowed threw:', e);
+    console.error('[ai-guard] reserveFree threw:', e);
     return { allowed: false, reason: 'disabled' };
   }
 }
 
 /**
- * Record a successful anonymous AI call against the device + global ledger.
- * Best-effort: failures are swallowed so they never break the user response.
+ * Reconcile reservation to actual cost (or release entirely on failure).
+ * A settle failure is treated as accounting-critical: logged loudly.
  */
-export async function recordFree(
-  deviceId: string | null,
-  feature: 'chat' | 'image',
-  costUsd: number,
-  images: number,
-): Promise<void> {
-  if (!deviceId) return;
+export async function settleFree(params: {
+  deviceId: string | null;
+  ipHash: string | null;
+  feature: 'chat' | 'image';
+  estCostUsd: number;
+  estImages: number;
+  actualCostUsd: number;
+  actualImages: number;
+  succeeded: boolean;
+}): Promise<void> {
+  if (!params.deviceId) return;
   try {
     const admin = getAdminClient();
-    const { error } = await admin.rpc('record_free_ai', {
-      p_device_id: deviceId,
-      p_feature: feature,
-      p_cost_usd: costUsd ?? 0,
-      p_images: images ?? 0,
+    const { error } = await admin.rpc('settle_free_ai', {
+      p_device_id: params.deviceId,
+      p_ip_hash: params.ipHash,
+      p_feature: params.feature,
+      p_est_cost: params.estCostUsd ?? 0,
+      p_est_images: params.estImages ?? 0,
+      p_actual_cost: params.actualCostUsd ?? 0,
+      p_actual_images: params.actualImages ?? 0,
+      p_succeeded: !!params.succeeded,
     });
-    if (error) console.error('[ai-guard] record_free_ai error:', error);
+    if (error) {
+      console.error('[ai-guard][ACCOUNTING] settle_free_ai error:', error, params);
+    }
   } catch (e) {
-    console.error('[ai-guard] recordFree threw:', e);
+    console.error('[ai-guard][ACCOUNTING] settleFree threw:', e, params);
   }
 }
 
@@ -268,6 +321,21 @@ export function gpt4oMiniCostUsd(
   );
 }
 
-// Flat per-image USD cost used for anon image caps + ai_usage_log.
+/**
+ * Conservative chat cost estimate for the RESERVE step, before we know the
+ * real token count. Reconciled to actual after the call.
+ */
+export function gpt4oMiniReserveEstimateUsd(inputChars: number): number {
+  // ~4 chars/token rough heuristic; cap so a giant prompt can't single-handedly
+  // exhaust the per-device cap before we have actuals.
+  const estPromptTokens = Math.min(4000, Math.ceil((inputChars || 0) / 4) + 1500);
+  const estCompletionTokens = 500; // matches max_tokens in snow-media-ai
+  return gpt4oMiniCostUsd(estPromptTokens, estCompletionTokens);
+}
+
+// True worst-case DALL·E-3 HD price (USD per image, 1024x1024 only for anon).
+export const DALLE3_HD_1024_COST_USD = 0.12;
+
+// Gemini image (Lovable AI Gateway) — flat anon accounting cost.
 export const ANON_IMAGE_COST_USD = 0.04;
 
