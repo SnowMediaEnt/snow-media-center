@@ -788,6 +788,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         )}
       </div>
+      <FreeAiBlockedDialog
+        open={blockedReason !== null}
+        reason={blockedReason}
+        onSignIn={() => { setBlockedReason(null); window.location.href = '/auth'; }}
+        onBuyCredits={() => { setBlockedReason(null); onBack(); }}
+        onClose={() => setBlockedReason(null)}
+      />
     </div>
   );
 };
