@@ -874,8 +874,8 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
           )}
         </div>
 
-        {/* AI Chat History - purple section */}
-        <div className="mt-10">
+        {/* AI Chat History - purple section (saved history requires sign-in; anon users use the Support → AI tab for ephemeral chat) */}
+        {user && <div className="mt-10">
           <Card className="bg-purple-950/40 border-purple-700/50">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -947,7 +947,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               )}
             </CardContent>
           </Card>
-        </div>
+        </div>}
       </div>
 
       <Dialog open={accountPromptOpen} onOpenChange={setAccountPromptOpen}>
