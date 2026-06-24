@@ -773,6 +773,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               return (
                 <div
                   key={c.id}
+                  data-cat-idx={i}
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => {
                     userMovedRef.current = true;
