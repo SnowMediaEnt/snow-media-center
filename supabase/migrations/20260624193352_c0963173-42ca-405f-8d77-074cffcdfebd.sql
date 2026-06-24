@@ -1,0 +1,1 @@
+UPDATE public.feature_flags SET enabled = true WHERE key='free_ai_enabled';
