@@ -194,6 +194,7 @@ export const useAIConversations = () => {
           context: context,
           conversationId,
           currentVersion,
+          device_id: getDeviceId(),
         }
       });
 
