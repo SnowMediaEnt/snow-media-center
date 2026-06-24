@@ -8,8 +8,8 @@ android {
         applicationId "app.lovable.f44324110df840aea0a1fb97cafa76e7"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "1.5.2"
+        versionCode 12
+        versionName "1.5.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         

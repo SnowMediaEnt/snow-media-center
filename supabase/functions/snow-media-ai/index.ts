@@ -11,8 +11,8 @@ import {
   hashClientIp,
   reserveFree,
   settleFree,
-  gpt4oMiniCostUsd,
-  gpt4oMiniReserveEstimateUsd,
+  gpt54NanoCostUsd,
+  gpt54NanoReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
@@ -60,7 +60,7 @@ serve(async (req) => {
       const bodyMessage = typeof (body as { message?: unknown }).message === 'string'
         ? ((body as { message?: string }).message as string)
         : '';
-      anonEstCostUsd = gpt4oMiniReserveEstimateUsd(bodyMessage.length);
+      anonEstCostUsd = gpt54NanoReserveEstimateUsd(bodyMessage.length);
       const gate = await reserveFree({
         deviceId: caller.deviceId,
         ipHash,
@@ -367,7 +367,7 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.4-nano',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -480,8 +480,8 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
           }
         ],
         function_call: 'auto',
-        temperature: 0.7,
-        max_tokens: 500
+        max_completion_tokens: 500,
+        reasoning_effort: 'minimal'
       }),
     });
 
@@ -510,13 +510,13 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
     const promptTokens = data.usage?.prompt_tokens ?? 0;
     const completionTokens = data.usage?.completion_tokens ?? 0;
     const totalTokens = data.usage?.total_tokens ?? 0;
-    const anonCostUsd = caller.authed ? 0 : gpt4oMiniCostUsd(promptTokens, completionTokens);
+    const anonCostUsd = caller.authed ? 0 : gpt54NanoCostUsd(promptTokens, completionTokens);
     try {
       await logUsage({
         user_id: userId,
         user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.4-nano',
         prompt: message,
         response_preview: assistantContent,
         prompt_tokens: promptTokens,
