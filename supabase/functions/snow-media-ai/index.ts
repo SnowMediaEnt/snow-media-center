@@ -367,7 +367,7 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-nano',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -480,8 +480,8 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
           }
         ],
         function_call: 'auto',
-        max_completion_tokens: 2000,
-        reasoning_effort: 'low'
+        temperature: 0.7,
+        max_tokens: 500
       }),
     });
 
@@ -516,7 +516,7 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
         user_id: userId,
         user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
-        model: 'gpt-5.4-nano',
+        model: 'gpt-4o-mini',
         prompt: message,
         response_preview: assistantContent,
         prompt_tokens: promptTokens,
