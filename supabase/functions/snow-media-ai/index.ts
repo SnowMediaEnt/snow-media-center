@@ -7,9 +7,12 @@ import {
   enforceThreshold,
   isOwnerEmail,
   resolveCaller,
-  freeAllowed,
-  recordFree,
+  isAuthError,
+  hashClientIp,
+  reserveFree,
+  settleFree,
   gpt4oMiniCostUsd,
+  gpt4oMiniReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
