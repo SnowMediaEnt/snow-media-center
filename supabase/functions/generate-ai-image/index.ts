@@ -1,7 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts';
+import {
+  checkPause,
+  logUsage,
+  enforceThreshold,
+  isOwnerEmail,
+  resolveCaller,
+  freeAllowed,
+  recordFree,
+  ANON_IMAGE_COST_USD,
+} from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,34 +24,28 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate user
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+    const { caller, body } = await resolveCaller(req);
+
+    if (!caller.authed) {
+      if (!caller.deviceId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const gate = await freeAllowed(caller.deviceId, 'image');
+      if (!gate.allowed) {
+        return new Response(
+          JSON.stringify({ blocked: true, reason: gate.reason }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(JSON.stringify({ error: 'Invalid token' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
-    const userId = user.id;
-    const userEmail = user.email ?? null;
-    console.log('Authenticated user:', userId);
+    const userId = caller.authed ? caller.userId : null;
+    const userEmail = caller.authed ? caller.userEmail : null;
+    const anonDeviceId = caller.authed ? null : caller.deviceId;
+    console.log('[generate-ai-image] caller:', caller.authed ? `user:${userId}` : `anon:${anonDeviceId}`);
 
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
@@ -54,11 +57,12 @@ serve(async (req) => {
       }
     }
 
-    const { prompt, size = '1024x1024' } = await req.json();
+    const { prompt, size = '1024x1024' } = body as { prompt?: string; size?: string };
 
     if (!prompt) {
       throw new Error('Prompt is required');
     }
+
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
