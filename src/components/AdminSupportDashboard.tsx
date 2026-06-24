@@ -463,6 +463,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="ai">
+            <FreeAISection />
+          </TabsContent>
+
           <TabsContent value="alerts">
             <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
               <AppAlertsManager />
