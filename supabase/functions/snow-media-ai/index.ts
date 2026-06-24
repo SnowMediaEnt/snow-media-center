@@ -480,8 +480,8 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
           }
         ],
         function_call: 'auto',
-        max_completion_tokens: 500,
-        reasoning_effort: 'minimal'
+        max_completion_tokens: 2000,
+        reasoning_effort: 'low'
       }),
     });
 
