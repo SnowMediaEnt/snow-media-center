@@ -894,15 +894,14 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 <Input
                   value={aiNewMessage}
                   onChange={(e) => setAiNewMessage(e.target.value)}
-                  placeholder={user ? "Ask the AI anything..." : "Sign in to chat with AI"}
-                  disabled={!user}
+                  placeholder="Ask the AI anything..."
                   data-tv-focus-id="ai-new-input"
                   className="bg-slate-700 border-purple-600/50 text-white "
                   onKeyPress={(e) => e.key === 'Enter' && handleStartAIChat()}
                 />
                 <Button
                   onClick={handleStartAIChat}
-                  disabled={!user || !aiNewMessage.trim() || aiLoading}
+                  disabled={!aiNewMessage.trim() || aiLoading}
                   data-tv-focus-id="ai-new-send"
                   className="bg-purple-600 hover:bg-purple-700 "
                 >

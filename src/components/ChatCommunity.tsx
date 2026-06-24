@@ -1653,7 +1653,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 enterKeyHint="done"
                 data-focus-id="ai-input"
                 className={`bg-slate-800 border-slate-600 text-white text-lg py-3 flex-1 transition-all duration-200 rounded-md ${isFocused('ai-input') ? 'ring-4 ring-brand-ice' : ''}`}
-                disabled={aiLoading || !user}
+                disabled={aiLoading}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !aiLoading) {
                     sendAiMessage();
@@ -1677,13 +1677,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   }}
                   onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
                   onRestoreFocus={restoreAiVoiceFocus}
-                  disabled={aiLoading || !user}
+                  disabled={aiLoading}
                   className="h-full"
                 />
               </div>
               <Button 
                 onClick={() => sendAiMessage()}
-                disabled={aiLoading || !aiMessage.trim() || !user}
+                disabled={aiLoading || !aiMessage.trim()}
                 data-focus-id="ai-send"
                 className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 transition-all duration-200 ${focusRing('ai-send')}`}
               >
