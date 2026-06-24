@@ -28,10 +28,25 @@ serve(async (req) => {
 
   try {
     // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
-    // resolveCaller also parses the JSON body once so we don't re-read the stream.
+    // resolveCaller parses the JSON body once so we don't re-read the stream.
     const { caller, body } = await resolveCaller(req);
 
-    // Anonymous branch: gate via free_ai_enabled + per-device caps.
+    // Fail closed: a Bearer header that didn't validate is a real signed-in
+    // user with a transient/expired token — never silently downgrade to free.
+    if (isAuthError(caller)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', message: 'Your session expired. Please sign in again.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const ipHash = await hashClientIp(req);
+
+    // Reservation state for anon path (so we can settle on success/failure)
+    let anonReserved = false;
+    let anonEstCostUsd = 0;
+
+    // Anonymous branch: atomically reserve spend BEFORE any paid call.
     if (!caller.authed) {
       if (!caller.deviceId) {
         return new Response(
@@ -39,15 +54,24 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
-      const gate = await freeAllowed(caller.deviceId, 'chat');
+      const bodyMessage = typeof (body as { message?: unknown }).message === 'string'
+        ? ((body as { message?: string }).message as string)
+        : '';
+      anonEstCostUsd = gpt4oMiniReserveEstimateUsd(bodyMessage.length);
+      const gate = await reserveFree({
+        deviceId: caller.deviceId,
+        ipHash,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+      });
       if (!gate.allowed) {
-        // 200 (not 401) so the client can branch on `blocked` and show
-        // "sign in or buy Snow Gems" instead of a hard error.
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+      anonReserved = true;
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
