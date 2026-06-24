@@ -1,7 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { checkPause, logUsage, enforceThreshold, isOwnerEmail } from '../_shared/ai-guard.ts';
+import {
+  checkPause,
+  logUsage,
+  enforceThreshold,
+  isOwnerEmail,
+  resolveCaller,
+  freeAllowed,
+  recordFree,
+  gpt4oMiniCostUsd,
+} from '../_shared/ai-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,40 +24,37 @@ serve(async (req) => {
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Please sign in to use the AI assistant.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Resolve caller: authed (Bearer JWT) OR anonymous (device_id in body).
+    // resolveCaller also parses the JSON body once so we don't re-read the stream.
+    const { caller, body } = await resolveCaller(req);
+
+    // Anonymous branch: gate via free_ai_enabled + per-device caps.
+    if (!caller.authed) {
+      if (!caller.deviceId) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized', message: 'Please sign in to use the AI assistant.' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      const gate = await freeAllowed(caller.deviceId, 'chat');
+      if (!gate.allowed) {
+        // 200 (not 401) so the client can branch on `blocked` and show
+        // "sign in or buy Snow Gems" instead of a hard error.
+        return new Response(
+          JSON.stringify({ blocked: true, reason: gate.reason }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    
-    // Create client with user's auth token
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
 
-    // Verify the JWT and get user
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
-    
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Invalid or expired session. Please sign in again.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const userId = caller.authed ? caller.userId : null;
+    const userEmail = caller.authed ? caller.userEmail : null;
+    const anonDeviceId = caller.authed ? null : caller.deviceId;
+    console.log('[snow-media-ai] caller:', caller.authed ? `user:${userId}` : `anon:${anonDeviceId}`);
 
-    const userId = user.id;
-    const userEmail = user.email ?? null;
-    console.log('Authenticated user:', userId);
-
-    // Safety pause check (admins bypass)
+    // Safety pause check (admins bypass). Applies to both authed and anon.
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
@@ -62,13 +68,22 @@ serve(async (req) => {
     const {
       message,
       conversationId: incomingConversationId,
-      saveConversation = false,
+      saveConversation: rawSaveConversation = false,
       currentVersion: clientCurrentVersion,
-    } = await req.json();
+    } = body as {
+      message?: string;
+      conversationId?: string;
+      saveConversation?: boolean;
+      currentVersion?: string;
+    };
+
+    // Never persist for anonymous callers (no user_id to scope to).
+    const saveConversation = caller.authed ? rawSaveConversation : false;
 
     if (!message) {
       throw new Error('Message is required');
     }
+
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
