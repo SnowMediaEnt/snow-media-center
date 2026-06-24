@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
+import { getDeviceId } from '@/lib/analytics';
+import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 
 
 interface ChatCommunityProps {
