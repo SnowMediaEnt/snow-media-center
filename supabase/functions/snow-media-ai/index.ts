@@ -251,7 +251,7 @@ serve(async (req) => {
           return /\.(txt|md|markdown|json|csv|html?|xml|yaml|yml)$/i.test(name);
         });
 
-        const MAX_PER_FILE = 12000; // chars per file (keep prompt size sane)
+        const MAX_PER_FILE = 16000; // chars per file (keep prompt size sane)
         const downloads = await Promise.all(
           textFiles.map(async (f) => {
             try {
