@@ -530,13 +530,20 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
       console.error('[snow-media-ai] log/threshold failed:', e);
     }
 
-    // Anonymous ledger: record the call against device + global config.
-    if (!caller.authed) {
-      await recordFree(anonDeviceId, 'chat', anonCostUsd, 0);
+    // Anonymous ledger: SETTLE the reservation to actual cost.
+    if (!caller.authed && anonReserved) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+        actualCostUsd: anonCostUsd,
+        actualImages: 0,
+        succeeded: true,
+      });
+      anonReservationSettled = true;
     }
-
-
-
 
     if (saveConversation && savedConversationId) {
       const { error: assistantMessageError } = await supabaseAdmin
@@ -567,6 +574,19 @@ Be friendly, knowledgeable, and always ready to help with both snow media questi
 
   } catch (error) {
     console.error('Error in snow-media-ai function:', error);
+    // Release the anon reservation if we hadn't settled it on success.
+    if (anonReserved && !anonReservationSettled) {
+      await settleFree({
+        deviceId: anonDeviceIdForSettle,
+        ipHash: anonIpHashForSettle,
+        feature: 'chat',
+        estCostUsd: anonEstCostUsd,
+        estImages: 0,
+        actualCostUsd: 0,
+        actualImages: 0,
+        succeeded: false,
+      });
+    }
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : String(error),
       message: "I'm having trouble right now. Please try again in a moment."
