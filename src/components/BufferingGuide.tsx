@@ -610,6 +610,35 @@ const BufferingGuide = ({
     }
   })();
 
+  // FOCUS-HIGHLIGHT SYNC: When the user picks an answer that enables the
+  // primary "Next" action, also move the real D-pad focus to it. Otherwise
+  // the Next button's `:focus` styles light up (it looks highlighted because
+  // of color/contrast) while the real cursor is still on the option button,
+  // and pressing OK does nothing until the user manually presses DOWN.
+  useEffect(() => {
+    const wasEnabled = prevCanNextRef.current;
+    prevCanNextRef.current = canNext;
+    if (showSpeedTest) return;
+    if (!canNext || wasEnabled) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || !rootRef.current?.contains(active)) return;
+    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return;
+    if (active.getAttribute('data-guide-nav')) return;
+    if (active.getAttribute('data-guide-choice') !== 'true') return;
+    const t = window.setTimeout(() => {
+      const next = rootRef.current?.querySelector<HTMLElement>(
+        '[data-guide-nav="next"]:not([disabled])'
+      );
+      if (next) {
+        next.focus({ preventScroll: true });
+        lastFocusedRef.current = next;
+        next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 40);
+    return () => window.clearTimeout(t);
+  }, [canNext, showSpeedTest, step]);
+
+
   // Handle ESC / Back to close, and OK/Enter/DPAD_CENTER to activate focused button
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
