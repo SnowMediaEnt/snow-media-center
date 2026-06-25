@@ -13,14 +13,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
-import { isNativePlatform } from '@/utils/platform';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
-
-// D-pad / TV-first build: NEVER launch the system file picker. On Fire TV the
-// DocumentsUI picker NPEs on the first remote arrow press (FocusManager
-// .focusDirectoryList) and locks the device. On TV/STB the only image source
-// is AI generation — uploads stay web-only.
-const PICKER_DISABLED = isNativePlatform();
 
 interface MediaManagerProps {
   onBack: () => void;
