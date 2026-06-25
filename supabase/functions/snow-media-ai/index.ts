@@ -606,17 +606,44 @@ FINAL REMINDER (HIGHEST PRIORITY for non-troubleshooting questions): Before send
           signoff = signoffMatch[1];
           body = assistantContent.slice(0, signoffMatch.index).trimEnd();
         }
-        // A "which service are you on?" question can be a paragraph of its own or the last
-        // sentence in the final paragraph. Match the most common patterns.
-        const trailingServiceQuestionRegex =
-          /(?:\n\n[^\n]*|(?:^|\.\s+|\?\s+|!\s+)[^.?!\n]*?)\b(?:are you (?:on|using)|which (?:service|one) (?:are you|do you have)|tell me which|if you (?:tell|let) me which|want to tell me which|let me know which)\b[^?\n]*\b(?:dreamstreams|vibez(?:tv)?|service|one)\b[^?\n]*\?\s*$/i;
-        const cleaned = body.replace(trailingServiceQuestionRegex, '').trimEnd();
+        // Strip the trailing "which service are you on?" sentence/paragraph. It may appear
+        // as a question ("Are you on Dreamstreams or VibezTV?") OR as a statement
+        // ("If you tell me whether you're on Dreamstreams or VibezTV, I'll point you to...").
+        // Heuristic: walk the last paragraph from the end and drop trailing sentences that
+        // mention both "dreamstreams" and "vibez" together with an interrogation/clarification cue.
+        const cueRegex = /\b(are you (?:on|using|streaming on|leaning toward)|which (?:service|one|app)|tell me which|if you (?:tell|let) me (?:which|whether)|want to tell me|let me know which|so i (?:can )?point you|so i'?ll point you|point you to the exact|exact (?:section|screen|spot|slot|tier))\b/i;
+        const mentionsBoth = /dreamstreams/i.test(body) && /vibez/i.test(body);
+        let cleaned = body;
+        if (mentionsBoth) {
+          // Split body into paragraphs; process the last paragraph's sentences.
+          const paras = body.split(/\n{2,}/);
+          let lastPara = paras[paras.length - 1] ?? '';
+          // Split into sentences (keep trailing punctuation).
+          const sentences = lastPara.match(/[^.!?\n]+[.!?]+|\s*[^.!?\n]+$/g) ?? [lastPara];
+          while (sentences.length > 0) {
+            const s = sentences[sentences.length - 1];
+            const sHas = /dreamstreams/i.test(s) || /vibez/i.test(s) || cueRegex.test(s);
+            if (sHas && cueRegex.test(s)) {
+              sentences.pop();
+              continue;
+            }
+            break;
+          }
+          const rebuiltLast = sentences.join('').trim();
+          if (rebuiltLast) {
+            paras[paras.length - 1] = rebuiltLast;
+          } else {
+            paras.pop();
+          }
+          cleaned = paras.join('\n\n').trimEnd();
+        }
         if (cleaned && cleaned !== body) {
           assistantContent = signoff
             ? `${cleaned}\n\n${signoff}`
             : cleaned;
-          console.log('[snow-media-ai] stripped trailing service-id question for non-troubleshooting reply');
+          console.log('[snow-media-ai] stripped trailing service-id clarifier for non-troubleshooting reply');
         }
+
       }
     } catch (e) {
       console.error('[snow-media-ai] trailing-question strip failed:', e);
