@@ -472,6 +472,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     const anonMode = !currentSession?.user;
 
+    // Pre-generation sign-in warning: anon users must explicitly confirm
+    // they're OK generating without saving to their account.
+    if (anonMode && !skipAnonWarning) {
+      setShowAnonWarning(true);
+      return;
+    }
+
     const imageCost = imageConfig.credits * 0.01;
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     if (!anonMode && !isOwnerAdmin && !checkCredits(imageCost)) {
