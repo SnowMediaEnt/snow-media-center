@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,6 +30,21 @@ const App = () => {
   // contributed to perceived stutter — leaving it out on purpose.
 
   useEffect(() => { try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('mounted'); } catch(e){} }, []);
+
+  // User-selected dynamic background (from MediaManager). Falls back to gradient
+  // when null. Listens to a window event so updates from the manager apply live.
+  const [activeBgUrl, setActiveBgUrl] = useState<string | null>(() => {
+    try { return localStorage.getItem('snow-active-bg'); } catch { return null; }
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const url = (e as CustomEvent<{ url: string | null }>).detail?.url ?? null;
+      setActiveBgUrl(url);
+    };
+    window.addEventListener('snow:bg-change', onChange as EventListener);
+    return () => window.removeEventListener('snow:bg-change', onChange as EventListener);
+  }, []);
+
 
   // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
   // and route into the in-app /sso consumer page so the magic link signs the user in.
@@ -73,12 +88,20 @@ const App = () => {
 
   return (
     <TooltipProvider>
-      <div 
+      <div
         data-app-scroll-root
-        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
+        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain relative"
         style={{ background: rootBackground }}
       >
-        <div className="min-h-dvh bg-black/10">
+        {activeBgUrl && (
+          <img
+            src={activeBgUrl}
+            alt=""
+            aria-hidden="true"
+            className="fixed inset-0 w-full h-full object-cover pointer-events-none z-0"
+          />
+        )}
+        <div className="min-h-dvh bg-black/30 relative z-10">
           <Toaster />
 
           <Sonner />
@@ -99,5 +122,6 @@ const App = () => {
     </TooltipProvider>
   );
 };
+
 
 export default App;
