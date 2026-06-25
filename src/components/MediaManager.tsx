@@ -48,6 +48,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     description: ''
   });
   const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+  // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
+  // media_assets without auth). Lives only for the session; shown in the same
+  // grid as saved assets so the user never leaves the app.
+  const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   
   const promptInputRef = useRef<HTMLInputElement>(null);
@@ -511,18 +515,20 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         throw new Error(result?.error || result?.details || 'Failed to generate image');
       }
 
-      // Anonymous = ephemeral: don't write to media_assets. Open the image
-      // and nudge the user to sign in to save it.
+      // Anonymous = ephemeral: can't write to media_assets (RLS), but DO NOT
+      // open a browser/new tab. On Android WebView, window.open() with a
+      // data: URL launches the external system browser and traps the user.
+      // Instead, append to the in-app anonGallery so the image renders right
+      // here in the same grid the user navigates with the D-pad.
       if (anonMode) {
-        try {
-          const w = window.open();
-          if (w) {
-            w.document.write(`<title>Snow Media AI</title><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${result.image}" style="max-width:100%;max-height:100vh" alt="generated"/></body>`);
-          }
-        } catch { /* popup blocked — silent */ }
+        const id = `anon-${Date.now()}`;
+        setAnonGallery((prev) => [
+          { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' },
+          ...prev,
+        ]);
         toast({
-          title: "Image ready!",
-          description: "Sign in to save your AI images to your library.",
+          title: 'Image ready!',
+          description: 'Added to your gallery. Sign in to save it permanently.',
         });
         setGeneratePrompt('');
         return;
@@ -720,6 +726,27 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         <div className="space-y-4">
           <h3 className="text-2xl font-bold text-white mb-4">Your Assets</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {anonGallery.map((img) => (
+              <Card
+                key={img.id}
+                className="bg-gradient-to-br from-muted to-background border-border p-4"
+              >
+                <div className="aspect-video bg-muted rounded mb-3 overflow-hidden">
+                  <img src={img.dataUrl} alt={img.name} className="w-full h-full object-cover" />
+                </div>
+                <h4 className="text-lg font-bold text-foreground mb-2 truncate">{img.name}</h4>
+                <p className="text-sm text-muted-foreground mb-2">Sign in to save</p>
+                <div className="flex items-center justify-end">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setAnonGallery((prev) => prev.filter((p) => p.id !== img.id))}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
             {assets.map((asset, index) => {
               const isFocused = focusedElement === `asset-${index}`;
               const isToggleFocused = focusedElement === `asset-toggle-${asset.id}`;
