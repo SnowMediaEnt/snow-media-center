@@ -473,6 +473,74 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     }
   };
 
+  // Unified activate/deactivate: sets (or clears) the live background and keeps
+  // mutual exclusion across anon + saved assets so only ONE image is active.
+  const handleActivateItem = async (item: GalleryItem) => {
+    try {
+      if (item.isActive) {
+        // Toggle OFF — clear background and (if asset) flip DB flag off.
+        if (item.kind === 'asset') {
+          await toggleAssetActive(item.id, true /* currentStatus */);
+        } else {
+          setActiveAnonId(null);
+        }
+        applyBackground(null);
+        toast({ title: 'Background cleared', description: 'Default background restored.' });
+        return;
+      }
+
+      // Toggle ON — first deactivate any other active item (anon or asset).
+      if (activeAnonId) setActiveAnonId(null);
+      for (const a of assets) {
+        if (a.is_active && a.id !== item.id) {
+          await toggleAssetActive(a.id, true /* currentStatus -> false */);
+        }
+      }
+
+      if (item.kind === 'asset') {
+        await toggleAssetActive(item.id, false /* currentStatus -> true */);
+      } else {
+        setActiveAnonId(item.id);
+      }
+      applyBackground(item.url);
+      toast({ title: 'Background set', description: item.name });
+    } catch (error) {
+      console.error('[MediaManager] Activate failed:', error);
+      toast({
+        title: 'Failed to set background',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Unified delete: if the deleted item is the active background, also clear it.
+  const handleDeleteItem = async (item: GalleryItem) => {
+    const wasActive = item.isActive || activeBgUrl === item.url;
+    try {
+      if (item.kind === 'anon') {
+        setAnonGallery((prev) => prev.filter((p) => p.id !== item.id));
+        if (activeAnonId === item.id) setActiveAnonId(null);
+      } else {
+        await deleteAsset(item.id, item.asset.file_path);
+      }
+      if (wasActive) applyBackground(null);
+      toast({ title: 'Asset deleted', description: item.name });
+    } catch (error: any) {
+      console.error('[MediaManager] Delete failed:', error);
+      toast({
+        title: 'Delete failed',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+      // Safety: if the file we tried to delete WAS the background, revert it
+      // even on failure so a stale URL is never left pointing at nothing.
+      if (wasActive) applyBackground(null);
+    }
+  };
+
+
+
 
   const handleGenerateImage = async (skipAnonWarning = false) => {
     if (!generatePrompt.trim()) {
