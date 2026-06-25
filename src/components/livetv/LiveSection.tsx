@@ -318,6 +318,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
   });
 
+  // Virtualize the category pane too — Vibez can expose 100+ categories and
+  // rendering them all caused layout thrash that interfered with D-pad
+  // focus scrolling on TV/STB devices.
+  const categoryVirtualizer = useVirtualizer({
+    count: visibleCategories.length,
+    getScrollElement: () => categoriesScrollRef.current,
+    estimateSize: () => CAT_ROW_HEIGHT,
+    overscan: isFireTV() ? 4 : 10,
+    getItemKey: (i) => visibleCategories[i]?.id ?? i,
+  });
+
   useEffect(() => {
     rowVirtualizer.scrollToOffset(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -338,16 +349,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible in the (non-virtualized) category pane.
-  // Without this, D-pad DOWN advances focus past the visible window but the
-  // scroll container never moves — Vibez exposes ~100 categories so the
-  // user sees focus "disappear" and thinks the list is stuck.
+  // Keep the focused category visible in the virtualized category pane.
+  // We let the virtualizer do the scroll math (no layout thrash), then a
+  // single rAF fallback re-aligns the DOM node in case the row had to be
+  // mounted on this frame.
   useEffect(() => {
-    const root = categoriesScrollRef.current;
-    if (!root) return;
-    const el = root.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [categoryIdx]);
+    if (!visibleCategories.length || searchOpen) return;
+    categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' });
+    const raf = requestAnimationFrame(() => {
+      const root = categoriesScrollRef.current;
+      const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
   const enqueueEpg = useCallback((id: number) => {
