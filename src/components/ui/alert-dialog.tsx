@@ -133,7 +133,12 @@ const AlertDialogAction = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Action
     ref={ref}
-    className={cn(buttonVariants(), className)}
+    className={cn(
+      buttonVariants(),
+      // Bright D-pad focus ring — visible on TV without depending on :focus-visible
+      "focus:outline-none focus:ring-4 focus:ring-brand-gold focus:ring-offset-2 focus:ring-offset-background focus:scale-105 focus-visible:ring-4 focus-visible:ring-brand-gold focus-visible:ring-offset-2 transition-all",
+      className
+    )}
     {...props}
   />
 ))
@@ -148,12 +153,14 @@ const AlertDialogCancel = React.forwardRef<
     className={cn(
       buttonVariants({ variant: "outline" }),
       "mt-2 sm:mt-0",
+      "focus:outline-none focus:ring-4 focus:ring-brand-gold focus:ring-offset-2 focus:ring-offset-background focus:scale-105 focus-visible:ring-4 focus-visible:ring-brand-gold focus-visible:ring-offset-2 transition-all",
       className
     )}
     {...props}
   />
 ))
 AlertDialogCancel.displayName = AlertDialogPrimitive.Cancel.displayName
+
 
 export {
   AlertDialog,
