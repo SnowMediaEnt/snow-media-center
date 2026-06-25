@@ -244,10 +244,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     try {
       console.log('VOICE_TTS_START:', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
-        body: { text },
+        body: { text, device_id: getDeviceId() },
       });
       if (error) throw error;
       if (playbackId !== ttsPlaybackIdRef.current) return;
+      // Free-AI gate denied (flag off / cap reached / paused) — anon callers
+      // get the upgrade dialog; signed-in get a toast.
+      if (data && (data as { blocked?: boolean }).blocked) {
+        const reason = (data as { reason?: string }).reason ?? null;
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
+        if (!user) {
+          setBlockedReason(reason);
+        } else {
+          toast({
+            title: 'Voice reply unavailable',
+            description: reason || 'Voice replies are briefly unavailable. Please try again.',
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
         console.warn('VOICE_ERROR: TTS_NO_AUDIO/no audioContent returned/tts');
@@ -1268,11 +1285,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     if (!el) return;
 
     const isInputRow = currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send';
+    const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
-    if (!embedded && !isInputRow) {
-      // Standalone mode may scroll its own page; embedded Support must not auto-drop.
-      // Skip scrollIntoView for the AI input row — those three controls share a row
-      // and any scroll here can yank the page to the top after the OSK closes.
+    // Scroll the focused element into view so the input row / Hear reply / Send
+    // never sit below the fold. The off-screen focusSink is now pinned at (0,0)
+    // so block:'nearest' will NOT snap the document to the top.
+    if (isInputRow) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    } else if (!embedded) {
       const useSmoothCenter = currentFocusId.startsWith('ai-history-');
       el.scrollIntoView(
         useSmoothCenter
@@ -1282,8 +1302,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     } else if (currentFocusId.startsWith('ai-history-')) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
-
-    const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
     // If a text input is currently focused but we're moving away, blur it and
     // hide the keyboard so it doesn't linger / re-open.
@@ -1296,8 +1314,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     if (isTextInputFocus) {
       // Park focus on the hidden sink so arrow keys still navigate AND the
       // native keyboard does NOT auto-pop. User presses OK to start typing.
-      // Focusing the wrapper itself would draw a focus ring around the whole
-      // AI panel and trap the user.
       focusSink();
       return;
     }
@@ -1309,7 +1325,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
     if (el.tabIndex < 0) el.tabIndex = 0;
     el.focus({ preventScroll: true });
-  }, [currentFocusId, focusSink]);
+  }, [currentFocusId, embedded, focusSink]);
 
 
   // Reset focus when tab changes
@@ -1824,7 +1840,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             <div
               ref={aiChatContainerRef}
               data-focus-id="message-scroll"
-              className={`bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto transition-all duration-200 ${isFocused('message-scroll') ? 'ring-4 ring-brand-ice' : ''}`}
+              className={`bg-slate-800 rounded-lg p-4 mb-4 max-h-80 overflow-y-auto transition-colors duration-200 ${isFocused('message-scroll') ? 'border-l-4 border-brand-ice' : 'border-l-4 border-transparent'}`}
             >
               {isFocused('message-scroll') && aiChat.length > 0 && (
                 <div className="text-center text-xs text-brand-ice mb-2 animate-pulse">
@@ -1897,14 +1913,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   type="button"
                   onClick={() => {
                     unlockAudioPlayback();
-                    if (!user) {
-                      toast({
-                        title: 'Sign in to use voice',
-                        description: 'Voice playback uses Snow Gems and requires an account.',
-                      });
-                      return;
-                    }
-                    // Find the most recent AI message and read it aloud
+                    // Find the most recent AI message and read it aloud.
+                    // No sign-in gate — elevenlabs-tts meters anon callers via
+                    // the free-AI budget; if it returns { blocked }, speakReply
+                    // surfaces FreeAiBlockedDialog (anon) or a toast (authed).
                     let lastAiIndex = -1;
                     for (let i = aiChat.length - 1; i >= 0; i--) {
                       if (aiChat[i].role === 'ai') { lastAiIndex = i; break; }
