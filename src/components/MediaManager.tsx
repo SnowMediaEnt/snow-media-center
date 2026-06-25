@@ -182,157 +182,132 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         event.stopPropagation();
         event.stopImmediatePropagation();
         
-        // Level 1: If inside asset card (toggle/delete buttons), exit to parent card first
+        // Level 1: If inside item card (toggle/delete buttons), exit to parent card first
         if (focusedElement.startsWith('asset-toggle-') || focusedElement.startsWith('asset-delete-')) {
-          const assetId = focusedElement.replace('asset-toggle-', '').replace('asset-delete-', '');
-          const assetIndex = assets.findIndex(a => a.id === assetId);
-          if (assetIndex >= 0) {
-            setFocusedElement(`asset-${assetIndex}`);
+          const itemId = focusedElement.replace('asset-toggle-', '').replace('asset-delete-', '');
+          const itemIndex = galleryItems.findIndex((g) => g.id === itemId);
+          if (itemIndex >= 0) {
+            setFocusedElement(`asset-${itemIndex}`);
             return;
           }
         }
-        
-        // Level 2: If in assets grid, go back to file input (upload area)
+
+        // Level 2: If in gallery grid, go back to file input (upload area)
         if (focusedElement.startsWith('asset-')) {
           setFocusedElement('file-input');
           return;
         }
-        
+
         // Level 3: If in file input/upload area, go back to asset-type
         if (focusedElement === 'file-input') {
           setFocusedElement('asset-type');
           return;
         }
-        
+
         // Level 4: If in asset-type, go back to prompt/generate area
         if (focusedElement === 'asset-type') {
           setFocusedElement('prompt-input');
           return;
         }
-        
+
         // Level 5: If at top of MediaManager (prompt-input or generate-btn), exit to parent
         if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn' || focusedElement === 'back') {
           onBack();
           return;
         }
-        
+
         // Fallback: exit to parent
         onBack();
         return;
       }
-      
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
-      
+
       // Calculate grid columns (3 columns)
       const gridCols = 3;
-      
+
       switch (event.key) {
         case 'ArrowDown':
           if (focusedElement === 'back' && !embedded) {
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'prompt-input') {
-            // Prompt → Generate (so the prompt bar is reachable BETWEEN
-            // the menu above and Generate below).
             setFocusedElement('generate-btn');
           } else if (focusedElement === 'generate-btn') {
             setFocusedElement('asset-type');
           } else if (focusedElement === 'asset-type') {
             setFocusedElement('file-input');
           } else if (focusedElement === 'file-input') {
-            if (assets.length > 0) {
+            if (galleryItems.length > 0) {
               setFocusedElement('asset-0');
             }
           } else if (focusedElement.startsWith('asset-toggle-')) {
-            // From toggle, go to delete
-            const assetId = focusedElement.replace('asset-toggle-', '');
-            setFocusedElement(`asset-delete-${assetId}`);
+            const itemId = focusedElement.replace('asset-toggle-', '');
+            setFocusedElement(`asset-delete-${itemId}`);
           } else if (focusedElement.startsWith('asset-delete-')) {
-            // From delete, go to next row image
-            const assetId = focusedElement.replace('asset-delete-', '');
-            const currentIndex = assets.findIndex(a => a.id === assetId);
+            const itemId = focusedElement.replace('asset-delete-', '');
+            const currentIndex = galleryItems.findIndex((g) => g.id === itemId);
             const nextIndex = currentIndex + gridCols;
-            if (nextIndex < assets.length) {
-              setFocusedElement(`asset-${nextIndex}`);
-            }
-          } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
+            if (nextIndex < galleryItems.length) setFocusedElement(`asset-${nextIndex}`);
+          } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex + gridCols;
-            if (nextIndex < assets.length) {
-              setFocusedElement(`asset-${nextIndex}`);
-            }
+            if (nextIndex < galleryItems.length) setFocusedElement(`asset-${nextIndex}`);
           }
           break;
-          
+
         case 'ArrowUp':
           if (focusedElement === 'prompt-input') {
-            if (embedded) {
-              // Exit back to parent (Settings tabs)
-              onBack();
-            } else {
-              setFocusedElement('back');
-            }
+            if (embedded) onBack();
+            else setFocusedElement('back');
           } else if (focusedElement === 'generate-btn') {
-            // Generate → Prompt (mirror of DOWN flow).
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'asset-type') {
             setFocusedElement('generate-btn');
           } else if (focusedElement === 'file-input') {
             setFocusedElement('asset-type');
-
           } else if (focusedElement.startsWith('asset-delete-')) {
-            // From delete, go to toggle
-            const assetId = focusedElement.replace('asset-delete-', '');
-            setFocusedElement(`asset-toggle-${assetId}`);
+            const itemId = focusedElement.replace('asset-delete-', '');
+            setFocusedElement(`asset-toggle-${itemId}`);
           } else if (focusedElement.startsWith('asset-toggle-')) {
-            // From toggle, go back to image card
-            const assetId = focusedElement.replace('asset-toggle-', '');
-            const currentIndex = assets.findIndex(a => a.id === assetId);
-            setFocusedElement(`asset-${currentIndex}`);
-          } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
+            const itemId = focusedElement.replace('asset-toggle-', '');
+            const currentIndex = galleryItems.findIndex((g) => g.id === itemId);
+            if (currentIndex >= 0) setFocusedElement(`asset-${currentIndex}`);
+          } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex - gridCols;
-            if (nextIndex >= 0) {
-              setFocusedElement(`asset-${nextIndex}`);
-            } else {
-              setFocusedElement('file-input');
-            }
+            if (nextIndex >= 0) setFocusedElement(`asset-${nextIndex}`);
+            else setFocusedElement('file-input');
           }
           break;
-          
+
         case 'ArrowRight':
           if (focusedElement === 'prompt-input') {
             setFocusedElement('generate-btn');
           } else if (focusedElement.startsWith('asset-toggle-')) {
-            // From toggle go to delete
-            const assetId = focusedElement.replace('asset-toggle-', '');
-            setFocusedElement(`asset-delete-${assetId}`);
-          } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
+            const itemId = focusedElement.replace('asset-toggle-', '');
+            setFocusedElement(`asset-delete-${itemId}`);
+          } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
-            // Move to next image if not at end of row
-            if ((currentIndex + 1) % gridCols !== 0 && currentIndex + 1 < assets.length) {
+            if ((currentIndex + 1) % gridCols !== 0 && currentIndex + 1 < galleryItems.length) {
               setFocusedElement(`asset-${currentIndex + 1}`);
             }
           }
           break;
-          
+
         case 'ArrowLeft':
           if (focusedElement === 'generate-btn') {
             setFocusedElement('prompt-input');
           } else if (focusedElement.startsWith('asset-delete-')) {
-            // From delete go to toggle
-            const assetId = focusedElement.replace('asset-delete-', '');
-            setFocusedElement(`asset-toggle-${assetId}`);
-          } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
+            const itemId = focusedElement.replace('asset-delete-', '');
+            setFocusedElement(`asset-toggle-${itemId}`);
+          } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
-            // Move to previous image if not at start of row
-            if (currentIndex % gridCols !== 0) {
-              setFocusedElement(`asset-${currentIndex - 1}`);
-            }
+            if (currentIndex % gridCols !== 0) setFocusedElement(`asset-${currentIndex - 1}`);
           }
           break;
-          
+
         case 'Enter':
         case ' ':
           if (focusedElement === 'back' && !embedded) {
@@ -344,20 +319,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           } else if (focusedElement === 'file-input') {
             fileInputRef.current?.click();
           } else if (focusedElement.startsWith('asset-toggle-')) {
-            // Toggle the asset active/inactive
-            const assetId = focusedElement.replace('asset-toggle-', '');
-            const asset = assets.find(a => a.id === assetId);
-            if (asset) handleToggleActive(asset.id, asset.is_active);
+            const itemId = focusedElement.replace('asset-toggle-', '');
+            const item = galleryItems.find((g) => g.id === itemId);
+            if (item) handleActivateItem(item);
           } else if (focusedElement.startsWith('asset-delete-')) {
-            // Delete the asset
-            const assetId = focusedElement.replace('asset-delete-', '');
-            const asset = assets.find(a => a.id === assetId);
-            if (asset) handleDelete(asset.id, asset.file_path, asset.name);
-          } else if (focusedElement.startsWith('asset-') && !focusedElement.includes('toggle') && !focusedElement.includes('delete')) {
-            // On image card, navigate into the card actions (toggle)
+            const itemId = focusedElement.replace('asset-delete-', '');
+            const item = galleryItems.find((g) => g.id === itemId);
+            if (item) handleDeleteItem(item);
+          } else if (focusedElement.startsWith('asset-')) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
-            const asset = assets[currentIndex];
-            if (asset) setFocusedElement(`asset-toggle-${asset.id}`);
+            const item = galleryItems[currentIndex];
+            if (item) setFocusedElement(`asset-toggle-${item.id}`);
           }
           break;
       }
@@ -365,7 +337,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [focusedElement, assets, onBack, isActive]);
+  }, [focusedElement, galleryItems, onBack, isActive]);
+
 
   // Scroll focused element into view - always keep selector visible.
   // Topmost focus targets snap the entire page back to 0 (matches Vimeo/Store fix).
