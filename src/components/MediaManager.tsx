@@ -64,9 +64,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   // grid as saved assets so the user never leaves the app.
   const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
-  
+  const [showAnonWarning, setShowAnonWarning] = useState(false);
+  const navigate = useNavigate();
+
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
   
   // Check if user is authenticated (prefer session over user state for reliability)
   const isAuthenticated = !!(session?.user || user);
