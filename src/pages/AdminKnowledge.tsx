@@ -128,36 +128,30 @@ const AdminKnowledge = () => {
 
         <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* File Upload — web only. On Fire TV the DocumentsUI picker
-                NPEs on the first D-pad arrow press and locks the device. */}
+            {/* File Upload */}
             <div className="space-y-2">
               <Label htmlFor="file" className="text-white text-lg">Upload Document</Label>
-              {isNativePlatform() ? (
-                <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center text-slate-300">
-                  File upload is disabled on TV/STB builds. Open this admin page in a desktop or phone browser to upload documents.
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center">
-                  <input
-                    id="file"
-                    type="file"
-                    accept=".txt,.pdf,.doc,.docx"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="file"
-                    className="cursor-pointer flex flex-col items-center space-y-2"
-                  >
-                    <Upload className="w-8 h-8 text-blue-400" />
-                    <span className="text-white">Click to upload file</span>
-                    <span className="text-sm text-slate-400">
-                      Supported: TXT, PDF, DOC, DOCX
-                    </span>
-                  </label>
-                </div>
-              )}
+              <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center">
+                <input
+                  id="file"
+                  type="file"
+                  accept=".txt,.pdf,.doc,.docx"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="file"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <Upload className="w-8 h-8 text-blue-400" />
+                  <span className="text-white">Click to upload file</span>
+                  <span className="text-sm text-slate-400">
+                    Supported: TXT, PDF, DOC, DOCX
+                  </span>
+                </label>
+              </div>
             </div>
+
 
             {/* Title */}
             <div className="space-y-2">
