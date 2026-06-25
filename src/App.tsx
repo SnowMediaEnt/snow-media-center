@@ -88,12 +88,20 @@ const App = () => {
 
   return (
     <TooltipProvider>
-      <div 
+      <div
         data-app-scroll-root
-        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain"
+        className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain relative"
         style={{ background: rootBackground }}
       >
-        <div className="min-h-dvh bg-black/10">
+        {activeBgUrl && (
+          <img
+            src={activeBgUrl}
+            alt=""
+            aria-hidden="true"
+            className="fixed inset-0 w-full h-full object-cover pointer-events-none z-0"
+          />
+        )}
+        <div className="min-h-dvh bg-black/30 relative z-10">
           <Toaster />
 
           <Sonner />
@@ -114,5 +122,6 @@ const App = () => {
     </TooltipProvider>
   );
 };
+
 
 export default App;
