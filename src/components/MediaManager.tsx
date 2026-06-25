@@ -4,6 +4,17 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useNavigate } from 'react-router-dom';
 
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Upload, Trash2, Eye, EyeOff, Loader2, Monitor } from 'lucide-react';
@@ -53,9 +64,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   // grid as saved assets so the user never leaves the app.
   const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
-  
+  const [showAnonWarning, setShowAnonWarning] = useState(false);
+  const navigate = useNavigate();
+
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
   
   // Check if user is authenticated (prefer session over user state for reliability)
   const isAuthenticated = !!(session?.user || user);
@@ -422,7 +436,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   };
 
 
-  const handleGenerateImage = async () => {
+  const handleGenerateImage = async (skipAnonWarning = false) => {
     if (!generatePrompt.trim()) {
       toast({
         title: "Prompt required",
@@ -457,6 +471,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     // Signed-in users keep the existing credit-check behavior.
     const { data: { session: currentSession } } = await supabase.auth.getSession();
     const anonMode = !currentSession?.user;
+
+    // Pre-generation sign-in warning: anon users must explicitly confirm
+    // they're OK generating without saving to their account.
+    if (anonMode && !skipAnonWarning) {
+      setShowAnonWarning(true);
+      return;
+    }
 
     const imageCost = imageConfig.credits * 0.01;
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
@@ -540,6 +561,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         setGeneratePrompt('');
         (document.activeElement as HTMLElement | null)?.blur?.();
         setFocusedElement('prompt-input');
+        // Scroll the gallery into view so user sees the new image immediately
+        setTimeout(() => {
+          galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
         return;
       }
 
@@ -580,6 +605,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       setGeneratePrompt('');
       (document.activeElement as HTMLElement | null)?.blur?.();
       setFocusedElement('prompt-input');
+      // Refresh + scroll gallery so the newly-saved image shows up immediately
+      setTimeout(() => {
+        galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
@@ -673,7 +702,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
               </div>
               <div className="flex items-end">
                 <Button
-                  onClick={handleGenerateImage}
+                  onClick={() => handleGenerateImage()}
                   disabled={generating || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < (imageConfig.credits * 0.01))}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
@@ -743,8 +772,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
 
         {/* Assets Grid - Flat list for proper grid navigation */}
-        <div className="space-y-4">
-          <h3 className="text-2xl font-bold text-white mb-4">Your Assets</h3>
+        <div ref={galleryRef} className="space-y-4">
+          <h3 className="text-2xl font-bold text-white mb-4">
+            Your Assets {(anonGallery.length + assets.length) > 0 && (
+              <span className="text-base font-normal text-blue-200">
+                ({anonGallery.length + assets.length})
+              </span>
+            )}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {anonGallery.map((img) => (
               <Card
@@ -827,7 +862,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         </div>
 
-        {assets.length === 0 && (
+        {assets.length === 0 && anonGallery.length === 0 && (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">No assets uploaded yet</h3>
@@ -842,6 +877,39 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         onBuyCredits={() => { setBlockedReason(null); onBack(); }}
         onClose={() => setBlockedReason(null)}
       />
+      <AlertDialog open={showAnonWarning} onOpenChange={setShowAnonWarning}>
+        <AlertDialogContent className="bg-slate-900 border-blue-500/40 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Heads up — you're not signed in</AlertDialogTitle>
+            <AlertDialogDescription className="text-blue-100">
+              This image won't be saved to your account. Sign in to keep your AI-generated images permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 text-white hover:bg-blue-700"
+              onClick={() => {
+                setShowAnonWarning(false);
+                navigate('/auth');
+              }}
+            >
+              Sign in
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-purple-600 text-white hover:bg-purple-700"
+              onClick={() => {
+                setShowAnonWarning(false);
+                handleGenerateImage(true);
+              }}
+            >
+              Generate anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
