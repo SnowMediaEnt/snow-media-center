@@ -989,7 +989,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         } else if (inputId === 'reply-input') {
           leaveTextFieldById('reply-send', target);
         } else if (inputId === 'ai-input') {
-          leaveTextFieldById('ai-send', target);
+          // Enter while typing in the AI input SENDS the message (same as Send button)
+          (target as HTMLInputElement).blur();
+          void hideKeyboardForDpad(target);
+          if (!aiLoading && aiMessage.trim()) {
+            sendAiMessage();
+          }
         } else {
           void hideKeyboardForDpad(target);
         }
