@@ -399,7 +399,10 @@ ${liveContext ? `\nLIVE WEB RESULTS (real-time — use as the source of truth fo
 
 APP CONTROL FUNCTIONS (call when relevant): navigate_to_section, find_support_video, change_background, open_store_section, show_credits_info, help_with_installation.
 
-All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
+All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."
+
+FINAL REMINDER (HIGHEST PRIORITY for non-troubleshooting questions): Before sending your reply, RE-READ IT. If the customer asked about what's on, channels, sports, PPV, fights, games, shows, events, lineups, schedules, or a general "what's the difference between DreamStreams and VibezTV" question, and your reply ends with any variant of "are you on DreamStreams or VibezTV?", "which service are you using?", "tell me which one and I'll point you to the exact section/screen/tier", "want to tell me which you're on?", or any similar follow-up question asking them to identify their service — DELETE that question. The dual-route line ("DreamStreams → X (or VibezTV → X)") already covers both services. Sign off and stop. Trailing clarifying questions are ONLY allowed when the customer is troubleshooting (buffering, won't load, login broken, app crashing).`;
+
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
