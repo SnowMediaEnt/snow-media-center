@@ -9,6 +9,7 @@ import { Upload, FileText, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { isNativePlatform } from '@/utils/platform';
 
 const AdminKnowledge = () => {
   const { toast } = useToast();
