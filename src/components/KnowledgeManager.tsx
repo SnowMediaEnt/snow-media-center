@@ -10,7 +10,7 @@ import { ArrowLeft, Upload, Trash2, FileText, Loader2, Plus, Eye, EyeOff } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform } from '@/utils/platform';
+
 
 interface KnowledgeManagerProps {
   onBack: () => void;
