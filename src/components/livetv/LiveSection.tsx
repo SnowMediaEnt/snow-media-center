@@ -38,6 +38,7 @@ type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
 const ROW_HEIGHT = 84;
+const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const EPG_MAX_CONCURRENT = 5;
 const PREVIEW_DEBOUNCE_MS = 700;
 
@@ -317,6 +318,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
   });
 
+  // Virtualize the category pane too — Vibez can expose 100+ categories and
+  // rendering them all caused layout thrash that interfered with D-pad
+  // focus scrolling on TV/STB devices.
+  const categoryVirtualizer = useVirtualizer({
+    count: visibleCategories.length,
+    getScrollElement: () => categoriesScrollRef.current,
+    estimateSize: () => CAT_ROW_HEIGHT,
+    overscan: isFireTV() ? 4 : 10,
+    getItemKey: (i) => visibleCategories[i]?.id ?? i,
+  });
+
   useEffect(() => {
     rowVirtualizer.scrollToOffset(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,16 +349,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible in the (non-virtualized) category pane.
-  // Without this, D-pad DOWN advances focus past the visible window but the
-  // scroll container never moves — Vibez exposes ~100 categories so the
-  // user sees focus "disappear" and thinks the list is stuck.
+  // Keep the focused category visible in the virtualized category pane.
+  // We let the virtualizer do the scroll math (no layout thrash), then a
+  // single rAF fallback re-aligns the DOM node in case the row had to be
+  // mounted on this frame.
   useEffect(() => {
-    const root = categoriesScrollRef.current;
-    if (!root) return;
-    const el = root.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [categoryIdx]);
+    if (!visibleCategories.length || searchOpen) return;
+    categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' });
+    const raf = requestAnimationFrame(() => {
+      const root = categoriesScrollRef.current;
+      const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
   const enqueueEpg = useCallback((id: number) => {
@@ -760,46 +777,68 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           />
         )}
         {!searchOpen && (
-          <div className="space-y-1">
+          <>
             {categoriesLoading && categories.length === 0 && (
               <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
             )}
-            {visibleCategories.map((c, i) => {
-              const isFocused = isActive && pane === 'categories' && categoryIdx === i;
-              const isSelected = categoryIdx === i;
-              const isLoadingThis = loadingCat === c.id;
-              return (
-                <div
-                  key={c.id}
-                  data-cat-idx={i}
-                  data-focused={isFocused ? 'true' : 'false'}
-                  onClick={() => {
-                    userMovedRef.current = true;
-                    if (c.isAll) allOptedInRef.current = true;
-                    setCategoryIdx(i);
-                    setPane('channels');
-                  }}
-                  className={`
-                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
-                    ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
-                    ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
-                  `}
-                >
-                  {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                  <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
-                  {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
-                  {!isLoadingThis && c.count != null && c.count > 0 && (
-                    <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
-                      {c.count}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            {visibleCategories.length > 0 && (
+              <div
+                style={{
+                  height: categoryVirtualizer.getTotalSize(),
+                  position: 'relative',
+                  width: '100%',
+                }}
+              >
+                {categoryVirtualizer.getVirtualItems().map((vRow) => {
+                  const i = vRow.index;
+                  const c = visibleCategories[i];
+                  if (!c) return null;
+                  const isFocused = isActive && pane === 'categories' && categoryIdx === i;
+                  const isSelected = categoryIdx === i;
+                  const isLoadingThis = loadingCat === c.id;
+                  return (
+                    <div
+                      key={c.id}
+                      data-cat-idx={i}
+                      data-focused={isFocused ? 'true' : 'false'}
+                      onClick={() => {
+                        userMovedRef.current = true;
+                        if (c.isAll) allOptedInRef.current = true;
+                        setCategoryIdx(i);
+                        setPane('channels');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${vRow.start}px)`,
+                        height: CAT_ROW_HEIGHT,
+                        paddingBottom: 4, // matches space-y-1 gap so heights are stable
+                      }}
+                      className={`
+                        flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
+                        ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
+                        ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
+                        ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                      `}
+                    >
+                      {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
+                      <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
+                      {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                      {!isLoadingThis && c.count != null && c.count > 0 && (
+                        <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
+                          {c.count}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 
