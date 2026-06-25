@@ -538,6 +538,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           description: 'Added to your gallery. Sign in to save it permanently.',
         });
         setGeneratePrompt('');
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        setFocusedElement('prompt-input');
         return;
       }
 
