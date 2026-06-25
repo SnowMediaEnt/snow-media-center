@@ -69,14 +69,54 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [showAnonWarning, setShowAnonWarning] = useState(false);
+  // Tracks which anon image is currently set as the live background (one at a time).
+  const [activeAnonId, setActiveAnonId] = useState<string | null>(null);
+  // Mirrors localStorage 'snow-active-bg' (the URL of the live background, if any).
+  const [activeBgUrl, setActiveBgUrl] = useState<string | null>(() => {
+    try { return localStorage.getItem('snow-active-bg'); } catch { return null; }
+  });
   const navigate = useNavigate();
 
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
-  
+
   // Check if user is authenticated (prefer session over user state for reliability)
   const isAuthenticated = !!(session?.user || user);
+
+  // Set/clear the global background and notify App.tsx.
+  const applyBackground = (url: string | null) => {
+    try {
+      if (url) localStorage.setItem('snow-active-bg', url);
+      else localStorage.removeItem('snow-active-bg');
+    } catch { /* ignore quota */ }
+    setActiveBgUrl(url);
+    window.dispatchEvent(new CustomEvent('snow:bg-change', { detail: { url } }));
+  };
+
+  // Unified gallery items: anon first (newest), then saved assets.
+  type GalleryItem =
+    | { kind: 'anon'; id: string; url: string; name: string; isActive: boolean }
+    | { kind: 'asset'; id: string; url: string; name: string; isActive: boolean; asset: MediaAsset };
+
+  const galleryItems: GalleryItem[] = [
+    ...anonGallery.map((a) => ({
+      kind: 'anon' as const,
+      id: a.id,
+      url: a.dataUrl,
+      name: a.name,
+      isActive: activeAnonId === a.id,
+    })),
+    ...assets.map((a) => ({
+      kind: 'asset' as const,
+      id: a.id,
+      url: getAssetUrl(a.file_path),
+      name: a.name,
+      isActive: a.is_active,
+      asset: a,
+    })),
+  ];
+
 
   // Helper to get focus ring class - use rounded ring for inputs and selects
   const getFocusClass = (id: FocusElement) => 
