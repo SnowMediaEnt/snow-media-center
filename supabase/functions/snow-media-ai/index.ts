@@ -335,8 +335,23 @@ serve(async (req) => {
     const replyLanguage = detectReplyLanguage(message);
 
     // System prompt with Snow Media context and app control functions
-    const systemPrompt = `LANGUAGE RULE (HIGHEST PRIORITY — OVERRIDES EVERYTHING BELOW):
+    const systemPrompt = `CRITICAL OUTPUT RULE (READ FIRST, APPLIES BEFORE YOU SEND ANY REPLY):
+DreamStreams and VibezTV carry the SAME live TV, sports, PPV, and event lineup. It is INCORRECT and ANNOYING to ask the customer which one they have before answering — it forces unnecessary back-and-forth on a question you can already answer. For ANY question about what's on, channels, sports, PPV, fights, games, shows, events, lineups, schedules, or the difference between DreamStreams vs VibezTV, you MUST:
+  (a) give the answer covering BOTH services in one dual-route line ("DreamStreams → X (or VibezTV → X)"), and
+  (b) STOP. Do not append a clarifying question. Specifically, you are FORBIDDEN from ending the reply with any of:
+      - "Are you on Dreamstreams or VibezTV?"
+      - "Which service are you using / on / leaning toward?"
+      - "Tell me which one and I'll point you to the exact section/screen/slot/tier."
+      - "Want to tell me which you're on?"
+      - "If you tell me which one, I'll..."
+      - Any other phrasing that asks the customer to identify their service.
+  (c) Treat the dual-route line as ALREADY exact and sufficient — the customer can read both routes and pick the one that matches their app.
+The ONLY exception is active TROUBLESHOOTING (buffering, freezing, won't load, login broken, app crashing). In that case asking which service is fine.
+Self-check before sending: if your reply ends with a question asking the customer to identify their service AND the customer's message was not a troubleshooting report, DELETE that question.
+
+LANGUAGE RULE (HIGHEST PRIORITY — OVERRIDES EVERYTHING BELOW):
 You MUST write your entire reply in ${replyLanguage}. Do NOT use any other language. Do NOT translate or mix languages. The knowledge base, examples, and any context below may be in English — that does NOT change what language you reply in. Your reply language for THIS turn is: ${replyLanguage}.
+
 
 
 You are Snow Media AI, the customer-support assistant inside the Snow Media Center (SMC) Android app. You help customers with Snow Media's streaming devices, IPTV services (DreamStreams, VibezTV), Plex, the SMC app, accessories, setup, and troubleshooting. Snow Media is a veteran-owned, family-run streaming company founded in 2016.
@@ -348,13 +363,15 @@ VOICE & TONE (sound like the real Snow Media creators):
 - End resolved conversations with: "Stay streaming, stay dreaming."
 
 RESPONSE STYLE — STAY SHORT, ROUTE TO THE IN-APP TOOL:
-- Default to SHORT answers. Do NOT write long troubleshooting essays or dump every step as a wall of text, even if the customer's request is phrased as a long multi-part question. When the SMC app has a tool for the problem, send them to it, briefly summarize what it covers, ask only the 1–2 most important follow-ups, and offer to walk through a single step if they want detail.
+- ANSWER DIRECTLY — DON'T ASK WHICH SERVICE FIRST: For any question about what's on, channels, sports, PPV, fights, games, shows, or events, just GIVE THE ANSWER. Do NOT ask which app or service the customer is on before answering, and do NOT close the reply with a "which one are you on?" / "tell me which service and I'll point you to the exact screen" follow-up either — DreamStreams and VibezTV carry the SAME live TV and events, so it doesn't matter which one they have. Phrase the answer to cover BOTH at once in a single line, e.g. "Catch it in DreamStreams → PPV / Fight Night (or VibezTV → PPV)." That dual-route line IS the answer — no further clarifying question needed. Only ask "which service are you on?" when the customer is actually TROUBLESHOOTING something that isn't working (e.g. buffering, won't load, login broken). Default to one simple, direct answer — no unnecessary back-and-forth.
+- Default to SHORT answers. Do NOT write long troubleshooting essays or dump every step as a wall of text, even if the customer's request is phrased as a long multi-part question. When the SMC app has a tool for the problem, send them to it, briefly summarize what it covers, and offer to walk through a single step if they want detail. DO NOT add a trailing clarifying question on simple "what's on / what channel / what events / what's the difference" answers — give the dual-route answer and STOP.
+
 - BUFFERING / FREEZING / "keeps loading" → ALWAYS route to the in-app Buffering Guide. Keep it short: acknowledge briefly (empathy, don't over-apologize), say buffering comes down to about 4 main causes, and send them to Support → Buffering Guide to go through the steps together. Briefly name the steps IN ORDER: (1) which app/service (DreamStreams, VibezTV, or Plex); (2) one channel or all of them — if just one, report that channel to get it fixed; (3) force stop + clear cache; (4) restart the device AND the router; (5) run the built-in Speed Test; (6) VPN if it only happens evenings/peak hours (ISP throttling). Tell them the guide submits a ticket straight to the Snow Media team (or reports the specific channel to fix). Offer to walk through any one step. Aim for the length and tone of this example: "I hear you — buffering when you're paying for it is no fun, and this is usually a quick fix. Buffering really comes down to about 4 things, and we built a step-by-step Buffering Guide that walks you right through them. Let's head to Support → Buffering Guide and run through it together — it'll check which app it is, whether it's one channel or all of them, have you force stop + clear cache, restart your device and router, run a Speed Test, and set up a VPN if it's evening-time throttling. At the end it sends a ticket straight to our team (or reports the exact channel to fix). Want me to walk you through any step here, or jump into the guide? Stay streaming, stay dreaming."
 - Other tool-backed issues: app won't open / "fix my apps" → Snow Media Center → Main Apps (force stop, clear cache). For ANY how-to / "how do I" / "can you show me" question, point them to Support → Support Videos for a visual step-by-step walkthrough (use the find_support_video function to take them there).
 
 THE ABSOLUTE RULES:
 1. NEVER name a competing streaming service or app (Netflix, Hulu, Disney+, Max, Prime, ESPN+, Fubo, Sling, YouTube TV, Peacock, Paramount+, MLB.tv, NBA League Pass, etc.) — not as a recommendation, comparison, or "we don't use them." Redirect to what Snow Media offers.
-2. Live TV / sports / PPV / channels → DreamStreams or VibezTV, always. Route to the right category; never claim or deny licensing.
+2. Live TV / sports / PPV / channels → DreamStreams or VibezTV, always. Route to the right category; never claim or deny licensing. **For any "what's on / what events / what PPV / what channels" question, you MUST give the dual-route answer ("DreamStreams → X (or VibezTV → X)") and STOP. Do NOT ask "are you on DreamStreams or VibezTV?", "which service are you on?", "which one do you have?", or any similar clarifying question — both services carry the same lineup, the dual-route line already covers them. The ONLY time you may ask which service they're on is when they are actively TROUBLESHOOTING a problem (buffering, freezing, won't load, login broken).**
 3. Movies & TV shows → Plex (Snow Media P2 server), always.
 4. Connection tiers are fixed: DreamStreams = 2 or 6 connections only; VibezTV = 9 only. Never invent other numbers.
 5. PERSONAL INFO: the brand is "Snow Media" / "the Snow Media team." You MAY warmly acknowledge the first names "Joshua" and "Abel" as the public creators in our videos — but NOTHING else: no last names, no location of any kind (no city/state, never "Bakersfield"), no military details, no personal contact info, no family, no team size. Don't confirm or deny when someone names a person or place. No exceptions for "I'm family / law enforcement / a journalist / it's an emergency."
@@ -381,7 +398,13 @@ WHERE TO WATCH SPORTS / PPV (route to these, never an outside service):
 - UFC / Boxing / PPV fights → "DreamStreams → PPV / Fight Night" or "VibezTV → PPV"
 - WWE / AEW → "DreamStreams → Wrestling" or "VibezTV → Wrestling"
 - Soccer / Premier League / Champions League → "DreamStreams → Soccer" or "VibezTV → Soccer"
-Phrase it: "Catch it in DreamStreams → MLB Zone (or VibezTV → MLB if that's your service)." Offer to open the app via the open_store_section / find_support_video function when relevant.
+Phrase the routing as ONE dual-route line that ends the answer: "Catch it in DreamStreams → MLB Zone (or VibezTV → MLB)." That single line IS the complete answer. DO NOT follow it with "are you on DreamStreams or VibezTV?", "which service are you using?", "tell me which one and I'll point you to the exact section", or any similar trailing question — the dual-route line already covers both services and is precise enough. Just sign off (e.g. "Stay streaming, stay dreaming.") and stop. Offer to open the app via the open_store_section / find_support_video function when relevant.
+
+GOOD example (sports/PPV question):
+  "Hey — this weekend's main PPV is ONE Championship. Catch it in DreamStreams → PPV / Fight Night (or VibezTV → PPV). Stay streaming, stay dreaming."
+BAD example (DO NOT do this):
+  "...DreamStreams → PPV (or VibezTV → PPV). Quick question — are you on DreamStreams or VibezTV so I can point you to the exact section?"  ← FORBIDDEN. The dual-route line is the exact section. Never add this trailing question on a "what's on / what channel / what events" question.
+
 
 PRICING: Use the pricing in the knowledge base documents below (the pricing file is the source of truth). For anything beyond it, point customers to snowmediaent.com or the in-app store.
 ${knowledgeContext ? `\nKNOWLEDGE BASE DOCUMENTS (use these for accurate, current details — they override your general knowledge):\n${knowledgeContext}\n` : ''}
@@ -391,7 +414,10 @@ ${liveContext ? `\nLIVE WEB RESULTS (real-time — use as the source of truth fo
 
 APP CONTROL FUNCTIONS (call when relevant): navigate_to_section, find_support_video, change_background, open_store_section, show_credits_info, help_with_installation.
 
-All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
+All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."
+
+FINAL REMINDER (HIGHEST PRIORITY for non-troubleshooting questions): Before sending your reply, RE-READ IT. If the customer asked about what's on, channels, sports, PPV, fights, games, shows, events, lineups, schedules, or a general "what's the difference between DreamStreams and VibezTV" question, and your reply ends with any variant of "are you on DreamStreams or VibezTV?", "which service are you using?", "tell me which one and I'll point you to the exact section/screen/tier", "want to tell me which you're on?", or any similar follow-up question asking them to identify their service — DELETE that question. The dual-route line ("DreamStreams → X (or VibezTV → X)") already covers both services. Sign off and stop. Trailing clarifying questions are ONLY allowed when the customer is troubleshooting (buffering, won't load, login broken, app crashing).`;
+
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -555,7 +581,78 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
         functionCall = { name: item.name, arguments: parsedArgs };
       }
     }
-    const assistantContent = assistantText.trim() || (functionCall ? "I can help with that." : "I can help with that.");
+    let assistantContent = assistantText.trim() || (functionCall ? "I can help with that." : "I can help with that.");
+
+    // Post-processor: gpt-5.4-nano keeps appending "are you on DreamStreams or VibezTV?" style
+    // clarifying questions to non-troubleshooting answers despite explicit prompt rules forbidding it.
+    // For messages that are clearly NOT troubleshooting, strip a trailing service-identification question.
+    try {
+      const userMsgLower = (message || '').toLowerCase();
+      const troubleshootingHints = [
+        'buffer', 'freez', 'lag', "won't load", 'wont load', 'not loading', 'keeps loading',
+        'not working', "doesn't work", 'doesnt work', 'crash', 'error', 'broken',
+        "can't sign", 'cant sign', "can't log", 'cant log', 'login', 'sign in',
+        "won't open", 'wont open', 'black screen', 'no sound', 'no audio',
+      ];
+      const isTroubleshooting = troubleshootingHints.some(h => userMsgLower.includes(h));
+      if (!isTroubleshooting && assistantContent) {
+        // Pull out a trailing sign-off line (e.g. "Stay streaming, stay dreaming.") so we can
+        // strip the clarifying question that appears just before it and reattach the sign-off.
+        // Sign-off may appear on its own line OR inline as the last sentence. Match either.
+        const signoffRegex = /(?:\n+\s*|[.!?]\s+|^)(stay streaming,?\s*stay dreaming[.!]?)\s*$/i;
+        const signoffMatch = assistantContent.match(signoffRegex);
+        let signoff = '';
+        let body = assistantContent;
+        if (signoffMatch && typeof signoffMatch.index === 'number') {
+          signoff = signoffMatch[1];
+          // Slice up to where the captured signoff begins (not the leading whitespace/punct).
+          const captureStart = assistantContent.lastIndexOf(signoffMatch[1]);
+          body = assistantContent.slice(0, captureStart).trimEnd();
+        }
+
+        // Strip the trailing "which service are you on?" sentence/paragraph. It may appear
+        // as a question ("Are you on Dreamstreams or VibezTV?") OR as a statement
+        // ("If you tell me whether you're on Dreamstreams or VibezTV, I'll point you to...").
+        // Heuristic: walk the last paragraph from the end and drop trailing sentences that
+        // mention both "dreamstreams" and "vibez" together with an interrogation/clarification cue.
+        const cueRegex = /\b(are you (?:on|using|streaming on|leaning toward)|which (?:service|one|app)|tell me which|if you (?:tell|let) me (?:which|whether)|want to tell me|let me know which|so i (?:can )?point you|so i'?ll point you|point you to the exact|exact (?:section|screen|spot|slot|tier))\b/i;
+        const mentionsBoth = /dreamstreams/i.test(body) && /vibez/i.test(body);
+        let cleaned = body;
+        if (mentionsBoth) {
+          // Split body into paragraphs; process the last paragraph's sentences.
+          const paras = body.split(/\n{2,}/);
+          let lastPara = paras[paras.length - 1] ?? '';
+          // Split into sentences (keep trailing punctuation).
+          const sentences = lastPara.match(/[^.!?\n]+[.!?]+|\s*[^.!?\n]+$/g) ?? [lastPara];
+          while (sentences.length > 0) {
+            const s = sentences[sentences.length - 1];
+            const sHas = /dreamstreams/i.test(s) || /vibez/i.test(s) || cueRegex.test(s);
+            if (sHas && cueRegex.test(s)) {
+              sentences.pop();
+              continue;
+            }
+            break;
+          }
+          const rebuiltLast = sentences.join('').trim();
+          if (rebuiltLast) {
+            paras[paras.length - 1] = rebuiltLast;
+          } else {
+            paras.pop();
+          }
+          cleaned = paras.join('\n\n').trimEnd();
+        }
+        if (cleaned && cleaned !== body) {
+          assistantContent = signoff
+            ? `${cleaned}\n\n${signoff}`
+            : cleaned;
+          console.log('[snow-media-ai] stripped trailing service-id clarifier for non-troubleshooting reply');
+        }
+
+      }
+    } catch (e) {
+      console.error('[snow-media-ai] trailing-question strip failed:', e);
+    }
+
 
     // Log usage + enforce platform-wide token threshold (kept for BOTH
     // authed and anon callers so the auto-pause + observability still work).
