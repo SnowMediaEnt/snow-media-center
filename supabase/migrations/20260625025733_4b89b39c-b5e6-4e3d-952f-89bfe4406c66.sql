@@ -1,0 +1,1 @@
+DELETE FROM public.ai_anon_usage WHERE device_id IN ('test-verify-langfix-001','test-verify-langfix-002','test-verify-langfix-003');
