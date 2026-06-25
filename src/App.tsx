@@ -31,6 +31,21 @@ const App = () => {
 
   useEffect(() => { try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('mounted'); } catch(e){} }, []);
 
+  // User-selected dynamic background (from MediaManager). Falls back to gradient
+  // when null. Listens to a window event so updates from the manager apply live.
+  const [activeBgUrl, setActiveBgUrl] = useState<string | null>(() => {
+    try { return localStorage.getItem('snow-active-bg'); } catch { return null; }
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const url = (e as CustomEvent<{ url: string | null }>).detail?.url ?? null;
+      setActiveBgUrl(url);
+    };
+    window.addEventListener('snow:bg-change', onChange as EventListener);
+    return () => window.removeEventListener('snow:bg-change', onChange as EventListener);
+  }, []);
+
+
   // Deep link handler — open snowmedia://sso?token=... or https://snowmediaent.com/sso?token=...
   // and route into the in-app /sso consumer page so the magic link signs the user in.
   useEffect(() => {
