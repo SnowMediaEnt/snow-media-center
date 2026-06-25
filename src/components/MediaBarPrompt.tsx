@@ -73,8 +73,9 @@ const MediaBarPrompt = () => {
       }
       if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab' || key === 'ArrowUp' || key === 'ArrowDown') {
         e.preventDefault(); e.stopPropagation();
-        if (key === 'ArrowLeft' || (key === 'Tab' && e.shiftKey)) setFocusIdx(0);
-        else if (key === 'ArrowRight' || key === 'Tab') setFocusIdx(i => (i === 0 ? 1 : 1));
+        // Visual order: [Not now (idx=1)] [Turn it on (idx=0)]
+        if (key === 'ArrowLeft' || (key === 'Tab' && e.shiftKey)) setFocusIdx(1);
+        else if (key === 'ArrowRight' || key === 'Tab') setFocusIdx(0);
         // Up/Down stay
         return;
       }
