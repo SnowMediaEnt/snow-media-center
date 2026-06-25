@@ -1350,7 +1350,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ref={focusSinkRef}
         tabIndex={-1}
         aria-hidden="true"
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none', left: -9999, top: -9999 }}
+        style={{ position: 'fixed', top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none' }}
       />
       <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
         {!embedded && (
