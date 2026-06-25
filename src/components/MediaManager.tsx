@@ -471,6 +471,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     try {
       setGenerating(true);
+      // Park focus on the prompt input BEFORE the button toggles to disabled.
+      // Otherwise Android WebView jumps native focus to the next tabbable
+      // element (the hidden file input), which on Fire TV auto-fires
+      // ACTION_GET_CONTENT and crashes the DocumentsUI picker.
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      setFocusedElement('prompt-input');
+
 
       const enhancedPrompt = generatePrompt;
 
