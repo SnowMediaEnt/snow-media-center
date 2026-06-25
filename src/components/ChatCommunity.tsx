@@ -244,10 +244,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     try {
       console.log('VOICE_TTS_START:', text.length, 'chars');
       const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
-        body: { text },
+        body: { text, device_id: getDeviceId() },
       });
       if (error) throw error;
       if (playbackId !== ttsPlaybackIdRef.current) return;
+      // Free-AI gate denied (flag off / cap reached / paused) — anon callers
+      // get the upgrade dialog; signed-in get a toast.
+      if (data && (data as { blocked?: boolean }).blocked) {
+        const reason = (data as { reason?: string }).reason ?? null;
+        voiceControlsRef.current?.setVoiceState('idle');
+        restoreAiVoiceFocus();
+        if (!user) {
+          setBlockedReason(reason);
+        } else {
+          toast({
+            title: 'Voice reply unavailable',
+            description: reason || 'Voice replies are briefly unavailable. Please try again.',
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
       const audioContent = (data as { audioContent?: string })?.audioContent;
       if (!audioContent) {
         console.warn('VOICE_ERROR: TTS_NO_AUDIO/no audioContent returned/tts');
