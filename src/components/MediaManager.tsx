@@ -605,6 +605,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       setGeneratePrompt('');
       (document.activeElement as HTMLElement | null)?.blur?.();
       setFocusedElement('prompt-input');
+      // Refresh + scroll gallery so the newly-saved image shows up immediately
+      setTimeout(() => {
+        galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
