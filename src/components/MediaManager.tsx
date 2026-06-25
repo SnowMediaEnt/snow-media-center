@@ -687,7 +687,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
               </div>
               <div className="flex items-end">
                 <Button
-                  onClick={handleGenerateImage}
+                  onClick={() => handleGenerateImage()}
                   disabled={generating || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < (imageConfig.credits * 0.01))}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
