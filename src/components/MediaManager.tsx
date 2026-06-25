@@ -335,6 +335,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       block: 'nearest',
       inline: 'nearest',
     });
+
+    // FOCUS-HIGHLIGHT SYNC: move real DOM focus to the highlighted element so
+    // the ring always reflects the actual D-pad cursor. Skip the prompt input
+    // so we don't auto-pop the on-screen keyboard on TV — the user opens it
+    // explicitly via Enter.
+    if (focusedElement !== 'prompt-input' && document.activeElement !== el) {
+      try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+    }
   }, [focusedElement]);
 
   // Detect screen resolution and optimal image size
