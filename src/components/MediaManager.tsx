@@ -862,7 +862,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         </div>
 
-        {assets.length === 0 && (
+        {assets.length === 0 && anonGallery.length === 0 && (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-slate-300 mb-2">No assets uploaded yet</h3>
