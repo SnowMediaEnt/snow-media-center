@@ -58,7 +58,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     section: 'home',
     description: ''
   });
-  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+  // Initial highlight must match where the real D-pad cursor lands. We do NOT
+  // auto-highlight the prompt input on mount (it would also open the on-screen
+  // keyboard on TV); the user can press DOWN/UP to reach it.
+  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'generate-btn' : 'back');
   // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
   // media_assets without auth). Lives only for the session; shown in the same
   // grid as saved assets so the user never leaves the app.
