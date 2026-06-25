@@ -38,6 +38,7 @@ type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
 const ROW_HEIGHT = 84;
+const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const EPG_MAX_CONCURRENT = 5;
 const PREVIEW_DEBOUNCE_MS = 700;
 
