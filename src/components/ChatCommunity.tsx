@@ -1267,8 +1267,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    if (!embedded) {
+    const isInputRow = currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send';
+
+    if (!embedded && !isInputRow) {
       // Standalone mode may scroll its own page; embedded Support must not auto-drop.
+      // Skip scrollIntoView for the AI input row — those three controls share a row
+      // and any scroll here can yank the page to the top after the OSK closes.
       const useSmoothCenter = currentFocusId.startsWith('ai-history-');
       el.scrollIntoView(
         useSmoothCenter
