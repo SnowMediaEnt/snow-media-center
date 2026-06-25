@@ -561,6 +561,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         setGeneratePrompt('');
         (document.activeElement as HTMLElement | null)?.blur?.();
         setFocusedElement('prompt-input');
+        // Scroll the gallery into view so user sees the new image immediately
+        setTimeout(() => {
+          galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
         return;
       }
 
