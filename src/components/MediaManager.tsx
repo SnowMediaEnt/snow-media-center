@@ -13,14 +13,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
-import { isNativePlatform } from '@/utils/platform';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
-
-// D-pad / TV-first build: NEVER launch the system file picker. On Fire TV the
-// DocumentsUI picker NPEs on the first remote arrow press (FocusManager
-// .focusDirectoryList) and locks the device. On TV/STB the only image source
-// is AI generation — uploads stay web-only.
-const PICKER_DISABLED = isNativePlatform();
 
 interface MediaManagerProps {
   onBack: () => void;
@@ -478,6 +471,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
     try {
       setGenerating(true);
+      // Park focus on the prompt input BEFORE the button toggles to disabled.
+      // Otherwise Android WebView jumps native focus to the next tabbable
+      // element (the hidden file input), which on Fire TV auto-fires
+      // ACTION_GET_CONTENT and crashes the DocumentsUI picker.
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      setFocusedElement('prompt-input');
+
 
       const enhancedPrompt = generatePrompt;
 
@@ -538,6 +538,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           description: 'Added to your gallery. Sign in to save it permanently.',
         });
         setGeneratePrompt('');
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        setFocusedElement('prompt-input');
         return;
       }
 
@@ -576,6 +578,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       }
 
       setGeneratePrompt('');
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      setFocusedElement('prompt-input');
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
@@ -688,54 +692,55 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         </Card>
 
-        {/* Upload Section — WEB ONLY. The system file picker hard-crashes
-            Fire TV via D-pad (FocusManager NPE in DocumentsUI), so on
-            native TV/STB builds we hide every "Choose File" affordance and
-            users rely on AI generation above. */}
-        {!PICKER_DISABLED && (
-          <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Upload New Asset</h2>
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
-              <div data-focus-id="asset-type">
-                <Label htmlFor="asset-type" className="text-white mb-2 block">Asset Type</Label>
-                <Select value={uploadForm.assetType} onValueChange={(value) => setUploadForm({...uploadForm, assetType: value as MediaAsset['asset_type']})}>
-                  <SelectTrigger className={`bg-white/10 border-white/20 text-white transition-all rounded-md ${focusedElement === 'asset-type' ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600">
-                    <SelectItem value="background">Background</SelectItem>
-                    <SelectItem value="icon">Icon</SelectItem>
-                    <SelectItem value="logo">Logo</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Upload Section */}
+        <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4">Upload New Asset</h2>
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
+            <div data-focus-id="asset-type">
+              <Label htmlFor="asset-type" className="text-white mb-2 block">Asset Type</Label>
+              <Select value={uploadForm.assetType} onValueChange={(value) => setUploadForm({...uploadForm, assetType: value as MediaAsset['asset_type']})}>
+                <SelectTrigger className={`bg-white/10 border-white/20 text-white transition-all rounded-md ${focusedElement === 'asset-type' ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-600">
+                  <SelectItem value="background">Background</SelectItem>
+                  <SelectItem value="icon">Icon</SelectItem>
+                  <SelectItem value="logo">Logo</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <div data-focus-id="file-input">
-              <Button
-                type="button"
-                onClick={() => {
-                  if (PICKER_DISABLED) return; // defence-in-depth
-                  fileInputRef.current?.click();
-                }}
-                disabled={uploading}
-                className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all rounded-md ${focusedElement === 'file-input' ? 'ring-4 ring-brand-ice scale-105' : ''}`}
-              >
-                {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                Choose File
-              </Button>
-              <Input
-                type="file"
-                ref={fileInputRef}
-                accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff"
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="hidden"
-              />
-            </div>
-          </Card>
-        )}
+          <div data-focus-id="file-input">
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all rounded-md ${focusedElement === 'file-input' ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+            >
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Choose File
+            </Button>
+            {/* tabIndex=-1: keep the hidden file input out of native tab order.
+                Otherwise, when generate-btn becomes disabled after a successful
+                AI generation, Android WebView jumps focus to the next tabbable
+                element (this input). On Fire TV, focus on a type=file input
+                + the next D-pad OK auto-fires ACTION_GET_CONTENT and the
+                DocumentsUI picker NPE-crashes the app. */}
+            <Input
+              type="file"
+              ref={fileInputRef}
+              accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff"
+              onChange={handleFileUpload}
+              disabled={uploading}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="hidden"
+            />
+          </div>
+        </Card>
+
 
         {/* Assets Grid - Flat list for proper grid navigation */}
         <div className="space-y-4">

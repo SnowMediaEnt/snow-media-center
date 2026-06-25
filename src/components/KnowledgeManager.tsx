@@ -10,7 +10,7 @@ import { ArrowLeft, Upload, Trash2, FileText, Loader2, Plus, Eye, EyeOff } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { isNativePlatform } from '@/utils/platform';
+
 
 interface KnowledgeManagerProps {
   onBack: () => void;
@@ -304,20 +304,14 @@ const KnowledgeManager = ({ onBack }: KnowledgeManagerProps) => {
             
             <div>
               <Label htmlFor="file" className="text-white mb-2 block">Upload File</Label>
-              {isNativePlatform() ? (
-                <div className="text-white/70 text-sm bg-white/5 border border-white/10 rounded p-3">
-                  File upload is disabled on TV/STB builds (the system file picker crashes Fire TV via D-pad). Use a web browser on a desktop or phone to upload knowledge documents.
-                </div>
-              ) : (
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".pdf,.txt,.doc,.docx"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  className="bg-white/10 border-white/20 text-white file:bg-purple-600 file:text-white file:border-0 file:rounded file:px-4 file:py-2"
-                />
-              )}
+              <Input
+                id="file"
+                type="file"
+                accept=".pdf,.txt,.doc,.docx"
+                onChange={handleFileUpload}
+                disabled={uploading}
+                className="bg-white/10 border-white/20 text-white file:bg-purple-600 file:text-white file:border-0 file:rounded file:px-4 file:py-2"
+              />
             </div>
           </div>
           
