@@ -69,7 +69,12 @@ const Settings = ({ onBack }: SettingsProps) => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Bail when any Radix modal dialog is open — let it trap D-pad.
+      if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) {
+        return;
+      }
       if (mediaManagerActive) {
+
         if (event.key === 'Escape' || event.key === 'Backspace' ||
             event.keyCode === 4 || event.which === 4) {
           const target = event.target as HTMLElement;
