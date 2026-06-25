@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Send, User, MessageSquare, Brain, Loader2, MessageCircle, Plus, Clock, CheckCircle, AlertCircle, X, Check, Trash2, Volume2, VolumeX } from 'lucide-react';
-import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
+import type { VoiceLifecycleControls } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
@@ -989,7 +989,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         } else if (inputId === 'reply-input') {
           leaveTextFieldById('reply-send', target);
         } else if (inputId === 'ai-input') {
-          leaveTextFieldById('ai-send', target);
+          // Enter while typing in the AI input SENDS the message (same as Send button)
+          (target as HTMLInputElement).blur();
+          void hideKeyboardForDpad(target);
+          if (!aiLoading && aiMessage.trim()) {
+            sendAiMessage();
+          }
         } else {
           void hideKeyboardForDpad(target);
         }
@@ -1262,8 +1267,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    if (!embedded) {
+    const isInputRow = currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send';
+
+    if (!embedded && !isInputRow) {
       // Standalone mode may scroll its own page; embedded Support must not auto-drop.
+      // Skip scrollIntoView for the AI input row — those three controls share a row
+      // and any scroll here can yank the page to the top after the OSK closes.
       const useSmoothCenter = currentFocusId.startsWith('ai-history-');
       el.scrollIntoView(
         useSmoothCenter
@@ -1345,7 +1354,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ref={focusSinkRef}
         tabIndex={-1}
         aria-hidden="true"
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none', left: -9999, top: -9999 }}
+        style={{ position: 'fixed', top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none' }}
       />
       <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
         {!embedded && (
@@ -1884,22 +1893,32 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 data-focus-id="ai-voice"
                 className={`inline-flex items-stretch transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}`}
               >
-                <VoiceInput
-                  onRecordingStart={() => {
-                    voiceModeRef.current = true;
+                <Button
+                  type="button"
+                  onClick={() => {
                     unlockAudioPlayback();
+                    if (!user) {
+                      toast({
+                        title: 'Sign in to use voice',
+                        description: 'Voice playback uses Snow Gems and requires an account.',
+                      });
+                      return;
+                    }
+                    // Find the most recent AI message and read it aloud
+                    let lastAiIndex = -1;
+                    for (let i = aiChat.length - 1; i >= 0; i--) {
+                      if (aiChat[i].role === 'ai') { lastAiIndex = i; break; }
+                    }
+                    if (lastAiIndex === -1) return;
+                    void speakReply(aiChat[lastAiIndex].content, lastAiIndex);
                   }}
-                  onTranscription={(text, controls) => {
-                    voiceModeRef.current = true;
-                    voiceControlsRef.current = controls;
-                    setAiMessage(text);
-                    sendAiMessage(text);
-                  }}
-                  onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
-                  onRestoreFocus={restoreAiVoiceFocus}
-                  disabled={aiLoading}
-                  className="h-full"
-                />
+                  disabled={aiLoading || !aiChat.some(m => m.role === 'ai')}
+                  className="h-full bg-brand-ice/20 hover:bg-brand-ice/30 border border-brand-ice/40 text-white px-4"
+                  aria-label="Hear the most recent AI reply"
+                >
+                  <Volume2 className="w-4 h-4 mr-2" />
+                  Hear reply
+                </Button>
               </div>
               <Button 
                 onClick={() => sendAiMessage()}
