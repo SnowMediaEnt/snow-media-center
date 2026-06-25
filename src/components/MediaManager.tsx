@@ -726,6 +726,27 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         <div className="space-y-4">
           <h3 className="text-2xl font-bold text-white mb-4">Your Assets</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {anonGallery.map((img) => (
+              <Card
+                key={img.id}
+                className="bg-gradient-to-br from-muted to-background border-border p-4"
+              >
+                <div className="aspect-video bg-muted rounded mb-3 overflow-hidden">
+                  <img src={img.dataUrl} alt={img.name} className="w-full h-full object-cover" />
+                </div>
+                <h4 className="text-lg font-bold text-foreground mb-2 truncate">{img.name}</h4>
+                <p className="text-sm text-muted-foreground mb-2">Sign in to save</p>
+                <div className="flex items-center justify-end">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setAnonGallery((prev) => prev.filter((p) => p.id !== img.id))}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
             {assets.map((asset, index) => {
               const isFocused = focusedElement === `asset-${index}`;
               const isToggleFocused = focusedElement === `asset-toggle-${asset.id}`;
