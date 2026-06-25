@@ -89,8 +89,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     if (!isActive) return; // Don't handle navigation when not active
     
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Bail when any Radix modal dialog is open — it owns the D-pad.
+      if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) {
+        return;
+      }
       const target = event.target as HTMLElement;
       const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
       
       // When typing in inputs, only handle escape/navigation keys to exit
       if (isTyping) {
