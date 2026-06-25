@@ -58,7 +58,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     section: 'home',
     description: ''
   });
-  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+  // Initial highlight must match where the real D-pad cursor lands. We do NOT
+  // auto-highlight the prompt input on mount (it would also open the on-screen
+  // keyboard on TV); the user can press DOWN/UP to reach it.
+  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'generate-btn' : 'back');
   // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
   // media_assets without auth). Lives only for the session; shown in the same
   // grid as saved assets so the user never leaves the app.
@@ -332,6 +335,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       block: 'nearest',
       inline: 'nearest',
     });
+
+    // FOCUS-HIGHLIGHT SYNC: move real DOM focus to the highlighted element so
+    // the ring always reflects the actual D-pad cursor. Skip the prompt input
+    // so we don't auto-pop the on-screen keyboard on TV — the user opens it
+    // explicitly via Enter.
+    if (focusedElement !== 'prompt-input' && document.activeElement !== el) {
+      try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+    }
   }, [focusedElement]);
 
   // Detect screen resolution and optimal image size

@@ -252,11 +252,24 @@ const Settings = ({ onBack }: SettingsProps) => {
       const topAnchor = document.getElementById('settings-top');
       topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       scrollAllToTop();
+      // FOCUS-HIGHLIGHT SYNC: also move the real DOM cursor to the
+      // back/tab element so the visible ring matches D-pad position.
+      const top = document.querySelector(`[data-settings-focus="${focusedElement}"]`) as HTMLElement | null;
+      if (top && document.activeElement !== top) {
+        try { top.focus({ preventScroll: true }); } catch { /* ignore */ }
+      }
       return;
     }
 
-    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // FOCUS-HIGHLIGHT SYNC: keep the real DOM focus on the highlighted
+      // element so D-pad activation always matches the visible ring.
+      if (document.activeElement !== el) {
+        try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+      }
+    }
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
