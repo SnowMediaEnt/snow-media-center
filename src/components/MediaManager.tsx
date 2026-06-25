@@ -578,6 +578,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       }
 
       setGeneratePrompt('');
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      setFocusedElement('prompt-input');
     } catch (error) {
       console.error('Generate image error:', error);
       toast({
