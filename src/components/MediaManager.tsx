@@ -772,8 +772,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
 
         {/* Assets Grid - Flat list for proper grid navigation */}
-        <div className="space-y-4">
-          <h3 className="text-2xl font-bold text-white mb-4">Your Assets</h3>
+        <div ref={galleryRef} className="space-y-4">
+          <h3 className="text-2xl font-bold text-white mb-4">
+            Your Assets {(anonGallery.length + assets.length) > 0 && (
+              <span className="text-base font-normal text-blue-200">
+                ({anonGallery.length + assets.length})
+              </span>
+            )}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {anonGallery.map((img) => (
               <Card
