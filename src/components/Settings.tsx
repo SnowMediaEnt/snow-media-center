@@ -252,6 +252,12 @@ const Settings = ({ onBack }: SettingsProps) => {
       const topAnchor = document.getElementById('settings-top');
       topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       scrollAllToTop();
+      // FOCUS-HIGHLIGHT SYNC: also move the real DOM cursor to the
+      // back/tab element so the visible ring matches D-pad position.
+      const top = document.querySelector(`[data-settings-focus="${focusedElement}"]`) as HTMLElement | null;
+      if (top && document.activeElement !== top) {
+        try { top.focus({ preventScroll: true }); } catch { /* ignore */ }
+      }
       return;
     }
 
