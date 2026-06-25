@@ -1338,7 +1338,15 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   }, [activeTab, embedded, focusSink, getFocusableElements]);
 
   return (
-    <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
+    <div ref={containerRef} className={`${embedded ? '' : 'tv-scroll-container tv-safe'} outline-none focus:outline-none`}>
+      {/* Hidden focus sink — receives DOM focus instead of the wrapper so
+          the AI panel is never highlighted as one big box. */}
+      <div
+        ref={focusSinkRef}
+        tabIndex={-1}
+        aria-hidden="true"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', outline: 'none', left: -9999, top: -9999 }}
+      />
       <div className={embedded ? '' : 'max-w-6xl mx-auto pb-16'}>
         {!embedded && (
           <>
