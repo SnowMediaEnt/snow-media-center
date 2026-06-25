@@ -317,6 +317,15 @@ class AppManagerPlugin : Plugin() {
 
   @PluginMethod
   fun isSpeechRecognitionAvailable(call: PluginCall) {
+    // Fire TV: Amazon does not ship a usable SpeechRecognizer service and
+    // RecognizerIntent.ACTION_RECOGNIZE_SPEECH errors / is hijacked by Alexa.
+    // Report unavailable so the JS layer skips the native path and uses
+    // getUserMedia + ElevenLabs STT instead.
+    if (isFireTvDevice()) {
+      Log.d(TAG, "isSpeechRecognitionAvailable=false (Fire TV — forcing ElevenLabs fallback)")
+      call.resolve(JSObject().put("available", false))
+      return
+    }
     val available = try {
       SpeechRecognizer.isRecognitionAvailable(context)
     } catch (e: Exception) {
@@ -326,6 +335,7 @@ class AppManagerPlugin : Plugin() {
     Log.d(TAG, "native recognizer available $available")
     call.resolve(JSObject().put("available", available))
   }
+
 
   // ----- Direct SpeechRecognizer (avoids Alexa hijack on Fire TV) -----
   private var speechRecognizer: SpeechRecognizer? = null
