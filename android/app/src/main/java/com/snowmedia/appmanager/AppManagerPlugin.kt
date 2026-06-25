@@ -317,6 +317,15 @@ class AppManagerPlugin : Plugin() {
 
   @PluginMethod
   fun isSpeechRecognitionAvailable(call: PluginCall) {
+    // Fire TV: Amazon does not ship a usable SpeechRecognizer service and
+    // RecognizerIntent.ACTION_RECOGNIZE_SPEECH errors / is hijacked by Alexa.
+    // Report unavailable so the JS layer skips the native path and uses
+    // getUserMedia + ElevenLabs STT instead.
+    if (isFireTvDevice()) {
+      Log.d(TAG, "isSpeechRecognitionAvailable=false (Fire TV — forcing ElevenLabs fallback)")
+      call.resolve(JSObject().put("available", false))
+      return
+    }
     val available = try {
       SpeechRecognizer.isRecognitionAvailable(context)
     } catch (e: Exception) {
@@ -326,6 +335,7 @@ class AppManagerPlugin : Plugin() {
     Log.d(TAG, "native recognizer available $available")
     call.resolve(JSObject().put("available", available))
   }
+
 
   // ----- Direct SpeechRecognizer (avoids Alexa hijack on Fire TV) -----
   private var speechRecognizer: SpeechRecognizer? = null
@@ -360,16 +370,18 @@ class AppManagerPlugin : Plugin() {
       return
     }
 
-    // On FireTV, route through the system speech-intent dialog so the
-    // Alexa remote-mic button can fill in the transcription. Direct
-    // SpeechRecognizer fails on FireTV because Alexa hijacks the mic.
+    // Fire TV: per Amazon's docs RecognizerIntent.ACTION_RECOGNIZE_SPEECH is
+    // not supported and the Alexa remote-mic button is system-reserved and
+    // can't be intercepted by third-party apps. Reject so the JS layer falls
+    // back to getUserMedia + ElevenLabs STT.
     if (isFireTvDevice()) {
-      Log.d(TAG, "FireTV detected — using RecognizerIntent activity flow")
-      startRecognizerIntentFlow(call)
+      Log.d(TAG, "FireTV detected — rejecting native voice; JS will use ElevenLabs fallback")
+      call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
       return
     }
 
     if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+
       Log.w(TAG, "No native speech recognizer available")
       call.reject("NO_SPEECH_RECOGNIZER", "NO_SPEECH_RECOGNIZER")
       return

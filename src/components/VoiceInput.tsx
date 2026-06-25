@@ -525,11 +525,17 @@ export const VoiceInput = ({
     onRecordingStart?.();
     transitionVoiceState('requesting_permission');
 
-    if (isNativePlatform()) {
+    // Fire TV: RecognizerIntent is unsupported (Amazon docs) and the Alexa
+    // remote mic button is system-reserved (can't be intercepted by apps).
+    // Skip the native path entirely and go straight to getUserMedia →
+    // elevenlabs-stt. On standard Android TV (Google services) the native
+    // RecognizerIntent works fine — keep it.
+    if (isNativePlatform() && !isFireTV()) {
       await startNativeThenFallback();
     } else {
       await startFallbackRecording('web');
     }
+
   };
 
   useEffect(() => {
