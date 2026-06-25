@@ -348,6 +348,20 @@ export const VoiceInput = ({
     cancelRequestedRef.current = false;
 
     try {
+      // Auth gate: STT fallback requires a signed-in user. Fail fast with a
+      // clear message instead of the cryptic "non-2xx" later.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: 'Sign in to use voice',
+          description: 'Voice input is a signed-in feature. Please sign in and try again.',
+          variant: 'destructive',
+        });
+        cleanupAudioSession();
+        finishAfterErrorOrCancel('error');
+        return;
+      }
+
       if (!navigator.mediaDevices?.getUserMedia) {
         throw Object.assign(new Error('This device does not expose a microphone to apps'), { code: 'NO_MICROPHONE_HARDWARE' });
       }
