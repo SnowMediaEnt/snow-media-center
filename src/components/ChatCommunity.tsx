@@ -423,6 +423,17 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const aiChatContainerRef = useRef<HTMLDivElement>(null);
+  // Hidden, off-screen focus sink. We never focus the panel wrapper itself
+  // (the user would see the entire AI box highlighted as one big focus ring
+  // and be trapped). Instead we park DOM focus here while D-pad navigation
+  // (driven by currentFocusId state + the window keydown handler) controls
+  // which visible item is highlighted via focusRing().
+  const focusSinkRef = useRef<HTMLDivElement>(null);
+  const focusSink = useCallback(() => {
+    const sink = focusSinkRef.current;
+    if (!sink) return;
+    try { sink.focus({ preventScroll: true }); } catch { /* ignore */ }
+  }, []);
 
   const forceSupportScrollTop = useCallback(() => {
     snapAllTVScrollToTop([containerRef.current]);
