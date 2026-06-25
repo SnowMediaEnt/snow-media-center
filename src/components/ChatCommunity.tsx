@@ -1893,22 +1893,32 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                 data-focus-id="ai-voice"
                 className={`inline-flex items-stretch transition-all duration-200 rounded-md ${isFocused('ai-voice') ? 'ring-4 ring-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}`}
               >
-                <VoiceInput
-                  onRecordingStart={() => {
-                    voiceModeRef.current = true;
+                <Button
+                  type="button"
+                  onClick={() => {
                     unlockAudioPlayback();
+                    if (!user) {
+                      toast({
+                        title: 'Sign in to use voice',
+                        description: 'Voice playback uses Snow Gems and requires an account.',
+                      });
+                      return;
+                    }
+                    // Find the most recent AI message and read it aloud
+                    let lastAiIndex = -1;
+                    for (let i = aiChat.length - 1; i >= 0; i--) {
+                      if (aiChat[i].role === 'ai') { lastAiIndex = i; break; }
+                    }
+                    if (lastAiIndex === -1) return;
+                    void speakReply(aiChat[lastAiIndex].content, lastAiIndex);
                   }}
-                  onTranscription={(text, controls) => {
-                    voiceModeRef.current = true;
-                    voiceControlsRef.current = controls;
-                    setAiMessage(text);
-                    sendAiMessage(text);
-                  }}
-                  onVoiceStateChange={(state: VoiceState) => console.log(`VOICE_STATE_VISIBLE: ${state}`)}
-                  onRestoreFocus={restoreAiVoiceFocus}
-                  disabled={aiLoading}
-                  className="h-full"
-                />
+                  disabled={aiLoading || !aiChat.some(m => m.role === 'ai')}
+                  className="h-full bg-brand-ice/20 hover:bg-brand-ice/30 border border-brand-ice/40 text-white px-4"
+                  aria-label="Hear the most recent AI reply"
+                >
+                  <Volume2 className="w-4 h-4 mr-2" />
+                  Hear reply
+                </Button>
               </div>
               <Button 
                 onClick={() => sendAiMessage()}
