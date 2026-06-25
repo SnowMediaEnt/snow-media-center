@@ -29,10 +29,14 @@ type SettingsFocus =
   | 'tab-ui'
   | 'tab-updates'
   | 'tab-alerts'
+  | 'tab-ai'
   | 'media-content'
   | 'ui-content-bar-toggle'
+  | 'ui-player-toggle'
   | 'updates-content'
-  | 'alerts-content';
+  | 'alerts-content'
+  | 'ai-content'
+  | `ui-language-${string}`;
 
 const Settings = ({ onBack }: SettingsProps) => {
   const { t, i18n } = useTranslation();
@@ -84,19 +88,57 @@ const Settings = ({ onBack }: SettingsProps) => {
         return;
       }
 
-      if (focusedElement === 'ui-content-bar-toggle') {
+      const getUiFocusOrder = (): SettingsFocus[] => {
+        const order: SettingsFocus[] = ['ui-content-bar-toggle'];
+        if (isAdmin) {
+          order.push('ui-player-toggle');
+          order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
+        }
+        return order;
+      };
+
+      if (focusedElement.startsWith('ui-')) {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) ||
+            event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        const order = getUiFocusOrder();
+        const currentIdx = order.indexOf(focusedElement);
+        const moveTo = (next: SettingsFocus) => {
+          setFocusedElement(next);
+          setTimeout(() => {
+            const el = document.querySelector(`[data-settings-focus="${next}"]`) as HTMLElement | null;
+            el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 30);
+        };
+
         if (event.key === 'ArrowUp') {
-          event.preventDefault(); event.stopPropagation();
-          setFocusedElement('tab-ui');
+          moveTo(currentIdx <= 0 ? 'tab-ui' : order[currentIdx - 1]);
+          return;
+        }
+        if (event.key === 'ArrowDown') {
+          if (currentIdx >= 0 && currentIdx < order.length - 1) moveTo(order[currentIdx + 1]);
+          return;
+        }
+        if (event.key === 'ArrowLeft' && focusedElement.startsWith('ui-language-')) {
+          if (currentIdx > 0) moveTo(order[currentIdx - 1]);
+          return;
+        }
+        if (event.key === 'ArrowRight' && focusedElement.startsWith('ui-language-')) {
+          if (currentIdx >= 0 && currentIdx < order.length - 1) moveTo(order[currentIdx + 1]);
           return;
         }
         if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault(); event.stopPropagation();
-          setMediaBarEnabledState(!mediaBarEnabled);
+          if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
+          else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
+          else if (focusedElement.startsWith('ui-language-')) {
+            handleLanguageSelect(focusedElement.replace('ui-language-', ''));
+          }
           return;
         }
         if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          event.preventDefault(); event.stopPropagation();
           setFocusedElement('tab-ui');
           return;
         }
@@ -173,7 +215,7 @@ const Settings = ({ onBack }: SettingsProps) => {
       }
 
       const tabs: SettingsFocus[] = isAdmin
-        ? ['tab-media', 'tab-ui', 'tab-updates', 'tab-alerts']
+        ? ['tab-media', 'tab-ui', 'tab-updates', 'tab-alerts', 'tab-ai']
         : ['tab-media', 'tab-ui', 'tab-updates'];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
@@ -182,6 +224,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         if (f === 'tab-ui') return 'ui';
         if (f === 'tab-updates') return 'updates';
         if (f === 'tab-alerts') return 'alerts';
+        if (f === 'tab-ai') return 'ai';
         return null;
       };
 
@@ -225,6 +268,8 @@ const Settings = ({ onBack }: SettingsProps) => {
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
+          } else if (focusedElement === 'tab-ai' && activeTab === 'ai') {
+            setFocusedElement('ai-content');
           }
           break;
         case 'Enter':
@@ -234,13 +279,14 @@ const Settings = ({ onBack }: SettingsProps) => {
           else if (focusedElement === 'tab-ui') setActiveTab('ui');
           else if (focusedElement === 'tab-updates') setActiveTab('updates');
           else if (focusedElement === 'tab-alerts') setActiveTab('alerts');
+          else if (focusedElement === 'tab-ai') setActiveTab('ai');
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, setMediaBarEnabledState]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, playerEnabled, setMediaBarEnabledState]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -275,11 +321,15 @@ const Settings = ({ onBack }: SettingsProps) => {
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
   const backFocusRing = (id: string) => isFocused(id)
-    ? 'scale-110 ring-4 ring-white shadow-[0_0_28px_rgba(255,255,255,0.85)] brightness-110 z-10'
+    ? 'relative z-30 scale-110 ring-4 ring-brand-gold ring-offset-2 ring-offset-slate-950 shadow-[0_0_28px_rgba(255,200,80,0.9)] brightness-125'
     : '';
   const focusRing = (id: string) => isFocused(id)
-    ? 'scale-110 ring-4 ring-brand-gold shadow-[0_0_28px_rgba(255,200,80,0.85)] brightness-125 z-10'
+    ? 'relative z-30 scale-105 ring-4 ring-brand-gold ring-offset-2 ring-offset-slate-950 shadow-[0_0_28px_rgba(255,200,80,0.9)] brightness-125'
     : '';
+  const settingsFocusAttrs = (id: SettingsFocus) => ({
+    'data-settings-focus': id,
+    'data-settings-focused': isFocused(id) ? 'true' : 'false',
+  });
 
   const handleMediaManagerBack = () => {
     setMediaManagerActive(false);
@@ -295,7 +345,8 @@ const Settings = ({ onBack }: SettingsProps) => {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-start w-full">
             <Button
-              data-settings-focus="back"
+              {...settingsFocusAttrs('back')}
+              onFocus={() => setFocusedElement('back')}
               onClick={onBack}
               variant="gold"
               size="lg"
@@ -314,7 +365,8 @@ const Settings = ({ onBack }: SettingsProps) => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`grid w-full ${tabColsClass} bg-slate-800/50 border-slate-600`}>
             <TabsTrigger
-              data-settings-focus="tab-media"
+              {...settingsFocusAttrs('tab-media')}
+              onFocus={() => setFocusedElement('tab-media')}
               value="media"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
@@ -322,7 +374,8 @@ const Settings = ({ onBack }: SettingsProps) => {
               {t('settings.tabs.media')}
             </TabsTrigger>
             <TabsTrigger
-              data-settings-focus="tab-ui"
+              {...settingsFocusAttrs('tab-ui')}
+              onFocus={() => setFocusedElement('tab-ui')}
               value="ui"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
             >
@@ -330,7 +383,8 @@ const Settings = ({ onBack }: SettingsProps) => {
               {t('settings.tabs.ui')}
             </TabsTrigger>
             <TabsTrigger
-              data-settings-focus="tab-updates"
+              {...settingsFocusAttrs('tab-updates')}
+              onFocus={() => setFocusedElement('tab-updates')}
               value="updates"
               className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
             >
@@ -339,7 +393,8 @@ const Settings = ({ onBack }: SettingsProps) => {
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger
-                data-settings-focus="tab-alerts"
+                {...settingsFocusAttrs('tab-alerts')}
+                onFocus={() => setFocusedElement('tab-alerts')}
                 value="alerts"
                 className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
               >
@@ -349,8 +404,10 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
             {isAdmin && (
               <TabsTrigger
+                {...settingsFocusAttrs('tab-ai')}
+                onFocus={() => setFocusedElement('tab-ai')}
                 value="ai"
-                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200`}
+                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ai')}`}
               >
                 <Bot className="w-4 h-4 mr-2" />
                 {t('settings.tabs.ai')}
@@ -372,12 +429,13 @@ const Settings = ({ onBack }: SettingsProps) => {
           <TabsContent value="ui" className="mt-6 space-y-4">
             <PlayerAccountCard />
             <Card
-              data-settings-focus="ui-content-bar-toggle"
-              className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-transform duration-150 ${
-                focusedElement === 'ui-content-bar-toggle'
-                  ? 'scale-[1.02] shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))]'
-                  : ''
-              }`}
+              {...settingsFocusAttrs('ui-content-bar-toggle')}
+              tabIndex={0}
+              role="button"
+              aria-pressed={mediaBarEnabled}
+              onFocus={() => setFocusedElement('ui-content-bar-toggle')}
+              onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
+              className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-content-bar-toggle')}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -400,6 +458,15 @@ const Settings = ({ onBack }: SettingsProps) => {
 
             {isAdmin && (
               <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
+              <Card
+                {...settingsFocusAttrs('ui-player-toggle')}
+                tabIndex={0}
+                role="button"
+                aria-pressed={playerEnabled}
+                onFocus={() => setFocusedElement('ui-player-toggle')}
+                onClick={() => void togglePlayer(!playerEnabled)}
+                className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-player-toggle')}`}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
                     <Tv className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
@@ -441,10 +508,15 @@ const Settings = ({ onBack }: SettingsProps) => {
                       <button
                         key={lang.code}
                         type="button"
-                        onClick={() => handleLanguageSelect(lang.code)}
+                        {...settingsFocusAttrs(`ui-language-${lang.code}`)}
+                        onFocus={() => setFocusedElement(`ui-language-${lang.code}`)}
+                        onClick={() => {
+                          setFocusedElement(`ui-language-${lang.code}`);
+                          handleLanguageSelect(lang.code);
+                        }}
                         tabIndex={0}
                         dir={lang.code === 'ar' ? 'rtl' : 'ltr'}
-                        className={`tv-focusable flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:scale-[1.04] ${
+                        className={`tv-focusable flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:scale-[1.04] ${focusRing(`ui-language-${lang.code}`)} ${
                           selected
                             ? 'bg-brand-gold/20 border-brand-gold text-white'
                             : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
@@ -461,7 +533,10 @@ const Settings = ({ onBack }: SettingsProps) => {
           </TabsContent>
 
           <TabsContent value="updates" className="mt-6 space-y-4">
-            <Card className="bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6">
+            <Card
+              {...settingsFocusAttrs('updates-content')}
+              className={`bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
+            >
               <AppUpdater />
             </Card>
 
@@ -470,14 +545,16 @@ const Settings = ({ onBack }: SettingsProps) => {
 
           {isAdmin && (
             <TabsContent value="alerts" className="mt-6">
-              <Card data-settings-focus="alerts-content" className="bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6">
+              <Card {...settingsFocusAttrs('alerts-content')} className={`bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
                 <AppAlertsManager />
               </Card>
             </TabsContent>
           )}
           {isAdmin && (
             <TabsContent value="ai" className="mt-6">
-              <AdminAIPanel />
+              <div {...settingsFocusAttrs('ai-content')} className={`transition-all duration-150 ${focusRing('ai-content')}`}>
+                <AdminAIPanel />
+              </div>
             </TabsContent>
           )}
         </Tabs>
