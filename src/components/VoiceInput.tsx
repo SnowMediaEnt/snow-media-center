@@ -5,7 +5,13 @@ import { Mic, MicOff, Volume2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AppManager } from '@/capacitor/AppManager';
-import { isNativePlatform } from '@/utils/platform';
+import { isNativePlatform, isFireTV } from '@/utils/platform';
+
+// Minimum recorded-audio size (bytes) to bother sending to ElevenLabs.
+// Fire TV's Alexa Voice Remote mic is not exposed to the WebView's
+// MediaRecorder, so getUserMedia "succeeds" but produces a tiny silent
+// webm that ElevenLabs rejects with 422 → cryptic non-2xx for the user.
+const MIN_AUDIO_BYTES = 1500;
 
 export type VoiceState =
   | 'idle'
@@ -232,6 +238,39 @@ export const VoiceInput = ({
     transitionVoiceState('processing_transcription');
     try {
       if (cancelRequestedRef.current) return;
+
+      // Hard guard: tiny/empty recordings are deterministically rejected by
+      // ElevenLabs (and waste a credit deduction). On Fire TV the Alexa
+      // remote mic isn't accessible to MediaRecorder so we land here.
+      if (audioBlob.size < MIN_AUDIO_BYTES) {
+        if (isFireTV()) {
+          toast({
+            title: "Voice isn't available on this device",
+            description: 'Fire TV remotes don\'t expose the mic to apps — please type your message.',
+            variant: 'destructive',
+          });
+          cleanupAudioSession();
+          finishAfterErrorOrCancel('error');
+          return;
+        }
+        await showVoiceError('EMPTY_SPEECH', 'fallback', new Error('I didn’t catch that, try again'));
+        return;
+      }
+
+      // Auth guard: elevenlabs-stt requires a signed-in JWT. Anonymous users
+      // would otherwise see "edge function returned a non-2xx status code".
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: 'Sign in to use voice',
+          description: 'Voice input is a signed-in feature. Please sign in and try again.',
+          variant: 'destructive',
+        });
+        cleanupAudioSession();
+        finishAfterErrorOrCancel('error');
+        return;
+      }
+
       console.log('VOICE_FALLBACK_STT_START');
       const arrayBuffer = await audioBlob.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
@@ -244,10 +283,24 @@ export const VoiceInput = ({
 
       const { data, error } = await supabase.functions.invoke('elevenlabs-stt', {
         body: { audio: base64Audio, mimeType: 'audio/webm' },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       console.log('VOICE_FALLBACK_STT_END');
 
-      if (error) throw error;
+      if (error) {
+        // Translate the cryptic non-2xx into something actionable.
+        if (isFireTV()) {
+          toast({
+            title: "Voice isn't available on this device",
+            description: 'Fire TV remotes don\'t expose the mic to apps — please type your message.',
+            variant: 'destructive',
+          });
+          cleanupAudioSession();
+          finishAfterErrorOrCancel('error');
+          return;
+        }
+        throw error;
+      }
       if (cancelRequestedRef.current) return;
 
       const text = (data as { text?: string })?.text?.trim();
