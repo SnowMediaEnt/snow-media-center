@@ -541,3 +541,13 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   left: 0.75rem !important;
   height: 6rem !important;
 }
+
+/* D-pad focus highlight inside any modal dialog (AlertDialog / Dialog). */
+[role="alertdialog"] :focus,
+[role="alertdialog"] :focus-visible,
+[role="dialog"] :focus,
+[role="dialog"] :focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px hsl(var(--brand-gold)), 0 0 24px hsl(var(--brand-gold) / 0.7);
+  border-radius: 0.5rem;
+}
