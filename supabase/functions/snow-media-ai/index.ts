@@ -581,7 +581,47 @@ FINAL REMINDER (HIGHEST PRIORITY for non-troubleshooting questions): Before send
         functionCall = { name: item.name, arguments: parsedArgs };
       }
     }
-    const assistantContent = assistantText.trim() || (functionCall ? "I can help with that." : "I can help with that.");
+    let assistantContent = assistantText.trim() || (functionCall ? "I can help with that." : "I can help with that.");
+
+    // Post-processor: gpt-5.4-nano keeps appending "are you on DreamStreams or VibezTV?" style
+    // clarifying questions to non-troubleshooting answers despite explicit prompt rules forbidding it.
+    // For messages that are clearly NOT troubleshooting, strip a trailing service-identification question.
+    try {
+      const userMsgLower = (message || '').toLowerCase();
+      const troubleshootingHints = [
+        'buffer', 'freez', 'lag', "won't load", 'wont load', 'not loading', 'keeps loading',
+        'not working', "doesn't work", 'doesnt work', 'crash', 'error', 'broken',
+        "can't sign", 'cant sign', "can't log", 'cant log', 'login', 'sign in',
+        "won't open", 'wont open', 'black screen', 'no sound', 'no audio',
+      ];
+      const isTroubleshooting = troubleshootingHints.some(h => userMsgLower.includes(h));
+      if (!isTroubleshooting && assistantContent) {
+        // Pull out a trailing sign-off line (e.g. "Stay streaming, stay dreaming.") so we can
+        // strip the clarifying question that appears just before it and reattach the sign-off.
+        const signoffRegex = /\n+\s*(stay streaming,?\s*stay dreaming[.!]?)\s*$/i;
+        const signoffMatch = assistantContent.match(signoffRegex);
+        let signoff = '';
+        let body = assistantContent;
+        if (signoffMatch) {
+          signoff = signoffMatch[1];
+          body = assistantContent.slice(0, signoffMatch.index).trimEnd();
+        }
+        // A "which service are you on?" question can be a paragraph of its own or the last
+        // sentence in the final paragraph. Match the most common patterns.
+        const trailingServiceQuestionRegex =
+          /(?:\n\n[^\n]*|(?:^|\.\s+|\?\s+|!\s+)[^.?!\n]*?)\b(?:are you (?:on|using)|which (?:service|one) (?:are you|do you have)|tell me which|if you (?:tell|let) me which|want to tell me which|let me know which)\b[^?\n]*\b(?:dreamstreams|vibez(?:tv)?|service|one)\b[^?\n]*\?\s*$/i;
+        const cleaned = body.replace(trailingServiceQuestionRegex, '').trimEnd();
+        if (cleaned && cleaned !== body) {
+          assistantContent = signoff
+            ? `${cleaned}\n\n${signoff}`
+            : cleaned;
+          console.log('[snow-media-ai] stripped trailing service-id question for non-troubleshooting reply');
+        }
+      }
+    } catch (e) {
+      console.error('[snow-media-ai] trailing-question strip failed:', e);
+    }
+
 
     // Log usage + enforce platform-wide token threshold (kept for BOTH
     // authed and anon callers so the auto-pause + observability still work).
