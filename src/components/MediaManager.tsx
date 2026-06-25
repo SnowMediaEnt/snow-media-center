@@ -877,6 +877,39 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         onBuyCredits={() => { setBlockedReason(null); onBack(); }}
         onClose={() => setBlockedReason(null)}
       />
+      <AlertDialog open={showAnonWarning} onOpenChange={setShowAnonWarning}>
+        <AlertDialogContent className="bg-slate-900 border-blue-500/40 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Heads up — you're not signed in</AlertDialogTitle>
+            <AlertDialogDescription className="text-blue-100">
+              This image won't be saved to your account. Sign in to keep your AI-generated images permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 text-white hover:bg-blue-700"
+              onClick={() => {
+                setShowAnonWarning(false);
+                navigate('/auth');
+              }}
+            >
+              Sign in
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-purple-600 text-white hover:bg-purple-700"
+              onClick={() => {
+                setShowAnonWarning(false);
+                handleGenerateImage(true);
+              }}
+            >
+              Generate anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
