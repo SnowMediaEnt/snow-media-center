@@ -436,7 +436,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   };
 
 
-  const handleGenerateImage = async () => {
+  const handleGenerateImage = async (skipAnonWarning = false) => {
     if (!generatePrompt.trim()) {
       toast({
         title: "Prompt required",
