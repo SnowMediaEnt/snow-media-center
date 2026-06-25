@@ -255,8 +255,15 @@ const Settings = ({ onBack }: SettingsProps) => {
       return;
     }
 
-    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`);
-    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // FOCUS-HIGHLIGHT SYNC: keep the real DOM focus on the highlighted
+      // element so D-pad activation always matches the visible ring.
+      if (document.activeElement !== el) {
+        try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
+      }
+    }
   }, [focusedElement]);
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
