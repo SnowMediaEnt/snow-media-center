@@ -111,15 +111,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           setFocusedElement('generate-btn');
           return;
         }
-        // Allow ArrowDown to exit input and go to asset-type
+        // Allow ArrowDown to exit input and go to Generate (then user can
+        // press DOWN again to reach asset-type below).
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           (target as HTMLInputElement).blur();
           if (focusedElement === 'prompt-input') {
-            setFocusedElement('asset-type');
+            setFocusedElement('generate-btn');
           }
           return;
         }
+
         // Allow ArrowUp to exit input back to Back button (or parent)
         if (event.key === 'ArrowUp') {
           event.preventDefault();
