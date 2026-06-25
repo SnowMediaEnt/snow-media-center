@@ -27,3 +27,6 @@ verify_jwt = false
 [functions.generate-ai-image]
 verify_jwt = false
 
+[functions.elevenlabs-tts]
+verify_jwt = false
+
