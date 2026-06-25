@@ -980,12 +980,12 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         return;
       }
 
+      // Space must reach the focused text input untouched so the user can type spaces.
+      // (Previously preventDefault was called here, which swallowed the space character.)
       if (isTyping && event.key === ' ') {
-        event.preventDefault();
-        event.stopPropagation();
-        void focusTextInputForDpad(target as HTMLInputElement | HTMLTextAreaElement);
         return;
       }
+
 
       // When in a textarea, allow arrow keys to navigate away (not inside the field)
       // We blur the element first to allow D-pad navigation

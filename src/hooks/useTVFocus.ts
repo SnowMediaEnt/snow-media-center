@@ -195,8 +195,12 @@ export const useTVFocus = ({
       }
 
       if (typing && event.key === 'Enter' && managedTarget.dataset.tvAllowEnter === 'true') return;
+      // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
+      // to type spaces. Also let Enter pass through unless arrow navigation is needed.
+      if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
       if (typing && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+
 
       event.preventDefault();
       event.stopPropagation();
