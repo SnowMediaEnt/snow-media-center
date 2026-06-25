@@ -908,16 +908,21 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     void hideKeyboardForDpad(active);
     requestAnimationFrame(() => {
       const target = containerRef.current?.querySelector(`[data-focus-id="${id}"]`) as HTMLElement | null;
-      const focusTarget = (target as HTMLButtonElement | null)?.disabled ? containerRef.current : target;
-      if (focusTarget) {
-        if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
-        focusTarget.focus({ preventScroll: true });
-        if (!embedded) {
-          focusTarget.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-        }
+      const isDisabled = !!(target as HTMLButtonElement | null)?.disabled;
+      // Never focus the wrapper itself — that would highlight the entire
+      // panel as one big focus ring and trap the user. Park focus on the
+      // hidden sink; visual focus is driven by currentFocusId.
+      if (!target || isDisabled) {
+        focusSink();
+        return;
+      }
+      if (target.tabIndex < 0) target.tabIndex = 0;
+      target.focus({ preventScroll: true });
+      if (!embedded) {
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
       }
     });
-  }, [embedded, getFocusableElements]);
+  }, [embedded, focusSink, getFocusableElements]);
 
   const focusableElements = getFocusableElements();
   const clampedIndex = Math.min(focusIndex, focusableElements.length - 1);
@@ -1280,22 +1285,22 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
 
     if (isTextInputFocus) {
-      // Keep focus on the container so arrow keys still navigate and the
+      // Park focus on the hidden sink so arrow keys still navigate AND the
       // native keyboard does NOT auto-pop. User presses OK to start typing.
-      if (containerRef.current) {
-        if (containerRef.current.tabIndex < 0) containerRef.current.tabIndex = 0;
-        containerRef.current.focus({ preventScroll: true });
-      }
+      // Focusing the wrapper itself would draw a focus ring around the whole
+      // AI panel and trap the user.
+      focusSink();
       return;
     }
 
     const isDisabled = (el as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement).disabled;
-    const focusTarget = isDisabled ? containerRef.current : el;
-    if (focusTarget) {
-      if (focusTarget.tabIndex < 0) focusTarget.tabIndex = 0;
-      focusTarget.focus({ preventScroll: true });
+    if (isDisabled) {
+      focusSink();
+      return;
     }
-  }, [currentFocusId]);
+    if (el.tabIndex < 0) el.tabIndex = 0;
+    el.focus({ preventScroll: true });
+  }, [currentFocusId, focusSink]);
 
 
   // Reset focus when tab changes
@@ -1320,17 +1325,17 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         const input = containerRef.current?.querySelector(
           '[data-focus-id="ai-input"]'
         ) as HTMLElement | null;
+        // Park focus on the hidden sink instead of the wrapper so we don't
+        // outline the entire AI panel.
+        focusSink();
         if (input) {
-          containerRef.current?.focus({ preventScroll: true });
           input.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-        } else {
-          containerRef.current?.focus({ preventScroll: true });
         }
       });
     };
     window.addEventListener('chat-community:focus-ai-input', handler);
     return () => window.removeEventListener('chat-community:focus-ai-input', handler);
-  }, [activeTab, embedded, getFocusableElements]);
+  }, [activeTab, embedded, focusSink, getFocusableElements]);
 
   return (
     <div ref={containerRef} className={embedded ? '' : 'tv-scroll-container tv-safe'}>
