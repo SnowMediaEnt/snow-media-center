@@ -58,10 +58,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     section: 'home',
     description: ''
   });
-  // Initial highlight must match where the real D-pad cursor lands. We do NOT
-  // auto-highlight the prompt input on mount (it would also open the on-screen
-  // keyboard on TV); the user can press DOWN/UP to reach it.
-  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'generate-btn' : 'back');
+  // Initial highlight starts on the prompt input so DOWN reaches Generate
+  // and UP exits back to the parent menu. We only HIGHLIGHT it — we do NOT
+  // call .focus() on it (that would auto-open the on-screen keyboard on TV).
+  const [focusedElement, setFocusedElement] = useState<FocusElement>(embedded ? 'prompt-input' : 'back');
+
   // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
   // media_assets without auth). Lives only for the session; shown in the same
   // grid as saved assets so the user never leaves the app.
@@ -88,8 +89,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     if (!isActive) return; // Don't handle navigation when not active
     
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Bail when any Radix modal dialog is open — it owns the D-pad.
+      if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) {
+        return;
+      }
       const target = event.target as HTMLElement;
       const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
       
       // When typing in inputs, only handle escape/navigation keys to exit
       if (isTyping) {
@@ -105,15 +111,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           setFocusedElement('generate-btn');
           return;
         }
-        // Allow ArrowDown to exit input and go to asset-type
+        // Allow ArrowDown to exit input and go to Generate (then user can
+        // press DOWN again to reach asset-type below).
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           (target as HTMLInputElement).blur();
           if (focusedElement === 'prompt-input') {
-            setFocusedElement('asset-type');
+            setFocusedElement('generate-btn');
           }
           return;
         }
+
         // Allow ArrowUp to exit input back to Back button (or parent)
         if (event.key === 'ArrowUp') {
           event.preventDefault();
@@ -185,7 +193,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           if (focusedElement === 'back' && !embedded) {
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'prompt-input') {
-            setFocusedElement('asset-type');
+            // Prompt → Generate (so the prompt bar is reachable BETWEEN
+            // the menu above and Generate below).
+            setFocusedElement('generate-btn');
           } else if (focusedElement === 'generate-btn') {
             setFocusedElement('asset-type');
           } else if (focusedElement === 'asset-type') {
@@ -216,17 +226,21 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn') {
+          if (focusedElement === 'prompt-input') {
             if (embedded) {
-              // In embedded mode, exit back to parent (Settings tabs)
+              // Exit back to parent (Settings tabs)
               onBack();
             } else {
               setFocusedElement('back');
             }
-          } else if (focusedElement === 'asset-type') {
+          } else if (focusedElement === 'generate-btn') {
+            // Generate → Prompt (mirror of DOWN flow).
             setFocusedElement('prompt-input');
+          } else if (focusedElement === 'asset-type') {
+            setFocusedElement('generate-btn');
           } else if (focusedElement === 'file-input') {
             setFocusedElement('asset-type');
+
           } else if (focusedElement.startsWith('asset-delete-')) {
             // From delete, go to toggle
             const assetId = focusedElement.replace('asset-delete-', '');
