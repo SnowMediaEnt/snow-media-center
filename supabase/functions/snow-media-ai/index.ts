@@ -598,14 +598,18 @@ FINAL REMINDER (HIGHEST PRIORITY for non-troubleshooting questions): Before send
       if (!isTroubleshooting && assistantContent) {
         // Pull out a trailing sign-off line (e.g. "Stay streaming, stay dreaming.") so we can
         // strip the clarifying question that appears just before it and reattach the sign-off.
-        const signoffRegex = /\n+\s*(stay streaming,?\s*stay dreaming[.!]?)\s*$/i;
+        // Sign-off may appear on its own line OR inline as the last sentence. Match either.
+        const signoffRegex = /(?:\n+\s*|[.!?]\s+|^)(stay streaming,?\s*stay dreaming[.!]?)\s*$/i;
         const signoffMatch = assistantContent.match(signoffRegex);
         let signoff = '';
         let body = assistantContent;
-        if (signoffMatch) {
+        if (signoffMatch && typeof signoffMatch.index === 'number') {
           signoff = signoffMatch[1];
-          body = assistantContent.slice(0, signoffMatch.index).trimEnd();
+          // Slice up to where the captured signoff begins (not the leading whitespace/punct).
+          const captureStart = assistantContent.lastIndexOf(signoffMatch[1]);
+          body = assistantContent.slice(0, captureStart).trimEnd();
         }
+
         // Strip the trailing "which service are you on?" sentence/paragraph. It may appear
         // as a question ("Are you on Dreamstreams or VibezTV?") OR as a statement
         // ("If you tell me whether you're on Dreamstreams or VibezTV, I'll point you to...").
