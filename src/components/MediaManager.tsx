@@ -193,7 +193,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           if (focusedElement === 'back' && !embedded) {
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'prompt-input') {
-            setFocusedElement('asset-type');
+            // Prompt → Generate (so the prompt bar is reachable BETWEEN
+            // the menu above and Generate below).
+            setFocusedElement('generate-btn');
           } else if (focusedElement === 'generate-btn') {
             setFocusedElement('asset-type');
           } else if (focusedElement === 'asset-type') {
@@ -224,17 +226,21 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           break;
           
         case 'ArrowUp':
-          if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn') {
+          if (focusedElement === 'prompt-input') {
             if (embedded) {
-              // In embedded mode, exit back to parent (Settings tabs)
+              // Exit back to parent (Settings tabs)
               onBack();
             } else {
               setFocusedElement('back');
             }
-          } else if (focusedElement === 'asset-type') {
+          } else if (focusedElement === 'generate-btn') {
+            // Generate → Prompt (mirror of DOWN flow).
             setFocusedElement('prompt-input');
+          } else if (focusedElement === 'asset-type') {
+            setFocusedElement('generate-btn');
           } else if (focusedElement === 'file-input') {
             setFocusedElement('asset-type');
+
           } else if (focusedElement.startsWith('asset-delete-')) {
             // From delete, go to toggle
             const assetId = focusedElement.replace('asset-delete-', '');
