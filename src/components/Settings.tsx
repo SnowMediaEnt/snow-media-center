@@ -457,7 +457,6 @@ const Settings = ({ onBack }: SettingsProps) => {
             </Card>
 
             {isAdmin && (
-              <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6">
               <Card
                 {...settingsFocusAttrs('ui-player-toggle')}
                 tabIndex={0}
