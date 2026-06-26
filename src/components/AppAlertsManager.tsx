@@ -7,10 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Plus, Trash2, Mail, Loader2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAppData } from '@/hooks/useAppData';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import {
+  usePreEventAlert,
+  PRE_EVENT_MATCH,
+  PRE_EVENT_SOURCE,
+  DEFAULT_PRE_EVENT_HEADLINE,
+  PRE_EVENT_STEPS,
+} from '@/hooks/usePreEventAlert';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,6 +38,50 @@ const AppAlertsManager = () => {
   const [title, setTitle] = useState('Heads up');
   const [message, setMessage] = useState('');
   const [severity, setSeverity] = useState<AppAlert['severity']>('warning');
+
+  // Pre-Event Steps (PPV) special alert state
+  const { row: preEventRow, refetch: refetchPreEvent } = usePreEventAlert();
+  const [preEventHeadline, setPreEventHeadline] = useState<string>('');
+  const [preEventSaving, setPreEventSaving] = useState(false);
+  useEffect(() => {
+    setPreEventHeadline(preEventRow?.title ?? DEFAULT_PRE_EVENT_HEADLINE);
+  }, [preEventRow?.id, preEventRow?.title]);
+
+  const savePreEvent = async (nextActive: boolean) => {
+    setPreEventSaving(true);
+    const headline = (preEventHeadline.trim() || DEFAULT_PRE_EVENT_HEADLINE);
+    // Body is rendered client-side; we still store the steps so the row is
+    // self-describing if surfaced via the standard alerts list.
+    const body = `Pre-Event Steps:\n${PRE_EVENT_STEPS.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+    const payload = {
+      app_match: PRE_EVENT_MATCH,
+      title: headline,
+      message: body,
+      severity: 'critical' as AppAlert['severity'],
+      active: nextActive,
+      source: PRE_EVENT_SOURCE,
+      created_by: user?.id ?? null,
+    };
+    let error;
+    if (preEventRow?.id) {
+      ({ error } = await supabase
+        .from('app_alerts')
+        .update({ title: headline, message: body, active: nextActive })
+        .eq('id', preEventRow.id));
+    } else {
+      ({ error } = await supabase.from('app_alerts').insert(payload));
+    }
+    setPreEventSaving(false);
+    if (error) {
+      toast({ title: 'Pre-Event update failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({
+      title: nextActive ? 'Pre-Event Steps ON' : 'Pre-Event Steps OFF',
+      description: nextActive ? 'All users will see the popup on next launch.' : 'Hidden from users.',
+    });
+    await Promise.all([refetchPreEvent(), fetchAll(), refetch()]);
+  };
 
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -146,6 +197,66 @@ const AppAlertsManager = () => {
           </p>
         </div>
       </div>
+
+      {/* Pre-Event Steps (PPV) — special, app-wide alert */}
+      <Card className="bg-gradient-to-br from-brand-gold/15 via-slate-900/70 to-slate-900/70 border-2 border-brand-gold/50 p-5 space-y-4 shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Zap className="w-6 h-6 text-brand-gold" />
+            <div>
+              <h3 className="text-lg font-bold text-white">Pre-Event Steps (PPV night)</h3>
+              <p className="text-sm text-slate-300">
+                One-click full-screen popup with 5 numbered prep steps. Shown to ALL users until they dismiss it.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`text-sm font-semibold ${preEventRow?.active ? 'text-brand-gold' : 'text-slate-400'}`}>
+              {preEventRow?.active ? 'ON — live now' : 'OFF'}
+            </span>
+            <Switch
+              checked={!!preEventRow?.active}
+              disabled={preEventSaving}
+              onCheckedChange={(v) => void savePreEvent(v)}
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Headline (event name)</Label>
+          <Input
+            value={preEventHeadline}
+            onChange={(e) => setPreEventHeadline(e.target.value)}
+            placeholder={DEFAULT_PRE_EVENT_HEADLINE}
+            className="bg-slate-800 border-slate-600 text-white"
+          />
+          <p className="text-xs text-slate-400">
+            Body is fixed (5 numbered steps). Toggle ON before the event, OFF after.
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="gold"
+            disabled={preEventSaving}
+            onClick={() => void savePreEvent(true)}
+          >
+            {preEventSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+            Save & Turn ON
+          </Button>
+          {preEventRow?.active && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={preEventSaving}
+              onClick={() => void savePreEvent(false)}
+              className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+            >
+              Turn OFF
+            </Button>
+          )}
+        </div>
+      </Card>
+
 
       {/* Create form */}
       <Card className="bg-slate-900/60 border-slate-700 p-5 space-y-4">

@@ -14,6 +14,7 @@ import AppAlertDialog from '@/components/AppAlertDialog';
 import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import { usePreEventAlert } from '@/hooks/usePreEventAlert';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName } from '@/utils/downloadApk';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,6 +57,7 @@ const WixBlog = lazy(() => import('@/components/WixBlog'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
+const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 
 const RouteFallback = () => (
@@ -405,6 +407,18 @@ const Index = () => {
   const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
+
+  // Pre-Event Steps (PPV nights). Admin toggles via Settings → App Alerts.
+  // Shown once per session; sessionStorage key resets on app relaunch.
+  const { row: preEventRow } = usePreEventAlert();
+  const [preEventDismissed, setPreEventDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem('snow-pre-event-dismissed') === '1'; } catch { return false; }
+  });
+  const preEventOpen = !!preEventRow?.active && !preEventDismissed;
+  const dismissPreEvent = useCallback(() => {
+    try { sessionStorage.setItem('snow-pre-event-dismissed', '1'); } catch { /* ignore */ }
+    setPreEventDismissed(true);
+  }, []);
 
   // Force the deferred native enumeration when the pinned-apps popup opens
   // (boot path defers it to idle ~800ms; if the user opens the popup first
@@ -1005,6 +1019,18 @@ const Index = () => {
       {deferredOverlaysReady && (
         <Suspense fallback={null}>
           <WelcomePopup />
+        </Suspense>
+      )}
+
+      {/* Pre-Event Steps (PPV nights). Singleton row in app_alerts with
+          source='pre_event'. Admin toggles via Settings → App Alerts. */}
+      {deferredOverlaysReady && preEventOpen && (
+        <Suspense fallback={null}>
+          <PreEventStepsDialog
+            open={preEventOpen}
+            headline={preEventRow?.title}
+            onDismiss={dismissPreEvent}
+          />
         </Suspense>
       )}
 
