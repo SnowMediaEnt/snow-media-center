@@ -189,8 +189,9 @@ const Player = memo(({ onBack }: Props) => {
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
-          else if (idx === 1) setAccountInfoOpen(true);
-          else if (idx === 2) void signOut();
+          else if (idx === 1) refreshChannels();
+          else if (idx === 2) setAccountInfoOpen(true);
+          else if (idx === 3) void signOut();
         }
         return;
       }
