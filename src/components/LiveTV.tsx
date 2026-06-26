@@ -104,6 +104,34 @@ const Player = memo(({ onBack }: Props) => {
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
+  // Refresh channel list (categories + currently visible category).
+  // Cheap: bumps a nonce that cache-busts player_api.php and tells the
+  // visible section to refetch — does NOT eagerly load every category.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshChannels = useCallback(() => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    const updatingId = toast({
+      title: 'Updating channels…',
+      description: 'Fetching the latest list from the server.',
+    });
+    bumpXtreamRefresh();
+    window.setTimeout(() => {
+      try { (updatingId as any)?.dismiss?.(); } catch { /* ignore */ }
+      toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
+      setIsRefreshing(false);
+    }, 1400);
+  }, [isRefreshing, toast]);
+
+  // Auto-refresh once whenever the Player opens with valid creds.
+  const autoRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (!creds || autoRefreshedRef.current) return;
+    autoRefreshedRef.current = true;
+    // Defer a tick so the child sections have mounted their listeners.
+    window.setTimeout(() => { refreshChannels(); }, 250);
+  }, [creds, refreshChannels]);
+
   const showCredsForm = !creds || accountFormOpen;
   const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
 
@@ -118,7 +146,7 @@ const Player = memo(({ onBack }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 3; // [Back, Account, SignOut]
+  const HEADER_COUNT = 4; // [Back, Update, Account, SignOut]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
