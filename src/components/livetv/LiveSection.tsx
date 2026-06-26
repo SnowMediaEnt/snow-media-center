@@ -354,13 +354,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   useEffect(() => {
     if (!visibleChannels.length) return;
-    rowVirtualizer.scrollToIndex(channelIdx, { align: 'auto' });
-    // Safety fallback: after the virtualizer renders the row, ensure the
-    // focused DOM node is actually on-screen. Covers the case where
-    // scrollToIndex no-ops (parent height still settling on huge lists)
-    // which manifested as "can't scroll past the first screen".
+    const align = channelIdx === 0 ? 'start' : 'auto';
+    rowVirtualizer.scrollToIndex(channelIdx, { align });
     const raf = requestAnimationFrame(() => {
-      const el = scrollParentRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
+      const root = scrollParentRef.current;
+      if (channelIdx === 0 && root) { root.scrollTop = 0; return; }
+      const el = root?.querySelector<HTMLElement>('[data-focused="true"]');
       el?.scrollIntoView({ block: 'nearest' });
     });
     return () => cancelAnimationFrame(raf);
@@ -368,14 +367,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [channelIdx, visibleChannels.length]);
 
   // Keep the focused category visible in the virtualized category pane.
-  // We let the virtualizer do the scroll math (no layout thrash), then a
-  // single rAF fallback re-aligns the DOM node in case the row had to be
-  // mounted on this frame.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
-    categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' });
+    const align = categoryIdx === 0 ? 'start' : 'auto';
+    categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = categoriesScrollRef.current;
+      if (categoryIdx === 0 && root) { root.scrollTop = 0; return; }
       const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
       el?.scrollIntoView({ block: 'nearest' });
     });
