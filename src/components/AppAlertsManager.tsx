@@ -39,6 +39,50 @@ const AppAlertsManager = () => {
   const [message, setMessage] = useState('');
   const [severity, setSeverity] = useState<AppAlert['severity']>('warning');
 
+  // Pre-Event Steps (PPV) special alert state
+  const { row: preEventRow, refetch: refetchPreEvent } = usePreEventAlert();
+  const [preEventHeadline, setPreEventHeadline] = useState<string>('');
+  const [preEventSaving, setPreEventSaving] = useState(false);
+  useEffect(() => {
+    setPreEventHeadline(preEventRow?.title ?? DEFAULT_PRE_EVENT_HEADLINE);
+  }, [preEventRow?.id, preEventRow?.title]);
+
+  const savePreEvent = async (nextActive: boolean) => {
+    setPreEventSaving(true);
+    const headline = (preEventHeadline.trim() || DEFAULT_PRE_EVENT_HEADLINE);
+    // Body is rendered client-side; we still store the steps so the row is
+    // self-describing if surfaced via the standard alerts list.
+    const body = `Pre-Event Steps:\n${PRE_EVENT_STEPS.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+    const payload = {
+      app_match: PRE_EVENT_MATCH,
+      title: headline,
+      message: body,
+      severity: 'critical' as AppAlert['severity'],
+      active: nextActive,
+      source: PRE_EVENT_SOURCE,
+      created_by: user?.id ?? null,
+    };
+    let error;
+    if (preEventRow?.id) {
+      ({ error } = await supabase
+        .from('app_alerts')
+        .update({ title: headline, message: body, active: nextActive })
+        .eq('id', preEventRow.id));
+    } else {
+      ({ error } = await supabase.from('app_alerts').insert(payload));
+    }
+    setPreEventSaving(false);
+    if (error) {
+      toast({ title: 'Pre-Event update failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({
+      title: nextActive ? 'Pre-Event Steps ON' : 'Pre-Event Steps OFF',
+      description: nextActive ? 'All users will see the popup on next launch.' : 'Hidden from users.',
+    });
+    await Promise.all([refetchPreEvent(), fetchAll(), refetch()]);
+  };
+
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [apps]
