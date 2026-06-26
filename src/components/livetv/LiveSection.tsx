@@ -98,6 +98,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // (index 2) once categories arrive, but only if the user hasn't moved yet.
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
+  const [lastKey, setLastKey] = useState('-');
   // Tracks whether the user has explicitly moved category focus.
   const userMovedRef = useRef(false);
   // "All channels" loads ~12K rows — never auto-load. Only fetch when the
