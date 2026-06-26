@@ -302,25 +302,30 @@ const Player = memo(({ onBack }: Props) => {
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex">
         {/* Pane 1 — Sections */}
-        <div className={`w-44 flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 ${pane === 'sections' ? 'bg-white/5' : ''}`}>
+        <div
+          onClick={() => { if (pane !== 'sections') setPane('sections'); }}
+          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 transition-[width] duration-200 ease-out overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
+        >
           {SECTIONS.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
+            const collapsed = pane !== 'sections';
             return (
               <div
                 key={s.id}
                 data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => { setSectionIdx(i); setSection(s.id); setPane('content'); }}
+                onClick={(e) => { if (collapsed) return; e.stopPropagation(); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
-                  flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150
+                  flex items-center gap-3 ${collapsed ? 'px-1 py-2 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer transition-all duration-150
                   ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 shadow-lg' : ''}
                   ${!isFocused && isActive ? 'bg-white/10' : ''}
                   ${!isFocused && !isActive ? 'hover:bg-white/5' : ''}
                 `}
+                title={collapsed ? s.label : undefined}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
-                <span className="font-quicksand font-semibold">{s.label}</span>
+                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
+                {!collapsed && <span className="font-quicksand font-semibold">{s.label}</span>}
               </div>
             );
           })}
