@@ -154,6 +154,13 @@ export const useTVFocus = ({
 
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;
+    // Only auto-focus ONCE per mount. Re-enabling (e.g. when a child returns
+    // focus to the parent) must NOT re-snap to initialFocusId — that races
+    // with explicit focusById(...) calls made by the parent's return handler
+    // and reliably overrides them (the auto-focus rAF is scheduled by React's
+    // commit phase, AFTER the listener's rAF, so it wins on the next frame).
+    if (didAutoFocusRef.current) return;
+    didAutoFocusRef.current = true;
     const rafId = requestAnimationFrame(() => {
       const elements = getElements();
       const wanted = initialFocusId && elements.some((el) => getId(el) === initialFocusId)
