@@ -165,7 +165,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const epgInFlightRef = useRef(0);
   const [, forceEpgTick] = useState(0);
 
-  // 1) Load categories only on mount
+  // Refresh tick — bumped on the global 'xtream:refresh' event so we refetch
+  // categories AND invalidate the per-category channel cache. We do NOT
+  // eagerly fetch every category (that's the ~12K freeze bug) — the per-cat
+  // useEffect below naturally refetches the currently visible category once
+  // its entry is gone from streamsByCat.
+  const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    const onRefresh = () => {
+      setStreamsByCat(new Map());
+      setAllChannels(null);
+      allOptedInRef.current = false;
+      setRefreshTick(t => t + 1);
+    };
+    window.addEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+  }, []);
+
+  // 1) Load categories on mount + on every refresh tick.
   useEffect(() => {
     let cancelled = false;
     setCategoriesLoading(true);
@@ -179,7 +196,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
     })();
     return () => { cancelled = true; };
-  }, [creds]);
+  }, [creds, refreshTick]);
 
   // Build visible category list (Favorites, All channels, then server cats).
   const visibleCategories = useMemo(() => {
