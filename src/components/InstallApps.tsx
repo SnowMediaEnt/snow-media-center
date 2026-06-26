@@ -736,12 +736,13 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           <Card 
             key={app.id} 
             data-focus-id={`app-${app.id}`}
+            data-focused={appFocused ? 'true' : 'false'}
             onClick={() => {
               if (appExpanded) return; // clicks on inner buttons handled separately
               setExpandedAppId(app.id);
               setFocusedElement(`app-${app.id}` as FocusType);
             }}
-            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'ring-4 ring-brand-ice scale-[1.02] shadow-[0_0_26px_rgba(255,255,255,0.7),0_0_54px_rgba(161,213,220,0.35)] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
+            className={`bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600 overflow-hidden transition-all duration-200 cursor-pointer ${appFocused ? 'scale-[1.02] brightness-110 z-10' : ''} ${appIsPinned ? 'border-l-4 border-l-brand-gold' : ''}`}
             onTouchStart={(e) => handleLongPressStart(app, e)}
             onTouchEnd={handleLongPressEnd}
             onTouchCancel={handleLongPressEnd}
@@ -818,6 +819,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 {appExpanded && (
                   <Button
                     data-focus-id={`pin-${app.id}`}
+                    data-focused={isFocused(`pin-${app.id}`) ? 'true' : 'false'}
                     variant="ghost"
                     size="icon"
                     onClick={(e) => {
@@ -828,7 +830,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                         handlePinApp(app);
                       }
                     }}
-                    className={`flex-shrink-0 transition-all ${focusRing(`pin-${app.id}`)} ${
+                    className={`flex-shrink-0 transition-all ${isFocused(`pin-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} ${
                       appIsPinned 
                         ? 'text-brand-gold hover:text-red-400 hover:bg-red-500/20' 
                         : 'text-slate-400 hover:text-brand-gold hover:bg-brand-gold/20'
@@ -848,8 +850,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                 {!isInstalled && (
                   <Button 
                     data-focus-id={`download-${app.id}`}
+                    data-focused={isFocused(`download-${app.id}`) ? 'true' : 'false'}
                     onClick={() => handleDownload(app)}
-                    className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`download-${app.id}`)} bg-brand-ice hover:bg-brand-ice/80 ${isFocused(`download-${app.id}`) ? 'text-slate-900' : 'text-white'}`}
+                    className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`download-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-brand-ice hover:bg-brand-ice/80 ${isFocused(`download-${app.id}`) ? 'text-slate-900' : 'text-white'}`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Download
@@ -860,8 +863,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                   <>
                     <Button 
                       data-focus-id={`launch-${app.id}`}
+                      data-focused={isFocused(`launch-${app.id}`) ? 'true' : 'false'}
                       onClick={() => attemptLaunch(app)}
-                      className={`w-full h-9 text-sm transition-all duration-200 ${focusRing(`launch-${app.id}`)} bg-primary hover:bg-primary/80 ${isFocused(`launch-${app.id}`) ? 'text-slate-900' : 'text-primary-foreground'}`}
+                      className={`w-full h-9 text-sm transition-all duration-200 ${isFocused(`launch-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-primary hover:bg-primary/80 ${isFocused(`launch-${app.id}`) ? 'text-slate-900' : 'text-primary-foreground'}`}
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Launch
@@ -870,9 +874,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         data-focus-id={`forcestop-${app.id}`}
+                        data-focused={isFocused(`forcestop-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleForceStop(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`forcestop-${app.id}`)} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`forcestop-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30`}
                         title="Opens system App Info – tap Force Stop"
                       >
                         <StopCircle className="w-4 h-4 mr-1" />
@@ -881,9 +886,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
                       <Button
                         data-focus-id={`cache-${app.id}`}
+                        data-focused={isFocused(`cache-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleAutoClearCache(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`cache-${app.id}`)} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`cache-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30`}
                         title="Auto-taps Storage → Clear cache (no data loss). Requires Accessibility permission once."
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -892,6 +898,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
                       <Button
                         data-focus-id={`settings-${app.id}`}
+                        data-focused={isFocused(`settings-${app.id}`) ? 'true' : 'false'}
                         onClick={() => {
                           toast({
                             title: "Tap 'Storage' → 'Clear data'",
@@ -900,7 +907,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                           handleOpenAppSettings(app);
                         }}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`settings-${app.id}`)} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`settings-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-amber-600/20 border-amber-500/50 text-amber-300 hover:bg-amber-600/30`}
                         title="Opens system App Info – tap Storage → Clear data"
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -910,9 +917,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
                       <Button
                         data-focus-id={`uninstall-${app.id}`}
+                        data-focused={isFocused(`uninstall-${app.id}`) ? 'true' : 'false'}
                         onClick={() => handleUninstall(app)}
                         variant="outline"
-                        className={`h-8 text-xs transition-all duration-200 ${focusRing(`uninstall-${app.id}`)} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
+                        className={`h-8 text-xs transition-all duration-200 ${isFocused(`uninstall-${app.id}`) ? 'scale-110 brightness-125 z-10' : ''} bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30`}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         Uninstall

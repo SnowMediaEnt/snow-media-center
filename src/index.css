@@ -549,7 +549,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 [role="dialog"] :focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px hsl(var(--brand-gold)), 0 0 24px hsl(var(--brand-gold) / 0.7);
-  border-radius: 0.5rem;
+  border-radius: inherit;
 }
 
 /* =========================================================================
@@ -573,7 +573,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
      - .focus-highlight:focus                 (legacy)
    Modal/dialog focus rings live in their own scoped block above and stay.
    ========================================================================= */
-[data-focused="true"],
+[data-focused="true"]:not(.home-focus-surface),
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
@@ -589,7 +589,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   box-shadow:
     0 0 0 4px hsl(var(--brand-gold)),
     0 0 22px hsl(var(--brand-gold) / 0.6);
-  border-radius: 0.5rem;
+  border-radius: inherit;
 }
 
 /* Suppress the safety-net ring on form text fields when they're merely the
