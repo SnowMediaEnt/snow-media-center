@@ -70,6 +70,19 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     try { localStorage.setItem(AUTOPLAY_KEY, String(autoplayNext)); } catch { /* ignore */ }
   }, [autoplayNext]);
 
+  // Refresh tick — clear per-category cache + refetch categories on the
+  // global 'xtream:refresh' event. We never eagerly fetch every category.
+  const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    const onRefresh = () => {
+      setSeriesByCat(new Map());
+      allOptedInRef.current = false;
+      setRefreshTick(t => t + 1);
+    };
+    window.addEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     setCategoriesLoading(true);
@@ -83,7 +96,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       }
     })();
     return () => { cancelled = true; };
-  }, [creds]);
+  }, [creds, refreshTick]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Series' }];
