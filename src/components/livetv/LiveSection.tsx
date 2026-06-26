@@ -921,7 +921,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         </div>
 
         {/* Virtualized channel list */}
-        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto p-3">
+        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
           {channelsLoading && visibleChannels.length === 0 ? (
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, i) => (
