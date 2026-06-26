@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
