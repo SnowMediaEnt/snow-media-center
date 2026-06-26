@@ -99,6 +99,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
   const [lastKey, setLastKey] = useState('-');
+  useEffect(() => {
+    const spy = (e: KeyboardEvent) => setLastKey(`${e.key}/${e.keyCode}`);
+    window.addEventListener('keydown', spy, true);
+    return () => window.removeEventListener('keydown', spy, true);
+  }, []);
+
   // Tracks whether the user has explicitly moved category focus.
   const userMovedRef = useRef(false);
   // "All channels" loads ~12K rows — never auto-load. Only fetch when the
