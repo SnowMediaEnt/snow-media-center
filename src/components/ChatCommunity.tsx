@@ -1342,20 +1342,35 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   useEffect(() => {
     if (!embedded || activeTab !== 'ai') return;
     const handler = () => {
+      // Activate embedded focus FIRST so the keydown guard (line ~963) lets
+      // subsequent arrows through, even if React hasn't flushed the focusIndex
+      // update yet on this turn.
       setEmbeddedFocusActive(true);
-      const elements = getFocusableElements();
-      const inputIndex = elements.findIndex((el) => el.id === 'ai-input');
-      setFocusIndex(inputIndex !== -1 ? inputIndex : 0);
-      requestAnimationFrame(() => {
+      const resolveAndFocus = () => {
+        const elements = getFocusableElements();
+        // Prefer landing on the input row directly. If messages exist but the
+        // input id can't be found (e.g. mid-render), land on the message scroll
+        // region so the user is always inside the conversation surface.
+        let nextIndex = elements.findIndex((el) => el.id === 'ai-input');
+        if (nextIndex === -1) nextIndex = elements.findIndex((el) => el.id === 'message-scroll');
+        if (nextIndex === -1) nextIndex = 0;
+        setFocusIndex(nextIndex);
         const input = containerRef.current?.querySelector(
           '[data-focus-id="ai-input"]'
         ) as HTMLElement | null;
-        // Park focus on the hidden sink instead of the wrapper so we don't
-        // outline the entire AI panel.
+        // Park real DOM focus on the hidden sink so we don't outline the
+        // whole AI panel; visual focus is driven by currentFocusId.
         focusSink();
         if (input) {
           input.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
         }
+      };
+      // Double rAF: first frame lets React commit setEmbeddedFocusActive(true);
+      // second frame lets any newly-mounted elements (e.g. ai-input after the
+      // panel rehydrated) appear before we resolve the index.
+      requestAnimationFrame(() => {
+        resolveAndFocus();
+        requestAnimationFrame(resolveAndFocus);
       });
     };
     window.addEventListener('chat-community:focus-ai-input', handler);
