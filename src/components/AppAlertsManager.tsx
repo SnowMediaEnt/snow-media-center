@@ -7,10 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Plus, Trash2, Mail, Loader2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAppData } from '@/hooks/useAppData';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import {
+  usePreEventAlert,
+  PRE_EVENT_MATCH,
+  PRE_EVENT_SOURCE,
+  DEFAULT_PRE_EVENT_HEADLINE,
+  PRE_EVENT_STEPS,
+} from '@/hooks/usePreEventAlert';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
