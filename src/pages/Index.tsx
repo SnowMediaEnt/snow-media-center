@@ -408,6 +408,18 @@ const Index = () => {
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
 
+  // Pre-Event Steps (PPV nights). Admin toggles via Settings → App Alerts.
+  // Shown once per session; sessionStorage key resets on app relaunch.
+  const { row: preEventRow } = usePreEventAlert();
+  const [preEventDismissed, setPreEventDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem('snow-pre-event-dismissed') === '1'; } catch { return false; }
+  });
+  const preEventOpen = !!preEventRow?.active && !preEventDismissed;
+  const dismissPreEvent = useCallback(() => {
+    try { sessionStorage.setItem('snow-pre-event-dismissed', '1'); } catch { /* ignore */ }
+    setPreEventDismissed(true);
+  }, []);
+
   // Force the deferred native enumeration when the pinned-apps popup opens
   // (boot path defers it to idle ~800ms; if the user opens the popup first
   // we want the list ready immediately).
