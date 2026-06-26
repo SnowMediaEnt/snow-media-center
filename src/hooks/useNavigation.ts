@@ -137,6 +137,8 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
     const setupBackHandler = async () => {
       try {
         const handle = await CapApp.addListener('backButton', ({ canGoBack }) => {
+          const currentView = currentViewRef.current;
+          console.log('[SMC-BACK] useNav.backButton; view=', currentView, 'ownsBack=', (window as any).__playerOwnsBack, 'overlayAgeMs=', Date.now() - ((window as any).__overlayHandledBackAt || 0));
           // If the auto-update modal (or any aria-modal dialog) is open, let it
           // handle Back itself — do not pop the underlying nav stack.
           if (typeof document !== 'undefined' &&
@@ -152,18 +154,20 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           // whole Player view out from under it.
           const playerOwnsBack = (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack === true;
           if (playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
+            if (playerOwnsBack) console.log('[SMC-BACK] useNav → BAIL (player owns back)');
             return;
           }
 
-          const currentView = currentViewRef.current;
           console.log('Capacitor back button pressed, current view:', currentView, 'canGoBack:', canGoBack);
 
           if (currentView !== 'home') {
+            console.log('[SMC-BACK] useNav → goBack');
             goBackRef.current?.();
           } else {
             if (onRootBackRef.current?.()) {
               return;
             }
+            console.log('[SMC-BACK] useNav → home/exit');
             // We're on home - implement double-press to exit
             const now = Date.now();
             if (now - lastBackPressTimeRef.current < 2000 && backPressCountRef.current === 1) {

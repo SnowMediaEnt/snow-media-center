@@ -389,6 +389,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const last = visibleChannels.length - 1;
     const align: 'start' | 'center' | 'end' =
       channelIdx === 0 ? 'start' : channelIdx === last ? 'end' : 'center';
+    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'align=', align, 'rootScrollTop=', scrollParentRef.current?.scrollTop, 'rootNull=', !scrollParentRef.current);
     rowVirtualizer.scrollToIndex(channelIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = scrollParentRef.current;
@@ -405,6 +406,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const last = visibleCategories.length - 1;
     const align: 'start' | 'center' | 'end' =
       categoryIdx === 0 ? 'start' : categoryIdx === last ? 'end' : 'center';
+    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'align=', align, 'rootScrollTop=', categoriesScrollRef.current?.scrollTop, 'rootNull=', !categoriesScrollRef.current);
     categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = categoriesScrollRef.current;
@@ -520,10 +522,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+     try {
       // Report dialog owns the keyboard while open.
       if (reportForRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // [SMC-NAV] diagnostic — log Back + arrow keys at handler entry.
+      if (
+        e.key === 'Escape' || e.key === 'Backspace' ||
+        e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+        e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+      ) {
+        console.log('[SMC-NAV] key=', e.key, 'pane=', paneRef.current, 'fullscreen=', fullscreenRef.current, 'isActive=', isActive);
+      }
 
       // Remote "Menu" / context key — open report for the focused channel.
       // Only when on the channels pane and not fullscreen/typing.
@@ -669,8 +681,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // listener (useNavigation) doesn't ALSO pop the navigation stack and
         // exit the Player on Android/Fire TV.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-        if (paneRef.current === 'channels') setPane('categories');
-        else onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
+        if (paneRef.current === 'channels') {
+          console.log('[SMC-NAV] → categories');
+          setPane('categories');
+        } else {
+          console.log('[SMC-NAV] → sections (exit left)');
+          onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
+        }
         return;
       }
 
@@ -697,10 +714,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
-        else if (e.key === 'ArrowLeft') onExitLeft();
+        else if (e.key === 'ArrowLeft') {
+          console.log('[SMC-NAV] → sections (exit left)');
+          onExitLeft();
+        }
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
           if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          console.log('[SMC-NAV] → channels');
           setPane('channels');
         }
         return;
@@ -712,7 +733,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         if (channelIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
-      else if (e.key === 'ArrowLeft') setPane('categories');
+      else if (e.key === 'ArrowLeft') {
+        console.log('[SMC-NAV] → categories');
+        setPane('categories');
+      }
       else if (e.key === 'Enter' || e.key === ' ') {
         // D-pad long-press detection. Short press = play; long press (~600ms) = report.
         // Ignore key repeats so holding doesn't restart the timer or re-fire play.
@@ -726,6 +750,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (c) setReportFor(c);
         }, 600) as unknown as number;
       }
+     } catch (err) {
+       console.error('[SMC-NAV] LiveSection keydown ERROR', err);
+     }
     };
     const keyupHandler = (e: KeyboardEvent) => {
       if (reportForRef.current) return;
