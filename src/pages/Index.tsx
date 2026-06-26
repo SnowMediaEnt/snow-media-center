@@ -14,6 +14,7 @@ import AppAlertDialog from '@/components/AppAlertDialog';
 import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
+import { usePreEventAlert } from '@/hooks/usePreEventAlert';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName } from '@/utils/downloadApk';
 import { useAuth } from '@/hooks/useAuth';
