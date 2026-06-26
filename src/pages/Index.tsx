@@ -1022,6 +1022,18 @@ const Index = () => {
         </Suspense>
       )}
 
+      {/* Pre-Event Steps (PPV nights). Singleton row in app_alerts with
+          source='pre_event'. Admin toggles via Settings → App Alerts. */}
+      {deferredOverlaysReady && preEventOpen && (
+        <Suspense fallback={null}>
+          <PreEventStepsDialog
+            open={preEventOpen}
+            headline={preEventRow?.title}
+            onDismiss={dismissPreEvent}
+          />
+        </Suspense>
+      )}
+
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
       {deferredOverlaysReady && currentView === 'home' && (
