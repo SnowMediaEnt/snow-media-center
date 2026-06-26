@@ -779,7 +779,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const totalSize = rowVirtualizer.getTotalSize();
 
   return (
-    <div className="flex-1 min-h-0 flex">
+    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
       {/* Pane 2 — Categories */}
       <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
