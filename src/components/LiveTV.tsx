@@ -226,7 +226,7 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut]);
+  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut, refreshChannels]);
 
 
   if (!credsLoaded) {
