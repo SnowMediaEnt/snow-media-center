@@ -299,12 +299,28 @@ const Player = memo(({ onBack }: Props) => {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="gold"
+            variant="white"
             size="sm"
-            onClick={() => setAccountInfoOpen(true)}
+            onClick={refreshChannels}
+            disabled={isRefreshing}
+            aria-label="Update Channels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Updating…' : 'Update Channels'}
+          </Button>
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => setAccountInfoOpen(true)}
+            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 2
                 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
                 : ''
             }`}
@@ -316,9 +332,9 @@ const Player = memo(({ onBack }: Props) => {
             variant="white"
             size="sm"
             onClick={() => { void signOut(); }}
-            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 2
+              pane === 'header' && headerIdx === 3
                 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
                 : ''
             }`}
