@@ -147,7 +147,11 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           // back press, do not also pop the underlying view.
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
           const guideOpen = (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen === true;
-          if (guideOpen || Date.now() - handledAt < 350) {
+          // Player owns the hardware-back hierarchy while mounted (channels →
+          // categories → sections → exit). Don't let useNavigation pop the
+          // whole Player view out from under it.
+          const playerOwnsBack = (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack === true;
+          if (playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
             return;
           }
 
