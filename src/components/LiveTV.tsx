@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
@@ -244,10 +244,16 @@ const Player = memo(({ onBack }: Props) => {
   //      naturally. We also stamp __overlayHandledBackAt synchronously as a
   //      belt-and-braces guard regardless of native listener invocation order.
   // ──────────────────────────────────────────────────────────────────────────
+  useLayoutEffect(() => {
+    (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = true;
+    return () => { (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = false; };
+  }, []);
+
   useEffect(() => {
     type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
     const w = window as unknown as W;
-    w.__playerOwnsBack = true;
+
+
 
     let handle: { remove?: () => void } | undefined;
     let cancelled = false;
@@ -283,10 +289,10 @@ const Player = memo(({ onBack }: Props) => {
 
     return () => {
       cancelled = true;
-      w.__playerOwnsBack = false;
       handle?.remove?.();
     };
   }, [onBack, accountInfoOpen, accountFormOpen]);
+
 
 
 
