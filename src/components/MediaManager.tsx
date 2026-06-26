@@ -137,6 +137,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) {
         return;
       }
+      // Flag the first user nav so we can stop suppressing the prompt-input ring.
+      if (!hasUserNavigated && event.key.startsWith('Arrow')) setHasUserNavigated(true);
       const target = event.target as HTMLElement;
       const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
