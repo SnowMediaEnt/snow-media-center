@@ -244,10 +244,16 @@ const Player = memo(({ onBack }: Props) => {
   //      naturally. We also stamp __overlayHandledBackAt synchronously as a
   //      belt-and-braces guard regardless of native listener invocation order.
   // ──────────────────────────────────────────────────────────────────────────
+  useLayoutEffect(() => {
+    (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = true;
+    return () => { (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = false; };
+  }, []);
+
   useEffect(() => {
     type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
     const w = window as unknown as W;
-    w.__playerOwnsBack = true;
+
+
 
     let handle: { remove?: () => void } | undefined;
     let cancelled = false;
