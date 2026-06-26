@@ -614,9 +614,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (typing) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Mark that an overlay handled Back so the Capacitor hardware-back
+        // listener (useNavigation) doesn't ALSO pop the navigation stack and
+        // exit the Player on Android/Fire TV.
+        (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
         if (paneRef.current === 'channels') setPane('categories');
-        else onExitLeft();
+        else onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
         return;
       }
 
