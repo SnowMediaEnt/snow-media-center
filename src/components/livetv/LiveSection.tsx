@@ -785,6 +785,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     };
   }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer]);
 
+  useEffect(() => {
+    if (!isActive) return;
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const h = await CapApp.addListener('backButton', () => {
+          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          if (subMenuOpenRef.current || audioMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); return; }
+          if (fullscreenRef.current) {
+            if (barVisibleRef.current) hideBarNow();
+            else { setFullscreen(false); setShowInfoPanel(false); }
+            return;
+          }
+          if (paneRef.current === 'channels') { setPane('categories'); return; }
+          onExitLeft();
+        });
+        if (cancelled) h?.remove?.(); else handle = h;
+      } catch { /* web: keydown Escape already covers it */ }
+    })();
+    return () => { cancelled = true; handle?.remove?.(); };
+  }, [isActive, onExitLeft, hideBarNow]);
+
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
   const playingStream = playingChannelId
