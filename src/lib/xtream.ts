@@ -408,6 +408,24 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
   }
 }
 
+// --- Cache busting / refresh ------------------------------------------------
+// Bumped by the Player's "Update Channels" action (and on Player open).
+// When > 0 we append `_=<nonce>` to every player_api.php call so any
+// intermediary HTTP cache (CapacitorHttp / fetch / proxy) returns fresh data.
+// Listeners (LiveSection / MoviesSection / SeriesSection) clear their per-
+// category caches on the event so the CURRENTLY visible category refetches
+// on next view — we never eagerly load every category.
+export const XTREAM_REFRESH_EVENT = 'xtream:refresh';
+let xtreamRefreshNonce = 0;
+export function bumpXtreamRefresh(): number {
+  xtreamRefreshNonce += 1;
+  try {
+    window.dispatchEvent(new CustomEvent(XTREAM_REFRESH_EVENT, { detail: xtreamRefreshNonce }));
+  } catch { /* SSR / no window */ }
+  return xtreamRefreshNonce;
+}
+export function getXtreamRefreshNonce(): number { return xtreamRefreshNonce; }
+
 // --- API endpoints ----------------------------------------------------------
 
 const buildBase = (c: XtreamCreds, params: Record<string, string | number>) => {
@@ -415,6 +433,7 @@ const buildBase = (c: XtreamCreds, params: Record<string, string | number>) => {
   url.searchParams.set('username', c.username);
   url.searchParams.set('password', c.password);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+  if (xtreamRefreshNonce > 0) url.searchParams.set('_', String(xtreamRefreshNonce));
   return url.toString();
 };
 

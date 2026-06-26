@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, Loader2, Settings as SettingsIcon, X } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -9,6 +9,7 @@ import {
   buildPlayerAccount,
   savePlayerAccount,
   clearPlayerAccount,
+  bumpXtreamRefresh,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
@@ -103,6 +104,34 @@ const Player = memo(({ onBack }: Props) => {
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
+  // Refresh channel list (categories + currently visible category).
+  // Cheap: bumps a nonce that cache-busts player_api.php and tells the
+  // visible section to refetch — does NOT eagerly load every category.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshChannels = useCallback(() => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    const updatingId = toast({
+      title: 'Updating channels…',
+      description: 'Fetching the latest list from the server.',
+    });
+    bumpXtreamRefresh();
+    window.setTimeout(() => {
+      try { (updatingId as any)?.dismiss?.(); } catch { /* ignore */ }
+      toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
+      setIsRefreshing(false);
+    }, 1400);
+  }, [isRefreshing, toast]);
+
+  // Auto-refresh once whenever the Player opens with valid creds.
+  const autoRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (!creds || autoRefreshedRef.current) return;
+    autoRefreshedRef.current = true;
+    // Defer a tick so the child sections have mounted their listeners.
+    window.setTimeout(() => { refreshChannels(); }, 250);
+  }, [creds, refreshChannels]);
+
   const showCredsForm = !creds || accountFormOpen;
   const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
 
@@ -117,7 +146,7 @@ const Player = memo(({ onBack }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 3; // [Back, Account, SignOut]
+  const HEADER_COUNT = 4; // [Back, Update, Account, SignOut]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -160,8 +189,9 @@ const Player = memo(({ onBack }: Props) => {
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
-          else if (idx === 1) setAccountInfoOpen(true);
-          else if (idx === 2) void signOut();
+          else if (idx === 1) refreshChannels();
+          else if (idx === 2) setAccountInfoOpen(true);
+          else if (idx === 3) void signOut();
         }
         return;
       }
@@ -196,7 +226,7 @@ const Player = memo(({ onBack }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut]);
+  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut, refreshChannels]);
 
 
   if (!credsLoaded) {
@@ -269,12 +299,28 @@ const Player = memo(({ onBack }: Props) => {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="gold"
+            variant="white"
             size="sm"
-            onClick={() => setAccountInfoOpen(true)}
+            onClick={refreshChannels}
+            disabled={isRefreshing}
+            aria-label="Update Channels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1
+                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
+                : ''
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Updating…' : 'Update Channels'}
+          </Button>
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => setAccountInfoOpen(true)}
+            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              pane === 'header' && headerIdx === 2
                 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
                 : ''
             }`}
@@ -286,9 +332,9 @@ const Player = memo(({ onBack }: Props) => {
             variant="white"
             size="sm"
             onClick={() => { void signOut(); }}
-            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+            data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 2
+              pane === 'header' && headerIdx === 3
                 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
                 : ''
             }`}

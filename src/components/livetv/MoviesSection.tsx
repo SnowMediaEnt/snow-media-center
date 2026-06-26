@@ -9,6 +9,7 @@ import {
   buildMovieUrl,
   loadVolume,
   saveVolume,
+  XTREAM_REFRESH_EVENT,
   type XtreamCreds,
   type XtreamCategory,
   type XtreamVodStream,
@@ -57,7 +58,20 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
 
-  // Fetch categories only
+  // Refresh tick — clear per-category cache + refetch categories on the
+  // global 'xtream:refresh' event. We never eagerly fetch every category.
+  const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    const onRefresh = () => {
+      setMoviesByCat(new Map());
+      allOptedInRef.current = false;
+      setRefreshTick(t => t + 1);
+    };
+    window.addEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
+  }, []);
+
+  // Fetch categories on mount + on each refresh tick.
   useEffect(() => {
     let cancelled = false;
     setCategoriesLoading(true);
@@ -71,7 +85,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       }
     })();
     return () => { cancelled = true; };
-  }, [creds]);
+  }, [creds, refreshTick]);
 
   const visibleCategories = useMemo(() => {
     const base = [{ id: ALL_ID, name: 'All Movies' }];
