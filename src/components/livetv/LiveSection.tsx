@@ -389,6 +389,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const last = visibleChannels.length - 1;
     const align: 'start' | 'center' | 'end' =
       channelIdx === 0 ? 'start' : channelIdx === last ? 'end' : 'center';
+    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'align=', align, 'rootScrollTop=', scrollParentRef.current?.scrollTop, 'rootNull=', !scrollParentRef.current);
     rowVirtualizer.scrollToIndex(channelIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = scrollParentRef.current;
@@ -405,6 +406,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const last = visibleCategories.length - 1;
     const align: 'start' | 'center' | 'end' =
       categoryIdx === 0 ? 'start' : categoryIdx === last ? 'end' : 'center';
+    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'align=', align, 'rootScrollTop=', categoriesScrollRef.current?.scrollTop, 'rootNull=', !categoriesScrollRef.current);
     categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = categoriesScrollRef.current;
