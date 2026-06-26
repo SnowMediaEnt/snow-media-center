@@ -472,7 +472,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                             <button
                               key={choiceIndex}
                               data-focus-id={`detail-option-${optIndex}-${choiceIndex}`}
-                              className={`bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors ${detailFocusedElement === `detail-option-${optIndex}-${choiceIndex}` ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
+                              data-focused={detailFocusedElement === `detail-option-${optIndex}-${choiceIndex}` ? 'true' : undefined}
+                              className={`bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 p-2 rounded text-sm transition-colors`}
                             >
                               {choice.value}
                               {(choice as any).priceModifier && (
@@ -507,7 +508,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   disabled={!selectedProduct.inStock}
                   size="lg"
                   data-focus-id="detail-add-cart"
-                  className={`flex-1 bg-green-600 hover:bg-green-700 text-white text-lg ${detailFocusedElement === 'detail-add-cart' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
+                  data-focused={detailFocusedElement === 'detail-add-cart' ? 'true' : undefined}
+                  className={`flex-1 bg-green-600 hover:bg-green-700 text-white text-lg`}
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
                   Add to Cart - ${selectedProduct.price.toFixed(2)}
@@ -568,7 +570,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                 variant="outline"
                 size="sm"
                 data-focus-id="signin"
-                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 ${focusedElement === 'signin' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
+                data-focused={focusedElement === 'signin' ? 'true' : undefined}
+                className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30`}
               >
                 <LogIn className="w-4 h-4 mr-2" />
                 Sign In
@@ -579,7 +582,8 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
               variant="outline"
               size="lg"
               data-focus-id="cart"
-              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30 ${focusedElement === 'cart' ? 'ring-4 ring-white shadow-[0_0_24px_rgba(255,255,255,0.75)]' : ''}`}
+              data-focused={focusedElement === 'cart' ? 'true' : undefined}
+              className={`bg-green-600/20 border-green-500/50 text-white hover:bg-green-600/30`}
             >
               <ShoppingCart className="w-5 h-5 mr-2" />
               Cart ({cartItems.length})
@@ -728,8 +732,9 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
                   <Card
                     key={product.id}
                     data-focus-id={`product-${product.id}`}
+                    data-focused={focusedElement === `product-${product.id}` ? 'true' : undefined}
                     onClick={() => setSelectedProduct(product)}
-                    className={`cursor-pointer bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-200 ${focusedElement === `product-${product.id}` ? 'ring-4 ring-brand-gold shadow-[0_0_28px_hsl(var(--brand-gold)/0.75)] scale-105 z-10' : ''}`}
+                    className={`cursor-pointer bg-gradient-to-br from-blue-600/20 to-purple-600/20 border-blue-500/30 overflow-hidden hover:from-blue-600/30 hover:to-purple-600/30 transition-all duration-200 ${focusedElement === `product-${product.id}` ? 'scale-105 z-10' : ''}`}
                   >
                     <div className="relative aspect-square overflow-hidden bg-slate-800">
                       <img
