@@ -874,6 +874,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+      <div style={{ position: 'fixed', bottom: 2, left: 2, zIndex: 99999, background: 'rgba(0,0,0,0.85)', color: '#39ff14', font: '11px monospace', padding: '1px 6px', pointerEvents: 'none', borderRadius: 4 }}>
+        DBG1 active={String(isActive)} pane={pane} cat={categoryIdx}/{visibleCategories.length} chan={channelIdx}/{visibleChannels.length} key={lastKey}
+      </div>
       {/* Pane 2 — Categories */}
       <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
