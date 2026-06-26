@@ -201,6 +201,71 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
     if (videoRef.current) videoRef.current.volume = Math.min(1, Math.max(0, volume));
   }, [volume]);
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Stop ALL audio/video when the app is backgrounded (Fire TV HOME button)
+  // or the tab/window is hidden. Without this, the engine keeps pushing
+  // samples to the decoder and audio continues on the home screen.
+  //
+  // On background: tear down the hls/mpegts instance AND pause + clear the
+  // <video> src + call load() so the media element releases its decoder.
+  // On resume: bump retryNonce so the main src-effect re-attaches a fresh
+  // engine and resumes playback automatically.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!src) return;
+    let backgrounded = false;
+
+    const stopPlayback = () => {
+      if (backgrounded) return;
+      backgrounded = true;
+      try { teardownRef.current?.(); } catch { /* ignore */ }
+      teardownRef.current = null;
+      hlsRef.current = null;
+      const v = videoRef.current;
+      if (v) {
+        try { v.pause(); } catch { /* ignore */ }
+        try { v.muted = true; } catch { /* ignore */ }
+        try { v.removeAttribute('src'); v.load(); } catch { /* ignore */ }
+      }
+      try { document.documentElement.classList.remove('streaming-active'); } catch { /* ignore */ }
+    };
+
+    const resumePlayback = () => {
+      if (!backgrounded) return;
+      backgrounded = false;
+      // Re-run the main attach effect → fresh engine, fresh decoder.
+      setRetryNonce(n => n + 1);
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) stopPlayback();
+      else resumePlayback();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // Capacitor App.appStateChange — covers Fire TV / Android HOME, which
+    // doesn't always fire visibilitychange on the WebView.
+    let capHandle: { remove?: () => void } | undefined;
+    let cancelledCap = false;
+    (async () => {
+      try {
+        const mod = await import('@capacitor/app');
+        const h = await mod.App.addListener('appStateChange', ({ isActive }) => {
+          if (!isActive) stopPlayback();
+          else resumePlayback();
+        });
+        if (cancelledCap) h?.remove?.();
+        else capHandle = h;
+      } catch { /* not on native — visibilitychange covers web */ }
+    })();
+
+    return () => {
+      cancelledCap = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      capHandle?.remove?.();
+    };
+  }, [src]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
