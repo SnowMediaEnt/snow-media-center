@@ -808,7 +808,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   value={generatePrompt}
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                   placeholder="e.g., A serene mountain landscape at sunset with purple sky"
-                  className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
+                  className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
                   disabled={generating}
                 />
               </div>
