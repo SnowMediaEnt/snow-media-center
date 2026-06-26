@@ -218,10 +218,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       // keyboard/input bar was centered, so both must be snapped.
       const snapTop = scrollSupportToRealTop;
       snapTop();
+      // Re-assert focus across TWO animation frames. Re-enabling useTVFocus
+      // commits state on the next frame and used to schedule its own auto-focus
+      // rAF that overrode this one; we still defend against any other race by
+      // re-asserting after that frame has flushed.
       requestAnimationFrame(() => {
         snapTop();
         supportFocus.focusById(`tab-${target}`, 'nearest');
-        snapTop();
+        requestAnimationFrame(() => {
+          supportFocus.focusById(`tab-${target}`, 'nearest');
+          snapTop();
+        });
       });
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
