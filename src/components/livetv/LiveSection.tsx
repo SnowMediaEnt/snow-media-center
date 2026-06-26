@@ -352,6 +352,30 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryIdx, searchOpen, searchQuery]);
 
+  // Vertical-only "scroll focused row into view" helper.
+  //
+  // Why not Element.scrollIntoView({ block: 'nearest' })?
+  //   Its default `inline: 'nearest'` walks UP the ancestor chain looking for
+  //   ANY scrollable axis. The focused channel/category row carries the
+  //   global gold focus ring (box-shadow: 0 0 0 4px gold, 0 0 22px gold/0.6).
+  //   That shadow extends a few px past the pane's right edge → the browser
+  //   decides the element is "not fully in view" horizontally and scrolls
+  //   the next scrollable ancestor (the app's [data-app-scroll-root]) on
+  //   the X axis. Visually: every other pane (including Categories) "scoots
+  //   to the LEFT" each time you move focus in the channels list.
+  //
+  //   overflow-x: hidden on the local panes clips the *paint* but does NOT
+  //   stop scrollIntoView from picking the next ancestor up. The only safe
+  //   fix is to never call scrollIntoView for focus tracking — adjust the
+  //   local scroll parent's scrollTop manually, vertical axis only.
+  const ensureVisibleY = (parent: HTMLElement | null, el: HTMLElement | null) => {
+    if (!parent || !el) return;
+    const pr = parent.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    if (er.top < pr.top) parent.scrollTop -= (pr.top - er.top);
+    else if (er.bottom > pr.bottom) parent.scrollTop += (er.bottom - pr.bottom);
+  };
+
   useEffect(() => {
     if (!visibleChannels.length) return;
     const align = channelIdx === 0 ? 'start' : 'auto';
@@ -360,7 +384,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const root = scrollParentRef.current;
       if (channelIdx === 0 && root) { root.scrollTop = 0; return; }
       const el = root?.querySelector<HTMLElement>('[data-focused="true"]');
-      el?.scrollIntoView({ block: 'nearest' });
+      ensureVisibleY(root, el ?? null);
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -375,7 +399,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const root = categoriesScrollRef.current;
       if (categoryIdx === 0 && root) { root.scrollTop = 0; return; }
       const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
-      el?.scrollIntoView({ block: 'nearest' });
+      ensureVisibleY(root, el ?? null);
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
