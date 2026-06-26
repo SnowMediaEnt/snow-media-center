@@ -376,30 +376,40 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     else if (er.bottom > pr.bottom) parent.scrollTop += (er.bottom - pr.bottom);
   };
 
+  // Keep the focused channel visible in the VIRTUALIZED row list.
+  //
+  // Why we don't fall back to a querySelector('[data-focused="true"]') here:
+  //   when the user moves to an OFFSCREEN row, that row is not yet in the
+  //   DOM (it's virtualized) → querySelector returns null → no scroll
+  //   happens on the same tick. Trust the virtualizer's scrollToIndex,
+  //   which knows the row's offset whether or not it's mounted, and
+  //   re-call it inside a rAF after measurements settle.
   useEffect(() => {
     if (!visibleChannels.length) return;
-    const align = channelIdx === 0 ? 'start' : 'auto';
+    const last = visibleChannels.length - 1;
+    const align: 'start' | 'center' | 'end' =
+      channelIdx === 0 ? 'start' : channelIdx === last ? 'end' : 'center';
     rowVirtualizer.scrollToIndex(channelIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = scrollParentRef.current;
       if (channelIdx === 0 && root) { root.scrollTop = 0; return; }
-      const el = root?.querySelector<HTMLElement>('[data-focused="true"]');
-      ensureVisibleY(root, el ?? null);
+      rowVirtualizer.scrollToIndex(channelIdx, { align });
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible in the virtualized category pane.
+  // Keep the focused category visible in the VIRTUALIZED category pane.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
-    const align = categoryIdx === 0 ? 'start' : 'auto';
+    const last = visibleCategories.length - 1;
+    const align: 'start' | 'center' | 'end' =
+      categoryIdx === 0 ? 'start' : categoryIdx === last ? 'end' : 'center';
     categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = categoriesScrollRef.current;
       if (categoryIdx === 0 && root) { root.scrollTop = 0; return; }
-      const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
-      ensureVisibleY(root, el ?? null);
+      categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps

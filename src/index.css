@@ -553,27 +553,25 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 }
 
 /* =========================================================================
-   GLOBAL FOCUS SAFETY NET — guarantees EVERY selected/focused element shows
-   a consistent brand-gold ring, no matter which focus mechanism the screen
-   uses (native :focus-visible, useTVFocus, useSpatialNavigation, Settings,
-   home-focus-surface, MediaBar, livetv panes, etc.).
+   GLOBAL FOCUS SAFETY NET — guarantees EVERY D-pad-SELECTED element shows
+   a consistent brand-gold ring.
 
-   This is a FLOOR. Variant-aware overrides above (which use !important)
-   continue to win where they apply — this rule only kicks in when nothing
-   more specific paints a ring, so an element that "forgot" its ring class
-   still highlights when selected.
+   IMPORTANT: this rule deliberately does NOT match generic native focus
+   (button:focus-visible, a:focus-visible, [tabindex]:focus-visible, role-
+   based :focus-visible). Doing so caused incidental / on-mount / hover
+   focus to look "selected" — e.g. the Player's Account header button
+   ringed on open, the AI prompt input ringed before the user navigated to
+   it, and the home easter-egg logo lit up.
 
-   Markers covered (enumerated from a full grep of src/):
+   It ONLY matches the app's EXPLICIT D-pad selection markers:
      - [data-focused="true"]                  (Index, LiveTV, MediaBar, livetv/*, useSpatialNavigation, game-shell)
      - [data-tv-focused="true"]               (useTVFocus managed elements)
      - [data-settings-focused="true"]         (Settings)
-     - [data-focus-id]:focus, :focus-visible  (InstallApps, MediaStore, PinnedAppsBar)
-     - [data-tv-focus-id]:focus-visible       (TV-managed elements with native focus)
-     - .tv-focusable:focus, :focus-visible    (PlayerAccountCard, MediaBarPrompt, Index, LiveTV)
-     - .tv-focus-highlight:focus, .focused    (legacy)
+     - [data-focus-id]:focus(-visible)        (only the *truly* focused managed element)
+     - [data-tv-focus-id]:focus(-visible)     (TV-managed with native focus)
+     - .tv-focusable:focus(-visible) / .tv-focus-highlight.focused
      - .focus-highlight:focus                 (legacy)
-     - :focus-visible on buttons / links / inputs / [role="button"] / [tabindex]
-     - [aria-selected="true"] on focusable interactive elements
+   Modal/dialog focus rings live in their own scoped block above and stay.
    ========================================================================= */
 [data-focused="true"],
 [data-tv-focused="true"],
@@ -586,19 +584,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 .tv-focusable:focus-visible,
 .tv-focus-highlight:focus,
 .tv-focus-highlight.focused,
-.focus-highlight:focus,
-button:focus-visible,
-a:focus-visible,
-[role="button"]:focus-visible,
-[role="tab"]:focus-visible,
-[role="option"]:focus-visible,
-[role="menuitem"]:focus-visible,
-[tabindex="0"]:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-[role="tab"][aria-selected="true"]:focus-visible,
-[role="option"][aria-selected="true"]:focus-visible {
+.focus-highlight:focus {
   outline: none;
   box-shadow:
     0 0 0 4px hsl(var(--brand-gold)),
@@ -615,18 +601,15 @@ textarea:focus:not(:focus-visible) {
   box-shadow: none;
 }
 
-/* Phone tuning: the global gold ring is too heavy on small touch screens.
-   Soften it (mirrors the mobile :focus-visible rule above). */
+/* Phone tuning: the global gold ring is too heavy on small touch screens. */
 @media (max-width: 767px) and (pointer: coarse) {
   [data-focused="true"],
   [data-tv-focused="true"],
   [data-settings-focused="true"],
   [data-focus-id]:focus-visible,
-  .tv-focusable:focus-visible,
-  button:focus-visible,
-  a:focus-visible,
-  [role="button"]:focus-visible,
-  [tabindex="0"]:focus-visible {
+  [data-tv-focus-id]:focus-visible,
+  .tv-focusable:focus-visible {
     box-shadow: 0 0 0 2px hsl(var(--brand-gold) / 0.85);
   }
 }
+

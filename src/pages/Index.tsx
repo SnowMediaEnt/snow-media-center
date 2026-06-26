@@ -266,15 +266,16 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; me
 ));
 WatermarkTitle.displayName = 'WatermarkTitle';
 
-const LogoButton = memo(({ isFocused, onActivate, onFocus }: { isFocused: boolean; onActivate: () => void; onFocus: () => void }) => (
+const LogoButton = memo(({ isFocused: _isFocused, onActivate, onFocus: _onFocus }: { isFocused: boolean; onActivate: () => void; onFocus: () => void }) => (
+  // Hidden 7-click easter egg. Intentionally NOT keyboard-focusable and
+  // NEVER carries a focus marker — must never show a highlight ring.
   <button
     type="button"
     onClick={onActivate}
-    onFocus={onFocus}
-    tabIndex={0}
-    data-focused={isFocused ? 'true' : 'false'}
+    tabIndex={-1}
+    aria-hidden="true"
     aria-label="Snow Media Entertainment"
-    className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105 data-[focused=true]:scale-110"
+    className="absolute z-20 select-none p-0 bg-transparent border-0 outline-none cursor-pointer transition-transform duration-200 hover:scale-105"
     style={{
       top: 'max(env(safe-area-inset-top, 0px), clamp(0.25rem, 1vh, 0.75rem))',
       left: 'max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))',
@@ -283,7 +284,7 @@ const LogoButton = memo(({ isFocused, onActivate, onFocus }: { isFocused: boolea
   >
     <img
       src={smeLogo}
-      alt="Snow Media Entertainment"
+      alt=""
       className="h-full w-auto pointer-events-none select-none"
       draggable={false}
     />
