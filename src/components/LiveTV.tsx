@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
