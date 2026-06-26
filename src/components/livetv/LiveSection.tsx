@@ -865,7 +865,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       </div>
 
       {/* Pane 3 — Channels + preview */}
-      <div className="flex-1 min-w-0 flex flex-col bg-black/30">
+      <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
             {isFireTV() ? (
