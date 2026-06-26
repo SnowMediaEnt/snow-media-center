@@ -9,6 +9,7 @@ import {
   buildMovieUrl,
   loadVolume,
   saveVolume,
+  XTREAM_REFRESH_EVENT,
   type XtreamCreds,
   type XtreamCategory,
   type XtreamVodStream,
