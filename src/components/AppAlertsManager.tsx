@@ -198,6 +198,66 @@ const AppAlertsManager = () => {
         </div>
       </div>
 
+      {/* Pre-Event Steps (PPV) — special, app-wide alert */}
+      <Card className="bg-gradient-to-br from-brand-gold/15 via-slate-900/70 to-slate-900/70 border-2 border-brand-gold/50 p-5 space-y-4 shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Zap className="w-6 h-6 text-brand-gold" />
+            <div>
+              <h3 className="text-lg font-bold text-white">Pre-Event Steps (PPV night)</h3>
+              <p className="text-sm text-slate-300">
+                One-click full-screen popup with 5 numbered prep steps. Shown to ALL users until they dismiss it.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`text-sm font-semibold ${preEventRow?.active ? 'text-brand-gold' : 'text-slate-400'}`}>
+              {preEventRow?.active ? 'ON — live now' : 'OFF'}
+            </span>
+            <Switch
+              checked={!!preEventRow?.active}
+              disabled={preEventSaving}
+              onCheckedChange={(v) => void savePreEvent(v)}
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Headline (event name)</Label>
+          <Input
+            value={preEventHeadline}
+            onChange={(e) => setPreEventHeadline(e.target.value)}
+            placeholder={DEFAULT_PRE_EVENT_HEADLINE}
+            className="bg-slate-800 border-slate-600 text-white"
+          />
+          <p className="text-xs text-slate-400">
+            Body is fixed (5 numbered steps). Toggle ON before the event, OFF after.
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="gold"
+            disabled={preEventSaving}
+            onClick={() => void savePreEvent(true)}
+          >
+            {preEventSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+            Save & Turn ON
+          </Button>
+          {preEventRow?.active && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={preEventSaving}
+              onClick={() => void savePreEvent(false)}
+              className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+            >
+              Turn OFF
+            </Button>
+          )}
+        </div>
+      </Card>
+
+
       {/* Create form */}
       <Card className="bg-slate-900/60 border-slate-700 p-5 space-y-4">
         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
