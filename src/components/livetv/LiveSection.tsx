@@ -98,6 +98,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // (index 2) once categories arrive, but only if the user hasn't moved yet.
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
+  const [lastKey, setLastKey] = useState('-');
+  useEffect(() => {
+    const spy = (e: KeyboardEvent) => setLastKey(`${e.key}/${e.keyCode}`);
+    window.addEventListener('keydown', spy, true);
+    return () => window.removeEventListener('keydown', spy, true);
+  }, []);
+
   // Tracks whether the user has explicitly moved category focus.
   const userMovedRef = useRef(false);
   // "All channels" loads ~12K rows — never auto-load. Only fetch when the
@@ -867,6 +874,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+      <div style={{ position: 'fixed', bottom: 2, left: 2, zIndex: 99999, background: 'rgba(0,0,0,0.85)', color: '#39ff14', font: '11px monospace', padding: '1px 6px', pointerEvents: 'none', borderRadius: 4 }}>
+        DBG1 active={String(isActive)} pane={pane} cat={categoryIdx}/{visibleCategories.length} chan={channelIdx}/{visibleChannels.length} key={lastKey}
+      </div>
       {/* Pane 2 — Categories */}
       <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
