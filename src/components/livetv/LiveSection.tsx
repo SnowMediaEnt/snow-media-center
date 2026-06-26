@@ -11,6 +11,7 @@ import {
   getShortEpg,
   buildLiveStreamUrl,
   pickNowNext,
+  XTREAM_REFRESH_EVENT,
   type FavChannel,
   type XtreamCreds,
   type XtreamCategory,
