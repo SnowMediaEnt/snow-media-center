@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, Loader2, Settings as SettingsIcon, X } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -9,6 +9,7 @@ import {
   buildPlayerAccount,
   savePlayerAccount,
   clearPlayerAccount,
+  bumpXtreamRefresh,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
