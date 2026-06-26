@@ -41,6 +41,7 @@ export const useTVFocus = ({
 }: UseTVFocusOptions = {}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
+  const didAutoFocusRef = useRef(false);
   const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
 
 
