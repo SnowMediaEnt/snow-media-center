@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.5': [
+    'Smoother Live TV navigation — scroll all the way through categories and channels without losing your place',
+    'The side menu now collapses when you open a category, so you see more channels',
+    'Back button steps back cleanly: full screen → channel list → categories → main menu',
+    'Every selected button now shows a clear gold highlight that matches its shape',
+  ],
   '1.5.4': [
     'Clearer on-screen highlight so you always see exactly what\'s selected',
     'Player: new "Update Channels" button + auto-refresh every time you open it',
