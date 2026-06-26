@@ -56,6 +56,7 @@ const WixBlog = lazy(() => import('@/components/WixBlog'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
+const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 
 const RouteFallback = () => (
