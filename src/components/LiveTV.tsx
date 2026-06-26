@@ -346,7 +346,7 @@ const Player = memo(({ onBack }: Props) => {
 
 
       {/* Three-pane layout */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Pane 1 — Sections */}
         <div
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}

@@ -58,10 +58,10 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, now
       onTouchCancel={cancelLongPress}
       onContextMenu={(e) => { e.preventDefault(); onLongPress?.(index); }}
       className={`
-        flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer
+        flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
         transition-transform duration-150 will-change-transform
         ${isFocused
-          ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_18px_2px_rgba(245,200,80,0.35)]'
+          ? 'bg-brand-gold/25 ring-2 ring-brand-gold shadow-[0_0_18px_2px_rgba(245,200,80,0.35)]'
           : isPlaying ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}
       `}
     >

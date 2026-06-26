@@ -354,13 +354,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   useEffect(() => {
     if (!visibleChannels.length) return;
-    rowVirtualizer.scrollToIndex(channelIdx, { align: 'auto' });
-    // Safety fallback: after the virtualizer renders the row, ensure the
-    // focused DOM node is actually on-screen. Covers the case where
-    // scrollToIndex no-ops (parent height still settling on huge lists)
-    // which manifested as "can't scroll past the first screen".
+    const align = channelIdx === 0 ? 'start' : 'auto';
+    rowVirtualizer.scrollToIndex(channelIdx, { align });
     const raf = requestAnimationFrame(() => {
-      const el = scrollParentRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
+      const root = scrollParentRef.current;
+      if (channelIdx === 0 && root) { root.scrollTop = 0; return; }
+      const el = root?.querySelector<HTMLElement>('[data-focused="true"]');
       el?.scrollIntoView({ block: 'nearest' });
     });
     return () => cancelAnimationFrame(raf);
@@ -368,14 +367,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [channelIdx, visibleChannels.length]);
 
   // Keep the focused category visible in the virtualized category pane.
-  // We let the virtualizer do the scroll math (no layout thrash), then a
-  // single rAF fallback re-aligns the DOM node in case the row had to be
-  // mounted on this frame.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
-    categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' });
+    const align = categoryIdx === 0 ? 'start' : 'auto';
+    categoryVirtualizer.scrollToIndex(categoryIdx, { align });
     const raf = requestAnimationFrame(() => {
       const root = categoriesScrollRef.current;
+      if (categoryIdx === 0 && root) { root.scrollTop = 0; return; }
       const el = root?.querySelector<HTMLElement>(`[data-cat-idx="${categoryIdx}"]`);
       el?.scrollIntoView({ block: 'nearest' });
     });
@@ -779,9 +777,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const totalSize = rowVirtualizer.getTotalSize();
 
   return (
-    <div className="flex-1 min-h-0 flex">
+    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
       {/* Pane 2 — Categories */}
-      <div ref={categoriesScrollRef} className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
           className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
@@ -865,7 +863,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       </div>
 
       {/* Pane 3 — Channels + preview */}
-      <div className="flex-1 min-w-0 flex flex-col bg-black/30">
+      <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
             {isFireTV() ? (
@@ -921,7 +919,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         </div>
 
         {/* Virtualized channel list */}
-        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto p-3">
+        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
           {channelsLoading && visibleChannels.length === 0 ? (
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, i) => (

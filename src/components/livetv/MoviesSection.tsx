@@ -378,7 +378,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   return (
     <div className="flex-1 min-h-0 flex">
       {/* Pane 2 — Categories */}
-      <div className={`w-64 flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
+      <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <div className="space-y-1">
           {categoriesLoading && categories.length === 0 && (
             <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
@@ -414,7 +414,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto p-5 bg-black/30">
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-5 bg-black/30">
         {moviesLoading && visibleMovies.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
