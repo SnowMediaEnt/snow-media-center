@@ -386,16 +386,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   //   re-call it inside a rAF after measurements settle.
   useEffect(() => {
     if (!visibleChannels.length) return;
-    const last = visibleChannels.length - 1;
-    const align: 'start' | 'center' | 'end' =
-      channelIdx === 0 ? 'start' : channelIdx === last ? 'end' : 'center';
-    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'align=', align, 'rootScrollTop=', scrollParentRef.current?.scrollTop, 'rootNull=', !scrollParentRef.current);
-    rowVirtualizer.scrollToIndex(channelIdx, { align });
-    const raf = requestAnimationFrame(() => {
-      const root = scrollParentRef.current;
-      if (channelIdx === 0 && root) { root.scrollTop = 0; return; }
-      rowVirtualizer.scrollToIndex(channelIdx, { align });
-    });
+    const apply = () => {
+      const node = scrollParentRef.current;
+      if (!node) return;
+      if (channelIdx === 0) { node.scrollTop = 0; return; }
+      const rowTop = channelIdx * ROW_HEIGHT;
+      const rowBottom = rowTop + ROW_HEIGHT;
+      if (rowTop < node.scrollTop) node.scrollTop = rowTop;
+      else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
+    };
+    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'rootNull=', !scrollParentRef.current);
+    apply();
+    const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
@@ -403,16 +405,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Keep the focused category visible in the VIRTUALIZED category pane.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
-    const last = visibleCategories.length - 1;
-    const align: 'start' | 'center' | 'end' =
-      categoryIdx === 0 ? 'start' : categoryIdx === last ? 'end' : 'center';
-    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'align=', align, 'rootScrollTop=', categoriesScrollRef.current?.scrollTop, 'rootNull=', !categoriesScrollRef.current);
-    categoryVirtualizer.scrollToIndex(categoryIdx, { align });
-    const raf = requestAnimationFrame(() => {
-      const root = categoriesScrollRef.current;
-      if (categoryIdx === 0 && root) { root.scrollTop = 0; return; }
-      categoryVirtualizer.scrollToIndex(categoryIdx, { align });
-    });
+    const apply = () => {
+      const node = categoriesScrollRef.current;
+      if (!node) return;
+      if (categoryIdx === 0) { node.scrollTop = 0; return; }
+      const rowTop = categoryIdx * CAT_ROW_HEIGHT;
+      const rowBottom = rowTop + CAT_ROW_HEIGHT;
+      if (rowTop < node.scrollTop) node.scrollTop = rowTop;
+      else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
+    };
+    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'rootNull=', !categoriesScrollRef.current);
+    apply();
+    const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryIdx, visibleCategories.length, searchOpen]);
