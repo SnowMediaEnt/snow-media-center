@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.4': [
+    'Clearer on-screen highlight so you always see exactly what\'s selected',
+    'Player: new "Update Channels" button + auto-refresh every time you open it',
+    'New Pre-Event Steps reminder for PPV nights (turn it on in Settings → App Alerts)',
+    'Smoother D-pad navigation in the AI chat, Settings, Player, and image gallery',
+    'Read AI replies aloud in Josh\'s voice — now free',
+  ],
   '1.5.3': [
     'Free AI assistant is now open to everyone — no sign-in needed to chat or make images',
     'Upgraded to a faster, smarter AI model',
