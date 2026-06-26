@@ -49,13 +49,14 @@ const PinnedAppsBar = ({
               <Card
                 key={pinnedApp.id}
                 data-focus-id={focusId}
+                data-focused={isFocused(focusId) ? 'true' : undefined}
                 onClick={() => fullApp && onLaunchApp(fullApp)}
                 className={`
                   p-1.5 cursor-pointer
                   bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-slate-600
                   hover:from-slate-600/80 hover:to-slate-700/80
                   transition-all duration-200
-                  ${focusRing(focusId)}
+                  ${isFocused(focusId) ? 'scale-110 brightness-125 z-10' : ''}
                 `}
               >
                 <div className="flex items-center gap-2">
