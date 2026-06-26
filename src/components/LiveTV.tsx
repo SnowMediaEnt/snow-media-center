@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -229,6 +230,64 @@ const Player = memo(({ onBack }: Props) => {
   }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut, refreshChannels]);
 
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Hardware BACK on Fire TV / Android TV is captured by Capacitor's native
+  // App.backButton listener and is NOT reliably delivered to the WebView as a
+  // keydown. Without this, useNavigation's backButton handler pops the Player
+  // view straight out to the home screen.
+  //
+  // While Player is mounted:
+  //   1. Set window.__playerOwnsBack = true so useNavigation's listener bails.
+  //   2. Register our own App.backButton listener that synthesizes an Escape
+  //      keydown — existing keydown handlers (LiveSection: fullscreen → bar →
+  //      channels → categories, LiveTV: sections → onBack) walk the hierarchy
+  //      naturally. We also stamp __overlayHandledBackAt synchronously as a
+  //      belt-and-braces guard regardless of native listener invocation order.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
+    const w = window as unknown as W;
+    w.__playerOwnsBack = true;
+
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const h = await CapApp.addListener('backButton', () => {
+          w.__overlayHandledBackAt = Date.now();
+          try {
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true,
+            }));
+          } catch {
+            // Very old WebViews may not allow synthesizing KeyboardEvent —
+            // fall back to a direct onBack at the top of the hierarchy.
+            if (paneRef.current === 'sections' && !accountInfoOpen && !accountFormOpen) {
+              onBack();
+            }
+          }
+        });
+        if (cancelled) h?.remove?.();
+        else handle = h;
+      } catch {
+        // Capacitor not available (web) — keydown Escape already covers it.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      w.__playerOwnsBack = false;
+      handle?.remove?.();
+    };
+  }, [onBack, accountInfoOpen, accountFormOpen]);
+
+
+
   if (!credsLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -350,7 +409,7 @@ const Player = memo(({ onBack }: Props) => {
         {/* Pane 1 — Sections */}
         <div
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
-          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 transition-[width] duration-200 ease-out overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
+          className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
           {SECTIONS.map((s, i) => {
             const Icon = s.icon;
