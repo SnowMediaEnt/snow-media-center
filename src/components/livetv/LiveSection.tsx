@@ -953,7 +953,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       isPlaying={playingChannelId === s.stream_id}
                       isFavorite={favorites.has(s.stream_id)}
                       nowNext={epgCacheRef.current.get(s.stream_id)}
-                      onSelect={(idx) => { setChannelIdx(idx); setPane('channels'); }}
+                      onSelect={(idx) => { setChannelIdx(idx); }}
                       onActivate={(idx) => { setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
                       onLongPress={(idx) => { setChannelIdx(idx); setReportFor(visibleChannels[idx]); }}
                     />
