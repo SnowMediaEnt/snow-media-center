@@ -289,10 +289,10 @@ const Player = memo(({ onBack }: Props) => {
 
     return () => {
       cancelled = true;
-      w.__playerOwnsBack = false;
       handle?.remove?.();
     };
   }, [onBack, accountInfoOpen, accountFormOpen]);
+
 
 
 
