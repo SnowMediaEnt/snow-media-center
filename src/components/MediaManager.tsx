@@ -405,6 +405,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     }
   }, [focusedElement]);
 
+  useEffect(() => {
+    const stored = saveAnonGallery(anonGallery);
+    if (stored.length !== anonGallery.length) {
+      setAnonGallery(stored);
+      if (activeAnonId && !stored.some((i) => i.id === activeAnonId)) { setActiveAnonId(null); applyBackground(null); }
+    }
+  }, [anonGallery]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { saveAnonActiveId(activeAnonId); }, [activeAnonId]);
+
   // Detect screen resolution and optimal image size
   useEffect(() => {
     const updateScreenInfo = () => {
