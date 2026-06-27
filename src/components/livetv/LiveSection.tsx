@@ -745,9 +745,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (c) setReportFor(c);
         }, 600) as unknown as number;
       }
-     } catch (err) {
-       console.error('[SMC-NAV] LiveSection keydown ERROR', err);
-     }
+     } catch { /* ignore */ }
     };
     const keyupHandler = (e: KeyboardEvent) => {
       if (reportForRef.current) return;
