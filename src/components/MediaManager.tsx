@@ -101,7 +101,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [showAnonWarning, setShowAnonWarning] = useState(false);
   // Tracks which anon image is currently set as the live background (one at a time).
-  const [activeAnonId, setActiveAnonId] = useState<string | null>(null);
+  const [activeAnonId, setActiveAnonId] = useState<string | null>(() => loadAnonActiveId());
   // Mirrors localStorage 'snow-active-bg' (the URL of the live background, if any).
   const [activeBgUrl, setActiveBgUrl] = useState<string | null>(() => {
     try { return localStorage.getItem('snow-active-bg'); } catch { return null; }
