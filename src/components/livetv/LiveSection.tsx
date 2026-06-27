@@ -536,14 +536,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
-      // [SMC-NAV] diagnostic — log Back + arrow keys at handler entry.
-      if (
-        e.key === 'Escape' || e.key === 'Backspace' ||
-        e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
-        e.key === 'ArrowLeft' || e.key === 'ArrowRight'
-      ) {
-        console.log('[SMC-NAV] key=', e.key, 'pane=', paneRef.current, 'fullscreen=', fullscreenRef.current, 'isActive=', isActive);
-      }
 
       // Remote "Menu" / context key — open report for the focused channel.
       // Only when on the channels pane and not fullscreen/typing.
