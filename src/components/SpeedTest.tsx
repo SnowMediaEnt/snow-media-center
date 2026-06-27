@@ -159,34 +159,63 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
     }
   }, [measurePing, measureDownload, measureUpload]);
 
-  // D-pad navigation
+  const closeNow = useCallback(() => {
+    try { abortRef.current?.abort(); } catch { /* noop */ }
+    (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+    onClose();
+  }, [onClose]);
+
+  // D-pad navigation (DOM keyboard / Android keyCodes)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
-        e.preventDefault();
-      }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
-        (e as any).stopImmediatePropagation?.();
-        if (abortRef.current) abortRef.current.abort();
-        onClose();
+        (e as unknown as { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+        closeNow();
         return;
       }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+      const scroller = scrollRef.current;
+      if (e.key === 'ArrowDown') { if (scroller) scroller.scrollBy({ top: Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' }); return; }
+      if (e.key === 'ArrowUp') { if (scroller) scroller.scrollBy({ top: -Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' }); return; }
       if (e.key === 'ArrowLeft') setFocused('back');
       else if (e.key === 'ArrowRight') setFocused('start');
       else if (e.key === 'Enter' || e.key === ' ') {
-        if (focused === 'back') {
-          if (abortRef.current) abortRef.current.abort();
-          onClose();
-        } else {
-          if (phase !== 'ping' && phase !== 'download' && phase !== 'upload') runTest();
-        }
+        if (focused === 'back') { closeNow(); }
+        else if (phase !== 'ping' && phase !== 'download' && phase !== 'upload') { runTest(); }
       }
     };
     window.addEventListener('keydown', onKey, { capture: true });
     return () => window.removeEventListener('keydown', onKey, { capture: true });
-  }, [focused, phase, runTest, onClose]);
+  }, [focused, phase, runTest, closeNow]);
+
+  // Hardware BACK on Fire TV / Android TV arrives as a Capacitor backButton
+  // event (NOT a reliable DOM keydown). BufferingGuide + useNavigation defer to
+  // us while the speed test is open, so we MUST own it here. Always close.
+  useEffect(() => {
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        handle = await App.addListener('backButton', () => {
+          if (cancelled) return;
+          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          closeNow();
+        });
+      } catch { /* web — keydown covers it */ }
+    })();
+    return () => { cancelled = true; handle?.remove?.(); };
+  }, [closeNow]);
+
+  // Keep REAL DOM focus on the selected control so the app's gold ring lights up.
+  useEffect(() => {
+    const el = focused === 'back' ? backBtnRef.current : startBtnRef.current;
+    el?.focus({ preventScroll: true });
+  }, [focused, phase]);
 
 
 
