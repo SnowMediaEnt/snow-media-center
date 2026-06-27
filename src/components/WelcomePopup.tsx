@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.5': [
+    'Smoother Live TV — scroll all the way through categories and channels, the side menu collapses when you open one, and Back steps cleanly instead of exiting the whole player',
+    'New "Update Channels" button to refresh your list instantly',
+    'Every selected button now shows a clear gold highlight',
+    'Speed test: you can now exit it any time and scroll to the full results',
+    'AI images you create while signed out now stay in your gallery until you clear the app\'s data',
+  ],
   '1.5.4': [
     'Clearer on-screen highlight so you always see exactly what\'s selected',
     'Player: new "Update Channels" button + auto-refresh every time you open it',
