@@ -98,12 +98,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // (index 2) once categories arrive, but only if the user hasn't moved yet.
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
-  const [lastKey, setLastKey] = useState('-');
-  useEffect(() => {
-    const spy = (e: KeyboardEvent) => setLastKey(`${e.key}/${e.keyCode}`);
-    window.addEventListener('keydown', spy, true);
-    return () => window.removeEventListener('keydown', spy, true);
-  }, []);
+
+
 
   // Tracks whether the user has explicitly moved category focus.
   const userMovedRef = useRef(false);
