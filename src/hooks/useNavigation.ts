@@ -154,20 +154,17 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           // whole Player view out from under it.
           const playerOwnsBack = (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack === true;
           if (playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
-            if (playerOwnsBack) console.log('[SMC-BACK] useNav → BAIL (player owns back)');
             return;
           }
 
           console.log('Capacitor back button pressed, current view:', currentView, 'canGoBack:', canGoBack);
 
           if (currentView !== 'home') {
-            console.log('[SMC-BACK] useNav → goBack');
             goBackRef.current?.();
           } else {
             if (onRootBackRef.current?.()) {
               return;
             }
-            console.log('[SMC-BACK] useNav → home/exit');
             // We're on home - implement double-press to exit
             const now = Date.now();
             if (now - lastBackPressTimeRef.current < 2000 && backPressCountRef.current === 1) {
