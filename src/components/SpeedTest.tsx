@@ -266,7 +266,9 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
             <h1 className="text-3xl font-bold">Internet Speed Test</h1>
           </div>
           <Button
+            ref={startBtnRef}
             data-focus-id="speedtest-start"
+            data-focused={focused === 'start' ? 'true' : undefined}
             onClick={runTest}
             disabled={isRunning}
             variant="outline"
