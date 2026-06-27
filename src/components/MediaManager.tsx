@@ -43,6 +43,33 @@ type FocusElement =
   | `asset-toggle-${string}` 
   | `asset-delete-${string}`;
 
+// ---- Anonymous gallery persistence (localStorage) ----
+type AnonImage = { id: string; dataUrl: string; name: string };
+const ANON_GALLERY_KEY = 'snow-anon-gallery';
+const ANON_ACTIVE_KEY = 'snow-anon-active-id';
+const ANON_MAX_IMAGES = 4;
+const loadAnonGallery = (): AnonImage[] => {
+  try {
+    const raw = localStorage.getItem(ANON_GALLERY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is AnonImage =>
+      x && typeof x.id === 'string' && typeof x.dataUrl === 'string' && x.dataUrl.startsWith('data:') && typeof x.name === 'string');
+  } catch { return []; }
+};
+const saveAnonGallery = (items: AnonImage[]) => {
+  let list = items.slice(0, ANON_MAX_IMAGES);
+  while (list.length > 0) {
+    try { localStorage.setItem(ANON_GALLERY_KEY, JSON.stringify(list)); return list; }
+    catch { list = list.slice(0, -1); }
+  }
+  try { localStorage.removeItem(ANON_GALLERY_KEY); } catch { /* ignore */ }
+  return list;
+};
+const loadAnonActiveId = (): string | null => { try { return localStorage.getItem(ANON_ACTIVE_KEY); } catch { return null; } };
+const saveAnonActiveId = (id: string | null) => { try { if (id) localStorage.setItem(ANON_ACTIVE_KEY, id); else localStorage.removeItem(ANON_ACTIVE_KEY); } catch { /* ignore */ } };
+
 const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user, session } = useAuth();
@@ -70,11 +97,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
   // media_assets without auth). Lives only for the session; shown in the same
   // grid as saved assets so the user never leaves the app.
-  const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
+  const [anonGallery, setAnonGallery] = useState<AnonImage[]>(() => loadAnonGallery());
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [showAnonWarning, setShowAnonWarning] = useState(false);
   // Tracks which anon image is currently set as the live background (one at a time).
-  const [activeAnonId, setActiveAnonId] = useState<string | null>(null);
+  const [activeAnonId, setActiveAnonId] = useState<string | null>(() => loadAnonActiveId());
   // Mirrors localStorage 'snow-active-bg' (the URL of the live background, if any).
   const [activeBgUrl, setActiveBgUrl] = useState<string | null>(() => {
     try { return localStorage.getItem('snow-active-bg'); } catch { return null; }
@@ -378,6 +405,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     }
   }, [focusedElement]);
 
+  useEffect(() => {
+    const stored = saveAnonGallery(anonGallery);
+    if (stored.length !== anonGallery.length) {
+      setAnonGallery(stored);
+      if (activeAnonId && !stored.some((i) => i.id === activeAnonId)) { setActiveAnonId(null); applyBackground(null); }
+    }
+  }, [anonGallery]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { saveAnonActiveId(activeAnonId); }, [activeAnonId]);
+
   // Detect screen resolution and optimal image size
   useEffect(() => {
     const updateScreenInfo = () => {
@@ -662,10 +698,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       // here in the same grid the user navigates with the D-pad.
       if (anonMode) {
         const id = `anon-${Date.now()}`;
-        setAnonGallery((prev) => [
-          { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' },
-          ...prev,
-        ]);
+        const newImage: AnonImage = { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' };
+        setAnonGallery((prev) => [newImage, ...prev].slice(0, ANON_MAX_IMAGES));
         toast({
           title: 'Image ready!',
           description: 'Added to your gallery. Sign in to save it permanently.',

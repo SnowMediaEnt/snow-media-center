@@ -24,6 +24,9 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [focused, setFocused] = useState<'back' | 'start'>('start');
   const abortRef = useRef<AbortController | null>(null);
+  const backBtnRef = useRef<HTMLButtonElement | null>(null);
+  const startBtnRef = useRef<HTMLButtonElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const measurePing = useCallback(async (): Promise<{ ping: number; jitter: number }> => {
     const samples: number[] = [];
@@ -156,34 +159,63 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
     }
   }, [measurePing, measureDownload, measureUpload]);
 
-  // D-pad navigation
+  const closeNow = useCallback(() => {
+    try { abortRef.current?.abort(); } catch { /* noop */ }
+    (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+    onClose();
+  }, [onClose]);
+
+  // D-pad navigation (DOM keyboard / Android keyCodes)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
-        e.preventDefault();
-      }
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
-        (e as any).stopImmediatePropagation?.();
-        if (abortRef.current) abortRef.current.abort();
-        onClose();
+        (e as unknown as { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+        closeNow();
         return;
       }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+      const scroller = scrollRef.current;
+      if (e.key === 'ArrowDown') { if (scroller) scroller.scrollBy({ top: Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' }); return; }
+      if (e.key === 'ArrowUp') { if (scroller) scroller.scrollBy({ top: -Math.round(scroller.clientHeight * 0.7), behavior: 'smooth' }); return; }
       if (e.key === 'ArrowLeft') setFocused('back');
       else if (e.key === 'ArrowRight') setFocused('start');
       else if (e.key === 'Enter' || e.key === ' ') {
-        if (focused === 'back') {
-          if (abortRef.current) abortRef.current.abort();
-          onClose();
-        } else {
-          if (phase !== 'ping' && phase !== 'download' && phase !== 'upload') runTest();
-        }
+        if (focused === 'back') { closeNow(); }
+        else if (phase !== 'ping' && phase !== 'download' && phase !== 'upload') { runTest(); }
       }
     };
     window.addEventListener('keydown', onKey, { capture: true });
     return () => window.removeEventListener('keydown', onKey, { capture: true });
-  }, [focused, phase, runTest, onClose]);
+  }, [focused, phase, runTest, closeNow]);
+
+  // Hardware BACK on Fire TV / Android TV arrives as a Capacitor backButton
+  // event (NOT a reliable DOM keydown). BufferingGuide + useNavigation defer to
+  // us while the speed test is open, so we MUST own it here. Always close.
+  useEffect(() => {
+    let handle: { remove?: () => void } | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        handle = await App.addListener('backButton', () => {
+          if (cancelled) return;
+          (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          closeNow();
+        });
+      } catch { /* web — keydown covers it */ }
+    })();
+    return () => { cancelled = true; handle?.remove?.(); };
+  }, [closeNow]);
+
+  // Keep REAL DOM focus on the selected control so the app's gold ring lights up.
+  useEffect(() => {
+    const el = focused === 'back' ? backBtnRef.current : startBtnRef.current;
+    el?.focus({ preventScroll: true });
+  }, [focused, phase]);
 
 
 
@@ -196,8 +228,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const focusRing = (id: 'back' | 'start') =>
-    focused === id ? 'scale-110 shadow-[0_0_30px_hsl(var(--brand-ice)/0.6)]' : '';
+  const focusRing = (id: 'back' | 'start') => (focused === id ? 'scale-105' : '');
 
   const isRunning = phase === 'ping' || phase === 'download' || phase === 'upload';
   const downMbps = Number(fmtMbps(download));
@@ -215,15 +246,14 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-6 py-10">
+    <div ref={scrollRef} className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+      <div className="max-w-4xl mx-auto px-6 py-10 pb-24">
         <div className="flex items-center justify-between mb-8">
           <Button
+            ref={backBtnRef}
             data-focus-id="speedtest-back"
-            onClick={() => {
-              if (abortRef.current) abortRef.current.abort();
-              onClose();
-            }}
+            data-focused={focused === 'back' ? 'true' : undefined}
+            onClick={closeNow}
             variant="gold"
             size="lg"
             className={`transition-all duration-200 ${focusRing('back')}`}
@@ -236,7 +266,9 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
             <h1 className="text-3xl font-bold">Internet Speed Test</h1>
           </div>
           <Button
+            ref={startBtnRef}
             data-focus-id="speedtest-start"
+            data-focused={focused === 'start' ? 'true' : undefined}
             onClick={runTest}
             disabled={isRunning}
             variant="outline"
