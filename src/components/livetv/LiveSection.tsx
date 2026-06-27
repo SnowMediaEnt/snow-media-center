@@ -399,7 +399,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
-    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'rootNull=', !scrollParentRef.current);
+    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
