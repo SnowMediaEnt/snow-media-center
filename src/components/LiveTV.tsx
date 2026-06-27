@@ -272,7 +272,7 @@ const Player = memo(({ onBack }: Props) => {
               cancelable: true,
             }));
           } catch {
-            console.log('[SMC-BACK] LiveTV synthetic-Escape THREW; fallback; pane=', paneRef.current);
+            
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
             if (paneRef.current === 'sections' && !accountInfoOpen && !accountFormOpen) {
