@@ -43,6 +43,33 @@ type FocusElement =
   | `asset-toggle-${string}` 
   | `asset-delete-${string}`;
 
+// ---- Anonymous gallery persistence (localStorage) ----
+type AnonImage = { id: string; dataUrl: string; name: string };
+const ANON_GALLERY_KEY = 'snow-anon-gallery';
+const ANON_ACTIVE_KEY = 'snow-anon-active-id';
+const ANON_MAX_IMAGES = 4;
+const loadAnonGallery = (): AnonImage[] => {
+  try {
+    const raw = localStorage.getItem(ANON_GALLERY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is AnonImage =>
+      x && typeof x.id === 'string' && typeof x.dataUrl === 'string' && x.dataUrl.startsWith('data:') && typeof x.name === 'string');
+  } catch { return []; }
+};
+const saveAnonGallery = (items: AnonImage[]) => {
+  let list = items.slice(0, ANON_MAX_IMAGES);
+  while (list.length > 0) {
+    try { localStorage.setItem(ANON_GALLERY_KEY, JSON.stringify(list)); return list; }
+    catch { list = list.slice(0, -1); }
+  }
+  try { localStorage.removeItem(ANON_GALLERY_KEY); } catch { /* ignore */ }
+  return list;
+};
+const loadAnonActiveId = (): string | null => { try { return localStorage.getItem(ANON_ACTIVE_KEY); } catch { return null; } };
+const saveAnonActiveId = (id: string | null) => { try { if (id) localStorage.setItem(ANON_ACTIVE_KEY, id); else localStorage.removeItem(ANON_ACTIVE_KEY); } catch { /* ignore */ } };
+
 const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user, session } = useAuth();
