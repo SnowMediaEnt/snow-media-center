@@ -682,10 +682,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // exit the Player on Android/Fire TV.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
         if (paneRef.current === 'channels') {
-          console.log('[SMC-NAV] → categories');
           setPane('categories');
         } else {
-          console.log('[SMC-NAV] → sections (exit left)');
           onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
         }
         return;
