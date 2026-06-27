@@ -154,40 +154,41 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         if (event.key === 'ArrowDown') {
           const active = document.activeElement as HTMLElement | null;
-          if (active?.matches('[data-app-updater-btn="check"]') ||
-              active?.matches('[data-app-updater-btn="download"]')) {
-            event.preventDefault();
-            event.stopPropagation();
+          const inApkCache = !!active?.closest('[data-apk-cache-root]');
+          if (!inApkCache) {
+            // From the AppUpdater button (or lost focus) → drop into the cache list.
             const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
             if (apkBtn) {
+              event.preventDefault();
+              event.stopPropagation();
               apkBtn.focus();
               apkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }
           }
+          // Already inside the cache → do NOT block; the ApkCacheViewer's own
+          // onKeyDown handlers move focus within the list (rows, install/delete).
           return;
         }
         if (event.key === 'ArrowUp') {
           const active = document.activeElement as HTMLElement | null;
           const inApkCache = !!active?.closest('[data-apk-cache-root]');
           if (inApkCache) {
-            event.preventDefault();
-            event.stopPropagation();
-            const checkBtn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
-            if (checkBtn) {
-              checkBtn.focus();
-              checkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            // Only leave the cache when on its TOP row (Refresh / Clear all);
+            // inside the file rows, let the ApkCacheViewer's own ArrowUp move up.
+            if (active?.matches('[data-apk-cache-first], [data-apk-clear-all]')) {
+              event.preventDefault();
+              event.stopPropagation();
+              const updBtn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
+              if (updBtn) {
+                updBtn.focus();
+                updBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              } else {
+                setFocusedElement('tab-updates');
+              }
             }
             return;
           }
-          // Already on AppUpdater button — go back up to the tab row.
-          if (active?.matches('[data-app-updater-btn="check"]') ||
-              active?.matches('[data-app-updater-btn="download"]')) {
-            event.preventDefault();
-            event.stopPropagation();
-            setFocusedElement('tab-updates');
-            return;
-          }
-          // Fallback: any other focus inside updates content — go to tab row.
+          // On the AppUpdater button (or lost focus) → back up to the tab row.
           event.preventDefault();
           event.stopPropagation();
           setFocusedElement('tab-updates');
@@ -262,9 +263,15 @@ const Settings = ({ onBack }: SettingsProps) => {
           } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
             setFocusedElement('updates-content');
             setTimeout(() => {
-              const btn = document.querySelector('[data-app-updater-btn="check"]') as HTMLElement | null;
-              btn?.focus();
-              btn?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              const btn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
+              if (btn) {
+                btn.focus();
+                btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              } else {
+                const apk = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
+                apk?.focus();
+                apk?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              }
             }, 30);
           } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
             setFocusedElement('alerts-content');
