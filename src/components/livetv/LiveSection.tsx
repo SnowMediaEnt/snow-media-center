@@ -98,12 +98,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // (index 2) once categories arrive, but only if the user hasn't moved yet.
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
-  const [lastKey, setLastKey] = useState('-');
-  useEffect(() => {
-    const spy = (e: KeyboardEvent) => setLastKey(`${e.key}/${e.keyCode}`);
-    window.addEventListener('keydown', spy, true);
-    return () => window.removeEventListener('keydown', spy, true);
-  }, []);
+
+
 
   // Tracks whether the user has explicitly moved category focus.
   const userMovedRef = useRef(false);
@@ -403,7 +399,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
-    console.log('[SMC-SCROLL] chan idx=', channelIdx, 'rootNull=', !scrollParentRef.current);
+    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
@@ -422,7 +418,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
-    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'rootNull=', !categoriesScrollRef.current);
+    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
@@ -540,14 +536,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
-      // [SMC-NAV] diagnostic — log Back + arrow keys at handler entry.
-      if (
-        e.key === 'Escape' || e.key === 'Backspace' ||
-        e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
-        e.key === 'ArrowLeft' || e.key === 'ArrowRight'
-      ) {
-        console.log('[SMC-NAV] key=', e.key, 'pane=', paneRef.current, 'fullscreen=', fullscreenRef.current, 'isActive=', isActive);
-      }
 
       // Remote "Menu" / context key — open report for the focused channel.
       // Only when on the channels pane and not fullscreen/typing.
@@ -694,10 +682,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // exit the Player on Android/Fire TV.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
         if (paneRef.current === 'channels') {
-          console.log('[SMC-NAV] → categories');
           setPane('categories');
         } else {
-          console.log('[SMC-NAV] → sections (exit left)');
           onExitLeft(); // categories → sections (parent); from sections, parent Back exits.
         }
         return;
@@ -727,13 +713,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowLeft') {
-          console.log('[SMC-NAV] → sections (exit left)');
           onExitLeft();
         }
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
           if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
-          console.log('[SMC-NAV] → channels');
           setPane('channels');
         }
         return;
@@ -746,7 +730,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
       else if (e.key === 'ArrowLeft') {
-        console.log('[SMC-NAV] → categories');
         setPane('categories');
       }
       else if (e.key === 'Enter' || e.key === ' ') {
@@ -762,9 +745,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (c) setReportFor(c);
         }, 600) as unknown as number;
       }
-     } catch (err) {
-       console.error('[SMC-NAV] LiveSection keydown ERROR', err);
-     }
+     } catch { /* ignore */ }
     };
     const keyupHandler = (e: KeyboardEvent) => {
       if (reportForRef.current) return;
@@ -874,9 +855,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
-      <div style={{ position: 'fixed', bottom: 2, left: 2, zIndex: 99999, background: 'rgba(0,0,0,0.85)', color: '#39ff14', font: '11px monospace', padding: '1px 6px', pointerEvents: 'none', borderRadius: 4 }}>
-        DBG1 active={String(isActive)} pane={pane} cat={categoryIdx}/{visibleCategories.length} chan={channelIdx}/{visibleChannels.length} key={lastKey}
-      </div>
       {/* Pane 2 — Categories */}
       <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
