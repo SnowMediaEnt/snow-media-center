@@ -713,13 +713,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowLeft') {
-          console.log('[SMC-NAV] → sections (exit left)');
           onExitLeft();
         }
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
           if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
-          console.log('[SMC-NAV] → channels');
           setPane('channels');
         }
         return;
