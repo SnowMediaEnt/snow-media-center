@@ -418,7 +418,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
-    console.log('[SMC-SCROLL] cat idx=', categoryIdx, 'rootNull=', !categoriesScrollRef.current);
+    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
