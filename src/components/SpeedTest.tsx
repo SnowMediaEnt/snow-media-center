@@ -228,8 +228,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const focusRing = (id: 'back' | 'start') =>
-    focused === id ? 'scale-110 shadow-[0_0_30px_hsl(var(--brand-ice)/0.6)]' : '';
+  const focusRing = (id: 'back' | 'start') => (focused === id ? 'scale-105' : '');
 
   const isRunning = phase === 'ping' || phase === 'download' || phase === 'upload';
   const downMbps = Number(fmtMbps(download));
