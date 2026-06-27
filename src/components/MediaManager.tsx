@@ -97,7 +97,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   // Ephemeral, in-app gallery for anonymous-user generations (cannot write to
   // media_assets without auth). Lives only for the session; shown in the same
   // grid as saved assets so the user never leaves the app.
-  const [anonGallery, setAnonGallery] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
+  const [anonGallery, setAnonGallery] = useState<AnonImage[]>(() => loadAnonGallery());
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [showAnonWarning, setShowAnonWarning] = useState(false);
   // Tracks which anon image is currently set as the live background (one at a time).
