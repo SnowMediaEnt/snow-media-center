@@ -138,7 +138,7 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
       try {
         const handle = await CapApp.addListener('backButton', ({ canGoBack }) => {
           const currentView = currentViewRef.current;
-          console.log('[SMC-BACK] useNav.backButton; view=', currentView, 'ownsBack=', (window as any).__playerOwnsBack, 'overlayAgeMs=', Date.now() - ((window as any).__overlayHandledBackAt || 0));
+          
           // If the auto-update modal (or any aria-modal dialog) is open, let it
           // handle Back itself — do not pop the underlying nav stack.
           if (typeof document !== 'undefined' &&
