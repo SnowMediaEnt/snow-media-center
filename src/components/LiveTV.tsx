@@ -260,7 +260,7 @@ const Player = memo(({ onBack }: Props) => {
     (async () => {
       try {
         const h = await CapApp.addListener('backButton', () => {
-          console.log('[SMC-BACK] LiveTV.backButton; pane=', paneRef.current, 'ownsBack=', (window as any).__playerOwnsBack);
+          
           w.__overlayHandledBackAt = Date.now();
           try {
             window.dispatchEvent(new KeyboardEvent('keydown', {
