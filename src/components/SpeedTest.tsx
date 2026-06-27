@@ -24,6 +24,9 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [focused, setFocused] = useState<'back' | 'start'>('start');
   const abortRef = useRef<AbortController | null>(null);
+  const backBtnRef = useRef<HTMLButtonElement | null>(null);
+  const startBtnRef = useRef<HTMLButtonElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const measurePing = useCallback(async (): Promise<{ ping: number; jitter: number }> => {
     const samples: number[] = [];
