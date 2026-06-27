@@ -698,10 +698,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       // here in the same grid the user navigates with the D-pad.
       if (anonMode) {
         const id = `anon-${Date.now()}`;
-        setAnonGallery((prev) => [
-          { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' },
-          ...prev,
-        ]);
+        const newImage: AnonImage = { id, dataUrl: result.image, name: generatePrompt.slice(0, 60) || 'AI image' };
+        setAnonGallery((prev) => [newImage, ...prev].slice(0, ANON_MAX_IMAGES));
         toast({
           title: 'Image ready!',
           description: 'Added to your gallery. Sign in to save it permanently.',
