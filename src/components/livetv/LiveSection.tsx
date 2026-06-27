@@ -730,7 +730,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
       else if (e.key === 'ArrowLeft') {
-        console.log('[SMC-NAV] → categories');
         setPane('categories');
       }
       else if (e.key === 'Enter' || e.key === ' ') {
