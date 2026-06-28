@@ -50,6 +50,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Only fetch when the user explicitly opens that bucket (Enter / click).
   const allOptedInRef = useRef(false);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [allMovies, setAllMovies] = useState<XtreamVodStream[] | null>(null);
+  const [allMoviesLoading, setAllMoviesLoading] = useState(false);
+
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
