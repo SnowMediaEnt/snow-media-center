@@ -52,6 +52,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Only fetch when the user explicitly opens that bucket.
   const allOptedInRef = useRef(false);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [allSeries, setAllSeries] = useState<XtreamSeries[] | null>(null);
+  const [allSeriesLoading, setAllSeriesLoading] = useState(false);
+
   // Detail
   const [selectedSeries, setSelectedSeries] = useState<XtreamSeries | null>(null);
   const [seriesInfo, setSeriesInfo] = useState<XtreamSeriesInfo | null>(null);
