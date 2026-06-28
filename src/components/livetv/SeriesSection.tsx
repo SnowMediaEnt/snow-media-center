@@ -402,7 +402,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     overscan: isFireTV() ? 1 : 3,
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
-  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
+  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => {
     if (!visibleSeries.length) return;
     rowVirtualizer.scrollToIndex(Math.floor(gridIdx / GRID_COLS), { align: 'auto' });
