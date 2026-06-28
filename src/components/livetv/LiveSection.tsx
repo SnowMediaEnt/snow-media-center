@@ -1065,8 +1065,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <ReportChannelDialog
             channelName={reportFor.name}
             channelId={reportFor.stream_id}
+            isFavorite={favorites.has(reportFor.stream_id)}
+            onToggleFavorite={() => toggleFavorite(reportFor)}
+            onOpenBufferingGuide={() => {
+              setReportFor(null);
+              enterFiredRef.current = false;
+              onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
             onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
           />
+
         </Suspense>
       )}
     </div>
