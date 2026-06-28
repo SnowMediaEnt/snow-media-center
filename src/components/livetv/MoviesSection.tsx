@@ -225,6 +225,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleMoviesRef.current = visibleMovies; }, [visibleMovies]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
+  const searchOpenRef = useRef(searchOpen);
+  useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
 
   useEffect(() => {
     if (!isActive) return;
