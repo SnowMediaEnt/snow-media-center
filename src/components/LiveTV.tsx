@@ -26,6 +26,7 @@ const AccountInfoScreen = lazy(() => import('./livetv/AccountInfoScreen'));
 
 interface Props {
   onBack: () => void;
+  onNavigate?: (view: string) => void;
 }
 
 type SectionId = 'live' | 'movies' | 'series';
@@ -35,7 +36,8 @@ const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
   { id: 'series', label: 'Series',  icon: ListVideo },
 ];
 
-const Player = memo(({ onBack }: Props) => {
+const Player = memo(({ onBack, onNavigate }: Props) => {
+
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -451,8 +453,10 @@ const Player = memo(({ onBack }: Props) => {
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
+            onNavigate={onNavigate}
           />
         )}
+
         {section === 'movies' && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection

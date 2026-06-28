@@ -2180,6 +2180,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      tenant_customer_counts: {
+        Args: never
+        Returns: {
+          count: number
+          tenant_id: string
+        }[]
+      }
       update_user_credits: {
         Args: {
           p_amount: number

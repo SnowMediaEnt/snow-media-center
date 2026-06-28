@@ -34,7 +34,9 @@ interface Props {
   onExitLeft: () => void;
   onExitUp?: () => void;
   onBack: () => void;
+  onNavigate?: (view: string) => void;
 }
+
 
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
@@ -59,7 +61,7 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   epg_channel_id: f.epg_channel_id,
 });
 
-const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack }: Props) => {
+const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
@@ -1063,8 +1065,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <ReportChannelDialog
             channelName={reportFor.name}
             channelId={reportFor.stream_id}
+            isFavorite={favorites.has(reportFor.stream_id)}
+            onToggleFavorite={() => toggleFavorite(reportFor)}
+            onOpenBufferingGuide={() => {
+              setReportFor(null);
+              enterFiredRef.current = false;
+              onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
             onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
           />
+
         </Suspense>
       )}
     </div>

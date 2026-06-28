@@ -232,12 +232,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       });
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
+    const openGuide = () => { setTab('help'); setHelpView('menu'); setShowGuide(true); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
+    window.addEventListener('support:open-buffering-guide', openGuide);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
+      window.removeEventListener('support:open-buffering-guide', openGuide);
     };
+
   }, [scrollSupportToRealTop, supportFocus, tab]);
 
 

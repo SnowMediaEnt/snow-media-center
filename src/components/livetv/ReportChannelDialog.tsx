@@ -1,32 +1,47 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props {
   channelName: string;
   channelId?: number | string;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  onOpenBufferingGuide?: () => void;
   onClose: () => void;
 }
 
-type Choice = 'Buffering' | 'No audio' | 'Other';
-const CHOICES: Choice[] = ['Buffering', 'No audio', 'Other'];
+type Choice = 'Channel down' | 'Channel buffering' | 'No audio' | 'Other';
+const CHOICES: Choice[] = ['Channel down', 'Channel buffering', 'No audio', 'Other'];
+
+type Step = 'menu' | 'reasons' | 'other';
 
 /**
- * D-pad / focus-trapped dialog to file a "Report a problem" ticket
- * about a Live TV channel. Owns its own keyboard while mounted.
+ * D-pad / focus-trapped dialog: Channel Options → Report → reason → submit.
+ * Owns its own keyboard while mounted.
  */
-const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) => {
+const ReportChannelDialog = memo(({
+  channelName,
+  channelId,
+  isFavorite,
+  onToggleFavorite,
+  onOpenBufferingGuide,
+  onClose,
+}: Props) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { account } = usePlayerAccount();
   const { createTicket } = useSupportTickets(user);
 
-  // Step 0: choose problem. Step 1: "Other" note + Submit.
-  const [step, setStep] = useState<0 | 1>(0);
-  // Focus index. Step 0: 0..2 = choices, 3 = Cancel. Step 1: 0 = input, 1 = Submit, 2 = Cancel.
+  const [step, setStep] = useState<Step>('menu');
+  // Focus index:
+  //   menu:   0 = Report, 1 = Fav toggle, 2 = Cancel
+  //   reasons: 0..3 = CHOICES, 4 = Cancel
+  //   other:  0 = textarea, 1 = Submit, 2 = Cancel
   const [focusIdx, setFocusIdx] = useState(0);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -52,33 +67,45 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
       submittedRef.current = true;
       setSubmitting(true);
       try {
-        await createTicket(
-          `Channel issue: ${channelName}`,
-          buildMessage(choice, otherNote),
-        );
+        const subject = `Channel issue: ${channelName}`;
+        const message = buildMessage(choice, otherNote);
+        if (user) {
+          await createTicket(subject, message);
+        } else {
+          await supabase.functions.invoke('send-custom-email', {
+            body: {
+              to: 'support@snowmediaent.com',
+              subject: `[Channel Report] ${subject}`,
+              fromName: 'Snow Media Player',
+              html: `<h3>Channel report (guest)</h3><p>${message.replace(/\n/g, '<br>')}</p>`,
+            },
+          });
+        }
         toast({ title: 'Report sent — thanks!' });
         onClose();
       } catch {
-        // useSupportTickets already shows an error toast
         submittedRef.current = false;
         setSubmitting(false);
       }
     },
-    [createTicket, buildMessage, channelName, onClose, submitting, toast],
+    [createTicket, buildMessage, channelName, onClose, submitting, toast, user],
   );
 
   const onPick = useCallback(
     (choice: Choice) => {
+      if (choice === 'Channel buffering') {
+        onOpenBufferingGuide?.();
+        return;
+      }
       if (choice === 'Other') {
-        setStep(1);
+        setStep('other');
         setFocusIdx(0);
-        // focus the textarea after it mounts
         requestAnimationFrame(() => inputRef.current?.focus());
         return;
       }
       void submit(choice);
     },
-    [submit],
+    [submit, onOpenBufferingGuide],
   );
 
   // Owns the keyboard while open
@@ -88,11 +115,15 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
       if (isBack) {
         e.preventDefault();
         e.stopPropagation();
-        if (step === 1 && !submitting) {
-          // back from "Other" → return to choices
-          setStep(0);
-          setFocusIdx(2);
+        if (step === 'other' && !submitting) {
+          setStep('reasons');
+          setFocusIdx(CHOICES.length); // land on Cancel of reasons
           setNote('');
+          return;
+        }
+        if (step === 'reasons' && !submitting) {
+          setStep('menu');
+          setFocusIdx(0);
           return;
         }
         onClose();
@@ -104,49 +135,72 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
         !!target &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
-      // Step 0 — choice list + Cancel
-      if (step === 0) {
-        const count = CHOICES.length + 1; // +Cancel
+      // MENU
+      if (step === 'menu') {
+        const count = 3;
         if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          e.stopPropagation();
+          e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i + 1) % count);
           return;
         }
         if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          e.stopPropagation();
+          e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i - 1 + count) % count);
           return;
         }
         if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          e.stopPropagation();
-          if (focusIdx < CHOICES.length) onPick(CHOICES[focusIdx]);
-          else onClose();
+          e.preventDefault(); e.stopPropagation();
+          if (focusIdx === 0) {
+            setStep('reasons');
+            setFocusIdx(0);
+          } else if (focusIdx === 1) {
+            onToggleFavorite?.();
+            onClose();
+          } else {
+            onClose();
+          }
           return;
         }
-        // Block stray keys from leaking to LiveSection
         e.stopPropagation();
         return;
       }
 
-      // Step 1 — Other note: [textarea, Submit, Cancel]
-      if (e.key === 'ArrowDown' && !typing) {
-        e.preventDefault();
+      // REASONS
+      if (step === 'reasons') {
+        const count = CHOICES.length + 1;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault(); e.stopPropagation();
+          setFocusIdx(i => (i + 1) % count);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault(); e.stopPropagation();
+          setFocusIdx(i => (i - 1 + count) % count);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault(); e.stopPropagation();
+          if (focusIdx < CHOICES.length) onPick(CHOICES[focusIdx]);
+          else onClose();
+          return;
+        }
         e.stopPropagation();
+        return;
+      }
+
+      // OTHER (free text)
+      if (e.key === 'ArrowDown' && !typing) {
+        e.preventDefault(); e.stopPropagation();
         setFocusIdx(i => Math.min(2, i + 1));
         return;
       }
       if (e.key === 'ArrowUp' && !typing) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         setFocusIdx(i => Math.max(0, i - 1));
         return;
       }
       if ((e.key === 'Enter' || e.key === ' ') && !typing) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         if (focusIdx === 0) {
           inputRef.current?.focus();
         } else if (focusIdx === 1) {
@@ -156,17 +210,21 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
         }
         return;
       }
-      // While typing, let the textarea consume the key (don't leak).
       if (typing) e.stopPropagation();
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [step, focusIdx, note, onPick, onClose, submit, submitting]);
+  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite]);
 
   // Auto-blur textarea so D-pad navigation works again
   useEffect(() => {
-    if (step === 1 && focusIdx !== 0) inputRef.current?.blur();
+    if (step === 'other' && focusIdx !== 0) inputRef.current?.blur();
   }, [step, focusIdx]);
+
+  const title =
+    step === 'menu' ? 'Channel Options'
+    : step === 'reasons' ? 'Report a problem'
+    : 'Describe the problem';
 
   return (
     <div
@@ -183,11 +241,48 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
         <div className="flex items-center gap-3 mb-4">
           <AlertTriangle className="w-6 h-6 text-brand-gold flex-shrink-0" />
           <h2 className="font-quicksand font-bold text-xl truncate">
-            Report a problem with <span className="text-brand-gold">{channelName}</span>
+            {title} — <span className="text-brand-gold">{channelName}</span>
           </h2>
         </div>
 
-        {step === 0 && (
+        {step === 'menu' && (
+          <div className="space-y-2">
+            {[
+              { label: 'Report Channel', icon: Flag },
+              { label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star },
+              { label: 'Cancel', icon: X },
+            ].map((item, i) => {
+              const focused = focusIdx === i;
+              const Icon = item.icon;
+              const isCancel = i === 2;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  data-focused={focused ? 'true' : 'false'}
+                  onMouseEnter={() => setFocusIdx(i)}
+                  onClick={() => {
+                    if (i === 0) { setStep('reasons'); setFocusIdx(0); }
+                    else if (i === 1) { onToggleFavorite?.(); onClose(); }
+                    else onClose();
+                  }}
+                  className={`tv-focusable w-full text-left px-4 py-3 rounded-xl font-nunito font-semibold transition-transform duration-150 flex items-center gap-3 ${
+                    focused
+                      ? (isCancel
+                          ? 'bg-white/15 ring-2 ring-white/60 scale-[1.02]'
+                          : 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_14px_rgba(245,200,80,0.4)]')
+                      : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 text-brand-gold" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {step === 'reasons' && (
           <div className="space-y-2">
             {CHOICES.map((c, i) => {
               const focused = focusIdx === i;
@@ -227,7 +322,7 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
           </div>
         )}
 
-        {step === 1 && (
+        {step === 'other' && (
           <div className="space-y-3">
             <label className="block text-sm text-brand-ice/80 font-nunito">
               Describe the problem (optional)
@@ -261,7 +356,7 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
                 }`}
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Submit
+                Send
               </button>
               <button
                 type="button"
@@ -282,7 +377,7 @@ const ReportChannelDialog = memo(({ channelName, channelId, onClose }: Props) =>
         )}
 
         <p className="mt-4 text-[11px] text-brand-ice/50 font-nunito">
-          Long-press OK or press the Menu key on a channel to report.
+          Long-press OK or press the Menu key on a channel to open this.
         </p>
       </div>
     </div>
