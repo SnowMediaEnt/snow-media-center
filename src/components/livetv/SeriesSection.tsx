@@ -81,6 +81,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => {
     const onRefresh = () => {
       setSeriesByCat(new Map());
+      setAllSeries(null);
       allOptedInRef.current = false;
       setRefreshTick(t => t + 1);
     };
