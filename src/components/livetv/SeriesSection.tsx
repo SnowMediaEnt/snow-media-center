@@ -255,6 +255,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleSeriesRef.current = visibleSeries; }, [visibleSeries]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
+  const searchOpenRef = useRef(searchOpen);
+  useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { detailFocusRef.current = detailFocus; }, [detailFocus]);
   useEffect(() => { seasonIdxRef.current = seasonIdx; }, [seasonIdx]);
   useEffect(() => { episodeIdxRef.current = episodeIdx; }, [episodeIdx]);
