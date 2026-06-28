@@ -61,7 +61,7 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   epg_channel_id: f.epg_channel_id,
 });
 
-const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack }: Props) => {
+const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
