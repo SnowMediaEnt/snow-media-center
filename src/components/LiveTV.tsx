@@ -453,8 +453,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
+            onNavigate={onNavigate}
           />
         )}
+
         {section === 'movies' && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
