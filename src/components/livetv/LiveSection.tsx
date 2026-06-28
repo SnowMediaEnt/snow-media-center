@@ -100,6 +100,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // (index 2) once categories arrive, but only if the user hasn't moved yet.
   const [categoryIdx, setCategoryIdx] = useState(0);
   const [channelIdx, setChannelIdx] = useState(0);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchFocusedRef = useRef(searchFocused);
+  useEffect(() => { searchFocusedRef.current = searchFocused; }, [searchFocused]);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
 
 
@@ -705,12 +709,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
+        if (searchFocusedRef.current) {
+          if (e.key === 'ArrowUp')   { setSearchFocused(false); onExitUp?.(); return; }
+          if (e.key === 'ArrowDown') {
+            if (searchOpenRef.current && searchInputRef.current) { searchInputRef.current.focus(); return; }
+            setSearchFocused(false); return;
+          }
+          if (e.key === 'ArrowLeft') { onExitLeft(); return; }
+          if (e.key === 'Enter' || e.key === ' ') {
+            const willOpen = !searchOpenRef.current;
+            setSearchOpen(willOpen);
+            if (willOpen) requestAnimationFrame(() => searchInputRef.current?.focus());
+            else setSearchQuery('');
+            return;
+          }
+          return;
+        }
         if (e.key === 'ArrowDown') {
           userMovedRef.current = true;
           setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowUp') {
-          if (categoryIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+          if (categoryIdxRef.current === 0) { setSearchFocused(true); return; }
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
@@ -861,6 +881,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       <div ref={categoriesScrollRef} className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
         <button
           onClick={() => setSearchOpen(o => !o)}
+          data-focused={searchFocused ? 'true' : 'false'}
           className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
         >
           <Search className="w-4 h-4" />
@@ -868,9 +889,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         </button>
         {searchOpen && (
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); e.currentTarget.blur(); setPane('channels'); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
+              else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
+            }}
             placeholder="Type to search…"
             className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
@@ -894,7 +921,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   const i = vRow.index;
                   const c = visibleCategories[i];
                   if (!c) return null;
-                  const isFocused = isActive && pane === 'categories' && categoryIdx === i;
+                  const isFocused = isActive && pane === 'categories' && !searchFocused && categoryIdx === i;
                   const isSelected = categoryIdx === i;
                   const isLoadingThis = loadingCat === c.id;
                   return (
