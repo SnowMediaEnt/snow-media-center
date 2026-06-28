@@ -34,7 +34,9 @@ interface Props {
   onExitLeft: () => void;
   onExitUp?: () => void;
   onBack: () => void;
+  onNavigate?: (view: string) => void;
 }
+
 
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
