@@ -69,6 +69,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => {
     const onRefresh = () => {
       setMoviesByCat(new Map());
+      setAllMovies(null);
       allOptedInRef.current = false;
       setRefreshTick(t => t + 1);
     };
