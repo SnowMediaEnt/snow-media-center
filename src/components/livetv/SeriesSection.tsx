@@ -606,7 +606,13 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleSeries.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+            {searchOpen
+              ? (searchQuery
+                  ? (allSeriesLoading ? 'Loading series catalog…' : 'No series match your search.')
+                  : (allSeriesLoading ? 'Loading series catalog…' : 'Type to search all series.'))
+              : 'No series in this category.'}
+          </div>
 
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
