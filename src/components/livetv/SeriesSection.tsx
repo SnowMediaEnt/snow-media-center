@@ -154,21 +154,49 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return () => { cancelled = true; };
   }, [pane, currentCat, creds, seriesByCat]);
 
+  // Lazy-load the full series catalog when the search panel opens.
+  useEffect(() => {
+    if (!searchOpen) return;
+    if (allSeries || allSeriesLoading) return;
+    setAllSeriesLoading(true);
+    let cancelled = false;
+    getSeries(creds)
+      .then(list => { if (!cancelled) setAllSeries(list); })
+      .catch(() => { if (!cancelled) setAllSeries([]); })
+      .finally(() => { if (!cancelled) setAllSeriesLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchOpen, allSeries, allSeriesLoading, creds]);
+
   const visibleSeries = useMemo(() => {
+    if (searchOpen) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return [];
+      const src = allSeries || [];
+      const out: XtreamSeries[] = [];
+      for (const s of src) {
+        if (s.name.toLowerCase().includes(q)) {
+          out.push(s);
+          if (out.length >= 500) break;
+        }
+      }
+      return out;
+    }
     if (!currentCat) return [];
     return seriesByCat.get(currentCat.id) || [];
-  }, [currentCat, seriesByCat]);
+  }, [searchOpen, searchQuery, allSeries, currentCat, seriesByCat]);
 
   // Only show "loading" for buckets we actually fetch. All-Series sentinel
   // doesn't auto-load, so no spinner there until the user opts in.
-  const seriesLoading = !!(
-    currentCat
-    && (currentCat.id !== ALL_ID || allOptedInRef.current)
-    && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id))
-  );
+  const seriesLoading = searchOpen
+    ? allSeriesLoading
+    : !!(
+        currentCat
+        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+        && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id))
+      );
 
   // Reset grid focus when switching category.
-  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
+  useEffect(() => { setGridIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
 
 
