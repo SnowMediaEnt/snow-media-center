@@ -476,7 +476,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleMovies.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No movies in this category.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+            {searchOpen
+              ? (searchQuery
+                  ? (allMoviesLoading ? 'Loading movie catalog…' : 'No movies match your search.')
+                  : (allMoviesLoading ? 'Loading movie catalog…' : 'Type to search all movies.'))
+              : 'No movies in this category.'}
+          </div>
 
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
