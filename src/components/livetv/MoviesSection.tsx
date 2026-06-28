@@ -143,22 +143,50 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return () => { cancelled = true; };
   }, [pane, currentCat, creds, moviesByCat]);
 
+  // Lazy-load the full movie catalog when the search panel opens.
+  useEffect(() => {
+    if (!searchOpen) return;
+    if (allMovies || allMoviesLoading) return;
+    setAllMoviesLoading(true);
+    let cancelled = false;
+    getVodStreams(creds)
+      .then(list => { if (!cancelled) setAllMovies(list); })
+      .catch(() => { if (!cancelled) setAllMovies([]); })
+      .finally(() => { if (!cancelled) setAllMoviesLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchOpen, allMovies, allMoviesLoading, creds]);
+
   const visibleMovies = useMemo(() => {
+    if (searchOpen) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return [];
+      const src = allMovies || [];
+      const out: XtreamVodStream[] = [];
+      for (const m of src) {
+        if (m.name.toLowerCase().includes(q)) {
+          out.push(m);
+          if (out.length >= 500) break;
+        }
+      }
+      return out;
+    }
     if (!currentCat) return [];
     return moviesByCat.get(currentCat.id) || [];
-  }, [currentCat, moviesByCat]);
+  }, [searchOpen, searchQuery, allMovies, currentCat, moviesByCat]);
 
   // Only show "loading" for buckets we actually fetch. The All-Movies sentinel
   // doesn't auto-load, so don't render a spinner there until the user opts in.
-  const moviesLoading = !!(
-    currentCat
-    && (currentCat.id !== ALL_ID || allOptedInRef.current)
-    && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
-  );
+  const moviesLoading = searchOpen
+    ? allMoviesLoading
+    : !!(
+        currentCat
+        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+        && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
+      );
 
 
   // Reset grid focus when switching category.
-  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
+  useEffect(() => { setGridIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
   // Load detail
