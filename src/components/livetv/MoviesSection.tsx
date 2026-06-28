@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { ArrowLeft, Loader2, Play, Star } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,6 +50,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Only fetch when the user explicitly opens that bucket (Enter / click).
   const allOptedInRef = useRef(false);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [allMovies, setAllMovies] = useState<XtreamVodStream[] | null>(null);
+  const [allMoviesLoading, setAllMoviesLoading] = useState(false);
+
   const [selectedMovie, setSelectedMovie] = useState<XtreamVodStream | null>(null);
   const [movieInfo, setMovieInfo] = useState<XtreamVodInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
@@ -64,6 +69,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => {
     const onRefresh = () => {
       setMoviesByCat(new Map());
+      setAllMovies(null);
       allOptedInRef.current = false;
       setRefreshTick(t => t + 1);
     };
@@ -137,22 +143,50 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return () => { cancelled = true; };
   }, [pane, currentCat, creds, moviesByCat]);
 
+  // Lazy-load the full movie catalog when the search panel opens.
+  useEffect(() => {
+    if (!searchOpen) return;
+    if (allMovies || allMoviesLoading) return;
+    setAllMoviesLoading(true);
+    let cancelled = false;
+    getVodStreams(creds)
+      .then(list => { if (!cancelled) setAllMovies(list); })
+      .catch(() => { if (!cancelled) setAllMovies([]); })
+      .finally(() => { if (!cancelled) setAllMoviesLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchOpen, allMovies, allMoviesLoading, creds]);
+
   const visibleMovies = useMemo(() => {
+    if (searchOpen) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return [];
+      const src = allMovies || [];
+      const out: XtreamVodStream[] = [];
+      for (const m of src) {
+        if (m.name.toLowerCase().includes(q)) {
+          out.push(m);
+          if (out.length >= 500) break;
+        }
+      }
+      return out;
+    }
     if (!currentCat) return [];
     return moviesByCat.get(currentCat.id) || [];
-  }, [currentCat, moviesByCat]);
+  }, [searchOpen, searchQuery, allMovies, currentCat, moviesByCat]);
 
   // Only show "loading" for buckets we actually fetch. The All-Movies sentinel
   // doesn't auto-load, so don't render a spinner there until the user opts in.
-  const moviesLoading = !!(
-    currentCat
-    && (currentCat.id !== ALL_ID || allOptedInRef.current)
-    && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
-  );
+  const moviesLoading = searchOpen
+    ? allMoviesLoading
+    : !!(
+        currentCat
+        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+        && (loadingCat === currentCat.id || !moviesByCat.has(currentCat.id))
+      );
 
 
   // Reset grid focus when switching category.
-  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
+  useEffect(() => { setGridIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => { if (gridIdx >= visibleMovies.length) setGridIdx(0); }, [visibleMovies.length, gridIdx]);
 
   // Load detail
@@ -191,6 +225,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleMoviesRef.current = visibleMovies; }, [visibleMovies]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
+  const searchOpenRef = useRef(searchOpen);
+  useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -307,7 +343,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
 
-  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
+  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
 
   useEffect(() => {
     if (!visibleMovies.length) return;
@@ -379,38 +415,56 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     <div className="flex-1 min-h-0 flex">
       {/* Pane 2 — Categories */}
       <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
-        <div className="space-y-1">
-          {categoriesLoading && categories.length === 0 && (
-            <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
-            </div>
-          )}
-          {visibleCategories.map((c, i) => {
-            const isFocused = isActive && pane === 'categories' && categoryIdx === i;
-            const isSelected = categoryIdx === i;
-            const isLoadingThis = loadingCat === c.id;
-            return (
-              <div
-                key={c.id}
-                data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => {
-                  userMovedRef.current = true;
-                  if (c.id === ALL_ID) allOptedInRef.current = true;
-                  setCategoryIdx(i); setGridIdx(0); setPane('grid');
-                }}
-                className={`
-                  flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
-                  ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
-                  ${!isFocused && isSelected ? 'bg-white/10' : ''}
-                  ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
-                `}
-              >
-                <span className="flex-1 truncate">{c.name}</span>
-                {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+        <button
+          onClick={() => setSearchOpen(o => !o)}
+          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+        >
+          <Search className="w-4 h-4" />
+          {searchOpen ? 'Close search' : 'Search movies'}
+        </button>
+        {searchOpen && (
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Type to search…"
+            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+          />
+        )}
+        {!searchOpen && (
+          <div className="space-y-1">
+            {categoriesLoading && categories.length === 0 && (
+              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
-            );
-          })}
-        </div>
+            )}
+            {visibleCategories.map((c, i) => {
+              const isFocused = isActive && pane === 'categories' && categoryIdx === i;
+              const isSelected = categoryIdx === i;
+              const isLoadingThis = loadingCat === c.id;
+              return (
+                <div
+                  key={c.id}
+                  data-focused={isFocused ? 'true' : 'false'}
+                  onClick={() => {
+                    userMovedRef.current = true;
+                    if (c.id === ALL_ID) allOptedInRef.current = true;
+                    setCategoryIdx(i); setGridIdx(0); setPane('grid');
+                  }}
+                  className={`
+                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
+                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
+                    ${!isFocused && isSelected ? 'bg-white/10' : ''}
+                    ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                  `}
+                >
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
@@ -422,7 +476,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleMovies.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No movies in this category.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+            {searchOpen
+              ? (searchQuery
+                  ? (allMoviesLoading ? 'Loading movie catalog…' : 'No movies match your search.')
+                  : (allMoviesLoading ? 'Loading movie catalog…' : 'Type to search all movies.'))
+              : 'No movies in this category.'}
+          </div>
 
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>

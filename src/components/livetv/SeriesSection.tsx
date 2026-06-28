@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { ArrowLeft, Loader2, Play, Star } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Search, Star } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,6 +52,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   // Only fetch when the user explicitly opens that bucket.
   const allOptedInRef = useRef(false);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [allSeries, setAllSeries] = useState<XtreamSeries[] | null>(null);
+  const [allSeriesLoading, setAllSeriesLoading] = useState(false);
+
   // Detail
   const [selectedSeries, setSelectedSeries] = useState<XtreamSeries | null>(null);
   const [seriesInfo, setSeriesInfo] = useState<XtreamSeriesInfo | null>(null);
@@ -76,6 +81,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => {
     const onRefresh = () => {
       setSeriesByCat(new Map());
+      setAllSeries(null);
       allOptedInRef.current = false;
       setRefreshTick(t => t + 1);
     };
@@ -148,21 +154,49 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return () => { cancelled = true; };
   }, [pane, currentCat, creds, seriesByCat]);
 
+  // Lazy-load the full series catalog when the search panel opens.
+  useEffect(() => {
+    if (!searchOpen) return;
+    if (allSeries || allSeriesLoading) return;
+    setAllSeriesLoading(true);
+    let cancelled = false;
+    getSeries(creds)
+      .then(list => { if (!cancelled) setAllSeries(list); })
+      .catch(() => { if (!cancelled) setAllSeries([]); })
+      .finally(() => { if (!cancelled) setAllSeriesLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchOpen, allSeries, allSeriesLoading, creds]);
+
   const visibleSeries = useMemo(() => {
+    if (searchOpen) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return [];
+      const src = allSeries || [];
+      const out: XtreamSeries[] = [];
+      for (const s of src) {
+        if (s.name.toLowerCase().includes(q)) {
+          out.push(s);
+          if (out.length >= 500) break;
+        }
+      }
+      return out;
+    }
     if (!currentCat) return [];
     return seriesByCat.get(currentCat.id) || [];
-  }, [currentCat, seriesByCat]);
+  }, [searchOpen, searchQuery, allSeries, currentCat, seriesByCat]);
 
   // Only show "loading" for buckets we actually fetch. All-Series sentinel
   // doesn't auto-load, so no spinner there until the user opts in.
-  const seriesLoading = !!(
-    currentCat
-    && (currentCat.id !== ALL_ID || allOptedInRef.current)
-    && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id))
-  );
+  const seriesLoading = searchOpen
+    ? allSeriesLoading
+    : !!(
+        currentCat
+        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+        && (loadingCat === currentCat.id || !seriesByCat.has(currentCat.id))
+      );
 
   // Reset grid focus when switching category.
-  useEffect(() => { setGridIdx(0); }, [categoryIdx]);
+  useEffect(() => { setGridIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => { if (gridIdx >= visibleSeries.length) setGridIdx(0); }, [visibleSeries.length, gridIdx]);
 
 
@@ -221,6 +255,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   useEffect(() => { visibleCategoriesRef.current = visibleCategories; }, [visibleCategories]);
   useEffect(() => { visibleSeriesRef.current = visibleSeries; }, [visibleSeries]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
+  const searchOpenRef = useRef(searchOpen);
+  useEffect(() => { searchOpenRef.current = searchOpen; }, [searchOpen]);
   useEffect(() => { detailFocusRef.current = detailFocus; }, [detailFocus]);
   useEffect(() => { seasonIdxRef.current = seasonIdx; }, [seasonIdx]);
   useEffect(() => { episodeIdxRef.current = episodeIdx; }, [episodeIdx]);
@@ -366,7 +402,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     overscan: isFireTV() ? 1 : 3,
   });
   useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
-  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx]);
+  useEffect(() => { rowVirtualizer.scrollToOffset(0); /* eslint-disable-next-line */ }, [categoryIdx, searchOpen, searchQuery]);
   useEffect(() => {
     if (!visibleSeries.length) return;
     rowVirtualizer.scrollToIndex(Math.floor(gridIdx / GRID_COLS), { align: 'auto' });
@@ -510,38 +546,56 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   return (
     <div className="flex-1 min-h-0 flex">
       <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
-        <div className="space-y-1">
-          {categoriesLoading && categories.length === 0 && (
-            <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
-            </div>
-          )}
-          {visibleCategories.map((c, i) => {
-            const isFocused = isActive && pane === 'categories' && categoryIdx === i;
-            const isSelected = categoryIdx === i;
-            const isLoadingThis = loadingCat === c.id;
-            return (
-              <div
-                key={c.id}
-                data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => {
-                  userMovedRef.current = true;
-                  if (c.id === ALL_ID) allOptedInRef.current = true;
-                  setCategoryIdx(i); setGridIdx(0); setPane('grid');
-                }}
-                className={`
-                  flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
-                  ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
-                  ${!isFocused && isSelected ? 'bg-white/10' : ''}
-                  ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
-                `}
-              >
-                <span className="flex-1 truncate">{c.name}</span>
-                {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+        <button
+          onClick={() => setSearchOpen(o => !o)}
+          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+        >
+          <Search className="w-4 h-4" />
+          {searchOpen ? 'Close search' : 'Search series'}
+        </button>
+        {searchOpen && (
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Type to search…"
+            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+          />
+        )}
+        {!searchOpen && (
+          <div className="space-y-1">
+            {categoriesLoading && categories.length === 0 && (
+              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
-            );
-          })}
-        </div>
+            )}
+            {visibleCategories.map((c, i) => {
+              const isFocused = isActive && pane === 'categories' && categoryIdx === i;
+              const isSelected = categoryIdx === i;
+              const isLoadingThis = loadingCat === c.id;
+              return (
+                <div
+                  key={c.id}
+                  data-focused={isFocused ? 'true' : 'false'}
+                  onClick={() => {
+                    userMovedRef.current = true;
+                    if (c.id === ALL_ID) allOptedInRef.current = true;
+                    setCategoryIdx(i); setGridIdx(0); setPane('grid');
+                  }}
+                  className={`
+                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
+                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
+                    ${!isFocused && isSelected ? 'bg-white/10' : ''}
+                    ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                  `}
+                >
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-5 bg-black/30">
@@ -552,7 +606,13 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleSeries.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">No series in this category.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+            {searchOpen
+              ? (searchQuery
+                  ? (allSeriesLoading ? 'Loading series catalog…' : 'No series match your search.')
+                  : (allSeriesLoading ? 'Loading series catalog…' : 'Type to search all series.'))
+              : 'No series in this category.'}
+          </div>
 
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
