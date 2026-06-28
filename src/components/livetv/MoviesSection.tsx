@@ -415,38 +415,56 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     <div className="flex-1 min-h-0 flex">
       {/* Pane 2 — Categories */}
       <div className={`w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}>
-        <div className="space-y-1">
-          {categoriesLoading && categories.length === 0 && (
-            <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
-            </div>
-          )}
-          {visibleCategories.map((c, i) => {
-            const isFocused = isActive && pane === 'categories' && categoryIdx === i;
-            const isSelected = categoryIdx === i;
-            const isLoadingThis = loadingCat === c.id;
-            return (
-              <div
-                key={c.id}
-                data-focused={isFocused ? 'true' : 'false'}
-                onClick={() => {
-                  userMovedRef.current = true;
-                  if (c.id === ALL_ID) allOptedInRef.current = true;
-                  setCategoryIdx(i); setGridIdx(0); setPane('grid');
-                }}
-                className={`
-                  flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
-                  ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
-                  ${!isFocused && isSelected ? 'bg-white/10' : ''}
-                  ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
-                `}
-              >
-                <span className="flex-1 truncate">{c.name}</span>
-                {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+        <button
+          onClick={() => setSearchOpen(o => !o)}
+          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+        >
+          <Search className="w-4 h-4" />
+          {searchOpen ? 'Close search' : 'Search movies'}
+        </button>
+        {searchOpen && (
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Type to search…"
+            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+          />
+        )}
+        {!searchOpen && (
+          <div className="space-y-1">
+            {categoriesLoading && categories.length === 0 && (
+              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
-            );
-          })}
-        </div>
+            )}
+            {visibleCategories.map((c, i) => {
+              const isFocused = isActive && pane === 'categories' && categoryIdx === i;
+              const isSelected = categoryIdx === i;
+              const isLoadingThis = loadingCat === c.id;
+              return (
+                <div
+                  key={c.id}
+                  data-focused={isFocused ? 'true' : 'false'}
+                  onClick={() => {
+                    userMovedRef.current = true;
+                    if (c.id === ALL_ID) allOptedInRef.current = true;
+                    setCategoryIdx(i); setGridIdx(0); setPane('grid');
+                  }}
+                  className={`
+                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
+                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
+                    ${!isFocused && isSelected ? 'bg-white/10' : ''}
+                    ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                  `}
+                >
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
