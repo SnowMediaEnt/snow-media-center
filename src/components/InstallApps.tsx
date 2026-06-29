@@ -7,6 +7,7 @@ import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, Refre
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
