@@ -1068,6 +1068,21 @@ const Index = () => {
           <AutoUpdatePrompt />
         </Suspense>
       )}
+
+      {/* Download/install flow for pinned-but-not-installed apps. Mirrors the
+          DownloadProgress usage in InstallApps; reuses any cached APK. */}
+      {downloadingApp && (
+        <DownloadProgress
+          app={downloadingApp}
+          prefetchedPath={prefetchedPath}
+          onClose={() => { setDownloadingApp(null); setPrefetchedPath(undefined); }}
+          onComplete={async () => {
+            await refreshDeviceApps();
+            setDownloadingApp(null);
+            setPrefetchedPath(undefined);
+          }}
+        />
+      )}
     </div>
   );
 };
