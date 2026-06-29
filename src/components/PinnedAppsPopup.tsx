@@ -333,7 +333,7 @@ const PinnedAppsPopup = ({
               const isFocused = focusedIndex === index;
               
               if (pinnedApp) {
-                const fullApp = apps.find(a => a.id === pinnedApp.id);
+                const fullApp = apps.find(a => a.id === pinnedApp.id || a.packageName === pinnedApp.packageName);
                 const installed = isPinnedAppInstalled(pinnedApp);
 
                 return (
