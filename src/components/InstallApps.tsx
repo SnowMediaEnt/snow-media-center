@@ -1035,9 +1035,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           app={downloadingApp}
           prefetchedPath={prefetchedPath}
           onClose={() => { setDownloadingApp(null); setPrefetchedPath(undefined); }}
-          onComplete={() => {
-            // Refresh the app status after download/install
+          onComplete={async () => {
+            // Force a real native re-enumeration so the tile flips to Launch.
+            await refreshDeviceApps();
             ensureStatus(downloadingApp);
+            refreshAllStatuses();
             setDownloadingApp(null);
             setPrefetchedPath(undefined);
           }}
