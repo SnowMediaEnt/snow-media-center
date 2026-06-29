@@ -126,9 +126,9 @@ export const useDeviceInstalledApps = () => {
   }, []);
 
   const refresh = useCallback(async () => {
-    // Manual refresh respects the same debounce — call with force only when
-    // we really know the install set changed (post-install / post-uninstall).
-    await runFetch(false);
+    // Manual refresh FORCES a fresh native enumeration, bypassing the 5-min
+    // debounce. The debounce still gates the passive idle/boot auto-fetch.
+    await runFetch(true);
   }, []);
 
   // Exposed so the pinned-apps popup can force a fetch the instant it opens

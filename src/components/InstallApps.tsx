@@ -7,6 +7,7 @@ import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, Refre
 import { useToast } from '@/hooks/use-toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { AppManager, isWebUnsupportedError, WEB_UNSUPPORTED_MSG } from '@/capacitor/AppManager';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
@@ -481,7 +482,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     let timer: number | undefined;
     const scheduleRefresh = () => {
       if (timer) window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
+      timer = window.setTimeout(async () => {
+        // Force a real native re-enumeration — cache-only refresh misses
+        // newly installed/uninstalled apps after returning from the installer.
+        await refreshDeviceApps();
         refreshAllStatuses();
       }, 600);
     };
@@ -496,7 +500,24 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       document.removeEventListener('visibilitychange', handleVisibility);
       if (timer) window.clearTimeout(timer);
     };
-  }, [refreshAllStatuses]);
+  }, [refreshAllStatuses, refreshDeviceApps]);
+
+  // Fire TV / Android: when returning from the system package installer the
+  // window 'focus'/'visibilitychange' events don't fire reliably. The native
+  // Capacitor App resume event is the only signal that consistently arrives,
+  // so use it to force a fresh native enumeration.
+  useEffect(() => {
+    let handle: any;
+    (async () => {
+      handle = await CapApp.addListener('appStateChange', async (state) => {
+        if (state.isActive) {
+          await refreshDeviceApps();
+          refreshAllStatuses();
+        }
+      });
+    })();
+    return () => { if (handle) handle.remove(); };
+  }, [refreshDeviceApps, refreshAllStatuses]);
 
   const handleLaunch = async (app: AppData) => {
     try {
@@ -554,6 +575,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         title: "Tap 'Uninstall'",
         description: `Opening ${app.name} App Info — tap Uninstall there.`,
       });
+      // Force a fresh device enumeration so a removed app stops showing as
+      // installed once the user returns from App Info.
+      await refreshDeviceApps();
+      refreshAllStatuses();
     } catch (error) {
       console.error('Uninstall error:', error);
       const msg = error instanceof Error ? error.message : '';
@@ -1010,9 +1035,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           app={downloadingApp}
           prefetchedPath={prefetchedPath}
           onClose={() => { setDownloadingApp(null); setPrefetchedPath(undefined); }}
-          onComplete={() => {
-            // Refresh the app status after download/install
+          onComplete={async () => {
+            // Force a real native re-enumeration so the tile flips to Launch.
+            await refreshDeviceApps();
             ensureStatus(downloadingApp);
+            refreshAllStatuses();
             setDownloadingApp(null);
             setPrefetchedPath(undefined);
           }}
