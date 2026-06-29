@@ -575,6 +575,10 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         title: "Tap 'Uninstall'",
         description: `Opening ${app.name} App Info — tap Uninstall there.`,
       });
+      // Force a fresh device enumeration so a removed app stops showing as
+      // installed once the user returns from App Info.
+      await refreshDeviceApps();
+      refreshAllStatuses();
     } catch (error) {
       console.error('Uninstall error:', error);
       const msg = error instanceof Error ? error.message : '';
