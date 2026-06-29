@@ -407,7 +407,7 @@ const Index = () => {
       setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
-  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
+  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded, refresh: refreshDeviceApps } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
 
@@ -606,15 +606,31 @@ const Index = () => {
   const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
 
   // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
-  const onPopupInstallApp = useCallback((app: InstalledApp) => {
-    toast({
-      title: 'Install ' + app.name,
-      description: 'Opening Main Apps so you can download and install it.',
-    });
+  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
+  const onPopupInstallApp = useCallback(async (app: PinnedApp) => {
+    const full = apps.find(a => a.id === app.id || a.packageName === app.packageName);
+    if (!full?.downloadUrl && !full?.apk) {
+      // No APK URL known — fall back to opening Main Apps so the user can find it.
+      toast({
+        title: 'Install ' + app.name,
+        description: 'Opening Main Apps so you can download it.',
+      });
+      setIsInPopup(false);
+      setPopupFocusIndex(-1);
+      navigateToRef.current('apps');
+      return;
+    }
+    try {
+      const cached = await findCachedApk(full.name, full.version);
+      setPrefetchedPath(cached ?? undefined);
+    } catch {
+      setPrefetchedPath(undefined);
+    }
+    setDownloadingApp(full);
     setIsInPopup(false);
     setPopupFocusIndex(-1);
-    navigateToRef.current('apps');
-  }, [toast]);
+  }, [apps, toast]);
   const onPopupFocusChange = useCallback((index: number) => setPopupFocusIndex(index), []);
   const onPopupExitFocus = useCallback(() => {
     setIsInPopup(false);
