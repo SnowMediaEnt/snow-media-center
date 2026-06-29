@@ -249,7 +249,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useLayoutEffect(() => {
     (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = true;
     return () => { (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = false; };
-  }, []);
+  });
 
   useEffect(() => {
     type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
@@ -339,6 +339,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
+      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>backfix-1</div>
+
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
