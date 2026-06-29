@@ -249,7 +249,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useLayoutEffect(() => {
     (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = true;
     return () => { (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack = false; };
-  }, []);
+  });
 
   useEffect(() => {
     type W = { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
