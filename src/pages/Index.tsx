@@ -16,7 +16,9 @@ import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { usePreEventAlert } from '@/hooks/usePreEventAlert';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
-import { generatePackageName } from '@/utils/downloadApk';
+import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
+import DownloadProgress from '@/components/DownloadProgress';
+import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccountSync } from '@/hooks/usePlayerAccountSync';
 import { useAdminRole } from '@/hooks/useAdminRole';
@@ -405,7 +407,7 @@ const Index = () => {
       setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
-  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded } = useDeviceInstalledApps();
+  const { resolvePackageName, ensureLoaded: ensureInstalledLoaded, refresh: refreshDeviceApps } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
 
@@ -604,15 +606,31 @@ const Index = () => {
   const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
 
   // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
-  const onPopupInstallApp = useCallback((app: InstalledApp) => {
-    toast({
-      title: 'Install ' + app.name,
-      description: 'Opening Main Apps so you can download and install it.',
-    });
+  const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const [prefetchedPath, setPrefetchedPath] = useState<string | undefined>(undefined);
+  const onPopupInstallApp = useCallback(async (app: PinnedApp) => {
+    const full = apps.find(a => a.id === app.id || a.packageName === app.packageName);
+    if (!full?.downloadUrl && !full?.apk) {
+      // No APK URL known — fall back to opening Main Apps so the user can find it.
+      toast({
+        title: 'Install ' + app.name,
+        description: 'Opening Main Apps so you can download it.',
+      });
+      setIsInPopup(false);
+      setPopupFocusIndex(-1);
+      navigateToRef.current('apps');
+      return;
+    }
+    try {
+      const cached = await findCachedApk(full.name, full.version);
+      setPrefetchedPath(cached ?? undefined);
+    } catch {
+      setPrefetchedPath(undefined);
+    }
+    setDownloadingApp(full);
     setIsInPopup(false);
     setPopupFocusIndex(-1);
-    navigateToRef.current('apps');
-  }, [toast]);
+  }, [apps, toast]);
   const onPopupFocusChange = useCallback((index: number) => setPopupFocusIndex(index), []);
   const onPopupExitFocus = useCallback(() => {
     setIsInPopup(false);
@@ -1049,6 +1067,21 @@ const Index = () => {
         <Suspense fallback={null}>
           <AutoUpdatePrompt />
         </Suspense>
+      )}
+
+      {/* Download/install flow for pinned-but-not-installed apps. Mirrors the
+          DownloadProgress usage in InstallApps; reuses any cached APK. */}
+      {downloadingApp && (
+        <DownloadProgress
+          app={downloadingApp}
+          prefetchedPath={prefetchedPath}
+          onClose={() => { setDownloadingApp(null); setPrefetchedPath(undefined); }}
+          onComplete={async () => {
+            await refreshDeviceApps();
+            setDownloadingApp(null);
+            setPrefetchedPath(undefined);
+          }}
+        />
       )}
     </div>
   );
