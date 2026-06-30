@@ -12,7 +12,7 @@ export interface XtreamServer {
 // EDIT THESE to add / change servers. Order = probe order.
 export const SERVERS: XtreamServer[] = [
   { label: 'Dreamstreams', host: 'http://dstreams.xyz:8080' },
-  { label: 'Vibez',    host: 'http://strmz.xyz' },
+  { label: 'Vibez',    host: 'https://strmz.xyz' },
 ];
 
 export interface XtreamCreds {
