@@ -91,12 +91,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         event.preventDefault();
       }
       
-      // Handle back
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-        event.preventDefault();
-        onViewChange('home');
-        return;
-      }
+      // Back is handled globally by Index.tsx's bubble keydown handler
+      // (double-firing here previously pushed home back on top of the stack).
       
       switch (event.key) {
         case 'ArrowLeft':
