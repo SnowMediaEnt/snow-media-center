@@ -159,8 +159,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-        if ((e.key === 'Escape' || e.keyCode === 4) && !typing) {
+        const isBack = e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace';
+        if (isBack && typing) {
+          // Don't act, but don't let Index's bubble handler pop the Player either.
+          e.stopPropagation();
+          return;
+        }
+        if (isBack && !typing) {
           e.preventDefault();
+          e.stopPropagation();
           if (accountFormOpen && creds) setAccountFormOpen(false);
           else onBack();
         }
