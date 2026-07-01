@@ -807,8 +807,9 @@ const Index = () => {
         case 'Enter':
         case ' ':
           if (focusedButton === -3) {
-            // Easter egg: 7 clicks on the logo reveals the hidden image
-            handleLogoActivateRef.current();
+            // Slot -3 = Admin button (only reachable/visible when isAdmin).
+            // Easter egg is click/tap-only on the logo — never Enter/D-pad.
+            if (isAdminRef.current) navigateToRef.current('admin-support');
           } else if (focusedButton === -2) {
             // Navigate to auth or user dashboard
             if (user) {
