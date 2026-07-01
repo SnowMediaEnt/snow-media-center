@@ -381,7 +381,7 @@ const Index = () => {
       setFocusedButton(0);
       return true;
     }
-    return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+    return false;
   }, [showEasterEgg, isInPopup, isInMediaBar]);
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
 
