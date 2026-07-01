@@ -578,6 +578,7 @@ const Index = () => {
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
   const handleLogoActivateRef = useRef(handleLogoActivate);
+  const isAdminRef = useRef(isAdmin);
 
   useEffect(() => { focusedButtonRef.current = focusedButton; }, [focusedButton]);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
