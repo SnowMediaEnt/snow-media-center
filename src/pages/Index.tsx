@@ -592,6 +592,7 @@ const Index = () => {
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
+  useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
 
   // Stable callbacks for memoised children. These read the latest values from
   // refs, so their identity is constant for the life of the component — which
