@@ -381,7 +381,7 @@ const Index = () => {
       setFocusedButton(0);
       return true;
     }
-    return !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+    return false;
   }, [showEasterEgg, isInPopup, isInMediaBar]);
   const { currentView, navigateTo, goBack, backPressCount, canGoBack } = useNavigation('home', { onRootBack: handleRootBack });
 
@@ -578,6 +578,7 @@ const Index = () => {
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
   const handleLogoActivateRef = useRef(handleLogoActivate);
+  const isAdminRef = useRef(isAdmin);
 
   useEffect(() => { focusedButtonRef.current = focusedButton; }, [focusedButton]);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
@@ -591,6 +592,7 @@ const Index = () => {
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   useEffect(() => { handleLogoActivateRef.current = handleLogoActivate; }, [handleLogoActivate]);
+  useEffect(() => { isAdminRef.current = isAdmin; }, [isAdmin]);
 
   // Stable callbacks for memoised children. These read the latest values from
   // refs, so their identity is constant for the life of the component — which
@@ -691,7 +693,7 @@ const Index = () => {
       };
 
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
-      if (event.key === 'Escape' || event.keyCode === 4 || event.which === 4) { // Android back button
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.which === 4) { // Android back button
         event.preventDefault();
         event.stopPropagation();
 
@@ -805,8 +807,9 @@ const Index = () => {
         case 'Enter':
         case ' ':
           if (focusedButton === -3) {
-            // Easter egg: 7 clicks on the logo reveals the hidden image
-            handleLogoActivateRef.current();
+            // Slot -3 = Admin button (only reachable/visible when isAdmin).
+            // Easter egg is click/tap-only on the logo — never Enter/D-pad.
+            if (isAdminRef.current) navigateToRef.current('admin-support');
           } else if (focusedButton === -2) {
             // Navigate to auth or user dashboard
             if (user) {

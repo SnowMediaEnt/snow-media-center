@@ -3,7 +3,6 @@ import { App as CapApp } from '@capacitor/app';
 
 interface NavigationState {
   currentView: string;
-  previousView: string | null;
   navigationStack: string[];
 }
 
@@ -23,11 +22,41 @@ interface LegacyNavigator extends Navigator {
 
 type CapacitorListenerHandle = { remove?: () => void };
 
+// Consolidated app-exit. Try Capacitor's official exit first; then fall back
+// through the legacy ladder — one of these rungs is the only exit that works
+// on the DOM-delivered back path on some Fire TV / STB boxes.
+const exitApp = () => {
+  try {
+    void CapApp.exitApp();
+    return;
+  } catch { /* fall through */ }
+  try {
+    const legacyWindow = window as LegacyExitWindow;
+    const legacyNavigator = window.navigator as LegacyNavigator;
+    if (legacyWindow.Capacitor) {
+      legacyWindow.Capacitor.Plugins?.App?.exitApp?.();
+    } else if (legacyWindow.device?.exitApp) {
+      legacyWindow.device.exitApp();
+    } else if (legacyNavigator.app?.exitApp) {
+      legacyNavigator.app.exitApp();
+    } else if (legacyWindow.Android?.exitApp) {
+      legacyWindow.Android.exitApp();
+    } else {
+      window.close();
+    }
+  } catch (error) {
+    console.log('Exit app failed:', error);
+    try { window.location.href = 'about:blank'; }
+    catch { alert('Press home button to exit'); }
+  }
+};
+
+const DOUBLE_PRESS_MS = 2000;
+
 export const useNavigation = (initialView: string = 'home', options: NavigationOptions = {}) => {
   const { onRootBack } = options;
   const [navigationState, setNavigationState] = useState<NavigationState>({
     currentView: initialView,
-    previousView: null,
     navigationStack: [initialView]
   });
 
@@ -35,89 +64,46 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
   const [lastBackPressTime, setLastBackPressTime] = useState(0);
 
   const navigateTo = useCallback((view: string) => {
-    setNavigationState(prev => ({
-      currentView: view,
-      previousView: prev.currentView,
-      navigationStack: [...prev.navigationStack, view]
-    }));
+    setNavigationState(prev => {
+      // Dedupe: laggy STB remotes sometimes deliver double-Enter which would
+      // otherwise push the same view twice and force an extra Back to escape.
+      if (view === prev.currentView) return prev;
+      return {
+        currentView: view,
+        navigationStack: [...prev.navigationStack, view]
+      };
+    });
   }, []);
 
   const goBack = useCallback(() => {
     setNavigationState(prev => {
       if (prev.navigationStack.length <= 1) {
-        // We're at the root (home), handle double-press to exit
         if (prev.currentView === 'home') {
-          if (onRootBack?.()) {
-            return prev;
-          }
+          if (onRootBack?.()) return prev;
           const now = Date.now();
-          if (now - lastBackPressTime < 1000) {
-            // Double press detected within 1 second
-            try {
-              // For Capacitor/Cordova apps
-              const legacyWindow = window as LegacyExitWindow;
-              const legacyNavigator = window.navigator as LegacyNavigator;
-              if (legacyWindow.Capacitor) {
-                legacyWindow.Capacitor.Plugins?.App?.exitApp?.();
-              } else if (legacyWindow.device?.exitApp) {
-                legacyWindow.device.exitApp();
-              } else if (legacyNavigator.app?.exitApp) {
-                legacyNavigator.app.exitApp();
-              } else if (legacyWindow.Android?.exitApp) {
-                legacyWindow.Android.exitApp();
-              } else {
-                // For web/desktop - try to close window
-                window.close();
-              }
-            } catch (error) {
-              console.log('Exit app failed:', error);
-              // Fallback: try to go to about:blank or show exit message
-              try {
-                window.location.href = 'about:blank';
-              } catch (e) {
-                alert('Press home button to exit');
-              }
-            }
-            return prev;
-          } else {
-            setLastBackPressTime(now);
-            setBackPressCount(1);
+          if (now - lastBackPressTime < DOUBLE_PRESS_MS) {
+            exitApp();
             return prev;
           }
+          setLastBackPressTime(now);
+          setBackPressCount(1);
+          return prev;
         }
         return prev;
       }
 
       const newStack = [...prev.navigationStack];
-      newStack.pop(); // Remove current view
+      newStack.pop();
       const previousView = newStack[newStack.length - 1];
 
       return {
         currentView: previousView,
-        previousView: prev.currentView,
         navigationStack: newStack
       };
     });
   }, [lastBackPressTime, onRootBack]);
 
-  const resetNavigation = useCallback(() => {
-    setNavigationState({
-      currentView: initialView,
-      previousView: null,
-      navigationStack: [initialView]
-    });
-    setBackPressCount(0);
-    setLastBackPressTime(0);
-  }, [initialView]);
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Phase 6B.1: register the native backButton listener ONCE per mount.
-  // Previously this effect depended on currentView / lastBackPressTime /
-  // backPressCount / goBack / onRootBack, so every navigation tore the native
-  // listener down and re-added it (154 add/remove calls / 60s on device).
-  // We now keep all changing values in refs and read them from the single
-  // long-lived handler — behavior is identical.
-  // ──────────────────────────────────────────────────────────────────────────
+  // Refs — keep the native backButton listener registered ONCE per mount.
   const currentViewRef = useRef(navigationState.currentView);
   const lastBackPressTimeRef = useRef(lastBackPressTime);
   const backPressCountRef = useRef(backPressCount);
@@ -138,20 +124,13 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
       try {
         const handle = await CapApp.addListener('backButton', ({ canGoBack }) => {
           const currentView = currentViewRef.current;
-          
-          // If the auto-update modal (or any aria-modal dialog) is open, let it
-          // handle Back itself — do not pop the underlying nav stack.
+
           if (typeof document !== 'undefined' &&
-              document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) {
+              document.querySelector('[data-autoupdate-dialog="true"], [data-download-progress="true"], [aria-modal="true"]')) {
             return;
           }
-          // If an overlay (BufferingGuide, SpeedTest, etc.) just handled this
-          // back press, do not also pop the underlying view.
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
           const guideOpen = (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen === true;
-          // Player owns the hardware-back hierarchy while mounted (channels →
-          // categories → sections → exit). Don't let useNavigation pop the
-          // whole Player view out from under it.
           const playerOwnsBack = (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack === true
             || currentViewRef.current === 'livetv';
           if (playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
@@ -163,24 +142,18 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           if (currentView !== 'home') {
             goBackRef.current?.();
           } else {
-            if (onRootBackRef.current?.()) {
-              return;
-            }
-            // We're on home - implement double-press to exit
+            if (onRootBackRef.current?.()) return;
             const now = Date.now();
-            if (now - lastBackPressTimeRef.current < 2000 && backPressCountRef.current === 1) {
-              CapApp.exitApp();
+            if (now - lastBackPressTimeRef.current < DOUBLE_PRESS_MS && backPressCountRef.current === 1) {
+              exitApp();
             } else {
               setLastBackPressTime(now);
               setBackPressCount(1);
             }
           }
         });
-        if (cancelled) {
-          handle?.remove?.();
-        } else {
-          backButtonHandler = handle;
-        }
+        if (cancelled) handle?.remove?.();
+        else backButtonHandler = handle;
       } catch (error) {
         console.log('Capacitor not available, using fallback back handling');
       }
@@ -190,30 +163,24 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
 
     return () => {
       cancelled = true;
-      if (backButtonHandler?.remove) {
-        backButtonHandler.remove();
-      }
+      backButtonHandler?.remove?.();
     };
   }, []);
 
   // Reset back press count after timeout
   useEffect(() => {
     if (backPressCount > 0) {
-      const timeout = setTimeout(() => {
-        setBackPressCount(0);
-      }, 2000);
+      const timeout = setTimeout(() => setBackPressCount(0), DOUBLE_PRESS_MS);
       return () => clearTimeout(timeout);
     }
   }, [backPressCount]);
 
   return {
     currentView: navigationState.currentView,
-    previousView: navigationState.previousView,
     navigationStack: navigationState.navigationStack,
     backPressCount,
     navigateTo,
     goBack,
-    resetNavigation,
     canGoBack: navigationState.navigationStack.length > 1
   };
 };

@@ -803,6 +803,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       try {
         const h = await CapApp.addListener('backButton', () => {
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          if (reportForRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
