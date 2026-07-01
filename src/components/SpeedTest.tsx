@@ -246,7 +246,7 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   };
 
   return (
-    <div ref={scrollRef} className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+    <div ref={scrollRef} role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
       <div className="max-w-4xl mx-auto px-6 py-10 pb-24">
         <div className="flex items-center justify-between mb-8">
           <Button
