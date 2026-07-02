@@ -591,7 +591,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         if (isBack) {
           e.preventDefault(); e.stopPropagation();
           if (barVisibleRef.current) { hideBarNow(); return; }
-          setFullscreen(false); setShowInfoPanel(false);
+          setFullscreen(false);
           return;
         }
 
@@ -795,7 +795,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (subMenuOpenRef.current || audioMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
-            else { setFullscreen(false); setShowInfoPanel(false); }
+            else { setFullscreen(false); }
             return;
           }
           if (paneRef.current === 'channels') { setPane('categories'); return; }
