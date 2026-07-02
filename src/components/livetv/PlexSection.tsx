@@ -68,6 +68,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     return () => { cancelled = true; };
   }, [status, conn]);
 
+  // Deep-link step 1: pick the target library tab once libraries are known.
+  useEffect(() => {
+    const dl = deeplinkRef.current;
+    if (!dl || status !== 'ready' || !conn || libraries.length === 0) return;
+    let idx = libraries.findIndex((l) => String(l.key) === String(dl.librarySectionID ?? ''));
+    if (idx < 0) idx = libraries.findIndex((l) => l.type === 'movie');
+    if (idx < 0) idx = 0;
+    setLibIdx(idx);
+  }, [status, conn, libraries]);
+
   const tabs = useMemo<PlexLibrary[]>(
     () => [...libraries, { key: '__request', title: 'Request', type: 'request' }],
     [libraries],
@@ -86,6 +96,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       .finally(() => { if (!cancelled) setItemsLoading(false); });
     return () => { cancelled = true; };
   }, [conn, currentLib]);
+
+  // Deep-link step 2: focus the exact title in the grid (user presses OK to play).
+  useEffect(() => {
+    const dl = deeplinkRef.current;
+    if (!dl || items.length === 0) return;
+    deeplinkRef.current = null; // consume once
+    const idx = items.findIndex((it) => String(it.ratingKey) === String(dl.ratingKey));
+    if (idx >= 0) {
+      setCursor(idx);
+      setZone('grid');
+    } else {
+      toast({ title: 'Not found', description: `Couldn't find "${dl.title ?? 'that title'}" in this library.` });
+    }
+  }, [items, toast]);
 
   const rows = Math.ceil(items.length / COLS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
