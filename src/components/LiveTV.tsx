@@ -33,7 +33,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series';
+type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
 const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
   { id: 'live',   label: 'Live TV', icon: Tv },
   { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
