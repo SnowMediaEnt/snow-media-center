@@ -49,7 +49,7 @@ async function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, t
         method, url, headers,
         connectTimeout: Math.min(timeoutMs, 15000),
         readTimeout: timeoutMs,
-      } as unknown as Record<string, unknown>);
+      });
       if (res.status >= 200 && res.status < 300) {
         return (typeof res.data === 'string' ? JSON.parse(res.data || '{}') : res.data) as T;
       }
