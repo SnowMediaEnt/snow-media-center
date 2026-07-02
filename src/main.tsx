@@ -8,6 +8,10 @@ import './styles/tv.css'
 import { isNativePlatform, getPlatform, isFireTV } from './utils/platform'
 import { isStorageReady, waitForStorageReady } from './utils/storage'
 import { isOnline } from './utils/network'
+import { readTheme, applyTheme } from '@/lib/theme'
+
+// Apply user theme before React mounts to avoid FOUC.
+applyTheme(readTheme());
 
 try { if ((window as any).__SMC_BOOT__) (window as any).__SMC_BOOT__('js'); } catch(e){}
 
