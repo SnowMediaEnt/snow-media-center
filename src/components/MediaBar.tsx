@@ -42,6 +42,7 @@ type Props = {
   active?: boolean;
   onExitDown?: () => void;
   onExitUp?: () => void;
+  onOpenPlayer?: () => void;
 };
 
 const STORAGE_KEY = 'snow-media-bar-cache-v4';
