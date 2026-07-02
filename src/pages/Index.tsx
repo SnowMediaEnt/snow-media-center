@@ -694,6 +694,12 @@ const Index = () => {
 
       // Handle both standard back buttons and Android hardware back button (but not Backspace when typing)
       if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.which === 4) { // Android back button
+        // The Player owns ALL Back handling while it is the current view
+        // (its own native listener + keydown ladder walk the fullscreen →
+        // channels → categories → sections → exit hierarchy). Without this,
+        // the synthetic back keydown dispatched at window level reaches this
+        // first-registered handler and pops the Player to home.
+        if (currentViewRef.current === 'livetv') return;
         event.preventDefault();
         event.stopPropagation();
 

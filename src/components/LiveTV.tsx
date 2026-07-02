@@ -272,7 +272,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           
           w.__overlayHandledBackAt = Date.now();
           try {
-            window.dispatchEvent(new KeyboardEvent('keydown', {
+            document.body.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'Escape',
               code: 'Escape',
               keyCode: 27,
@@ -346,7 +346,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>m1</div>
+      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>m1b</div>
 
 
       {/* Header */}
