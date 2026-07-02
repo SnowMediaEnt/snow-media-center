@@ -787,7 +787,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // pane === 'channels'
       if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
       else if (e.key === 'ArrowUp') {
-        if (channelIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+        // Wrap to the LAST channel when at the top — one press to reach the
+        // bottom of a long list. Was previously exiting up to sections.
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
       else if (e.key === 'ArrowLeft') {
