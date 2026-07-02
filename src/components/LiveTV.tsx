@@ -171,6 +171,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
+      // Player server-alert popup owns the keyboard while open.
+      if (serverAlertOpenRef.current) return;
 
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
