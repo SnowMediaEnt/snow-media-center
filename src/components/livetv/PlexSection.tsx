@@ -31,7 +31,7 @@ interface Props {
 
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, startLink, cancelLink } = usePlexAuth();
+  const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
   const [libIdx, setLibIdx] = useState(0);
