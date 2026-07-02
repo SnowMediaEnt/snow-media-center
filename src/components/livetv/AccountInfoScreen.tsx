@@ -129,7 +129,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={onBack}
-            data-focused={focusIdx === 0 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 0 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 0 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
@@ -146,7 +146,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={() => setShowPwd(v => !v)}
-            data-focused={focusIdx === 1 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 1 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 1 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
@@ -158,7 +158,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={onSignOut}
-            data-focused={focusIdx === 2 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 2 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
