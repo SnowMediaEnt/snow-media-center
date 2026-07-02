@@ -408,19 +408,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible in the VIRTUALIZED category pane.
+  // Keep the focused category visible. The categories scroll container also
+  // holds the Search button (+ optional input) ABOVE the virtualizer, so raw
+  // `idx * ROW_HEIGHT` math would ignore that header offset and let the
+  // focused row slip below the fold. Ask the virtualizer to handle it — its
+  // scrollToIndex measures the list's actual offset within the scroll parent.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
     const apply = () => {
       const node = categoriesScrollRef.current;
       if (!node) return;
       if (categoryIdx === 0) { node.scrollTop = 0; return; }
-      const rowTop = categoryIdx * CAT_ROW_HEIGHT;
-      const rowBottom = rowTop + CAT_ROW_HEIGHT;
-      if (rowTop < node.scrollTop) node.scrollTop = rowTop;
-      else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
+      try { categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' }); } catch { /* ignore */ }
     };
-    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
