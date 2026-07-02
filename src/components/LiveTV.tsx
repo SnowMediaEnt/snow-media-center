@@ -271,7 +271,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (!arrows.includes(e.key)) return;
       e.preventDefault();
 
-      if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(SECTIONS.length - 1, i + 1));
+      if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(sectionsRef.current.length - 1, i + 1));
       else if (e.key === 'ArrowUp') {
         if (sectionIdxRef.current === 0) {
           headerReturnPaneRef.current = 'sections';
