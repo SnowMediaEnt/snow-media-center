@@ -364,6 +364,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
+  if (mode === 'choose') {
+    return <PlayerModeChooser onPick={enterMode} onBack={onBack} />;
+  }
+
   // Sign-in screen — shown when no creds OR user opened account form
   if (showCredsForm) {
     return (
