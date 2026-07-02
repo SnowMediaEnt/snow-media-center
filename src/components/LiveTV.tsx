@@ -480,7 +480,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
           className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
-          {SECTIONS.map((s, i) => {
+          {sections.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
