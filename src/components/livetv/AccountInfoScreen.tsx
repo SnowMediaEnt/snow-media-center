@@ -11,6 +11,7 @@ import { expDateToMs } from '@/lib/xtream';
 interface Props {
   onBack: () => void;
   onSignOut: () => void;
+  onChangeCredentials: () => void;
 }
 
 const fmtDate = (ms: number | null) =>
@@ -30,14 +31,14 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
  * Read-only Xtream account info screen for the Player header "Account" button.
  * Two-button D-pad nav: Back / Sign out.
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
+const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(1); // Start on Show/Hide password so Enter doesn't accidentally close the screen.
+  const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
-  const BTN_COUNT = 3;
+  const BTN_COUNT = 4;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -60,12 +61,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
         const i = focusIdxRef.current;
         if (i === 0) onBack();
         else if (i === 1) setShowPwd(v => !v);
-        else if (i === 2) onSignOut();
+        else if (i === 2) onChangeCredentials();
+        else if (i === 3) onSignOut();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut]);
+  }, [onBack, onSignOut, onChangeCredentials]);
 
   if (!account) {
     return (
@@ -157,16 +159,28 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
           <Button
             variant="white"
             size="sm"
-            onClick={onSignOut}
+            onClick={onChangeCredentials}
             data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 2 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+            }`}
+          >
+            <KeyRound className="w-4 h-4 mr-2" /> Change credentials
+          </Button>
+          <Button
+            variant="white"
+            size="sm"
+            onClick={onSignOut}
+            data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
           </Button>
         </div>
       </div>
+
 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <Card className="w-full max-w-3xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon, X } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -21,7 +21,7 @@ import LiveSection from './livetv/LiveSection';
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
-const AccountInfoScreen = lazy(() => import('./livetv/AccountInfoScreen'));
+const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 
 
 interface Props {
@@ -47,7 +47,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // valid creds already exist (i.e. to change account).
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   // Read-only "Account info" view, shown from the header Account button.
-  const [accountInfoOpen, setAccountInfoOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
   const [sectionIdx, setSectionIdx] = useState(0);
@@ -103,7 +103,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     await clearPlayerAccount();
     setCreds(null);
     setAccountFormOpen(false);
-    setAccountInfoOpen(false);
+    setSettingsOpen(false);
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
@@ -136,7 +136,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds, refreshChannels]);
 
   const showCredsForm = !creds || accountFormOpen;
-  const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
+  const showSettings = !!creds && settingsOpen && !accountFormOpen;
+
+  const onSwitchAccount = useCallback((c: XtreamCreds) => {
+    setCreds(c);
+    setSettingsOpen(false);
+    setAccountFormOpen(false);
+  }, []);
 
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
@@ -149,12 +155,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 4; // [Back, Update, Account, SignOut]
+  const HEADER_COUNT = 3; // [Back, Update, Settings]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
-      if (accountInfoOpen && creds && !accountFormOpen) return;
+      if (settingsOpen && creds && !accountFormOpen) return;
 
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
@@ -205,8 +211,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2) setAccountInfoOpen(true);
-          else if (idx === 3) void signOut();
+          else if (idx === 2) setSettingsOpen(true);
         }
         return;
       }
@@ -241,7 +246,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut, refreshChannels]);
+  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -289,7 +294,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
-            if (paneRef.current === 'sections' && !accountInfoOpen && !accountFormOpen) {
+            if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
               onBack();
             }
           }
@@ -305,7 +310,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       cancelled = true;
       handle?.remove?.();
     };
-  }, [onBack, accountInfoOpen, accountFormOpen]);
+  }, [onBack, settingsOpen, accountFormOpen]);
 
 
 
@@ -336,13 +341,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
-  // Read-only Account info screen (from header "Account" button).
-  if (showAccountInfo) {
+  // Settings hub (Account / Switch Account / Appearance).
+  if (showSettings) {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-        <AccountInfoScreen
-          onBack={() => setAccountInfoOpen(false)}
+        <SettingsHub
+          onBack={() => setSettingsOpen(false)}
           onSignOut={() => { void signOut(); }}
+          onChangeCredentials={() => setAccountFormOpen(true)}
+          onSwitchAccount={onSwitchAccount}
         />
       </Suspense>
     );
@@ -398,7 +405,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Button
             variant="gold"
             size="sm"
-            onClick={() => setAccountInfoOpen(true)}
+            onClick={() => setSettingsOpen(true)}
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
@@ -406,22 +413,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             }`}
           >
             <SettingsIcon className="w-4 h-4 mr-2" />
-            Account
-          </Button>
-          <Button
-            variant="white"
-            size="sm"
-            onClick={() => { void signOut(); }}
-            data-player-header-btn=""
-            data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 3 ? 'scale-105' : ''
-            }`}
-          >
-            <X className="w-4 h-4 mr-2" /> Sign Out
+            Settings
           </Button>
         </div>
       </div>
+
 
 
       {/* Three-pane layout */}
