@@ -15,7 +15,10 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.text.CueGroup
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.SubtitleView
 import com.getcapacitor.JSArray
@@ -70,7 +73,17 @@ class SnowPlayerPlugin : Plugin() {
         val act = activity ?: return
         val ts = DefaultTrackSelector(act)
         trackSelector = ts
-        val p = ExoPlayer.Builder(act).setTrackSelector(ts).build()
+        // IPTV panels frequently redirect https playlist URLs to http edge servers;
+        // ExoPlayer blocks cross-protocol redirects by default (frozen video / no audio). Allow them.
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+        val dataSourceFactory = DefaultDataSource.Factory(act, httpFactory)
+        val p = ExoPlayer.Builder(act)
+            .setTrackSelector(ts)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
         p.setVideoTextureView(textureView)
         p.volume = volume
         p.addListener(object : Player.Listener {
