@@ -3,6 +3,8 @@
 package com.snowmedia.player
 
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.TextureView
 import android.view.View
@@ -20,6 +22,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.ui.SubtitleView
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -28,6 +31,12 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 
+/**
+ * Native live-video player (Media3/ExoPlayer) on a TextureView behind the
+ * transparent WebView. Adds TiviMate-style resilience: some IPTV backends
+ * (e.g. Vibez/xui) randomly drop ~1/3 of requests (PHP OOM). A dropped live
+ * stream must NEVER freeze on the last frame — we transparently reconnect.
+ */
 @CapacitorPlugin(name = "SnowPlayer")
 class SnowPlayerPlugin : Plugin() {
 
@@ -38,6 +47,65 @@ class SnowPlayerPlugin : Plugin() {
     private var container: FrameLayout? = null
     private var volume: Float = 1f
     private var lastRect: IntArray? = null
+
+    // ── resilience state ────────────────────────────────────────────────
+    private var currentUrl: String? = null
+    private var reconnectAttempts = 0
+    private var firstFrameSeen = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var watchdogRunnable: Runnable? = null
+    private var reconnectRunnable: Runnable? = null
+
+    companion object {
+        private const val MAX_RECONNECTS = 20
+        private const val RECONNECT_DELAY_MS = 500L
+        private const val FIRST_FRAME_TIMEOUT_MS = 8000L
+    }
+
+    private fun cancelTimers() {
+        watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        watchdogRunnable = null
+        reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        reconnectRunnable = null
+    }
+
+    /** If no video frame renders within the window, the stream stalled
+     *  (server OOM slice / audio-only) — force a fresh request. */
+    private fun scheduleWatchdog() {
+        watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        val r = Runnable {
+            if (currentUrl != null && !firstFrameSeen) reconnect()
+        }
+        watchdogRunnable = r
+        mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
+    }
+
+    /** Re-request the current live URL (fresh connection → fresh token). */
+    private fun reconnect() {
+        val url = currentUrl ?: return
+        if (reconnectAttempts >= MAX_RECONNECTS) {
+            notifyListeners(
+                "playerError",
+                JSObject().put("code", "RECONNECT_EXHAUSTED")
+                    .put("message", "The stream keeps dropping. The channel may be down — try again."),
+            )
+            return
+        }
+        reconnectAttempts++
+        notifyListeners("playerState", JSObject().put("state", "buffering"))
+        reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        val r = Runnable {
+            val p = player ?: return@Runnable
+            if (currentUrl == null) return@Runnable
+            firstFrameSeen = false
+            p.setMediaItem(MediaItem.fromUri(url))
+            p.prepare()
+            p.playWhenReady = true
+            scheduleWatchdog()
+        }
+        reconnectRunnable = r
+        mainHandler.postDelayed(r, RECONNECT_DELAY_MS)
+    }
 
     private fun ensureSurface(): Boolean {
         if (container != null && textureView != null) return true
@@ -50,7 +118,6 @@ class SnowPlayerPlugin : Plugin() {
         fl.setBackgroundColor(Color.BLACK)
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
         // Closed-caption / subtitle renderer, layered above the video surface.
-        // Cues arrive via Player.Listener.onCues when a text track is selected.
         val sv = SubtitleView(act)
         sv.setUserDefaultStyle()
         sv.setUserDefaultTextSize()
@@ -73,21 +140,31 @@ class SnowPlayerPlugin : Plugin() {
         val act = activity ?: return
         val ts = DefaultTrackSelector(act)
         trackSelector = ts
-        // IPTV panels frequently redirect https playlist URLs to http edge servers;
-        // ExoPlayer blocks cross-protocol redirects by default (frozen video / no audio). Allow them.
+        // Cross-protocol redirects allowed (https playlist → http edge).
+        // Short timeouts: a hung backend connection should fail fast into a reconnect.
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(15000)
+            .setConnectTimeoutMs(8000)
+            .setReadTimeoutMs(8000)
         val dataSourceFactory = DefaultDataSource.Factory(act, httpFactory)
         val p = ExoPlayer.Builder(act)
             .setTrackSelector(ts)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(dataSourceFactory)
+                    // Retry transient load errors aggressively before surfacing them.
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6)),
+            )
             .build()
         p.setVideoTextureView(textureView)
         p.volume = volume
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED && currentUrl != null) {
+                    // A LIVE stream never legitimately ends — the backend dropped us
+                    // (Vibez OOM pattern). Reconnect instead of freezing on last frame.
+                    reconnect()
+                    return
+                }
                 val s = when (state) {
                     Player.STATE_IDLE -> "idle"
                     Player.STATE_BUFFERING -> "buffering"
@@ -100,7 +177,18 @@ class SnowPlayerPlugin : Plugin() {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 notifyListeners("playerState", JSObject().put("playing", isPlaying))
             }
+            override fun onRenderedFirstFrame() {
+                firstFrameSeen = true
+                reconnectAttempts = 0
+                watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+                watchdogRunnable = null
+            }
             override fun onPlayerError(error: PlaybackException) {
+                if (currentUrl != null && reconnectAttempts < MAX_RECONNECTS) {
+                    // Swallow and self-heal; only surface after exhaustion.
+                    reconnect()
+                    return
+                }
                 notifyListeners("playerError", JSObject().put("code", error.errorCodeName).put("message", error.message ?: "Playback error"))
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -123,9 +211,14 @@ class SnowPlayerPlugin : Plugin() {
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             container?.visibility = View.VISIBLE
             val p = player ?: run { call.reject("player init failed"); return@runOnUiThread }
+            cancelTimers()
+            currentUrl = url
+            reconnectAttempts = 0
+            firstFrameSeen = false
             p.setMediaItem(MediaItem.fromUri(url))
             p.prepare()
             p.playWhenReady = true
+            scheduleWatchdog()
             call.resolve()
         }
     }
@@ -139,6 +232,10 @@ class SnowPlayerPlugin : Plugin() {
     @PluginMethod
     fun stop(call: PluginCall) {
         activity?.runOnUiThread {
+            currentUrl = null
+            cancelTimers()
+            reconnectAttempts = 0
+            firstFrameSeen = false
             player?.stop()
             player?.clearMediaItems()
             subtitleView?.setCues(emptyList())
@@ -240,6 +337,8 @@ class SnowPlayerPlugin : Plugin() {
 
     override fun handleOnDestroy() {
         activity?.runOnUiThread {
+            cancelTimers()
+            currentUrl = null
             player?.release()
             player = null
         }
