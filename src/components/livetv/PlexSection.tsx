@@ -1,7 +1,7 @@
 // Plex "Movies & Shows" — auth gate → library tabs → poster grid → native play.
 // Movie libraries browse + play (direct-play with transcode fallback); show
 // libraries are listed but series/episode nav is Phase 2.
-import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Film } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -16,6 +16,7 @@ import {
   type PlexLibrary, type PlexItem,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
+import OverseerrRequestPanel from './OverseerrRequestPanel';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
