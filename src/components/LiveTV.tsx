@@ -341,13 +341,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
-  // Read-only Account info screen (from header "Account" button).
-  if (showAccountInfo) {
+  // Settings hub (Account / Switch Account / Appearance).
+  if (showSettings) {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-        <AccountInfoScreen
+        <SettingsHub
           onBack={() => setSettingsOpen(false)}
           onSignOut={() => { void signOut(); }}
+          onChangeCredentials={() => setAccountFormOpen(true)}
+          onSwitchAccount={onSwitchAccount}
         />
       </Suspense>
     );
