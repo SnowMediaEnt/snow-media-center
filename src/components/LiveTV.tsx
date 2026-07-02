@@ -199,6 +199,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
+      if (modeRef.current === 'choose') return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
 
