@@ -280,13 +280,10 @@
   /* Height is controlled inline by the component (compact vs thick). */
 }
 
-/* Pause the news-ticker marquee while the user is actively D-pad navigating,
-   so focus transitions never compete with continuous compositor animation
-   (Amlogic/Mali boxes drop frames when both run). main.tsx toggles
-   html.nav-active; the marquee resumes ~950ms after the last keypress. */
-html.nav-active .news-ticker-track {
-  animation-play-state: paused !important;
-}
+/* NOTE: The former `html.nav-active .news-ticker-track { animation-play-state: paused }`
+   rule was removed — it was the *cause* of the visible per-keypress stutter on Fire TV.
+   The ticker now runs continuously; compositor isolation + overlay fades (not mask-image)
+   keep it on its own GPU layer so focus repaints don't stall it. */
 
 /* On genuine low-memory native devices (1–2GB Android boxes), slow the ticker
    dramatically so its compositor cost is negligible. We never stop it — the
