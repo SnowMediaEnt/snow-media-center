@@ -24,6 +24,7 @@ import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
+const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 
@@ -33,12 +34,13 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series';
+type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
 const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
   { id: 'live',   label: 'Live TV', icon: Tv },
   { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
   { id: 'movies', label: 'Movies',  icon: Film },
   { id: 'series', label: 'Series',  icon: ListVideo },
+  { id: 'plex',   label: 'Plex',    icon: Film },
 ];
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
@@ -510,6 +512,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
               creds={creds!}
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+            />
+          </Suspense>
+        )}
+        {section === 'plex' && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <PlexSection
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
