@@ -286,27 +286,18 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         });
         return;
       }
-      const fromLabel = hasEmail ? email : 'Anonymous guest (no email provided)';
+      const contactLine = hasEmail
+        ? `Contact email: ${email}`
+        : 'Anonymous guest — no contact email provided.';
+      const combinedMessage = `${newMessage}\n\n${contactLine}`;
       try {
-        await supabase.functions.invoke('send-custom-email', {
+        const { error } = await supabase.functions.invoke('report-channel', {
           body: {
-            to: 'support@snowmediaent.com',
             subject: `[Guest Ticket] ${newSubject}`,
-            fromName: 'Snow Media Support System',
-            html: `
-              <h3>New Guest Support Ticket</h3>
-              <p><strong>From:</strong> ${fromLabel}</p>
-              <p><strong>Subject:</strong> ${newSubject}</p>
-              <div style="margin-top:20px;padding:15px;background:#f5f5f5;border-radius:5px;">
-                <p><strong>Message:</strong></p>
-                <p>${newMessage.replace(/\n/g, '<br>')}</p>
-              </div>
-              <p style="margin-top:20px;font-size:12px;color:#666;">
-                ${hasEmail ? `Guest user — no account. Reply directly to ${email}.` : 'Anonymous guest — no reply address provided.'}
-              </p>
-            `,
+            message: combinedMessage,
           },
         });
+        if (error) throw error;
         toast({
           title: "Ticket sent",
           description: hasEmail
@@ -327,7 +318,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
         console.error('Failed to send guest ticket:', error);
         toast({
           title: "Error",
-          description: "Failed to send ticket. Please try again.",
+          description: (error as Error)?.message || "Failed to send ticket. Please try again.",
           variant: "destructive",
         });
       }
