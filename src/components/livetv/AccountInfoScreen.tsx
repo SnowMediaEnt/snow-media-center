@@ -11,6 +11,7 @@ import { expDateToMs } from '@/lib/xtream';
 interface Props {
   onBack: () => void;
   onSignOut: () => void;
+  onChangeCredentials: () => void;
 }
 
 const fmtDate = (ms: number | null) =>
