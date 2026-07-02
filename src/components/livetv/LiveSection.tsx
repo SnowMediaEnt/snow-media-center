@@ -489,9 +489,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Native ExoPlayer wiring — only active on native builds while fullscreen.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+  // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
+  // the old mpegts.js path always swapped .m3u8→.ts. Dreamstreams works on
+  // both. So for the NATIVE player, always request the .ts variant.
+  const nativeUrl = nativeActive
+    ? (streamUrl ? streamUrl.replace(/\.m3u8(\?|$)/i, '.ts$1') : null)
+    : null;
   const native = useNativePlayer({
     active: nativeActive,
-    url: nativeActive ? streamUrl : null,
+    url: nativeUrl,
     volume,
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
