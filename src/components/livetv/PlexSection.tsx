@@ -250,7 +250,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-black/40 overflow-x-auto whitespace-nowrap">
         <span className="text-xs uppercase tracking-wide text-brand-ice/50 mr-2">Plex · {conn?.name}</span>
         {libraries.length === 0 && <span className="text-brand-ice/60 font-nunito text-sm">No libraries found.</span>}
-        {libraries.map((lib, i) => {
+        {tabs.map((lib, i) => {
           const focused = isActive && zone === 'tabs' && libIdx === i;
           const selected = libIdx === i;
           return (
