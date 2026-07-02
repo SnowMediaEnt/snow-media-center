@@ -107,6 +107,35 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane('header');
   }, []);
 
+  const sections = useMemo<{ id: SectionId; label: string; icon: typeof Tv }[]>(() => {
+    if (mode === 'live') return [
+      { id: 'live',  label: 'Live TV', icon: Tv },
+      { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+    ];
+    if (mode === 'movies') return [
+      { id: 'plex', label: 'Plex', icon: Film },
+      ...(creds ? [
+        { id: 'movies' as SectionId, label: 'Movies', icon: Film },
+        { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
+      ] : []),
+    ];
+    return [];
+  }, [mode, creds]);
+  const sectionsRef = useRef(sections);
+  useEffect(() => { sectionsRef.current = sections; }, [sections]);
+
+  const enterMode = useCallback((m: 'live' | 'movies') => {
+    setMode(m);
+    setSection(m === 'live' ? 'live' : 'plex');
+    setSectionIdx(0);
+    setPane('sections');
+  }, []);
+  const leaveMode = useCallback(() => {
+    setMode('choose');
+    setSectionIdx(0);
+    setPane('sections');
+  }, []);
+
   const signOut = useCallback(async () => {
     await clearCreds();
     await clearPlayerAccount();
