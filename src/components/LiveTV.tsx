@@ -11,11 +11,14 @@ import {
   savePlayerAccount,
   clearPlayerAccount,
   bumpXtreamRefresh,
+  SERVERS,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { runWhenIdle } from '@/utils/idle';
+import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
+import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
