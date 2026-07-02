@@ -24,6 +24,7 @@ import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
+const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 
