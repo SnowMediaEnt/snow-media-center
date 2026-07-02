@@ -420,7 +420,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Button
             variant="white"
             size="sm"
-            onClick={onBack}
+            onClick={leaveMode}
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
