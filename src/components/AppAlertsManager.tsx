@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAppData } from '@/hooks/useAppData';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
