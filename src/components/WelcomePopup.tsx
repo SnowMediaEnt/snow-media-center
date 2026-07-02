@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.6': [
+    'All-new native video engine — smoother playback and fixed audio on every channel',
+    'Closed captions (CC) — pick them in the player\'s subtitle menu',
+    'Press & hold a channel: favorites + report with category and channel prefilled',
+    'Back button behaves everywhere — fullscreen returns to the channel list',
+    'News ticker no longer pauses while you navigate',
+    'Faster app detection in Main Apps + pinned apps install directly',
+  ],
   '1.5.5': [
     'Smoother Live TV — scroll all the way through categories and channels, the side menu collapses when you open one, and Back steps cleanly instead of exiting the whole player',
     'New "Update Channels" button to refresh your list instantly',
