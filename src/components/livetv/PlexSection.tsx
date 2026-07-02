@@ -156,6 +156,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
         return;
       }
 
+      // Request tab: OverseerrRequestPanel owns the keyboard while in the grid zone.
+      if (zoneRef.current === 'grid' && librariesRef.current[libIdxRef.current]?.type === 'request') return;
+
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       if (isBack) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); onExitLeft?.(); return; }
 
