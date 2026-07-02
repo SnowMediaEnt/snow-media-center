@@ -136,7 +136,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds, refreshChannels]);
 
   const showCredsForm = !creds || accountFormOpen;
-  const showAccountInfo = !!creds && settingsOpen && !accountFormOpen;
+  const showSettings = !!creds && settingsOpen && !accountFormOpen;
+
+  const onSwitchAccount = useCallback((c: XtreamCreds) => {
+    setCreds(c);
+    setSettingsOpen(false);
+    setAccountFormOpen(false);
+  }, []);
 
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
