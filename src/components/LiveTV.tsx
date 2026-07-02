@@ -11,11 +11,14 @@ import {
   savePlayerAccount,
   clearPlayerAccount,
   bumpXtreamRefresh,
+  SERVERS,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { runWhenIdle } from '@/utils/idle';
+import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
+import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
@@ -57,6 +60,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [headerIdx, setHeaderIdx] = useState(0);
   // Where to return when leaving the header via Down.
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
+
+  const serverLabel = creds?.serverLabel ?? SERVERS.find(s => s.host === creds?.host)?.label ?? null;
+  const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(serverLabel);
+  const serverAlertOpenRef = useRef(false);
+  useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
 
 
   // Load creds on mount
@@ -163,6 +171,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
+      // Player server-alert popup owns the keyboard while open.
+      if (serverAlertOpenRef.current) return;
 
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
@@ -361,6 +371,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.7</div>
+
+      {serverAlert && serverLabel && (
+        <PlayerServerAlertDialog
+          alert={serverAlert}
+          serverLabel={serverLabel}
+          onDismiss={dismissServerAlert}
+        />
+      )}
 
 
       {/* Header */}

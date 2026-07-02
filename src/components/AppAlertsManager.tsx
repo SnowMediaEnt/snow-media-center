@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Mail, Loader2, Zap, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAppData } from '@/hooks/useAppData';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -82,6 +82,33 @@ const AppAlertsManager = () => {
     });
     await Promise.all([refetchPreEvent(), fetchAll(), refetch()]);
   };
+
+  // Player server alert (Dreamstreams / Vibez / All) — shown inside the Player.
+  const [psTarget, setPsTarget] = useState<'Dreamstreams' | 'Vibez' | 'all'>('Dreamstreams');
+  const [psTitle, setPsTitle] = useState('Service notice');
+  const [psMessage, setPsMessage] = useState('');
+  const [psSeverity, setPsSeverity] = useState<AppAlert['severity']>('warning');
+  const [psSubmitting, setPsSubmitting] = useState(false);
+
+  const createPlayerServerAlert = async () => {
+    if (!psMessage.trim()) { toast({ title: 'Message is required', variant: 'destructive' }); return; }
+    setPsSubmitting(true);
+    const { error } = await supabase.from('app_alerts').insert({
+      app_match: psTarget,
+      title: psTitle.trim() || 'Service notice',
+      message: psMessage.trim(),
+      severity: psSeverity,
+      active: true,
+      source: 'player_server',
+      created_by: user?.id ?? null,
+    });
+    setPsSubmitting(false);
+    if (error) { toast({ title: 'Failed to create player alert', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Player alert posted', description: `Shown to ${psTarget === 'all' ? 'all-server' : psTarget} users in the Player.` });
+    setPsMessage('');
+    await Promise.all([fetchAll(), refetch()]);
+  };
+
 
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -257,6 +284,60 @@ const AppAlertsManager = () => {
         </div>
       </Card>
 
+      {/* Player server alert — targets a signed-in IPTV server inside the Player */}
+      <Card className="bg-slate-900/60 border-2 border-brand-ice/30 p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <Tv className="w-6 h-6 text-brand-ice" />
+          <div>
+            <h3 className="text-lg font-semibold text-white">Player server alert</h3>
+            <p className="text-sm text-slate-300">
+              Pops up inside the Player for users signed into a specific server (e.g. "Dreamstreams guide is down").
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Target server</Label>
+          <div className="flex gap-2 flex-wrap">
+            {(['Dreamstreams', 'Vibez', 'all'] as const).map((t) => (
+              <Button
+                key={t}
+                type="button"
+                size="sm"
+                variant={psTarget === t ? 'gold' : 'outline'}
+                onClick={() => setPsTarget(t)}
+                className="capitalize"
+              >
+                {t === 'all' ? 'All servers' : t}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-slate-200">Popup title</Label>
+            <Input value={psTitle} onChange={(e) => setPsTitle(e.target.value)} placeholder="Service notice" className="bg-slate-800 border-slate-600 text-white" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-200">Severity</Label>
+            <div className="flex gap-1">
+              {SEVERITIES.map((s) => (
+                <Button key={s} type="button" size="sm" variant={psSeverity === s ? 'gold' : 'outline'} onClick={() => setPsSeverity(s)} className="capitalize flex-1">
+                  {s}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Message</Label>
+          <Textarea value={psMessage} onChange={(e) => setPsMessage(e.target.value)} rows={3} placeholder="e.g. Dreamstreams guide/EPG is currently down. We're on it." className="bg-slate-800 border-slate-600 text-white" />
+        </div>
+        <Button onClick={createPlayerServerAlert} disabled={psSubmitting} variant="gold" className="w-full sm:w-auto">
+          {psSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+          Post player alert
+        </Button>
+      </Card>
+
 
       {/* Create form */}
       <Card className="bg-slate-900/60 border-slate-700 p-5 space-y-4">
@@ -373,6 +454,16 @@ const AppAlertsManager = () => {
                     {alert.source === 'email' && (
                       <Badge variant="outline" className="border-slate-600 text-slate-300">
                         <Mail className="w-3 h-3 mr-1" /> email
+                      </Badge>
+                    )}
+                    {alert.source === 'player_server' && (
+                      <Badge variant="outline" className="border-brand-ice/40 text-brand-ice">
+                        player
+                      </Badge>
+                    )}
+                    {alert.source === 'pre_event' && (
+                      <Badge variant="outline" className="border-brand-gold/40 text-brand-gold">
+                        PPV
                       </Badge>
                     )}
                     {!alert.active && (
