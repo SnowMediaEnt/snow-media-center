@@ -83,6 +83,33 @@ const AppAlertsManager = () => {
     await Promise.all([refetchPreEvent(), fetchAll(), refetch()]);
   };
 
+  // Player server alert (Dreamstreams / Vibez / All) — shown inside the Player.
+  const [psTarget, setPsTarget] = useState<'Dreamstreams' | 'Vibez' | 'all'>('Dreamstreams');
+  const [psTitle, setPsTitle] = useState('Service notice');
+  const [psMessage, setPsMessage] = useState('');
+  const [psSeverity, setPsSeverity] = useState<AppAlert['severity']>('warning');
+  const [psSubmitting, setPsSubmitting] = useState(false);
+
+  const createPlayerServerAlert = async () => {
+    if (!psMessage.trim()) { toast({ title: 'Message is required', variant: 'destructive' }); return; }
+    setPsSubmitting(true);
+    const { error } = await supabase.from('app_alerts').insert({
+      app_match: psTarget,
+      title: psTitle.trim() || 'Service notice',
+      message: psMessage.trim(),
+      severity: psSeverity,
+      active: true,
+      source: 'player_server',
+      created_by: user?.id ?? null,
+    });
+    setPsSubmitting(false);
+    if (error) { toast({ title: 'Failed to create player alert', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Player alert posted', description: `Shown to ${psTarget === 'all' ? 'all-server' : psTarget} users in the Player.` });
+    setPsMessage('');
+    await Promise.all([fetchAll(), refetch()]);
+  };
+
+
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [apps]
