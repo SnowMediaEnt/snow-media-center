@@ -284,6 +284,60 @@ const AppAlertsManager = () => {
         </div>
       </Card>
 
+      {/* Player server alert — targets a signed-in IPTV server inside the Player */}
+      <Card className="bg-slate-900/60 border-2 border-brand-ice/30 p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <Tv className="w-6 h-6 text-brand-ice" />
+          <div>
+            <h3 className="text-lg font-semibold text-white">Player server alert</h3>
+            <p className="text-sm text-slate-300">
+              Pops up inside the Player for users signed into a specific server (e.g. "Dreamstreams guide is down").
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Target server</Label>
+          <div className="flex gap-2 flex-wrap">
+            {(['Dreamstreams', 'Vibez', 'all'] as const).map((t) => (
+              <Button
+                key={t}
+                type="button"
+                size="sm"
+                variant={psTarget === t ? 'gold' : 'outline'}
+                onClick={() => setPsTarget(t)}
+                className="capitalize"
+              >
+                {t === 'all' ? 'All servers' : t}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2 space-y-2">
+            <Label className="text-slate-200">Popup title</Label>
+            <Input value={psTitle} onChange={(e) => setPsTitle(e.target.value)} placeholder="Service notice" className="bg-slate-800 border-slate-600 text-white" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-slate-200">Severity</Label>
+            <div className="flex gap-1">
+              {SEVERITIES.map((s) => (
+                <Button key={s} type="button" size="sm" variant={psSeverity === s ? 'gold' : 'outline'} onClick={() => setPsSeverity(s)} className="capitalize flex-1">
+                  {s}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-200">Message</Label>
+          <Textarea value={psMessage} onChange={(e) => setPsMessage(e.target.value)} rows={3} placeholder="e.g. Dreamstreams guide/EPG is currently down. We're on it." className="bg-slate-800 border-slate-600 text-white" />
+        </div>
+        <Button onClick={createPlayerServerAlert} disabled={psSubmitting} variant="gold" className="w-full sm:w-auto">
+          {psSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+          Post player alert
+        </Button>
+      </Card>
+
 
       {/* Create form */}
       <Card className="bg-slate-900/60 border-slate-700 p-5 space-y-4">
