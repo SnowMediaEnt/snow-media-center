@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
@@ -19,6 +19,7 @@ import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { runWhenIdle } from '@/utils/idle';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
+import PlayerModeChooser from './livetv/PlayerModeChooser';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
@@ -35,13 +36,6 @@ interface Props {
 }
 
 type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
-const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
-  { id: 'live',   label: 'Live TV', icon: Tv },
-  { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
-  { id: 'movies', label: 'Movies',  icon: Film },
-  { id: 'series', label: 'Series',  icon: ListVideo },
-  { id: 'plex',   label: 'Plex',    icon: Film },
-];
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
@@ -57,6 +51,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
+  const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   const [sectionIdx, setSectionIdx] = useState(0);
   const [pane, setPane] = useState<'header' | 'sections' | 'content'>('sections');
   const [headerIdx, setHeaderIdx] = useState(0);
@@ -110,6 +107,35 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane('header');
   }, []);
 
+  const sections = useMemo<{ id: SectionId; label: string; icon: typeof Tv }[]>(() => {
+    if (mode === 'live') return [
+      { id: 'live',  label: 'Live TV', icon: Tv },
+      { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+    ];
+    if (mode === 'movies') return [
+      { id: 'plex', label: 'Plex', icon: Film },
+      ...(creds ? [
+        { id: 'movies' as SectionId, label: 'Movies', icon: Film },
+        { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
+      ] : []),
+    ];
+    return [];
+  }, [mode, creds]);
+  const sectionsRef = useRef(sections);
+  useEffect(() => { sectionsRef.current = sections; }, [sections]);
+
+  const enterMode = useCallback((m: 'live' | 'movies') => {
+    setMode(m);
+    setSection(m === 'live' ? 'live' : 'plex');
+    setSectionIdx(0);
+    setPane('sections');
+  }, []);
+  const leaveMode = useCallback(() => {
+    setMode('choose');
+    setSectionIdx(0);
+    setPane('sections');
+  }, []);
+
   const signOut = useCallback(async () => {
     await clearCreds();
     await clearPlayerAccount();
@@ -147,7 +173,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     window.setTimeout(() => { refreshChannels(); }, 250);
   }, [creds, refreshChannels]);
 
-  const showCredsForm = !creds || accountFormOpen;
+  const showCredsForm = mode === 'live' && (!creds || accountFormOpen);
   const showSettings = !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
@@ -173,6 +199,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
+      if (modeRef.current === 'choose') return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
 
@@ -189,7 +216,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           e.preventDefault();
           e.stopPropagation();
           if (accountFormOpen && creds) setAccountFormOpen(false);
-          else onBack();
+          else leaveMode();
         }
         return;
       }
@@ -202,7 +229,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (paneRef.current === 'header') {
         if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation();
-          onBack();
+          leaveMode();
           return;
         }
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
@@ -223,7 +250,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           setPane(headerReturnPaneRef.current);
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
-          if (idx === 0) onBack();
+          if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
           else if (idx === 2) setSettingsOpen(true);
         }
@@ -236,7 +263,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
-        onBack();
+        leaveMode();
         return;
       }
 
@@ -244,7 +271,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (!arrows.includes(e.key)) return;
       e.preventDefault();
 
-      if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(SECTIONS.length - 1, i + 1));
+      if (e.key === 'ArrowDown') setSectionIdx(i => Math.min(sectionsRef.current.length - 1, i + 1));
       else if (e.key === 'ArrowUp') {
         if (sectionIdxRef.current === 0) {
           headerReturnPaneRef.current = 'sections';
@@ -254,13 +281,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         }
       }
       else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
-        setSection(SECTIONS[sectionIdxRef.current].id);
+        setSection(sectionsRef.current[sectionIdxRef.current].id);
         setPane('content');
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels]);
+  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels, leaveMode]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -309,7 +336,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
             if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
-              onBack();
+              leaveMode();
             }
           }
         });
@@ -337,6 +364,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
+  if (mode === 'choose') {
+    return <PlayerModeChooser onPick={enterMode} onBack={onBack} />;
+  }
+
   // Sign-in screen — shown when no creds OR user opened account form
   if (showCredsForm) {
     return (
@@ -348,7 +379,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               setCreds(c);
               setAccountFormOpen(false);
             }}
-            onCancel={creds ? () => setAccountFormOpen(false) : onBack}
+            onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
           />
         </Suspense>
       </div>
@@ -389,7 +420,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Button
             variant="white"
             size="sm"
-            onClick={onBack}
+            onClick={leaveMode}
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
@@ -449,7 +480,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
           className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
-          {SECTIONS.map((s, i) => {
+          {sections.map((s, i) => {
             const Icon = s.icon;
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
