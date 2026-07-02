@@ -46,6 +46,19 @@ class SnowPlayerPlugin : Plugin() {
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        // Closed-caption / subtitle renderer, layered above the video surface.
+        // Cues arrive via Player.Listener.onCues when a text track is selected.
+        val sv = SubtitleView(act)
+        sv.setUserDefaultStyle()
+        sv.setUserDefaultTextSize()
+        fl.addView(
+            sv,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        subtitleView = sv
         fl.visibility = View.GONE
         parent.addView(fl, 0, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         container = fl
