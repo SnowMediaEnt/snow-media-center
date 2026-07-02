@@ -263,7 +263,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
-        onBack();
+        leaveMode();
         return;
       }
 
