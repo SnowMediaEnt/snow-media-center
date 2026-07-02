@@ -305,6 +305,15 @@
     0 0 14px hsl(var(--brand-gold) / 0.5);
 }
 
+/* Player header buttons (LiveTV.tsx + AccountInfoScreen.tsx) need a highly
+   visible D-pad focus indicator that survives the .native-low-memory
+   shadow-strip. Outline is not a box-shadow and is not touched by that rule. */
+[data-player-header-btn][data-focused="true"] {
+  outline: 3px solid hsl(var(--brand-gold));
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 /* ============================================================
    Fire TV Cube / 1-2GB Android tile-memory rescue.
    Chromium logs "tile memory limits exceeded, some content may

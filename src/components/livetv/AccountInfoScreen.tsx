@@ -33,7 +33,7 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
 const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(0); // 0=Back, 1=Show/Hide pwd, 2=Sign out
+  const [focusIdx, setFocusIdx] = useState(1); // Start on Show/Hide password so Enter doesn't accidentally close the screen.
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
@@ -45,13 +45,15 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         onBack();
         return;
       }
       const arrows = ['ArrowLeft', 'ArrowRight', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
       else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
       else if (e.key === 'Enter' || e.key === ' ') {
@@ -127,7 +129,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={onBack}
-            data-focused={focusIdx === 0 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 0 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 0 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
@@ -144,7 +146,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={() => setShowPwd(v => !v)}
-            data-focused={focusIdx === 1 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 1 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 1 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
@@ -156,7 +158,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
             variant="white"
             size="sm"
             onClick={onSignOut}
-            data-focused={focusIdx === 2 ? 'true' : 'false'}
+            data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 2 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}

@@ -408,19 +408,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible in the VIRTUALIZED category pane.
+  // Keep the focused category visible. The categories scroll container also
+  // holds the Search button (+ optional input) ABOVE the virtualizer, so raw
+  // `idx * ROW_HEIGHT` math would ignore that header offset and let the
+  // focused row slip below the fold. Ask the virtualizer to handle it — its
+  // scrollToIndex measures the list's actual offset within the scroll parent.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
     const apply = () => {
       const node = categoriesScrollRef.current;
       if (!node) return;
       if (categoryIdx === 0) { node.scrollTop = 0; return; }
-      const rowTop = categoryIdx * CAT_ROW_HEIGHT;
-      const rowBottom = rowTop + CAT_ROW_HEIGHT;
-      if (rowTop < node.scrollTop) node.scrollTop = rowTop;
-      else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
+      try { categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' }); } catch { /* ignore */ }
     };
-    
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
@@ -489,9 +489,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Native ExoPlayer wiring — only active on native builds while fullscreen.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+  // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
+  // the old mpegts.js path always swapped .m3u8→.ts. Dreamstreams works on
+  // both. So for the NATIVE player, always request the .ts variant.
+  const nativeUrl = nativeActive
+    ? (streamUrl ? streamUrl.replace(/\.m3u8(\?|$)/i, '.ts$1') : null)
+    : null;
   const native = useNativePlayer({
     active: nativeActive,
-    url: nativeActive ? streamUrl : null,
+    url: nativeUrl,
     volume,
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
@@ -781,7 +787,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // pane === 'channels'
       if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
       else if (e.key === 'ArrowUp') {
-        if (channelIdxRef.current === 0 && onExitUp) { onExitUp(); return; }
+        // Wrap to the LAST channel when at the top — one press to reach the
+        // bottom of a long list. Was previously exiting up to sections.
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
       else if (e.key === 'ArrowLeft') {

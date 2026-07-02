@@ -187,7 +187,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         }
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
         if (!arrows.includes(e.key)) return;
-        e.preventDefault(); e.stopPropagation();
+        // stopImmediatePropagation + blurring any lingering DOM focus prevents
+        // WebView spatial-navigation on Fire TV from also moving focus and
+        // making the header ring appear "stuck" on Back.
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        const ae = document.activeElement as HTMLElement | null;
+        if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
         if (e.key === 'ArrowLeft') {
           setHeaderIdx(i => (i - 1 + HEADER_COUNT) % HEADER_COUNT);
@@ -346,7 +351,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>m4</div>
+      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.6</div>
 
 
       {/* Header */}
@@ -356,6 +361,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="white"
             size="sm"
             onClick={onBack}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 0 ? 'scale-105' : ''
@@ -380,6 +386,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={refreshChannels}
             disabled={isRefreshing}
             aria-label="Update Channels"
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1 ? 'scale-105' : ''
@@ -392,6 +399,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="gold"
             size="sm"
             onClick={() => setAccountInfoOpen(true)}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
@@ -404,6 +412,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="white"
             size="sm"
             onClick={() => { void signOut(); }}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 3 ? 'scale-105' : ''
