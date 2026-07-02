@@ -31,6 +31,7 @@ class SnowPlayerPlugin : Plugin() {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
     private var textureView: TextureView? = null
+    private var subtitleView: SubtitleView? = null
     private var container: FrameLayout? = null
     private var volume: Float = 1f
     private var lastRect: IntArray? = null
