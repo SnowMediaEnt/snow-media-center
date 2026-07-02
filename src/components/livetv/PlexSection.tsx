@@ -57,7 +57,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     return () => { cancelled = true; };
   }, [status, conn]);
 
-  const currentLib = libraries[libIdx];
+  const tabs = useMemo<PlexLibrary[]>(
+    () => [...libraries, { key: '__request', title: 'Request', type: 'request' }],
+    [libraries],
+  );
+  const currentLib = tabs[libIdx];
 
   // Load items for the selected MOVIE library.
   useEffect(() => {
