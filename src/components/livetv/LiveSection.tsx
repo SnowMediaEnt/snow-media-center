@@ -23,9 +23,14 @@ import { isFireTV } from '@/utils/platform';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
+import { AlertTriangle, RotateCw } from 'lucide-react';
+import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { useNativePlayer } from '@/hooks/useNativePlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
+const NATIVE_PLAYBACK = hasNativePlayer();
 
 
 interface Props {
