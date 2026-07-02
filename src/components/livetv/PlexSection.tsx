@@ -232,6 +232,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       try {
         const h = await CapApp.addListener('backButton', () => {
           if (fullscreenRef.current) { exitFullscreen(); return; }
+          if (zoneRef.current === 'grid' && librariesRef.current[libIdxRef.current]?.type === 'request') { setZone('tabs'); return; }
           onExitLeft?.();
         });
         if (cancelled) h?.remove?.(); else handle = h;
