@@ -115,8 +115,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [showInfoPanel, setShowInfoPanel] = useState(false);
-  const infoTimerRef = useRef<number | null>(null);
 
   // "Report a problem" dialog — owns the keyboard while open.
   const [reportFor, setReportFor] = useState<XtreamLiveStream | null>(null);
@@ -378,13 +376,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   //   stop scrollIntoView from picking the next ancestor up. The only safe
   //   fix is to never call scrollIntoView for focus tracking — adjust the
   //   local scroll parent's scrollTop manually, vertical axis only.
-  const ensureVisibleY = (parent: HTMLElement | null, el: HTMLElement | null) => {
-    if (!parent || !el) return;
-    const pr = parent.getBoundingClientRect();
-    const er = el.getBoundingClientRect();
-    if (er.top < pr.top) parent.scrollTop -= (pr.top - er.top);
-    else if (er.bottom > pr.bottom) parent.scrollTop += (er.bottom - pr.bottom);
-  };
 
   // Keep the focused channel visible in the VIRTUALIZED row list.
   //
@@ -489,9 +480,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
-    setShowInfoPanel(true);
-    if (infoTimerRef.current) window.clearTimeout(infoTimerRef.current);
-    infoTimerRef.current = window.setTimeout(() => setShowInfoPanel(false), 5000) as unknown as number;
   }, []);
 
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
@@ -839,6 +827,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <VideoPlayer
             src={streamUrl}
             volume={volume}
+            muted={false}
             className="w-full h-full"
             onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
             onPlayStateChange={(paused) => setIsPaused(paused)}
@@ -984,7 +973,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               </div>
             ) : previewUrl ? (
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
-                <VideoPlayer src={previewUrl} volume={0} className="w-full h-full" />
+                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" />
               </Suspense>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
