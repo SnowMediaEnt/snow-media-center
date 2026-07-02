@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface Props {
   channelName: string;
   channelId?: number | string;
+  categoryName?: string;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onOpenBufferingGuide?: () => void;
