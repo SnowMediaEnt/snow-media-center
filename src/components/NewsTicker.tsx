@@ -167,19 +167,18 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
       style={{
         backgroundColor: 'hsl(var(--brand-navy))',
         contain: 'layout paint style',
+        isolation: 'isolate',
       }}
     >
       <div className={`relative flex items-center ${trackHeight}`}>
-        {/* Full-width scrolling track sits behind the LIVE badge */}
+        {/* Full-width scrolling track — NO mask-image. mask-image forces
+            Android WebView to composite the animated layer on the main
+            thread, which stalls on every D-pad style-recalc. */}
         <div
           className="absolute inset-0 overflow-hidden"
           style={{
             contain: 'layout paint',
             paddingLeft: padLeft,
-            WebkitMaskImage:
-              `linear-gradient(to right, transparent 0, transparent ${maskStart}, black ${maskEnd}, black 100%)`,
-            maskImage:
-              `linear-gradient(to right, transparent 0, transparent ${maskStart}, black ${maskEnd}, black 100%)`,
           }}
         >
           <div
@@ -201,6 +200,17 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
             </span>
           </div>
         </div>
+        {/* Compositor-friendly left-edge fade — a plain gradient overlay
+            replaces the mask so the animated layer stays GPU-composited. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 pointer-events-none"
+          style={{
+            width: maskEnd,
+            zIndex: 5,
+            background: `linear-gradient(to right, hsl(var(--brand-navy)) 0%, hsl(var(--brand-navy)) ${maskStart}, transparent ${maskEnd})`,
+          }}
+        />
         {/* LIVE badge overlays on top */}
         <div className={`bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-bold ${badgeMargin} z-10 flex-shrink-0 leading-tight relative`}>
           LIVE
