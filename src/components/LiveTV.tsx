@@ -287,7 +287,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels]);
+  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels, leaveMode]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
