@@ -460,7 +460,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               {!user && (
                 <>
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-                    <strong>Heads up:</strong> You can submit a ticket without an email, but <strong>you won't get a response unless you sign in or create an account</strong>. Add your email below and we'll offer to create an account so replies show up in-app.
+                    <strong>Not signed in</strong> — your ticket will be delivered, but you won't be able to receive replies in the app. Sign in to get responses.
                   </div>
 
                   <div>
