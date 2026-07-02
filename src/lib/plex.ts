@@ -42,22 +42,24 @@ const plexHeaders = (token?: string): Record<string, string> => {
 
 async function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, timeoutMs = 20000): Promise<T> {
   const headers = plexHeaders(token);
+  let native = false;
+  let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
   try {
-    const { Capacitor, CapacitorHttp } = await import('@capacitor/core');
-    if (Capacitor.isNativePlatform?.()) {
-      const res = await CapacitorHttp.request({
-        method, url, headers,
-        connectTimeout: Math.min(timeoutMs, 15000),
-        readTimeout: timeoutMs,
-      });
-      if (res.status >= 200 && res.status < 300) {
-        return (typeof res.data === 'string' ? JSON.parse(res.data || '{}') : res.data) as T;
-      }
-      throw new Error(`Plex HTTP ${res.status}`);
+    const mod = await import('@capacitor/core');
+    native = !!mod.Capacitor.isNativePlatform?.();
+    CapacitorHttpRef = mod.CapacitorHttp;
+  } catch { /* no @capacitor/core on web */ }
+  if (native && CapacitorHttpRef) {
+    // Native path: any error propagates — do NOT fall through to WebView fetch.
+    const res = await CapacitorHttpRef.request({
+      method, url, headers,
+      connectTimeout: Math.min(timeoutMs, 15000),
+      readTimeout: timeoutMs,
+    });
+    if (res.status >= 200 && res.status < 300) {
+      return (typeof res.data === 'string' ? JSON.parse(res.data || '{}') : res.data) as T;
     }
-  } catch (e) {
-    if (e instanceof Error && /Plex HTTP \d/.test(e.message)) throw e;
-    // otherwise fall through to fetch (non-native)
+    throw new Error(`Plex HTTP ${res.status}`);
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
