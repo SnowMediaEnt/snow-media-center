@@ -128,6 +128,7 @@ class SnowPlayerPlugin : Plugin() {
         activity?.runOnUiThread {
             player?.stop()
             player?.clearMediaItems()
+            subtitleView?.setCues(emptyList())
             container?.visibility = View.GONE
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             call.resolve()
