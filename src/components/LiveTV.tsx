@@ -18,6 +18,7 @@ import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { runWhenIdle } from '@/utils/idle';
 
 import LiveSection from './livetv/LiveSection';
+const GuideSection = lazy(() => import('./livetv/GuideSection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
@@ -29,9 +30,10 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'movies' | 'series';
+type SectionId = 'live' | 'guide' | 'movies' | 'series';
 const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
   { id: 'live',   label: 'Live TV', icon: Tv },
+  { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
   { id: 'movies', label: 'Movies',  icon: Film },
   { id: 'series', label: 'Series',  icon: ListVideo },
 ];
