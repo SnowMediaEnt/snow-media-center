@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
