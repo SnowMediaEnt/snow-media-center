@@ -866,19 +866,43 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   })();
 
   if (fullscreen) {
+    // Native path: chrome renders over a transparent layer so the ExoPlayer
+    // TextureView behind the WebView shows through. Web/fallback path keeps
+    // the original <VideoPlayer> element rendering into the WebView.
     return (
-      <div className="fixed inset-0 z-[60] bg-black text-white">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
-          <VideoPlayer
-            src={streamUrl}
-            volume={volume}
-            muted={false}
-            className="w-full h-full"
-            onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
-            onPlayStateChange={(paused) => setIsPaused(paused)}
-            onTracksChanged={() => setTracksTick(t => t + 1)}
-          />
-        </Suspense>
+      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+        {!NATIVE_PLAYBACK && (
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+            <VideoPlayer
+              src={streamUrl}
+              volume={volume}
+              muted={false}
+              className="w-full h-full"
+              onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
+              onPlayStateChange={(paused) => setIsPaused(paused)}
+              onTracksChanged={() => setTracksTick(t => t + 1)}
+            />
+          </Suspense>
+        )}
+        {NATIVE_PLAYBACK && native.buffering && !native.error && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+          </div>
+        )}
+        {NATIVE_PLAYBACK && native.error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
+            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
+            <button
+              onClick={() => native.retry()}
+              autoFocus
+              className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+            >
+              <RotateCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
+        )}
         <PlayerControlBar
           visible={barVisible}
           focus={barFocus}
@@ -907,6 +931,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       </div>
     );
   }
+
 
   const totalSize = rowVirtualizer.getTotalSize();
 
