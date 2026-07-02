@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Play, Smartphone, Tv, Settings, Trash2, Pin, RefreshCw, Gauge, LifeBuoy, StopCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useAppData, AppData } from '@/hooks/useAppData';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
@@ -462,6 +463,23 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     // Warnings only fire on launch — go straight to download here.
     startDownload(app);
   }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
+
+  const offerInstall = (app: AppData) => {
+    if (app.downloadUrl) {
+      toast({
+        title: `${app.name} isn't installed`,
+        description: "Tap Download & Install to get it now.",
+        action: (
+          <ToastAction altText="Download and install" onClick={() => handleDownload(app)}>
+            Download & Install
+          </ToastAction>
+        ),
+      });
+    } else {
+      toast({ title: "Not installed", description: `${app.name} isn't installed and no download is available.`, variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     if (apps.length > 0) {
       apps.forEach(app => {
@@ -532,14 +550,18 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       });
     } catch (error) {
       console.error('Launch error:', error);
-      const friendly = isWebUnsupportedError(error)
-        ? WEB_UNSUPPORTED_MSG
-        : `Could not launch ${app.name}. Make sure it's installed.`;
-      toast({
-        title: "Launch Failed",
-        description: friendly,
-        variant: "destructive",
-      });
+      if (isWebUnsupportedError(error)) {
+        toast({
+          title: "Launch Failed",
+          description: WEB_UNSUPPORTED_MSG,
+          variant: "destructive",
+        });
+        return;
+      }
+      // Launch failed → the app isn't really installed. Refresh detection so the
+      // tile flips to Install, and offer a one-tap Download & Install.
+      void refreshDeviceApps?.();
+      offerInstall(app);
     }
   };
 
@@ -562,11 +584,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
       // versions open SMC's own App Info page instead of the target.
       const installed = isPackageInstalled(packageName);
       if (!installed) {
-        toast({
-          title: "App not installed",
-          description: `${app.name} is not installed on this device, so there's nothing to uninstall.`,
-          variant: "destructive",
-        });
+        offerInstall(app);
         return;
       }
       await AppManager.openAppSettings({ packageName });
@@ -628,11 +646,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const installed = isPackageInstalled(packageName);
       if (!installed) {
-        toast({
-          title: 'App not installed',
-          description: `${app.name} isn't installed, so there's nothing to force stop.`,
-          variant: 'destructive',
-        });
+        offerInstall(app);
         return;
       }
       await AppManager.openAppSettings({ packageName });
@@ -659,11 +673,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     try {
       const installed = isPackageInstalled(packageName);
       if (!installed) {
-        toast({
-          title: "App not installed",
-          description: `${app.name} isn't installed, so there's no cache to clear.`,
-          variant: "destructive",
-        });
+        offerInstall(app);
         return;
       }
       await AppManager.openAppSettings({ packageName });
