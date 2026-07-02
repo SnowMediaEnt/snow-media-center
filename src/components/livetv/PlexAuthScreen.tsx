@@ -57,9 +57,12 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel }: 
             <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-5 mb-4 select-all">
               {pinCode || '····'}
             </div>
-            <div className="flex items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm mb-6">
+            <div className="flex items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm mb-3">
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Waiting for you to sign in…
             </div>
+            <p className="text-brand-ice/50 font-nunito text-xs mb-6 max-w-sm mx-auto">
+              Don't have your own Plex account? Send this code to your provider and they'll connect you.
+            </p>
             <Button variant="white" autoFocus data-focused="true" onClick={onCancel} className="tv-focusable home-focus-surface px-6">
               Cancel
             </Button>
