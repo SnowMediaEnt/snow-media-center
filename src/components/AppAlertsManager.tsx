@@ -456,6 +456,16 @@ const AppAlertsManager = () => {
                         <Mail className="w-3 h-3 mr-1" /> email
                       </Badge>
                     )}
+                    {alert.source === 'player_server' && (
+                      <Badge variant="outline" className="border-brand-ice/40 text-brand-ice">
+                        player
+                      </Badge>
+                    )}
+                    {alert.source === 'pre_event' && (
+                      <Badge variant="outline" className="border-brand-gold/40 text-brand-gold">
+                        PPV
+                      </Badge>
+                    )}
                     {!alert.active && (
                       <Badge variant="outline" className="border-slate-600 text-slate-400">
                         inactive
