@@ -155,7 +155,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 4; // [Back, Update, Account, SignOut]
+  const HEADER_COUNT = 3; // [Back, Update, Settings]
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
