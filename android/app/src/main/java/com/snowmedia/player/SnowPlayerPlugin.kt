@@ -14,8 +14,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.SubtitleView
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -29,6 +31,7 @@ class SnowPlayerPlugin : Plugin() {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
     private var textureView: TextureView? = null
+    private var subtitleView: SubtitleView? = null
     private var container: FrameLayout? = null
     private var volume: Float = 1f
     private var lastRect: IntArray? = null
@@ -43,6 +46,19 @@ class SnowPlayerPlugin : Plugin() {
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        // Closed-caption / subtitle renderer, layered above the video surface.
+        // Cues arrive via Player.Listener.onCues when a text track is selected.
+        val sv = SubtitleView(act)
+        sv.setUserDefaultStyle()
+        sv.setUserDefaultTextSize()
+        fl.addView(
+            sv,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        subtitleView = sv
         fl.visibility = View.GONE
         parent.addView(fl, 0, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         container = fl
@@ -77,6 +93,9 @@ class SnowPlayerPlugin : Plugin() {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 notifyListeners("tracksChanged", JSObject())
             }
+            override fun onCues(cueGroup: CueGroup) {
+                subtitleView?.setCues(cueGroup.cues)
+            }
         })
         player = p
     }
@@ -109,6 +128,7 @@ class SnowPlayerPlugin : Plugin() {
         activity?.runOnUiThread {
             player?.stop()
             player?.clearMediaItems()
+            subtitleView?.setCues(emptyList())
             container?.visibility = View.GONE
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             call.resolve()
