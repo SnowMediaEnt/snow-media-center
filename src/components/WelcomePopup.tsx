@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.8': [
+    'Player now opens with two choices — Live TV and Movies & Shows',
+    'New: Movies & Shows powered by Plex — sign in once and stream your library',
+    'New: Request tab — ask for any movie or show right from the app',
+    'Content Bar titles now open inside the app, landing right on the title',
+    'Channels now auto-recover from stream drops — no more frozen picture',
+    'Main Apps: "not installed" now offers instant Download & Install',
+  ],
   '1.5.7': [
     'New: full EPG "Guide" — classic cable-grid layout under Live TV',
     'New: Settings hub — Account, Switch Account, Appearance, Sign Out in one place',
