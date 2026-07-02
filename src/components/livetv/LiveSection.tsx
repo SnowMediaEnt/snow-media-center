@@ -487,6 +487,35 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setFullscreen(true);
   }, []);
 
+  // Native ExoPlayer wiring — only active on native builds while fullscreen.
+  const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+  const native = useNativePlayer({
+    active: nativeActive,
+    url: nativeActive ? streamUrl : null,
+    volume,
+    onTracksChanged: () => setTracksTick((t) => t + 1),
+    onPlayStateChange: (p) => setIsPaused(p),
+  });
+
+  // While native fullscreen owns the screen, expose its controller through
+  // the existing videoControllerRef so PlayerControlBar's audio/subtitle
+  // menus keep working unchanged.
+  useEffect(() => {
+    if (!nativeActive) return;
+    if (!native.controller) return;
+    videoControllerRef.current = native.controller;
+    return () => { videoControllerRef.current = null; };
+  }, [nativeActive, native.controller]);
+
+  // Transparency scope — while native fullscreen is active, add a class to
+  // <html> that neutralizes every painted background layer above the native
+  // video surface (which renders on a TextureView BEHIND the WebView).
+  useEffect(() => {
+    if (!nativeActive) return;
+    document.documentElement.classList.add('snowplayer-fullscreen');
+    return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
+  }, [nativeActive]);
+
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
     if (!visibleChannels.length) return;
     let i = visibleChannels.findIndex(s => s.stream_id === playingChannelId);
