@@ -14,6 +14,7 @@ export function usePlexAuth() {
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const startingRef = useRef(false);
   const cancelledRef = useRef(false);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
