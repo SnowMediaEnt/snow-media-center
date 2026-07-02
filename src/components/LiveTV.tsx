@@ -216,7 +216,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           e.preventDefault();
           e.stopPropagation();
           if (accountFormOpen && creds) setAccountFormOpen(false);
-          else onBack();
+          else leaveMode();
         }
         return;
       }
