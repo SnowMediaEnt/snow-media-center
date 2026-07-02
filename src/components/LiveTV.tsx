@@ -51,6 +51,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
+  const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   const [sectionIdx, setSectionIdx] = useState(0);
   const [pane, setPane] = useState<'header' | 'sections' | 'content'>('sections');
   const [headerIdx, setHeaderIdx] = useState(0);
