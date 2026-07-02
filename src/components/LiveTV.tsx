@@ -173,7 +173,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     window.setTimeout(() => { refreshChannels(); }, 250);
   }, [creds, refreshChannels]);
 
-  const showCredsForm = !creds || accountFormOpen;
+  const showCredsForm = mode === 'live' && (!creds || accountFormOpen);
   const showSettings = !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
