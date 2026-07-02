@@ -533,6 +533,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const visibleCategoriesRef = useRef(visibleCategories);
   const visibleChannelsRef = useRef(visibleChannels);
   const searchOpenRef = useRef(searchOpen);
+  const nativeErrorRef = useRef<{ code?: string; message: string } | null>(null);
+  const nativeRetryRef = useRef<() => void>(() => {});
+  useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
+  useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
   // Bar refs so the (stable) keydown listener can read live state without rebinding.
   const barVisibleRef = useRef(barVisible);
   const barFocusRef = useRef(barFocus);
