@@ -413,22 +413,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             }`}
           >
             <SettingsIcon className="w-4 h-4 mr-2" />
-            Account
-          </Button>
-          <Button
-            variant="white"
-            size="sm"
-            onClick={() => { void signOut(); }}
-            data-player-header-btn=""
-            data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 3 ? 'scale-105' : ''
-            }`}
-          >
-            <X className="w-4 h-4 mr-2" /> Sign Out
+            Settings
           </Button>
         </div>
       </div>
+
 
 
       {/* Three-pane layout */}
