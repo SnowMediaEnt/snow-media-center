@@ -34,6 +34,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
+  const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null } | null>(
+    (() => {
+      try {
+        const raw = sessionStorage.getItem('smc-plex-deeplink');
+        if (!raw) return null;
+        sessionStorage.removeItem('smc-plex-deeplink');
+        return JSON.parse(raw);
+      } catch { return null; }
+    })(),
+  );
+
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
   const [libIdx, setLibIdx] = useState(0);
   const [items, setItems] = useState<PlexItem[]>([]);
