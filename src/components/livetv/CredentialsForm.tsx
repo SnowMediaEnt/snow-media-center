@@ -58,6 +58,16 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
       if (result.server) {
         const acc = buildPlayerAccount(result.server, result.creds, result.userInfo);
         await savePlayerAccount(acc);
+        // Multi-account switcher store — remember every successful login.
+        void upsertSavedAccount({
+          id: savedAccountId(result.creds.host, result.creds.username),
+          serverLabel: result.server.label,
+          host: result.creds.host,
+          username: result.creds.username,
+          password: result.creds.password,
+          output: result.creds.output,
+          addedAt: Date.now(),
+        });
         // If the user is signed into a main account, mirror this into their
         // customer_services row (fire-and-forget).
         if (user?.id && user.email) {
