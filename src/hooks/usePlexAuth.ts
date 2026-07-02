@@ -14,6 +14,7 @@ export function usePlexAuth() {
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const startingRef = useRef(false);
   const cancelledRef = useRef(false);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
@@ -51,17 +52,21 @@ export function usePlexAuth() {
   }, [discover]);
 
   const startLink = useCallback(async () => {
+    if (startingRef.current) return;   // a PIN request / link is already in progress
+    startingRef.current = true;
     setError(null);
     clearPoll();
     try {
       const pin = await requestPlexPin();
       setPinCode(pin.code);
       setStatus('linking');
+      clearPoll();
       pollRef.current = window.setInterval(async () => {
         try {
           const token = await checkPlexPin(pin.id);
           if (token) {
             clearPoll();
+            startingRef.current = false;
             setPinCode(null);
             await savePlexToken(token);
             await discover(token);
@@ -69,15 +74,17 @@ export function usePlexAuth() {
         } catch { /* keep polling */ }
       }, 2500);
     } catch (e) {
+      startingRef.current = false;
       setError((e as Error).message || 'Could not start Plex sign-in.');
       setStatus('error');
     }
   }, [discover]);
 
-  const cancelLink = useCallback(() => { clearPoll(); setPinCode(null); setStatus('signed-out'); }, []);
+  const cancelLink = useCallback(() => { clearPoll(); startingRef.current = false; setPinCode(null); setStatus('signed-out'); }, []);
 
   const signOut = useCallback(async () => {
     clearPoll();
+    startingRef.current = false;
     await clearPlexToken();
     setConn(null); setPinCode(null); setError(null); setStatus('signed-out');
   }, []);
