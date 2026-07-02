@@ -64,6 +64,9 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
             <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-focusable home-focus-surface px-8">
               <LogIn className="w-4 h-4 mr-2" /> Sign in with Plex
             </Button>
+            <p className="text-brand-ice/50 font-nunito text-xs mt-4 max-w-sm mx-auto">
+              Using your provider's Plex? Message them first — the sign-in code expires about 10 minutes after you press Sign in.
+            </p>
           </>
         )}
 
