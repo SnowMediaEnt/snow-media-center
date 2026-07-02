@@ -336,7 +336,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
             if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
-              onBack();
+              leaveMode();
             }
           }
         });
