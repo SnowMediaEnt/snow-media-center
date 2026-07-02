@@ -212,7 +212,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           if (idx === 0) onBack();
           else if (idx === 1) refreshChannels();
           else if (idx === 2) setSettingsOpen(true);
-          else if (idx === 3) void signOut();
         }
         return;
       }
