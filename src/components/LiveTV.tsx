@@ -372,6 +372,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.7</div>
 
+      {serverAlert && serverLabel && (
+        <PlayerServerAlertDialog
+          alert={serverAlert}
+          serverLabel={serverLabel}
+          onDismiss={dismissServerAlert}
+        />
+      )}
+
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
