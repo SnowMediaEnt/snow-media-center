@@ -45,13 +45,15 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         onBack();
         return;
       }
       const arrows = ['ArrowLeft', 'ArrowRight', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
       else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
       else if (e.key === 'Enter' || e.key === ' ') {
