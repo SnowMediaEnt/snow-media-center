@@ -144,19 +144,58 @@ export async function getPlexServers(token: string): Promise<PlexServer[]> {
     }));
 }
 
-/** Probe a server's connections (local → remote → relay) and return the first reachable base URL. */
-export async function pickPlexConnection(server: PlexServer): Promise<string | null> {
-  const ordered = [...server.connections].sort(
-    (a, b) => (Number(b.local) - Number(a.local)) || (Number(a.relay) - Number(b.relay)),
-  );
-  for (const c of ordered) {
-    if (!c.uri) continue;
-    try {
-      await plexReq('GET', `${c.uri}/identity`, server.accessToken, 6000);
-      return c.uri;
-    } catch { /* try next connection */ }
+/** Probe ALL of a server's connections in parallel (LAN, remote, relay, plus
+ *  plain http://ip:port fallbacks) and return the best reachable base URL.
+ *  Priority: local non-relay > remote non-relay > relay. Chrome-66-safe
+ *  (no Promise.any/allSettled). */
+export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): Promise<string | null> {
+  interface Candidate { url: string; priority: number; }
+  const seen: Record<string, boolean> = {};
+  const candidates: Candidate[] = [];
+  const push = (url: string | undefined, priority: number) => {
+    if (!url || seen[url]) return;
+    seen[url] = true;
+    candidates.push({ url, priority });
+  };
+  for (const c of server.connections) {
+    const prio = c.relay ? 3 : c.local ? 1 : 2;
+    push(c.uri, prio);
+    if (!c.relay && c.address && c.port) push(`${c.protocol || 'http'}://${c.address}:${c.port}`, prio);
   }
-  return null;
+  if (candidates.length === 0) return null;
+
+  return new Promise<string | null>((resolve) => {
+    let pending = candidates.length;
+    let best: Candidate | null = null;
+    let settled = false;
+    const maybeFinish = (force = false) => {
+      if (settled) return;
+      if (best && (best.priority === 1 || pending === 0 || force)) {
+        settled = true;
+        resolve(best.url);
+      } else if (pending === 0 || force) {
+        settled = true;
+        resolve(best ? best.url : null);
+      }
+    };
+    const timer = window.setTimeout(() => maybeFinish(true), timeoutMs + 1000);
+    candidates.forEach((cand) => {
+      plexReq('GET', `${cand.url}/identity`, server.accessToken, timeoutMs)
+        .then(() => {
+          if (!best || cand.priority < best.priority) best = cand;
+        })
+        .catch(() => { /* unreachable candidate */ })
+        .then(() => {
+          pending -= 1;
+          if (pending === 0) window.clearTimeout(timer);
+          maybeFinish();
+        });
+    });
+  });
+}
+
+export async function getPlexIdentity(base: string, token: string): Promise<void> {
+  await plexReq('GET', `${base}/identity`, token, 5000);
 }
 
 export interface PlexSavedServer { base: string; token: string; name: string; }
