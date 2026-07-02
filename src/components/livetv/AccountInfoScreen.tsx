@@ -33,7 +33,7 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
 const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(0); // 0=Back, 1=Show/Hide pwd, 2=Sign out
+  const [focusIdx, setFocusIdx] = useState(1); // Start on Show/Hide password so Enter doesn't accidentally close the screen.
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
