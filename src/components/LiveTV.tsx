@@ -36,13 +36,6 @@ interface Props {
 }
 
 type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
-const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
-  { id: 'live',   label: 'Live TV', icon: Tv },
-  { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
-  { id: 'movies', label: 'Movies',  icon: Film },
-  { id: 'series', label: 'Series',  icon: ListVideo },
-  { id: 'plex',   label: 'Plex',    icon: Film },
-];
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
