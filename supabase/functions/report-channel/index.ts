@@ -1,54 +1,105 @@
-// Anonymous-safe channel report → email to support.
-// verify_jwt=false in supabase/config.toml — that's the point. Safety comes
-// from the HARDCODED recipient (never accepts a caller-supplied `to`).
-import { Resend } from 'npm:resend@4.0.0';
+// Anonymous-safe channel report → creates a ticket in support_tickets so it
+// shows up in the admin dashboard. verify_jwt=false in supabase/config.toml.
+// Safety: guests can only file reports under a hardcoded sentinel user
+// ("Player Reports"); they cannot spoof another user_id.
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUPPORT_RECIPIENTS = ['support@snowmediaent.com'];
+const SENTINEL_EMAIL = 'player-reports@snowmediaapps.com';
+const SENTINEL_NAME = 'Player Reports';
+let cachedSentinelId: string | null = null;
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+async function resolveSentinelUserId(admin: ReturnType<typeof createClient>): Promise<string> {
+  if (cachedSentinelId) return cachedSentinelId;
+
+  // Try create; if already exists, page through users to find it.
+  const created = await admin.auth.admin.createUser({
+    email: SENTINEL_EMAIL,
+    email_confirm: true,
+    password: crypto.randomUUID(),
+    user_metadata: { full_name: SENTINEL_NAME },
+  });
+
+  let userId: string | null = created.data?.user?.id ?? null;
+
+  if (!userId) {
+    // Fall back to lookup — paginate auth users.
+    for (let page = 1; page <= 20 && !userId; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw error;
+      const match = data.users.find((u) => (u.email || '').toLowerCase() === SENTINEL_EMAIL);
+      if (match) userId = match.id;
+      if (!data.users.length || data.users.length < 200) break;
+    }
   }
 
+  if (!userId) throw new Error('Failed to resolve sentinel user');
+
+  // Ensure a profiles row exists so the admin dashboard join renders a name/email.
+  await admin.from('profiles').upsert(
+    { user_id: userId, email: SENTINEL_EMAIL, full_name: SENTINEL_NAME },
+    { onConflict: 'user_id' },
+  );
+
+  cachedSentinelId = userId;
+  return userId;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
   try {
-    const apiKey = Deno.env.get('RESEND_API_KEY');
-    if (!apiKey) {
+    const url = Deno.env.get('SUPABASE_URL');
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!url || !key) {
       return new Response(
-        JSON.stringify({ error: 'Email service not configured. Missing RESEND_API_KEY.' }),
+        JSON.stringify({ error: 'Server not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     const body = await req.json().catch(() => ({}));
-    const subject = typeof body?.subject === 'string' && body.subject.trim()
-      ? body.subject.trim().slice(0, 200)
-      : '[Channel Report]';
-    const html = typeof body?.html === 'string' && body.html.trim()
-      ? body.html
-      : '<p>(empty report)</p>';
-
-    const resend = new Resend(apiKey);
-    const { data, error } = await resend.emails.send({
-      from: 'Snow Media Player <onboarding@resend.dev>',
-      to: SUPPORT_RECIPIENTS,
-      subject,
-      html,
-    });
-
-    if (error) {
+    const rawSubject = typeof body?.subject === 'string' ? body.subject.trim() : '';
+    const rawMessage = typeof body?.message === 'string' ? body.message.trim() : '';
+    if (!rawSubject || !rawMessage) {
       return new Response(
-        JSON.stringify({ error: 'Failed to send email', details: error.message }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        JSON.stringify({ error: 'subject and message required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+    const subject = rawSubject.slice(0, 200);
+    const message = rawMessage.slice(0, 2000);
+
+    const admin = createClient(url, key, { auth: { persistSession: false } });
+    const sentinelId = await resolveSentinelUserId(admin);
+
+    const { data: ticket, error: ticketErr } = await admin
+      .from('support_tickets')
+      .insert({
+        user_id: sentinelId,
+        subject,
+        status: 'open',
+        priority: 'normal',
+        admin_has_unread: true,
+      })
+      .select('id')
+      .single();
+    if (ticketErr) throw ticketErr;
+
+    const { error: msgErr } = await admin.from('support_messages').insert({
+      ticket_id: ticket.id,
+      user_id: sentinelId,
+      sender_type: 'user',
+      message,
+    });
+    if (msgErr) throw msgErr;
 
     return new Response(
-      JSON.stringify({ success: true, id: data?.id }),
+      JSON.stringify({ success: true, ticketId: ticket.id }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (e) {
