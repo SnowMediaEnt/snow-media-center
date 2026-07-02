@@ -207,7 +207,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
-      if (modeRef.current === 'choose') return;
+      if (modeRef.current !== 'live') return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
 
@@ -376,6 +376,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   if (mode === 'choose') {
     return <PlayerModeChooser onPick={enterMode} onBack={onBack} />;
+  }
+
+  if (mode === 'movies') {
+    return (
+      <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+          <PlexSection
+            isActive={true}
+            onExitLeft={leaveMode}
+            onExitUp={leaveMode}
+          />
+        </Suspense>
+      </div>
+    );
   }
 
   // Sign-in screen — shown when no creds OR user opened account form
