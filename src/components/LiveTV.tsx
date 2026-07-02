@@ -21,7 +21,7 @@ import LiveSection from './livetv/LiveSection';
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
-const AccountInfoScreen = lazy(() => import('./livetv/AccountInfoScreen'));
+const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 
 
 interface Props {
