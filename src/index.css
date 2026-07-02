@@ -620,6 +620,25 @@ textarea:focus:not(:focus-visible) {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   User theming (opt-in via html[data-user-theme="1"]).
+   applyTheme() sets: --user-font-scale, --user-font-family,
+   --user-text, --user-bg, and overrides --brand-gold (accent).
+   NOTE: kept ABOVE the snowplayer-fullscreen block so fullscreen wins.
+   ────────────────────────────────────────────────────────────────────────── */
+html[data-user-theme="1"] {
+  font-size: calc(1rem * var(--user-font-scale, 1));
+  --background: var(--user-bg);
+  --foreground: var(--user-text);
+}
+html[data-user-theme="1"] body {
+  font-family: var(--user-font-family, 'Nunito', sans-serif);
+}
+html[data-user-theme="1"] [data-app-scroll-root] {
+  background: hsl(var(--user-bg)) !important;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
    Native ExoPlayer fullscreen (SnowPlayer) transparency scope.
 
    The native TextureView renders BEHIND the WebView. Video is only visible
