@@ -618,19 +618,25 @@ textarea:focus:not(:focus-visible) {
 
    The native TextureView renders BEHIND the WebView. Video is only visible
    where the composited page pixels are transparent — so while this class is
-   on <html>, every painted background layer above the video must go
-   transparent. PlayerControlBar / EPG chrome sit ABOVE this scope's targets
-   (they're inside .fixed inset-0 z-[60] chrome) and stay fully opaque.
+   on <html>, every painted background layer BENEATH the fullscreen chrome
+   layer (LiveSection's .fixed.inset-0.z-[60], which itself uses
+   bg-transparent in native mode) must go transparent.
 
-   Layers neutralized (inventory from Index/App/LiveTV render trees):
+   The chrome INSIDE that fixed layer (PlayerControlBar bar/badges/menus,
+   the buffering spinner, the fatal overlay) sits ABOVE the video and keeps
+   its own opaque backgrounds — we deliberately do NOT match those class
+   combinations (bg-black/60 badges, bg-black/90 menus, gradient from-black
+   in the control bar) below.
+
+   Layers neutralized (inventory from App/Index/LiveTV render trees):
      - html / body / #root default paints (body has @apply bg-background)
      - App.tsx [data-app-scroll-root] inline linear-gradient background
      - App.tsx dynamic user bg <img> (fixed inset-0 z-0)
      - App.tsx overlay wrapper .min-h-dvh.bg-black/30
-     - LiveTV.tsx root .h-screen.bg-black/70 (and its loading-return sibling)
+     - LiveTV.tsx root .h-screen.bg-black/70 (main return)
+     - LiveTV.tsx loading-return sibling .min-h-screen.bg-black/70
      - LiveTV.tsx header .bg-black/30.backdrop-blur-sm
      - LiveTV.tsx sections column .bg-black/50
-     - LiveSection channels/categories panes .bg-black/40 / .bg-black/30
    ────────────────────────────────────────────────────────────────────────── */
 html.snowplayer-fullscreen,
 html.snowplayer-fullscreen body,
@@ -641,29 +647,15 @@ html.snowplayer-fullscreen [data-app-scroll-root] {
   background-image: none !important;
 }
 html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
-  display: none !important;
+  visibility: hidden !important;
 }
-/* Any Tailwind bg-black/* / bg-white/* overlay wrappers inside the app tree
-   go transparent while the native player owns the screen. This covers
-   LiveTV's root, header, sections column, and LiveSection's list panes —
-   which are unmounted in the fullscreen branch but still safe to null out. */
-html.snowplayer-fullscreen [data-app-scroll-root] * {
+html.snowplayer-fullscreen .min-h-dvh.bg-black\/30,
+html.snowplayer-fullscreen .h-screen.bg-black\/70,
+html.snowplayer-fullscreen .min-h-screen.bg-black\/70,
+html.snowplayer-fullscreen .bg-black\/30.backdrop-blur-sm,
+html.snowplayer-fullscreen .flex-shrink-0.bg-black\/50 {
+  background-color: transparent !important;
   backdrop-filter: none !important;
 }
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-black\/70,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-black\/60,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-black\/50,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-black\/40,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-black\/30,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-white\/10,
-html.snowplayer-fullscreen [data-app-scroll-root] .bg-white\/5 {
-  background-color: transparent !important;
-}
-/* The fullscreen chrome layer itself (LiveSection's .fixed.inset-0.z-\[60\])
-   already renders with .bg-transparent in native mode — but if any nested
-   descendant of that layer needs to stay opaque (control bar bg, error
-   overlay), it lives inside PlayerControlBar / the fatal overlay divs which
-   use their own bg-black/85 etc. Those are NOT under [data-app-scroll-root]
-   scope (they're portalled? no — actually siblings). Keep them opaque by
-   not scoping the transparency to the fixed layer itself. */
+
 
