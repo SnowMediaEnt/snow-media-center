@@ -518,6 +518,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             />
           </Suspense>
         )}
+        {section === 'plex' && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <PlexSection
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+            />
+          </Suspense>
+        )}
       </div>
     </div>
   );
