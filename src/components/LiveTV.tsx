@@ -229,7 +229,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (paneRef.current === 'header') {
         if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation();
-          onBack();
+          leaveMode();
           return;
         }
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
