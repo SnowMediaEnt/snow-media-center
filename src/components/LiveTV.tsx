@@ -61,6 +61,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Where to return when leaving the header via Down.
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
 
+  const serverLabel = creds?.serverLabel ?? SERVERS.find(s => s.host === creds?.host)?.label ?? null;
+  const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(serverLabel);
+  const serverAlertOpenRef = useRef(false);
+  useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
+
 
   // Load creds on mount
   useEffect(() => {
