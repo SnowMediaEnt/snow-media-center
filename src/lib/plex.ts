@@ -76,7 +76,7 @@ async function plexReq<T>(method: 'GET' | 'POST', url: string, token?: string, t
 export interface PlexPin { id: number; code: string; }
 
 export async function requestPlexPin(): Promise<PlexPin> {
-  const data = await plexReq<{ id: number; code: string }>('POST', 'https://plex.tv/api/v2/pins?strong=true');
+  const data = await plexReq<{ id: number; code: string }>('POST', 'https://plex.tv/api/v2/pins');
   return { id: data.id, code: data.code };
 }
 
