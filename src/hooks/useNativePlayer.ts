@@ -54,10 +54,14 @@ export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_
     if (retryTimerRef.current) { window.clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
   };
 
+  const retryBusyRef = useRef(false);
   const retry = useCallback(() => {
+    if (retryBusyRef.current) return;
+    retryBusyRef.current = true;
     retriesRef.current = 0;
     setError(null);
     setRetryNonce((n) => n + 1);
+    window.setTimeout(() => { retryBusyRef.current = false; }, 800);
   }, []);
 
   // Ensure controller handle exists exactly once while active.
