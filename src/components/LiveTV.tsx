@@ -379,7 +379,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               setCreds(c);
               setAccountFormOpen(false);
             }}
-            onCancel={creds ? () => setAccountFormOpen(false) : onBack}
+            onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
           />
         </Suspense>
       </div>
