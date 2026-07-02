@@ -250,7 +250,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           setPane(headerReturnPaneRef.current);
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
-          if (idx === 0) onBack();
+          if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
           else if (idx === 2) setSettingsOpen(true);
         }
