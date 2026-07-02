@@ -236,6 +236,60 @@ export async function clearPlayerAccount(): Promise<void> {
   try { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); } catch { /* ignore */ }
 }
 
+// --- saved accounts (multi-account switcher) --------------------------------
+
+const SAVED_ACCOUNTS_KEY = 'snow-livetv-saved-accounts-v1';
+export const SAVED_ACCOUNTS_REFRESH_EVENT = 'savedAccountsRefresh';
+
+export interface SavedAccount {
+  id: string;
+  serverLabel: string;
+  host: string;
+  username: string;
+  password: string;
+  output: 'm3u8' | 'ts';
+  addedAt: number;
+}
+
+export const savedAccountId = (host: string, username: string): string =>
+  `${host.trim().toLowerCase().replace(/\/+$/, '')}::${username.trim().toLowerCase()}`;
+
+export async function loadSavedAccounts(): Promise<SavedAccount[]> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { value } = await Preferences.get({ key: SAVED_ACCOUNTS_KEY });
+    if (value) return JSON.parse(value) as SavedAccount[];
+  } catch { /* not native */ }
+  try {
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
+    if (raw) return JSON.parse(raw) as SavedAccount[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+export async function saveSavedAccounts(list: SavedAccount[]): Promise<void> {
+  const json = JSON.stringify(list);
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.set({ key: SAVED_ACCOUNTS_KEY, value: json });
+  } catch { /* not native */ }
+  try { localStorage.setItem(SAVED_ACCOUNTS_KEY, json); } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent(SAVED_ACCOUNTS_REFRESH_EVENT)); } catch { /* ignore */ }
+}
+
+export async function upsertSavedAccount(acc: SavedAccount): Promise<void> {
+  const list = await loadSavedAccounts();
+  const idx = list.findIndex(a => a.id === acc.id);
+  if (idx >= 0) list[idx] = acc;
+  else list.push(acc);
+  await saveSavedAccounts(list);
+}
+
+export async function removeSavedAccount(id: string): Promise<void> {
+  const list = await loadSavedAccounts();
+  await saveSavedAccounts(list.filter(a => a.id !== id));
+}
+
 /** Convert a unix-seconds exp_date to ms epoch (or null). */
 export function expDateToMs(expDate: number | null | undefined): number | null {
   if (expDate === null || expDate === undefined) return null;
