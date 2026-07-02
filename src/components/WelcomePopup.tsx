@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.7': [
+    'New: full EPG "Guide" — classic cable-grid layout under Live TV',
+    'New: Settings hub — Account, Switch Account, Appearance, Sign Out in one place',
+    'New: Saved Accounts — save Dreamstreams + Vibez and switch without re-typing',
+    'New: Appearance — customize font, text size, highlight, background & text color',
+    'Player closed captions + audio-track selection',
+  ],
   '1.5.6': [
     'All-new native video engine — smoother playback and fixed audio on every channel',
     'Closed captions (CC) — pick them in the player\'s subtitle menu',
