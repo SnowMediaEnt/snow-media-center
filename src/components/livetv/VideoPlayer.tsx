@@ -27,6 +27,12 @@ export interface VideoController {
 interface VideoPlayerProps {
   src: string | null;
   volume?: number;
+  /**
+   * Explicit muted state. When provided, drives both the <video> initial
+   * muted attribute AND the fullscreen-vs-preview branching (backward
+   * compatible: when undefined, we fall back to `volume > 0` heuristic).
+   */
+  muted?: boolean;
   className?: string;
   /** Auto-retry attempts on fatal errors (IPTV streams drop often). */
   maxRetries?: number;
@@ -64,7 +70,7 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
@@ -287,9 +293,10 @@ const VideoPlayer = memo(({ src, volume = 0.8, className, maxRetries = 5, onErro
       if (nativeLoadTimer) { clearTimeout(nativeLoadTimer); nativeLoadTimer = null; }
     };
 
-    // The fullscreen player is opened by user action and passes a non-zero
-    // volume. The preview tile passes volume={0} and must stay muted.
-    const isFullscreenPlayer = (volume ?? 0) > 0;
+    // The fullscreen player is opened by user action and passes muted={false}.
+    // The preview tile passes muted={true} (and volume=0) and must stay muted.
+    // Backward-compat: if `muted` isn't provided, fall back to legacy heuristic.
+    const isFullscreenPlayer = muted === undefined ? (volume ?? 0) > 0 : !muted;
 
     // Autoplay safety: muted=true cannot be blocked by Chromium autoplay policy.
     const safePlay = async () => {

@@ -398,11 +398,12 @@ const PinnedAppsPopup = ({
                       }
                     }}
                     title={installed ? 'Tap to launch · Hold to change' : 'Not installed — tap to download · Hold to change'}
+                    data-focused={isFocused ? 'true' : 'false'}
                     className={`
                       relative flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
                       border-2 ${installed ? 'border-slate-600 hover:border-brand-ice/50' : 'border-slate-700/70 hover:border-amber-500/60'}
                       transition-all duration-150 group cursor-pointer
-                      ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
+                      ${isFocused ? 'scale-110 brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center gap-1.5">
@@ -441,11 +442,12 @@ const PinnedAppsPopup = ({
                       e.stopPropagation();
                       openSelector(null);
                     }}
+                    data-focused={isFocused ? 'true' : 'false'}
                     className={`
                       flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
                       border-2 border-dashed border-slate-600 hover:border-brand-gold/50 
                       transition-all duration-150 group cursor-pointer
-                      ${isFocused ? 'ring-4 ring-brand-gold border-brand-gold scale-110 shadow-[0_0_24px_rgba(255,200,80,0.7)] brightness-125 z-10' : ''}
+                      ${isFocused ? 'scale-110 brightness-125 z-10' : ''}
                     `}
                   >
                     <div className="flex flex-col items-center justify-center gap-1.5">

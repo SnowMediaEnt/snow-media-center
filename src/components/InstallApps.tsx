@@ -746,7 +746,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   };
 
   const isFocused = (id: string) => focusedElement === id;
-  const focusRing = (id: string) => isFocused(id) ? 'scale-110 ring-4 ring-brand-ice shadow-[0_0_26px_rgba(255,255,255,0.75),0_0_52px_rgba(161,213,220,0.45)] brightness-125 z-10' : '';
+  const focusRing = (id: string) => isFocused(id) ? 'scale-110 brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
     <div className="space-y-3 pb-10 px-2">
@@ -969,6 +969,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           <div className="flex items-center w-full justify-between">
           <Button 
             data-focus-id="back"
+            data-focused={isFocused('back') ? 'true' : 'false'}
             onClick={onBack}
             variant="gold" 
             size="lg"
@@ -979,6 +980,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           </Button>
             <Button
               data-focus-id="refresh"
+              data-focused={isFocused('refresh') ? 'true' : 'false'}
               onClick={async () => {
                 await refreshDeviceApps();
                 refreshAllStatuses();
@@ -1005,6 +1007,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-slate-800/50 border-slate-600">
             <TabsTrigger 
               data-focus-id="tab-0"
+              data-focused={isFocused('tab-0') ? 'true' : 'false'}
               value="featured" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-0')}`}
             >
@@ -1012,6 +1015,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
             </TabsTrigger>
             <TabsTrigger 
               data-focus-id="tab-1"
+              data-focused={isFocused('tab-1') ? 'true' : 'false'}
               value="all" 
               className={`text-white data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-1')}`}
             >

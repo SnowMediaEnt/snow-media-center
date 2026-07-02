@@ -346,7 +346,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>backfix-1</div>
+      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>m1</div>
 
 
       {/* Header */}
@@ -358,9 +358,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={onBack}
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 0
-                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
-                : ''
+              pane === 'header' && headerIdx === 0 ? 'scale-105' : ''
             }`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
@@ -384,9 +382,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             aria-label="Update Channels"
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 1
-                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
-                : ''
+              pane === 'header' && headerIdx === 1 ? 'scale-105' : ''
             }`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -398,9 +394,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={() => setAccountInfoOpen(true)}
             data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 2
-                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
-                : ''
+              pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
             }`}
           >
             <SettingsIcon className="w-4 h-4 mr-2" />
@@ -412,9 +406,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={() => { void signOut(); }}
             data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 3
-                ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]'
-                : ''
+              pane === 'header' && headerIdx === 3 ? 'scale-105' : ''
             }`}
           >
             <X className="w-4 h-4 mr-2" /> Sign Out
