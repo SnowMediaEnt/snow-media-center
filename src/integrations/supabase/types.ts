@@ -2138,6 +2138,7 @@ export type Database = {
         }[]
       }
       get_tenant_config: { Args: { p_code: string }; Returns: Json }
+      get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2148,6 +2149,18 @@ export type Database = {
       is_master: { Args: never; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
+      list_tenant_members: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          role: string
+          tenant_code: string
+          tenant_id: string
+          tenant_name: string
+          user_id: string
+        }[]
+      }
       record_free_ai: {
         Args: {
           p_cost_usd: number

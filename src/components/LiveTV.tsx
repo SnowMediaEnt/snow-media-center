@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -18,6 +18,7 @@ import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { runWhenIdle } from '@/utils/idle';
 
 import LiveSection from './livetv/LiveSection';
+const GuideSection = lazy(() => import('./livetv/GuideSection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
@@ -29,9 +30,10 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'movies' | 'series';
+type SectionId = 'live' | 'guide' | 'movies' | 'series';
 const SECTIONS: { id: SectionId; label: string; icon: typeof Tv }[] = [
   { id: 'live',   label: 'Live TV', icon: Tv },
+  { id: 'guide',  label: 'Guide',   icon: LayoutGrid },
   { id: 'movies', label: 'Movies',  icon: Film },
   { id: 'series', label: 'Series',  icon: ListVideo },
 ];
@@ -462,6 +464,19 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onNavigate={onNavigate}
           />
         )}
+
+        {section === 'guide' && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <GuideSection
+              creds={creds!}
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+              onNavigate={onNavigate}
+            />
+          </Suspense>
+        )}
+
 
         {section === 'movies' && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
