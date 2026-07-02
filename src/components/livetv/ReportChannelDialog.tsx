@@ -78,7 +78,7 @@ const ReportChannelDialog = memo(({
           const { error } = await supabase.functions.invoke('report-channel', {
             body: {
               subject: `[Channel Report] ${subject}`,
-              html: `<h3>Channel report (guest)</h3><p>${message.replace(/\n/g, '<br>')}</p>`,
+              message,
             },
           });
           if (error) throw error;
