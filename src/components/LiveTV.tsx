@@ -124,6 +124,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const sectionsRef = useRef(sections);
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
 
+  // Keep section/sectionIdx valid when the sections list changes — e.g. signing
+  // out of IPTV in Movies mode shrinks [plex,movies,series] → [plex].
+  useEffect(() => {
+    if (mode === 'choose' || sections.length === 0) return;
+    if (!sections.some((s) => s.id === section)) setSection(sections[0].id);
+    if (sectionIdx > sections.length - 1) setSectionIdx(sections.length - 1);
+  }, [sections, section, sectionIdx, mode]);
+
   const enterMode = useCallback((m: 'live' | 'movies') => {
     setMode(m);
     setSection(m === 'live' ? 'live' : 'plex');
@@ -332,10 +340,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               cancelable: true,
             }));
           } catch {
-            
+
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
-            if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
+            if (modeRef.current === 'choose') {
+              onBack();
+            } else if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
               leaveMode();
             }
           }
@@ -529,7 +539,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         )}
 
 
-        {section === 'movies' && (
+        {section === 'movies' && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
               creds={creds!}
@@ -539,7 +549,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             />
           </Suspense>
         )}
-        {section === 'series' && (
+        {section === 'series' && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
               creds={creds!}
