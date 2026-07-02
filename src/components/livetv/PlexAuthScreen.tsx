@@ -1,5 +1,5 @@
-import { memo, useEffect } from 'react';
-import { Loader2, Tv, AlertTriangle, LogIn } from 'lucide-react';
+import { memo, useEffect, useState } from 'react';
+import { Loader2, Tv, AlertTriangle, LogIn, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PlexStatus } from '@/hooks/usePlexAuth';
 
@@ -9,9 +9,15 @@ interface Props {
   error: string | null;
   onStartLink: () => void;
   onCancel: () => void;
+  onRetry: () => void;
+  onSignOut: () => void;
 }
 
-const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel }: Props) => {
+const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, onRetry, onSignOut }: Props) => {
+  const [focusIdx, setFocusIdx] = useState(0); // for unreachable: 0=Retry, 1=Sign out
+
+  useEffect(() => { if (status === 'unreachable') setFocusIdx(0); }, [status]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -22,6 +28,19 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel }: 
         onCancel();
         return;
       }
+      if (status === 'unreachable') {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          setFocusIdx((i) => (i === 0 ? 1 : 0));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          if (focusIdx === 0) onRetry(); else onSignOut();
+          return;
+        }
+        return;
+      }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         if (status === 'signed-out' || status === 'error') onStartLink();
@@ -29,13 +48,13 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel }: 
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [status, onStartLink, onCancel]);
+  }, [status, focusIdx, onStartLink, onCancel, onRetry, onSignOut]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
         <div className="w-16 h-16 rounded-2xl bg-brand-gold/20 flex items-center justify-center mx-auto mb-5">
-          <Tv className="w-9 h-9 text-brand-gold" />
+          {status === 'unreachable' ? <WifiOff className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
         </div>
 
         {(status === 'signed-out') && (
@@ -74,6 +93,23 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel }: 
             <h2 className="text-2xl font-quicksand font-bold mb-2">Connecting…</h2>
             <p className="text-brand-ice/70 font-nunito mb-4">Finding your Plex server.</p>
             <Loader2 className="w-8 h-8 animate-spin text-brand-gold mx-auto" />
+          </>
+        )}
+
+        {status === 'unreachable' && (
+          <>
+            <h2 className="text-xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
+            <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || 'Your Plex server did not respond.'}</p>
+            <div className="flex items-center justify-center gap-3">
+              <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}
+                className={`tv-focusable home-focus-surface px-6 ${focusIdx === 0 ? 'scale-105' : ''}`}>
+                Retry connection
+              </Button>
+              <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onSignOut}
+                className={`tv-focusable home-focus-surface px-6 ${focusIdx === 1 ? 'scale-105' : ''}`}>
+                Sign out of Plex
+              </Button>
+            </div>
           </>
         )}
 

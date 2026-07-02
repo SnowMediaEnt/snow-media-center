@@ -31,7 +31,7 @@ interface Props {
 
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, startLink, cancelLink } = usePlexAuth();
+  const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
   const [libIdx, setLibIdx] = useState(0);
@@ -202,7 +202,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     return <div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>;
   }
   if (status !== 'ready') {
-    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
+    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
   // ── render: fullscreen ───────────────────────────────────────────────

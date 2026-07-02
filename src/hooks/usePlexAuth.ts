@@ -3,9 +3,10 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
+  getPlexIdentity,
 } from '@/lib/plex';
 
-export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'error';
+export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
 export interface PlexConn { base: string; token: string; name: string; }
 
 export function usePlexAuth() {
@@ -15,31 +16,48 @@ export function usePlexAuth() {
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
   const startingRef = useRef(false);
+  const discoveringRef = useRef(false);
   const cancelledRef = useRef(false);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
   const discover = useCallback(async (accountToken: string): Promise<boolean> => {
+    if (discoveringRef.current) return false;
+    discoveringRef.current = true;
     setStatus('connecting');
     try {
       const cached = await loadPlexServer();
       if (cached?.base && cached?.token) {
-        setConn(cached); setStatus('ready'); return true;
+        try {
+          await getPlexIdentity(cached.base, cached.token);
+          setConn(cached); setStatus('ready'); return true;
+        } catch { /* stale cache — rediscover */ }
       }
       const servers = await getPlexServers(accountToken);
       const owned = servers.find((s) => s.owned) ?? servers[0];
-      if (!owned) { setError('No Plex server found on your account.'); setStatus('error'); return false; }
+      if (!owned) {
+        setError('No Plex Media Server is linked to this Plex account.');
+        setStatus('unreachable');
+        return false;
+      }
       const base = await pickPlexConnection(owned);
-      if (!base) { setError(`Couldn't reach "${owned.name}". Check that it's online.`); setStatus('error'); return false; }
+      if (!base) {
+        setError(`Signed in, and found your server "${owned.name}" — but this device can't reach it. If the server is on this network, check its firewall allows port 32400. Otherwise turn on Remote Access (Plex Server Settings → Remote Access) and tap Retry.`);
+        setStatus('unreachable');
+        return false;
+      }
       const c: PlexConn = { base, token: owned.accessToken || accountToken, name: owned.name };
       await savePlexServer(c);
       setConn(c); setStatus('ready'); return true;
     } catch (e) {
-      setError((e as Error).message || 'Failed to reach Plex.'); setStatus('error'); return false;
+      setError((e as Error).message || 'Failed to reach Plex.');
+      setStatus('unreachable');
+      return false;
+    } finally {
+      discoveringRef.current = false;
     }
   }, []);
 
-  // On mount: resume an existing session.
   useEffect(() => {
     cancelledRef.current = false;
     (async () => {
@@ -52,7 +70,7 @@ export function usePlexAuth() {
   }, [discover]);
 
   const startLink = useCallback(async () => {
-    if (startingRef.current) return;   // a PIN request / link is already in progress
+    if (startingRef.current) return;
     startingRef.current = true;
     setError(null);
     clearPoll();
@@ -80,7 +98,9 @@ export function usePlexAuth() {
     }
   }, [discover]);
 
-  const cancelLink = useCallback(() => { clearPoll(); startingRef.current = false; setPinCode(null); setStatus('signed-out'); }, []);
+  const cancelLink = useCallback(() => {
+    clearPoll(); startingRef.current = false; setPinCode(null); setStatus('signed-out');
+  }, []);
 
   const signOut = useCallback(async () => {
     clearPoll();
@@ -89,5 +109,12 @@ export function usePlexAuth() {
     setConn(null); setPinCode(null); setError(null); setStatus('signed-out');
   }, []);
 
-  return { status, conn, pinCode, error, startLink, cancelLink, signOut };
+  const retryConnect = useCallback(async () => {
+    const token = await loadPlexToken();
+    if (!token) { setStatus('signed-out'); return; }
+    setError(null);
+    await discover(token);
+  }, [discover]);
+
+  return { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect };
 }
