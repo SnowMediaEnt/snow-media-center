@@ -226,8 +226,13 @@ const ReportChannelDialog = memo(({
       }
       if (typing) e.stopPropagation();
     };
+    const onKeyUp = () => { armedRef.current = true; };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
   }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite]);
 
   // Auto-blur textarea so D-pad navigation works again
