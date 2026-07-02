@@ -264,7 +264,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       </div>
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
-        {currentLib?.type === 'show' ? (
+        {currentLib?.type === 'request' ? (
+          <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
+        ) : currentLib?.type === 'show' ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-brand-ice/70 font-nunito gap-2">
             <Film className="w-10 h-10 text-brand-gold" />
             <p>Series browsing from Plex is coming in the next update.</p>
