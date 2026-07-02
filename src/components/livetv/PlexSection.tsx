@@ -138,7 +138,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { libIdxRef.current = libIdx; }, [libIdx]);
   useEffect(() => { itemsRef.current = items; }, [items]);
-  useEffect(() => { librariesRef.current = libraries; }, [libraries]);
+  useEffect(() => { librariesRef.current = tabs; }, [tabs]);
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
   useEffect(() => { nativeErrRef.current = native.error; }, [native.error]);
   useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
