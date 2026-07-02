@@ -159,16 +159,28 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
           <Button
             variant="white"
             size="sm"
-            onClick={onSignOut}
+            onClick={onChangeCredentials}
             data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               focusIdx === 2 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+            }`}
+          >
+            <KeyRound className="w-4 h-4 mr-2" /> Change credentials
+          </Button>
+          <Button
+            variant="white"
+            size="sm"
+            onClick={onSignOut}
+            data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+              focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
           </Button>
         </div>
       </div>
+
 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <Card className="w-full max-w-3xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
