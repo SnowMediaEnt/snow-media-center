@@ -93,6 +93,9 @@ class SnowPlayerPlugin : Plugin() {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 notifyListeners("tracksChanged", JSObject())
             }
+            override fun onCues(cueGroup: CueGroup) {
+                subtitleView?.setCues(cueGroup.cues)
+            }
         })
         player = p
     }
