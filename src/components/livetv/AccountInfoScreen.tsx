@@ -31,14 +31,14 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
  * Read-only Xtream account info screen for the Player header "Account" button.
  * Two-button D-pad nav: Back / Sign out.
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
+const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(1); // Start on Show/Hide password so Enter doesn't accidentally close the screen.
+  const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
-  const BTN_COUNT = 3;
+  const BTN_COUNT = 4;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -61,12 +61,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut }: Props) => {
         const i = focusIdxRef.current;
         if (i === 0) onBack();
         else if (i === 1) setShowPwd(v => !v);
-        else if (i === 2) onSignOut();
+        else if (i === 2) onChangeCredentials();
+        else if (i === 3) onSignOut();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut]);
+  }, [onBack, onSignOut, onChangeCredentials]);
 
   if (!account) {
     return (
