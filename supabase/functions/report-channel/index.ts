@@ -98,6 +98,20 @@ Deno.serve(async (req) => {
     });
     if (msgErr) throw msgErr;
 
+    // Fire-and-forget Discord ping — failure must NOT fail the request.
+    try {
+      const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
+      if (hook) {
+        await fetch(hook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: '🚨 **Channel Report**\n```\n' + message.slice(0, 1800) + '\n```',
+          }),
+        });
+      }
+    } catch (_) { /* ignore */ }
+
     return new Response(
       JSON.stringify({ success: true, ticketId: ticket.id }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

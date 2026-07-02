@@ -1152,6 +1152,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <ReportChannelDialog
             channelName={reportFor.name}
             channelId={reportFor.stream_id}
+            categoryName={searchOpen ? 'Search' : (currentCat?.id === FAV_ID ? 'Favorites' : (currentCat?.name || ''))}
             isFavorite={favorites.has(reportFor.stream_id)}
             onToggleFavorite={() => toggleFavorite(reportFor)}
             onOpenBufferingGuide={() => {

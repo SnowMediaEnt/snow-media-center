@@ -125,6 +125,13 @@ export const useSupportTickets = (user: User | null) => {
       // Send email notification
       await sendSupportEmail(ticket.id, subject, initialMessage);
 
+      // Fire-and-forget Discord alert — must NOT fail ticket creation.
+      supabase.functions.invoke('notify-discord', {
+        body: {
+          content: `🎫 **New Ticket** from ${user.email}\n**${subject}**\n\`\`\`\n${initialMessage.slice(0, 1500)}\n\`\`\``,
+        },
+      }).catch(() => {});
+
       toast({
         title: "Success",
         description: "Support ticket created successfully"
