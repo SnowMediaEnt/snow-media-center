@@ -48,6 +48,9 @@ const ReportChannelDialog = memo(({
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const submittedRef = useRef(false);
+  // Guard the opening long-press: ignore Enter/Space from key-repeat, and
+  // don't accept any activation until the user RELEASES the button once.
+  const armedRef = useRef(false);
 
   const buildMessage = useCallback(
     (choice: Choice, otherNote: string) => {
@@ -72,20 +75,24 @@ const ReportChannelDialog = memo(({
         if (user) {
           await createTicket(subject, message);
         } else {
-          await supabase.functions.invoke('send-custom-email', {
+          const { error } = await supabase.functions.invoke('report-channel', {
             body: {
-              to: 'support@snowmediaent.com',
               subject: `[Channel Report] ${subject}`,
-              fromName: 'Snow Media Player',
               html: `<h3>Channel report (guest)</h3><p>${message.replace(/\n/g, '<br>')}</p>`,
             },
           });
+          if (error) throw error;
         }
         toast({ title: 'Report sent — thanks!' });
         onClose();
-      } catch {
+      } catch (e) {
         submittedRef.current = false;
         setSubmitting(false);
+        toast({
+          title: 'Could not send report',
+          description: (e as Error)?.message || 'Please try again, or email support@snowmediaent.com.',
+          variant: 'destructive',
+        });
       }
     },
     [createTicket, buildMessage, channelName, onClose, submitting, toast, user],
@@ -129,6 +136,13 @@ const ReportChannelDialog = memo(({
         onClose();
         return;
       }
+
+      // Ignore Enter/Space from the opening hold (repeat) or before first release.
+      if ((e.key === 'Enter' || e.key === ' ') && (e.repeat || !armedRef.current)) {
+        e.preventDefault(); e.stopPropagation();
+        return;
+      }
+
 
       const target = e.target as HTMLElement | null;
       const typing =
@@ -212,8 +226,13 @@ const ReportChannelDialog = memo(({
       }
       if (typing) e.stopPropagation();
     };
+    const onKeyUp = () => { armedRef.current = true; };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
   }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite]);
 
   // Auto-blur textarea so D-pad navigation works again
