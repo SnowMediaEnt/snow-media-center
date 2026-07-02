@@ -28,6 +28,7 @@ type Step = 'menu' | 'reasons' | 'other';
 const ReportChannelDialog = memo(({
   channelName,
   channelId,
+  categoryName,
   isFavorite,
   onToggleFavorite,
   onOpenBufferingGuide,
@@ -55,14 +56,24 @@ const ReportChannelDialog = memo(({
 
   const buildMessage = useCallback(
     (choice: Choice, otherNote: string) => {
-      const idPart = channelId != null && String(channelId).length ? ` (${channelId})` : '';
-      const notePart = otherNote.trim() ? ` Note: ${otherNote.trim()}.` : '';
-      const acct = account
-        ? ` Player account: ${account.username}${account.serverLabel ? ' @ ' + account.serverLabel : ''}.`
-        : '';
-      return `Problem: ${choice}. Channel: ${channelName}${idPart}.${notePart}${acct} Reported from the player.`;
+      const trimmedNote = otherNote.trim();
+      const issue = choice === 'Other'
+        ? (trimmedNote || 'Other')
+        : (trimmedNote ? `${choice} — ${trimmedNote}` : choice);
+      const lines = [
+        `Category: ${categoryName || 'Unknown'}`,
+        `Channel Name: ${channelName}`,
+        `Issue: ${issue}`,
+        '',
+      ];
+      if (channelId != null && String(channelId).length) lines.push(`Channel ID: ${channelId}`);
+      if (account) {
+        lines.push(`Player account: ${account.username}${account.serverLabel ? ' @ ' + account.serverLabel : ''}`);
+      }
+      lines.push('Reported from the player.');
+      return lines.join('\n');
     },
-    [channelId, channelName, account],
+    [channelId, channelName, categoryName, account],
   );
 
   const submit = useCallback(
