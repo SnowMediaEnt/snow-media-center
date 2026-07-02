@@ -137,6 +137,13 @@ const ReportChannelDialog = memo(({
         return;
       }
 
+      // Ignore Enter/Space from the opening hold (repeat) or before first release.
+      if ((e.key === 'Enter' || e.key === ' ') && (e.repeat || !armedRef.current)) {
+        e.preventDefault(); e.stopPropagation();
+        return;
+      }
+
+
       const target = e.target as HTMLElement | null;
       const typing =
         !!target &&
