@@ -23,9 +23,14 @@ import { isFireTV } from '@/utils/platform';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
+import { AlertTriangle, RotateCw } from 'lucide-react';
+import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { useNativePlayer } from '@/hooks/useNativePlayer';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
+
+const NATIVE_PLAYBACK = hasNativePlayer();
 
 
 interface Props {
@@ -482,6 +487,35 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setFullscreen(true);
   }, []);
 
+  // Native ExoPlayer wiring — only active on native builds while fullscreen.
+  const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
+  const native = useNativePlayer({
+    active: nativeActive,
+    url: nativeActive ? streamUrl : null,
+    volume,
+    onTracksChanged: () => setTracksTick((t) => t + 1),
+    onPlayStateChange: (p) => setIsPaused(p),
+  });
+
+  // While native fullscreen owns the screen, expose its controller through
+  // the existing videoControllerRef so PlayerControlBar's audio/subtitle
+  // menus keep working unchanged.
+  useEffect(() => {
+    if (!nativeActive) return;
+    if (!native.controller) return;
+    videoControllerRef.current = native.controller;
+    return () => { videoControllerRef.current = null; };
+  }, [nativeActive, native.controller]);
+
+  // Transparency scope — while native fullscreen is active, add a class to
+  // <html> that neutralizes every painted background layer above the native
+  // video surface (which renders on a TextureView BEHIND the WebView).
+  useEffect(() => {
+    if (!nativeActive) return;
+    document.documentElement.classList.add('snowplayer-fullscreen');
+    return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
+  }, [nativeActive]);
+
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
     if (!visibleChannels.length) return;
     let i = visibleChannels.findIndex(s => s.stream_id === playingChannelId);
@@ -499,6 +533,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const visibleCategoriesRef = useRef(visibleCategories);
   const visibleChannelsRef = useRef(visibleChannels);
   const searchOpenRef = useRef(searchOpen);
+  const nativeErrorRef = useRef<{ code?: string; message: string } | null>(null);
+  const nativeRetryRef = useRef<() => void>(() => {});
+  useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
+  useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
   // Bar refs so the (stable) keydown listener can read live state without rebinding.
   const barVisibleRef = useRef(barVisible);
   const barFocusRef = useRef(barFocus);
@@ -592,6 +630,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false);
+          return;
+        }
+
+        // --- Native fatal-error overlay: Enter triggers retry ---
+        if (nativeErrorRef.current && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault(); e.stopPropagation();
+          nativeRetryRef.current();
           return;
         }
 
@@ -821,19 +866,43 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   })();
 
   if (fullscreen) {
+    // Native path: chrome renders over a transparent layer so the ExoPlayer
+    // TextureView behind the WebView shows through. Web/fallback path keeps
+    // the original <VideoPlayer> element rendering into the WebView.
     return (
-      <div className="fixed inset-0 z-[60] bg-black text-white">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
-          <VideoPlayer
-            src={streamUrl}
-            volume={volume}
-            muted={false}
-            className="w-full h-full"
-            onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
-            onPlayStateChange={(paused) => setIsPaused(paused)}
-            onTracksChanged={() => setTracksTick(t => t + 1)}
-          />
-        </Suspense>
+      <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
+        {!NATIVE_PLAYBACK && (
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+            <VideoPlayer
+              src={streamUrl}
+              volume={volume}
+              muted={false}
+              className="w-full h-full"
+              onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
+              onPlayStateChange={(paused) => setIsPaused(paused)}
+              onTracksChanged={() => setTracksTick(t => t + 1)}
+            />
+          </Suspense>
+        )}
+        {NATIVE_PLAYBACK && native.buffering && !native.error && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+          </div>
+        )}
+        {NATIVE_PLAYBACK && native.error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
+            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
+            <button
+              onClick={() => native.retry()}
+              autoFocus
+              className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+            >
+              <RotateCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
+        )}
         <PlayerControlBar
           visible={barVisible}
           focus={barFocus}
@@ -862,6 +931,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       </div>
     );
   }
+
 
   const totalSize = rowVirtualizer.getTotalSize();
 
