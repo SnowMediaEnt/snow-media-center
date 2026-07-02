@@ -144,6 +144,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane('sections');
   }, []);
 
+  // Content-Bar deep-link: land straight in Movies & Shows (PlexSection
+  // consumes the payload itself — do not remove it here).
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('smc-plex-deeplink')) enterMode('movies');
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const signOut = useCallback(async () => {
     await clearCreds();
     await clearPlayerAccount();
@@ -427,7 +436,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.7</div>
+      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.8</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog

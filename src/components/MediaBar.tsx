@@ -42,6 +42,7 @@ type Props = {
   active?: boolean;
   onExitDown?: () => void;
   onExitUp?: () => void;
+  onOpenPlayer?: () => void;
 };
 
 const STORAGE_KEY = 'snow-media-bar-cache-v4';
@@ -173,7 +174,7 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
   }
 };
 
-const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
+const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: Props) => {
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
   const [pageIdx, setPageIdx] = useState(0);
@@ -186,6 +187,18 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp }: Props) => {
   const handleClick = (item: MediaItem) => {
     if (item.source === 'sports') {
       setLiveDialog(item);
+      return;
+    }
+    // Plex MOVIES open in the app's built-in player, landed on the title.
+    if (item.source === 'plex' && item.kind === 'movie' && item.ratingKey && onOpenPlayer) {
+      try {
+        sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
+          ratingKey: String(item.ratingKey),
+          title: item.title,
+          librarySectionID: item.librarySectionID ?? null,
+        }));
+      } catch { /* ignore */ }
+      onOpenPlayer();
       return;
     }
     openPlexItemFromBeginning(item);

@@ -160,7 +160,7 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
   for (const c of server.connections) {
     const prio = c.relay ? 3 : c.local ? 1 : 2;
     push(c.uri, prio);
-    if (!c.relay && c.address && c.port) push(`${c.protocol || 'http'}://${c.address}:${c.port}`, prio);
+    if (!c.relay && c.address && c.port) push(`http://${c.address}:${c.port}`, prio); // raw IPs can't satisfy plex.direct TLS — always plain http
   }
   if (candidates.length === 0) return null;
 

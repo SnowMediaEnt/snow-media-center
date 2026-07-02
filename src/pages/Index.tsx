@@ -963,6 +963,7 @@ const Index = () => {
                   active={isInMediaBar}
                   onExitDown={onMediaBarExitDown}
                   onExitUp={onMediaBarExitUp}
+                  onOpenPlayer={() => navigateTo('livetv')}
                 />
               </Suspense>
             )}

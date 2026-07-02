@@ -52,7 +52,10 @@ serve(async (req) => {
       }
       const r = await fetch(`${OVERSEERR_URL}/api/v1/request`, { method: 'POST', headers: H, body: JSON.stringify(payload) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) return json({ error: d?.message || `Request failed (${r.status})` }, r.status === 409 ? 409 : 500);
+      if (!r.ok) {
+        if (r.status === 409) return json({ ok: false, already: true });
+        return json({ error: d?.message || `Request failed (${r.status})` }, 500);
+      }
       return json({ ok: true, id: d?.id ?? null });
     }
 

@@ -34,6 +34,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
+  const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null } | null>(
+    (() => {
+      try {
+        const raw = sessionStorage.getItem('smc-plex-deeplink');
+        if (!raw) return null;
+        sessionStorage.removeItem('smc-plex-deeplink');
+        return JSON.parse(raw);
+      } catch { return null; }
+    })(),
+  );
+
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
   const [libIdx, setLibIdx] = useState(0);
   const [items, setItems] = useState<PlexItem[]>([]);
@@ -57,6 +68,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     return () => { cancelled = true; };
   }, [status, conn]);
 
+  // Deep-link step 1: pick the target library tab once libraries are known.
+  useEffect(() => {
+    const dl = deeplinkRef.current;
+    if (!dl || status !== 'ready' || !conn || libraries.length === 0) return;
+    let idx = libraries.findIndex((l) => String(l.key) === String(dl.librarySectionID ?? ''));
+    if (idx < 0) idx = libraries.findIndex((l) => l.type === 'movie');
+    if (idx < 0) idx = 0;
+    setLibIdx(idx);
+  }, [status, conn, libraries]);
+
   const tabs = useMemo<PlexLibrary[]>(
     () => [...libraries, { key: '__request', title: 'Request', type: 'request' }],
     [libraries],
@@ -75,6 +96,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       .finally(() => { if (!cancelled) setItemsLoading(false); });
     return () => { cancelled = true; };
   }, [conn, currentLib]);
+
+  // Deep-link step 2: focus the exact title in the grid (user presses OK to play).
+  useEffect(() => {
+    const dl = deeplinkRef.current;
+    if (!dl || items.length === 0) return;
+    deeplinkRef.current = null; // consume once
+    const idx = items.findIndex((it) => String(it.ratingKey) === String(dl.ratingKey));
+    if (idx >= 0) {
+      setCursor(idx);
+      setZone('grid');
+    } else {
+      toast({ title: 'Not found', description: `Couldn't find "${dl.title ?? 'that title'}" in this library.` });
+    }
+  }, [items, toast]);
 
   const rows = Math.ceil(items.length / COLS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -197,6 +232,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       try {
         const h = await CapApp.addListener('backButton', () => {
           if (fullscreenRef.current) { exitFullscreen(); return; }
+          if (zoneRef.current === 'grid' && librariesRef.current[libIdxRef.current]?.type === 'request') { setZone('tabs'); return; }
           onExitLeft?.();
         });
         if (cancelled) h?.remove?.(); else handle = h;

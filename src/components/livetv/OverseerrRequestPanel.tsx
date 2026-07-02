@@ -70,16 +70,17 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       const { data, error } = await supabase.functions.invoke('overseerr-request', {
         body: { action: 'request', mediaType: item.mediaType, tmdbId: item.id },
       });
-      if (error || data?.error) throw new Error(data?.error || 'failed');
+      if (error) throw new Error('failed');
+      if (data?.already) {
+        toast({ title: 'Already requested', description: `${item.title} was already requested.` });
+        setResults((rs) => rs.map((r) => (r.id === item.id && r.mediaType === item.mediaType ? { ...r, status: 3 } : r)));
+        return;
+      }
+      if (data?.error || !data?.ok) throw new Error(data?.error || 'failed');
       toast({ title: 'Requested!', description: `${item.title} has been requested. It'll appear on Plex once it's ready.` });
       setResults((rs) => rs.map((r) => (r.id === item.id && r.mediaType === item.mediaType ? { ...r, status: 3 } : r)));
-    } catch (e) {
-      const msg = (e as Error).message || '';
-      toast({
-        title: msg.toLowerCase().includes('already') ? 'Already requested' : 'Request failed',
-        description: msg.toLowerCase().includes('already') ? `${item.title} was already requested.` : 'Please try again in a moment.',
-        variant: msg.toLowerCase().includes('already') ? undefined : 'destructive',
-      });
+    } catch {
+      toast({ title: 'Request failed', description: 'Please try again in a moment.', variant: 'destructive' });
     } finally {
       setRequesting(false);
       setConfirming(null);
