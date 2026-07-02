@@ -272,7 +272,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           
           w.__overlayHandledBackAt = Date.now();
           try {
-            window.dispatchEvent(new KeyboardEvent('keydown', {
+            document.body.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'Escape',
               code: 'Escape',
               keyCode: 27,

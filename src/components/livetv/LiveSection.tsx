@@ -589,7 +589,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
         // --- Back ---
         if (isBack) {
-          e.preventDefault(); e.stopPropagation();
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (barVisibleRef.current) { hideBarNow(); return; }
           setFullscreen(false);
           return;
