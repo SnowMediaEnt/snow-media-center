@@ -633,6 +633,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           return;
         }
 
+        // --- Native fatal-error overlay: Enter triggers retry ---
+        if (nativeErrorRef.current && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault(); e.stopPropagation();
+          nativeRetryRef.current();
+          return;
+        }
+
         // --- Bar is HIDDEN: preserve channel zap + volume, Enter shows bar ---
         if (!barVisibleRef.current) {
           if (e.key === 'ArrowUp')    { e.preventDefault(); changeChannelInFullscreen(-1); pokeBar(); setBarFocus('play'); return; }
