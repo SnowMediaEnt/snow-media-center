@@ -37,3 +37,6 @@ verify_jwt = false
 verify_jwt = false
 
 
+
+[functions.overseerr-request]
+verify_jwt = false

@@ -34,21 +34,25 @@ export function usePlexAuth() {
         } catch { /* stale cache — rediscover */ }
       }
       const servers = await getPlexServers(accountToken);
-      const owned = servers.find((s) => s.owned) ?? servers[0];
-      if (!owned) {
+      if (!servers.length) {
         setError('No Plex Media Server is linked to this Plex account.');
         setStatus('unreachable');
         return false;
       }
-      const base = await pickPlexConnection(owned);
-      if (!base) {
-        setError(`Signed in, and found your server "${owned.name}" — but this device can't reach it. If the server is on this network, check its firewall allows port 32400. Otherwise turn on Remote Access (Plex Server Settings → Remote Access) and tap Retry.`);
-        setStatus('unreachable');
-        return false;
+      // Try EVERY server (owned first, then shared) — accounts often carry
+      // old/dead registrations; the reachable one may be a shared server.
+      const ordered = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
+      for (const s of ordered) {
+        const base = await pickPlexConnection(s);
+        if (base) {
+          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name };
+          await savePlexServer(c);
+          setConn(c); setStatus('ready'); return true;
+        }
       }
-      const c: PlexConn = { base, token: owned.accessToken || accountToken, name: owned.name };
-      await savePlexServer(c);
-      setConn(c); setStatus('ready'); return true;
+      setError(`Signed in — found ${ordered.length} server${ordered.length === 1 ? '' : 's'} (${ordered.map((s) => s.name).join(', ')}) but none are reachable from this device right now. Check the server is online and Remote Access is enabled, then tap Retry.`);
+      setStatus('unreachable');
+      return false;
     } catch (e) {
       setError((e as Error).message || 'Failed to reach Plex.');
       setStatus('unreachable');

@@ -1,7 +1,7 @@
 // Plex "Movies & Shows" — auth gate → library tabs → poster grid → native play.
 // Movie libraries browse + play (direct-play with transcode fallback); show
 // libraries are listed but series/episode nav is Phase 2.
-import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Loader2, Tv, AlertTriangle, RotateCw, Film } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -16,6 +16,7 @@ import {
   type PlexLibrary, type PlexItem,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
+import OverseerrRequestPanel from './OverseerrRequestPanel';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
@@ -56,7 +57,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     return () => { cancelled = true; };
   }, [status, conn]);
 
-  const currentLib = libraries[libIdx];
+  const tabs = useMemo<PlexLibrary[]>(
+    () => [...libraries, { key: '__request', title: 'Request', type: 'request' }],
+    [libraries],
+  );
+  const currentLib = tabs[libIdx];
 
   // Load items for the selected MOVIE library.
   useEffect(() => {
@@ -133,7 +138,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { libIdxRef.current = libIdx; }, [libIdx]);
   useEffect(() => { itemsRef.current = items; }, [items]);
-  useEffect(() => { librariesRef.current = libraries; }, [libraries]);
+  useEffect(() => { librariesRef.current = tabs; }, [tabs]);
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
   useEffect(() => { nativeErrRef.current = native.error; }, [native.error]);
   useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
@@ -150,6 +155,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
         if (nativeErrRef.current && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); nativeRetryRef.current(); return; }
         return;
       }
+
+      // Request tab: OverseerrRequestPanel owns the keyboard while in the grid zone.
+      if (zoneRef.current === 'grid' && librariesRef.current[libIdxRef.current]?.type === 'request') return;
 
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       if (isBack) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); onExitLeft?.(); return; }
@@ -242,7 +250,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-black/40 overflow-x-auto whitespace-nowrap">
         <span className="text-xs uppercase tracking-wide text-brand-ice/50 mr-2">Plex · {conn?.name}</span>
         {libraries.length === 0 && <span className="text-brand-ice/60 font-nunito text-sm">No libraries found.</span>}
-        {libraries.map((lib, i) => {
+        {tabs.map((lib, i) => {
           const focused = isActive && zone === 'tabs' && libIdx === i;
           const selected = libIdx === i;
           return (
@@ -256,7 +264,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       </div>
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
-        {currentLib?.type === 'show' ? (
+        {currentLib?.type === 'request' ? (
+          <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
+        ) : currentLib?.type === 'show' ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-brand-ice/70 font-nunito gap-2">
             <Film className="w-10 h-10 text-brand-gold" />
             <p>Series browsing from Plex is coming in the next update.</p>
