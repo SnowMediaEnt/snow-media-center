@@ -361,6 +361,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="white"
             size="sm"
             onClick={onBack}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 0 ? 'scale-105' : ''
@@ -385,6 +386,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={refreshChannels}
             disabled={isRefreshing}
             aria-label="Update Channels"
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 1 ? 'scale-105' : ''
@@ -397,6 +399,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="gold"
             size="sm"
             onClick={() => setAccountInfoOpen(true)}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
@@ -409,6 +412,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             variant="white"
             size="sm"
             onClick={() => { void signOut(); }}
+            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 3 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
               pane === 'header' && headerIdx === 3 ? 'scale-105' : ''
