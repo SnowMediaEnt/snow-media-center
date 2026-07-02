@@ -187,7 +187,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         }
         const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
         if (!arrows.includes(e.key)) return;
-        e.preventDefault(); e.stopPropagation();
+        // stopImmediatePropagation + blurring any lingering DOM focus prevents
+        // WebView spatial-navigation on Fire TV from also moving focus and
+        // making the header ring appear "stuck" on Back.
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        const ae = document.activeElement as HTMLElement | null;
+        if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
 
         if (e.key === 'ArrowLeft') {
           setHeaderIdx(i => (i - 1 + HEADER_COUNT) % HEADER_COUNT);
