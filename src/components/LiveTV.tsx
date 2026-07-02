@@ -281,7 +281,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         }
       }
       else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
-        setSection(SECTIONS[sectionIdxRef.current].id);
+        setSection(sectionsRef.current[sectionIdxRef.current].id);
         setPane('content');
       }
     };
