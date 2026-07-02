@@ -103,7 +103,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     await clearPlayerAccount();
     setCreds(null);
     setAccountFormOpen(false);
-    setAccountInfoOpen(false);
+    setSettingsOpen(false);
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
   }, [toast]);
 
@@ -136,7 +136,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds, refreshChannels]);
 
   const showCredsForm = !creds || accountFormOpen;
-  const showAccountInfo = !!creds && accountInfoOpen && !accountFormOpen;
+  const showAccountInfo = !!creds && settingsOpen && !accountFormOpen;
 
 
   // Keyboard for shell (header pane + sections pane; content pane is owned by child)
@@ -154,7 +154,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
-      if (accountInfoOpen && creds && !accountFormOpen) return;
+      if (settingsOpen && creds && !accountFormOpen) return;
 
       if (showCredsFormRef.current) {
         const target = e.target as HTMLElement;
@@ -205,7 +205,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) onBack();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2) setAccountInfoOpen(true);
+          else if (idx === 2) setSettingsOpen(true);
           else if (idx === 3) void signOut();
         }
         return;
@@ -241,7 +241,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, accountFormOpen, accountInfoOpen, creds, signOut, refreshChannels]);
+  }, [onBack, accountFormOpen, settingsOpen, creds, signOut, refreshChannels]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -289,7 +289,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             
             // Very old WebViews may not allow synthesizing KeyboardEvent —
             // fall back to a direct onBack at the top of the hierarchy.
-            if (paneRef.current === 'sections' && !accountInfoOpen && !accountFormOpen) {
+            if (paneRef.current === 'sections' && !settingsOpen && !accountFormOpen) {
               onBack();
             }
           }
@@ -305,7 +305,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       cancelled = true;
       handle?.remove?.();
     };
-  }, [onBack, accountInfoOpen, accountFormOpen]);
+  }, [onBack, settingsOpen, accountFormOpen]);
 
 
 
@@ -341,7 +341,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
         <AccountInfoScreen
-          onBack={() => setAccountInfoOpen(false)}
+          onBack={() => setSettingsOpen(false)}
           onSignOut={() => { void signOut(); }}
         />
       </Suspense>
@@ -398,7 +398,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Button
             variant="gold"
             size="sm"
-            onClick={() => setAccountInfoOpen(true)}
+            onClick={() => setSettingsOpen(true)}
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
