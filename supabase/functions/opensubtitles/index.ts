@@ -34,7 +34,7 @@ async function login(key: string, user: string, pass: string, force = false): Pr
       headers: { 'Api-Key': key, 'User-Agent': UA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user, password: pass }),
     });
-    if (!r.ok) return null;
+    if (!r.ok) { console.error('OS login failed', r.status); return null; }
     const d = await r.json();
     const tok = typeof d?.token === 'string' ? d.token : null;
     if (!tok) return null;
@@ -118,7 +118,7 @@ serve(async (req) => {
           r = await doDownload(token);
         }
         if (r.status === 406) return json({ ok: false, reason: 'quota' });
-        if (!r.ok) return json({ ok: false, reason: 'error' });
+        if (!r.ok) { console.error('OS download failed', r.status); return json({ ok: false, reason: 'error' }); }
         const d = await r.json();
         const link = typeof d?.link === 'string' ? d.link : null;
         if (!link) return json({ ok: false, reason: 'error' });
