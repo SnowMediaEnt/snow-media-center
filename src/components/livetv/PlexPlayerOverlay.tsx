@@ -45,7 +45,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl'>('none');
