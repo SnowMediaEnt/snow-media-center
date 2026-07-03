@@ -1,5 +1,5 @@
-// Fire-and-forget Telegram notifier for new app_alerts rows.
-// Called by a Postgres AFTER INSERT trigger via pg_net. verify_jwt is off.
+// Fire-and-forget Telegram notifier for app_alerts lifecycle events.
+// Called by Postgres AFTER INSERT/UPDATE/DELETE triggers via pg_net. verify_jwt is off.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const esc = (s: unknown): string =>
@@ -15,13 +15,7 @@ interface AlertRow {
   active?: boolean;
 }
 
-const formatMessage = (r: AlertRow): string => {
-  const sev = (r.severity || '').toLowerCase();
-  const icon = sev === 'critical' ? '🚨' : sev === 'warning' ? '⚠️' : '🔔';
-  const lines = [
-    `${icon} <b>${esc(r.title || 'Alert')}</b>`,
-    esc(r.message || ''),
-  ];
+const metaLine = (r: AlertRow): string | null => {
   const meta: string[] = [];
   if (r.source === 'player_server') {
     const target = r.app_match === 'all' ? 'All servers' : r.app_match;
@@ -31,8 +25,29 @@ const formatMessage = (r: AlertRow): string => {
   }
   if (r.source) meta.push(`Source: <i>${esc(r.source)}</i>`);
   if (r.severity) meta.push(`Severity: <i>${esc(r.severity)}</i>`);
-  if (meta.length) lines.push('', meta.join(' · '));
-  return lines.filter((l) => l !== undefined).join('\n');
+  return meta.length ? meta.join(' · ') : null;
+};
+
+const formatCreated = (r: AlertRow): string => {
+  const sev = (r.severity || '').toLowerCase();
+  const icon = sev === 'critical' ? '🚨' : sev === 'warning' ? '⚠️' : '🔔';
+  const lines = [
+    `${icon} <b>${esc(r.title || 'Alert')}</b>`,
+    esc(r.message || ''),
+  ];
+  const meta = metaLine(r);
+  if (meta) lines.push('', meta);
+  return lines.join('\n');
+};
+
+const formatResolved = (r: AlertRow): string => {
+  const lines = [
+    `✅ <b>Resolved: ${esc(r.title || 'Alert')}</b>`,
+    'This issue has been fixed.',
+  ];
+  const meta = metaLine(r);
+  if (meta) lines.push('', meta);
+  return lines.join('\n');
 };
 
 Deno.serve(async (req) => {
@@ -53,13 +68,21 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    const event: string = (body?.event ?? 'created') as string;
     const record: AlertRow = body?.record ?? body ?? {};
     if (!record || (!record.title && !record.message)) {
       return okJson({ skipped: 'empty_record' });
     }
-    if (record.active === false) return okJson({ skipped: 'inactive' });
 
-    const text = formatMessage(record);
+    let text: string;
+    if (event === 'resolved') {
+      text = formatResolved(record);
+    } else {
+      // created (or unknown): keep legacy behavior
+      if (record.active === false) return okJson({ skipped: 'inactive' });
+      text = formatCreated(record);
+    }
+
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +99,7 @@ Deno.serve(async (req) => {
       console.error('[telegram-notify] Telegram error', res.status, errText);
       return okJson({ telegram_error: res.status });
     }
-    return okJson();
+    return okJson({ event });
   } catch (e) {
     console.error('[telegram-notify] unhandled error', e);
     return okJson({ handled_error: true });
