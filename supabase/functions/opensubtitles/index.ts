@@ -110,7 +110,7 @@ serve(async (req) => {
       };
       try {
         let token = await login(cfg.key, cfg.user, cfg.pass);
-        if (!token) return json({ ok: false, reason: 'error' });
+        if (!token) { console.error('login failed'); return json({ ok: false, reason: 'error' }); }
         let r = await doDownload(token);
         if (r.status === 401) {
           token = await login(cfg.key, cfg.user, cfg.pass, true);
@@ -118,12 +118,13 @@ serve(async (req) => {
           r = await doDownload(token);
         }
         if (r.status === 406) return json({ ok: false, reason: 'quota' });
-        if (!r.ok) return json({ ok: false, reason: 'error' });
-        const d = await r.json();
+        const txt = await r.text();
+        if (!r.ok) { console.error('download http', r.status, txt.slice(0,300)); return json({ ok: false, reason: 'error' }); }
+        let d: any; try { d = JSON.parse(txt); } catch { console.error('download parse', txt.slice(0,300)); return json({ ok: false, reason: 'error' }); }
         const link = typeof d?.link === 'string' ? d.link : null;
-        if (!link) return json({ ok: false, reason: 'error' });
+        if (!link) { console.error('no link', JSON.stringify(d).slice(0,300)); return json({ ok: false, reason: 'error' }); }
         return json({ ok: true, url: link, remaining: d?.remaining ?? null });
-      } catch { return json({ ok: false, reason: 'error' }); }
+      } catch (e) { console.error('download exception', String(e)); return json({ ok: false, reason: 'error' }); }
     }
 
     return json({ ok: false, reason: 'error' });
