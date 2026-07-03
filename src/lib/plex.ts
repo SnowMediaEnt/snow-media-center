@@ -384,3 +384,120 @@ export async function saveHiddenPlexLibs(keys: string[]): Promise<void> {
   try { localStorage.setItem(PLEX_HIDDEN_KEY, json); } catch { /* ignore */ }
 }
 
+// ── detail metadata + episodes ────────────────────────────────────────────
+
+export interface PlexPerson { tag: string; role?: string; }
+export interface PlexMediaTech {
+  videoResolution?: string;
+  videoCodec?: string;
+  audioCodec?: string;
+  audioChannels?: number;
+}
+
+export interface PlexMetadata {
+  ratingKey: string;
+  title: string;
+  type: string;                 // 'movie' | 'show' | 'season' | 'episode'
+  year?: number;
+  summary?: string;
+  /** ms */
+  duration?: number;
+  contentRating?: string;
+  studio?: string;
+  /** 0..10 */
+  audienceRating?: number;
+  /** 0..10 (critics) */
+  rating?: number;
+  genres: string[];
+  cast: PlexPerson[];
+  directors: string[];
+  art?: string;
+  thumb?: string;
+  /** Resume position, ms */
+  viewOffset?: number;
+  media?: PlexMediaTech;
+}
+
+export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+    'GET', `${base}/library/metadata/${ratingKey}?includeExtras=0`, token,
+  );
+  const m = data?.MediaContainer?.Metadata?.[0] ?? {};
+  const asArr = (v: unknown): Array<Record<string, unknown>> => Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
+  const genres = asArr(m.Genre).map((g) => String(g.tag || '')).filter(Boolean);
+  const cast: PlexPerson[] = asArr(m.Role).slice(0, 6).map((r) => ({ tag: String(r.tag || ''), role: r.role ? String(r.role) : undefined }));
+  const directors = asArr(m.Director).map((d) => String(d.tag || '')).filter(Boolean);
+  const mediaArr = asArr(m.Media);
+  const media0 = mediaArr[0] as Record<string, unknown> | undefined;
+  const media: PlexMediaTech | undefined = media0 ? {
+    videoResolution: media0.videoResolution as string | undefined,
+    videoCodec: media0.videoCodec as string | undefined,
+    audioCodec: media0.audioCodec as string | undefined,
+    audioChannels: media0.audioChannels as number | undefined,
+  } : undefined;
+  return {
+    ratingKey: String(m.ratingKey ?? ratingKey),
+    title: String(m.title ?? ''),
+    type: String(m.type ?? 'movie'),
+    year: m.year as number | undefined,
+    summary: m.summary as string | undefined,
+    duration: m.duration as number | undefined,
+    contentRating: m.contentRating as string | undefined,
+    studio: m.studio as string | undefined,
+    audienceRating: m.audienceRating as number | undefined,
+    rating: m.rating as number | undefined,
+    genres, cast, directors,
+    art: m.art as string | undefined,
+    thumb: m.thumb as string | undefined,
+    viewOffset: m.viewOffset as number | undefined,
+    media,
+  };
+}
+
+export interface PlexSeason {
+  ratingKey: string;
+  title: string;
+  index?: number;
+  thumb?: string;
+  leafCount?: number;
+}
+export async function getPlexSeasons(base: string, token: string, showKey: string): Promise<PlexSeason[]> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+    'GET', `${base}/library/metadata/${showKey}/children`, token,
+  );
+  const items = data?.MediaContainer?.Metadata || [];
+  return items
+    .filter((s) => String(s.type || '') === 'season')
+    .map((s) => ({
+      ratingKey: String(s.ratingKey ?? ''),
+      title: String(s.title || `Season ${s.index ?? ''}`),
+      index: s.index as number | undefined,
+      thumb: s.thumb as string | undefined,
+      leafCount: s.leafCount as number | undefined,
+    }));
+}
+
+export interface PlexEpisode {
+  ratingKey: string;
+  title: string;
+  index?: number;
+  thumb?: string;
+  /** ms */
+  duration?: number;
+  summary?: string;
+}
+export async function getPlexEpisodes(base: string, token: string, seasonKey: string): Promise<PlexEpisode[]> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>(
+    'GET', `${base}/library/metadata/${seasonKey}/children`, token,
+  );
+  const items = data?.MediaContainer?.Metadata || [];
+  return items.map((e) => ({
+    ratingKey: String(e.ratingKey ?? ''),
+    title: String(e.title || ''),
+    index: e.index as number | undefined,
+    thumb: e.thumb as string | undefined,
+    duration: e.duration as number | undefined,
+    summary: e.summary as string | undefined,
+  }));
+}
+

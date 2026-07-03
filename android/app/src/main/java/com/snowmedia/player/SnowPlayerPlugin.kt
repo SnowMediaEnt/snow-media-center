@@ -3,6 +3,7 @@
 package com.snowmedia.player
 
 import android.graphics.Color
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -13,6 +14,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -32,10 +34,10 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 
 /**
- * Native live-video player (Media3/ExoPlayer) on a TextureView behind the
- * transparent WebView. Adds TiviMate-style resilience: some IPTV backends
- * (e.g. Vibez/xui) randomly drop ~1/3 of requests (PHP OOM). A dropped live
- * stream must NEVER freeze on the last frame — we transparently reconnect.
+ * Native video player (Media3/ExoPlayer) on a TextureView behind the transparent
+ * WebView. Handles both live IPTV (auto-reconnect on drops) and VOD (Plex movies:
+ * legitimate STATE_ENDED, resume-at-position on reconnect, sidecar subtitles,
+ * seek + position query).
  */
 @CapacitorPlugin(name = "SnowPlayer")
 class SnowPlayerPlugin : Plugin() {
@@ -48,18 +50,23 @@ class SnowPlayerPlugin : Plugin() {
     private var volume: Float = 1f
     private var lastRect: IntArray? = null
 
-    // ── resilience state ────────────────────────────────────────────────
+    // ── resilience / state ──────────────────────────────────────────────
     private var currentUrl: String? = null
+    private var currentSubtitles: JSArray? = null
+    private var isLive: Boolean = true
+    private var lastPositionMs: Long = 0L
     private var reconnectAttempts = 0
     private var firstFrameSeen = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var watchdogRunnable: Runnable? = null
     private var reconnectRunnable: Runnable? = null
+    private var positionTickRunnable: Runnable? = null
 
     companion object {
         private const val MAX_RECONNECTS = 20
         private const val RECONNECT_DELAY_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
+        private const val POSITION_TICK_MS = 5000L
     }
 
     private fun cancelTimers() {
@@ -67,10 +74,27 @@ class SnowPlayerPlugin : Plugin() {
         watchdogRunnable = null
         reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
         reconnectRunnable = null
+        positionTickRunnable?.let { mainHandler.removeCallbacks(it) }
+        positionTickRunnable = null
     }
 
-    /** If no video frame renders within the window, the stream stalled
-     *  (server OOM slice / audio-only) — force a fresh request. */
+    private fun schedulePositionTick() {
+        positionTickRunnable?.let { mainHandler.removeCallbacks(it) }
+        val r = object : Runnable {
+            override fun run() {
+                val p = player
+                if (p != null && p.isPlaying) {
+                    val pos = p.currentPosition
+                    if (pos > 0) lastPositionMs = pos
+                }
+                mainHandler.postDelayed(this, POSITION_TICK_MS)
+            }
+        }
+        positionTickRunnable = r
+        mainHandler.postDelayed(r, POSITION_TICK_MS)
+    }
+
+    /** If no video frame renders within the window, the stream stalled — reconnect. */
     private fun scheduleWatchdog() {
         watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
         val r = Runnable {
@@ -80,26 +104,54 @@ class SnowPlayerPlugin : Plugin() {
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
     }
 
-    /** Re-request the current live URL (fresh connection → fresh token). */
+    private fun buildMediaItem(url: String, subs: JSArray?): MediaItem {
+        val builder = MediaItem.Builder().setUri(Uri.parse(url))
+        if (subs != null && subs.length() > 0) {
+            val list = ArrayList<MediaItem.SubtitleConfiguration>()
+            for (i in 0 until subs.length()) {
+                try {
+                    val o = subs.getJSONObject(i)
+                    val su = o.optString("url", "")
+                    if (su.isBlank()) continue
+                    val mime = o.optString("mime", "").ifBlank { MimeTypes.APPLICATION_SUBRIP }
+                    val lang = o.optString("lang", "")
+                    val label = o.optString("label", "")
+                    val sc = MediaItem.SubtitleConfiguration.Builder(Uri.parse(su))
+                        .setMimeType(mime)
+                        .setLanguage(if (lang.isBlank()) null else lang)
+                        .setLabel(if (label.isBlank()) null else label)
+                        .setSelectionFlags(0)
+                        .build()
+                    list.add(sc)
+                } catch (_: Exception) { /* skip malformed row */ }
+            }
+            if (list.isNotEmpty()) builder.setSubtitleConfigurations(list)
+        }
+        return builder.build()
+    }
+
+    /** Re-request the current URL (fresh connection). VOD resumes at lastPositionMs. */
     private fun reconnect() {
         val url = currentUrl ?: return
         if (reconnectAttempts >= MAX_RECONNECTS) {
             notifyListeners(
                 "playerError",
                 JSObject().put("code", "RECONNECT_EXHAUSTED")
-                    .put("message", "The stream keeps dropping. The channel may be down — try again."),
+                    .put("message", "The stream keeps dropping. Try again."),
             )
             return
         }
         reconnectAttempts++
         notifyListeners("playerState", JSObject().put("state", "buffering"))
         reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        val resumeAt = if (!isLive) lastPositionMs else 0L
         val r = Runnable {
             val p = player ?: return@Runnable
             if (currentUrl == null) return@Runnable
             firstFrameSeen = false
-            p.setMediaItem(MediaItem.fromUri(url))
+            p.setMediaItem(buildMediaItem(url, currentSubtitles))
             p.prepare()
+            if (resumeAt > 0) p.seekTo(resumeAt)
             p.playWhenReady = true
             scheduleWatchdog()
         }
@@ -117,7 +169,6 @@ class SnowPlayerPlugin : Plugin() {
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
         fl.addView(tv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
-        // Closed-caption / subtitle renderer, layered above the video surface.
         val sv = SubtitleView(act)
         sv.setUserDefaultStyle()
         sv.setUserDefaultTextSize()
@@ -140,8 +191,6 @@ class SnowPlayerPlugin : Plugin() {
         val act = activity ?: return
         val ts = DefaultTrackSelector(act)
         trackSelector = ts
-        // Cross-protocol redirects allowed (https playlist → http edge).
-        // Short timeouts: a hung backend connection should fail fast into a reconnect.
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
@@ -151,7 +200,6 @@ class SnowPlayerPlugin : Plugin() {
             .setTrackSelector(ts)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(dataSourceFactory)
-                    // Retry transient load errors aggressively before surfacing them.
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6)),
             )
             .build()
@@ -160,9 +208,13 @@ class SnowPlayerPlugin : Plugin() {
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && currentUrl != null) {
-                    // A LIVE stream never legitimately ends — the backend dropped us
-                    // (Vibez OOM pattern). Reconnect instead of freezing on last frame.
-                    reconnect()
+                    if (isLive) {
+                        // Live streams never legitimately end — treat as a drop.
+                        reconnect()
+                        return
+                    }
+                    // VOD: legitimate end-of-file — surface to JS, do NOT reconnect.
+                    notifyListeners("playerState", JSObject().put("state", "ended"))
                     return
                 }
                 val s = when (state) {
@@ -185,7 +237,6 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 if (currentUrl != null && reconnectAttempts < MAX_RECONNECTS) {
-                    // Swallow and self-heal; only surface after exhaustion.
                     reconnect()
                     return
                 }
@@ -205,6 +256,8 @@ class SnowPlayerPlugin : Plugin() {
     fun load(call: PluginCall) {
         val url = call.getString("url")
         if (url.isNullOrBlank()) { call.reject("url required"); return }
+        val live = call.getBoolean("live", true) ?: true
+        val subs = call.getArray("subtitles", null)
         activity?.runOnUiThread {
             if (!ensureSurface()) { call.reject("no activity/webview"); return@runOnUiThread }
             if (player == null) buildPlayer()
@@ -213,12 +266,16 @@ class SnowPlayerPlugin : Plugin() {
             val p = player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers()
             currentUrl = url
+            currentSubtitles = subs
+            isLive = live
+            lastPositionMs = 0L
             reconnectAttempts = 0
             firstFrameSeen = false
-            p.setMediaItem(MediaItem.fromUri(url))
+            p.setMediaItem(buildMediaItem(url, subs))
             p.prepare()
             p.playWhenReady = true
             scheduleWatchdog()
+            schedulePositionTick()
             call.resolve()
         }
     }
@@ -230,9 +287,43 @@ class SnowPlayerPlugin : Plugin() {
     fun pause(call: PluginCall) { activity?.runOnUiThread { player?.pause(); call.resolve() } }
 
     @PluginMethod
+    fun seekTo(call: PluginCall) {
+        val pos = call.getDouble("position") ?: 0.0
+        activity?.runOnUiThread {
+            val p = player
+            if (p != null) {
+                val ms = (pos * 1000.0).toLong().coerceAtLeast(0L)
+                p.seekTo(ms)
+                lastPositionMs = ms
+            }
+            call.resolve()
+        }
+    }
+
+    @PluginMethod
+    fun getPosition(call: PluginCall) {
+        activity?.runOnUiThread {
+            val p = player
+            val ret = JSObject()
+            if (p == null) {
+                ret.put("position", 0.0); ret.put("duration", 0.0); ret.put("playing", false)
+            } else {
+                val pos = p.currentPosition
+                val dur = p.duration
+                ret.put("position", (if (pos > 0) pos else 0L) / 1000.0)
+                ret.put("duration", if (dur == C.TIME_UNSET) 0.0 else dur / 1000.0)
+                ret.put("playing", p.isPlaying)
+            }
+            call.resolve(ret)
+        }
+    }
+
+    @PluginMethod
     fun stop(call: PluginCall) {
         activity?.runOnUiThread {
             currentUrl = null
+            currentSubtitles = null
+            lastPositionMs = 0L
             cancelTimers()
             reconnectAttempts = 0
             firstFrameSeen = false
