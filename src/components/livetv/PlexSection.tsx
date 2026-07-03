@@ -610,6 +610,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [cursor, zone, rowVirtualizer]);
 
   // ── Playback ────────────────────────────────────────────────────────
+  // Hoisted so openDetail can write to it synchronously (see comment below).
+  const detailRef = useRef(detailItem);
   const openDetail = useCallback((item: PlexItem) => {
     // Set the ref SYNCHRONOUSLY (before the React state update) so the main
     // keydown effect below can short-circuit on the very next event — otherwise
