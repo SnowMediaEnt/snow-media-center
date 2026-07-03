@@ -889,6 +889,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
             onBackWhileHidden={exitFullscreen}
             subtitleContext={subCtx}
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
+            qualityKey={qualityKey}
+            onChangeQuality={changeQuality}
           />
         )}
 
