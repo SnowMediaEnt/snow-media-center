@@ -710,7 +710,7 @@ const BufferingGuide = ({
   // Capacitor native back button — intercept so the global navigation
   // handler doesn't pop us all the way out to the Home Screen. Always
   // step back inside the guide first, and only close when on the intro.
-  useEffect(() => {
+  useLayoutEffect(() => {
     let handle: { remove?: () => void } | undefined;
     let cancelled = false;
     (async () => {
