@@ -234,7 +234,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const openActorRef = useRef(openActor); useEffect(() => { openActorRef.current = openActor; }, [openActor]);
   const pushItemRef = useRef(pushItem); useEffect(() => { pushItemRef.current = pushItem; }, [pushItem]);
 
-  useEffect(() => {
+  // useLayoutEffect (pre-paint) so no D-pad press is lost between openDetail
+  // firing setDetailItem in the parent and this handler being wired up.
+  useLayoutEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
