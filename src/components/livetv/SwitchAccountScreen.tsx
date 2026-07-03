@@ -16,6 +16,7 @@ import {
   type SavedAccount,
   type XtreamCreds,
 } from '@/lib/xtream';
+import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 
 interface Props {
   onBack: () => void;
