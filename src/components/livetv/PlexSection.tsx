@@ -427,12 +427,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const openDetail = useCallback((item: PlexItem) => { setDetailItem(item); }, []);
 
   /** Actual play: called from PlexDetail (movies + episodes). */
-  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number) => {
+  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext) => {
     if (!conn) return;
     setUseTranscode(false);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
+    setSubCtx(ctx ?? { title });
+    setExtraSubs(undefined);
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
@@ -445,8 +447,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     }
   }, [conn]);
 
-  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number) => { void playRatingKey(it.ratingKey, it.title, resumeSec); }, [playRatingKey]);
-  const playEpisode = useCallback((ep: PlexEpisode) => { void playRatingKey(ep.ratingKey, ep.title, undefined); }, [playRatingKey]);
+  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => { void playRatingKey(it.ratingKey, it.title, resumeSec, ctx); }, [playRatingKey]);
+  const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => { void playRatingKey(ep.ratingKey, ep.title, undefined, ctx); }, [playRatingKey]);
+
+  /** Overlay → download picked. Reload player with sidecar + resume position. */
+  const handleLoadExternalSubtitle = useCallback((sub: SnowSubtitle, resumeSec: number) => {
+    setExtraSubs([sub]);
+    setStartPos(resumeSec);
+    // Force a native reload by momentarily nulling the URL.
+    setStreamUrl((prev) => { if (prev) window.setTimeout(() => setStreamUrl(prev), 60); return null; });
+  }, []);
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
   const native = useNativePlayer({
@@ -455,9 +465,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     volume,
     live: false,
     startPosition: startPos,
+    subtitles: extraSubs,
     onTracksChanged: () => setTracksTick((n) => n + 1),
     onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
   });
+
 
   useEffect(() => {
     if (!nativeActive) return;
