@@ -45,7 +45,7 @@ export function usePlexAuth() {
       for (const s of ordered) {
         const base = await pickPlexConnection(s);
         if (base) {
-          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name };
+          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
           await savePlexServer(c);
           setConn(c); setStatus('ready'); return true;
         }
