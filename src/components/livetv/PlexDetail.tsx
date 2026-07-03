@@ -6,17 +6,19 @@ import { Loader2, Play, RotateCw, ArrowLeft, List } from 'lucide-react';
 import { getPlexMetadata, getPlexSeasons, getPlexEpisodes,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem } from '@/lib/plex';
 import PlexImage from './PlexImage';
+import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 
 interface Props {
   isActive: boolean;
   base: string;
   token: string;
   item: PlexItem;
-  onPlay: (item: PlexItem, resumeSec?: number) => void;
+  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => void;
   /** Play a specific episode (shows). */
-  onPlayEpisode: (ep: PlexEpisode) => void;
+  onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext) => void;
   onBack: () => void;
 }
+
 
 type Step = 'detail' | 'seasons' | 'episodes';
 
@@ -103,12 +105,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     } finally { setEpisodesLoading(false); }
   }, [base, token]);
 
+  const movieCtx: SubtitleSearchContext = { title: meta?.title || item.title, year: meta?.year };
   const activateDetail = useCallback((id: string) => {
-    if (id === 'play') onPlay(item);
-    else if (id === 'resume') onPlay(item, resumeSec);
+    if (id === 'play') onPlay(item, undefined, movieCtx);
+    else if (id === 'resume') onPlay(item, resumeSec, movieCtx);
     else if (id === 'back') onBack();
     else if (id === 'browse') { setStep('seasons'); void loadSeasons(); }
-  }, [item, onPlay, onBack, resumeSec, loadSeasons]);
+  }, [item, onPlay, onBack, resumeSec, loadSeasons, movieCtx]);
+
 
   // Refs for the key handler
   const stepRef = useRef(step); useEffect(() => { stepRef.current = step; }, [step]);
@@ -122,6 +126,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const loadEpisodesRef = useRef(loadEpisodes); useEffect(() => { loadEpisodesRef.current = loadEpisodes; }, [loadEpisodes]);
   const onPlayEpisodeRef = useRef(onPlayEpisode); useEffect(() => { onPlayEpisodeRef.current = onPlayEpisode; }, [onPlayEpisode]);
   const onBackRef = useRef(onBack); useEffect(() => { onBackRef.current = onBack; }, [onBack]);
+  const metaRef = useRef(meta); useEffect(() => { metaRef.current = meta; }, [meta]);
+  const itemRef = useRef(item); useEffect(() => { itemRef.current = item; }, [item]);
+
 
   useEffect(() => {
     if (!isActive) return;
@@ -165,7 +172,21 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       if (eps.length === 0) return;
       if (e.key === 'ArrowUp') { if (ei === 0) setStep('seasons'); else setEpIdx(ei - 1); }
       else if (e.key === 'ArrowDown') { if (ei < eps.length - 1) setEpIdx(ei + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const ep = eps[ei]; if (ep) onPlayEpisodeRef.current(ep); }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        const ep = eps[ei];
+        if (ep) {
+          const sea = seasonsRef.current[seasonIdxRef.current];
+          const ctx: SubtitleSearchContext = {
+            title: ep.title,
+            grandparentTitle: metaRef.current?.title || itemRef.current.title,
+            season: sea?.index,
+            episode: ep.index,
+          };
+
+          onPlayEpisodeRef.current(ep, ctx);
+        }
+      }
+
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);

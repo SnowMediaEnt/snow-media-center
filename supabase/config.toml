@@ -40,3 +40,6 @@ verify_jwt = false
 
 [functions.overseerr-request]
 verify_jwt = false
+
+[functions.opensubtitles]
+verify_jwt = false
