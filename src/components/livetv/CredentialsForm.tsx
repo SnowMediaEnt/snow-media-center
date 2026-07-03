@@ -16,6 +16,7 @@ import {
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
+import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
