@@ -181,6 +181,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setMenu('none');
   }, [osdlBusyId, onLoadExternalSubtitle, getPosition, subs, toast]);
 
+  const openQuality = useCallback(() => {
+    setMenu('quality');
+    const idx = PLEX_QUALITY_PRESETS.findIndex((p) => p.key === qualityKey);
+    setMenuIdx(idx >= 0 ? idx : 0);
+  }, [qualityKey]);
+
   const doAction = useCallback(async (r: Row) => {
     if (!controller) return;
     if (r === 'play') controller.togglePlay();
@@ -188,7 +194,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'seek+30') { const p = await getPosition(); await seekTo(p.position + 30); }
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
-  }, [controller, getPosition, seekTo, auds, openSubs]);
+    else if (r === 'quality') { openQuality(); }
+  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
