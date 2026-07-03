@@ -610,7 +610,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [cursor, zone, rowVirtualizer]);
 
   // ── Playback ────────────────────────────────────────────────────────
-  const openDetail = useCallback((item: PlexItem) => { setDetailItem(item); }, []);
+  const openDetail = useCallback((item: PlexItem) => {
+    // Set the ref SYNCHRONOUSLY (before the React state update) so the main
+    // keydown effect below can short-circuit on the very next event — otherwise
+    // a fast D-pad press right after OK would race the post-render effect that
+    // syncs detailRef and get handled by the grid twice.
+    detailRef.current = item;
+    setDetailItem(item);
+  }, []);
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
