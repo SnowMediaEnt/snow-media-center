@@ -2161,7 +2161,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      _probe_tenant_overview: { Args: { p_code: string }; Returns: string }
       adjust_customer_coins: {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
         Returns: number
