@@ -3,14 +3,15 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2 } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
+import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs';
-const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs'];
+type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality';
+const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality'];
 
 export interface SubtitleSearchContext {
   title: string;
@@ -33,6 +34,10 @@ interface Props {
   subtitleContext?: SubtitleSearchContext;
   /** Reload native player with an external subtitle sidecar at the given resume position. */
   onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
+  /** Currently active quality preset key (see PLEX_QUALITY_PRESETS). */
+  qualityKey: string;
+  /** Called when the user picks a new quality preset. */
+  onChangeQuality: (presetKey: string, resumeSec: number) => void;
 }
 
 
@@ -45,10 +50,10 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
-  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl'>('none');
+  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
@@ -176,6 +181,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setMenu('none');
   }, [osdlBusyId, onLoadExternalSubtitle, getPosition, subs, toast]);
 
+  const openQuality = useCallback(() => {
+    setMenu('quality');
+    const idx = PLEX_QUALITY_PRESETS.findIndex((p) => p.key === qualityKey);
+    setMenuIdx(idx >= 0 ? idx : 0);
+  }, [qualityKey]);
+
   const doAction = useCallback(async (r: Row) => {
     if (!controller) return;
     if (r === 'play') controller.togglePlay();
@@ -183,7 +194,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'seek+30') { const p = await getPosition(); await seekTo(p.position + 30); }
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
-  }, [controller, getPosition, seekTo, auds, openSubs]);
+    else if (r === 'quality') { openQuality(); }
+  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
@@ -201,6 +213,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const openOsdlRef = useRef(openOsdl); useEffect(() => { openOsdlRef.current = openOsdl; }, [openOsdl]);
   const openSubsRef = useRef(openSubs); useEffect(() => { openSubsRef.current = openSubs; }, [openSubs]);
   const pickOsdlRef = useRef(pickOsdl); useEffect(() => { pickOsdlRef.current = pickOsdl; }, [pickOsdl]);
+  const qualityKeyRef = useRef(qualityKey); useEffect(() => { qualityKeyRef.current = qualityKey; }, [qualityKey]);
+  const onChangeQualityRef = useRef(onChangeQuality); useEffect(() => { onChangeQualityRef.current = onChangeQuality; }, [onChangeQuality]);
+  const getPositionRef = useRef(getPosition); useEffect(() => { getPositionRef.current = getPosition; }, [getPosition]);
+  const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
 
   useEffect(() => {
     if (!active) return;
@@ -269,6 +285,24 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         else if (e.key === 'Enter' || e.key === ' ') { const item = list[i]; if (item) void pickOsdlRef.current(item); }
         return;
       }
+      if (menuRef.current === 'quality') {
+        const list = PLEX_QUALITY_PRESETS;
+        const i = menuIdxRef.current;
+        if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          const p = list[i];
+          if (p && p.key !== qualityKeyRef.current) {
+            void (async () => {
+              const pos = await getPositionRef.current();
+              onChangeQualityRef.current(p.key, Math.floor(pos.position));
+              try { toastRef.current({ title: `Switching to ${p.label}…` }); } catch { /* ignore */ }
+            })();
+          }
+          setMenu('none');
+        }
+        return;
+      }
 
       // main control row (horizontal)
       const r = rowRef.current;
@@ -320,6 +354,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'audio' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
+            <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
           </div>
           <p className="text-center text-[11px] text-brand-ice/50 font-nunito mt-2">◀ ▶ select · OK activate · Back hides · idle 5s auto-hides</p>
         </div>
@@ -337,6 +372,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           ))}
         </div>
       )}
+
+      {menu === 'quality' && (
+        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Quality</p>
+          {PLEX_QUALITY_PRESETS.map((p, i) => (
+            <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
+              <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-[10px] text-brand-gold">●</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
 
       {menu === 'subs' && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">

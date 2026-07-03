@@ -308,14 +308,66 @@ export function plexDirectUrl(base: string, partKey: string, token: string): str
   return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}`;
 }
 
-/** HLS transcode fallback — offloads decoding to the Plex server (any codec). */
-export function plexTranscodeUrl(base: string, ratingKey: string, token: string): string {
+/** HLS transcode fallback — offloads decoding to the Plex server (any codec).
+ *  Optional `opts` clamp video bitrate/resolution so the user can pick a
+ *  lower-bandwidth ladder ("Play at 1080p · 8 Mbps" etc.) without leaving
+ *  the app. When omitted, behaves exactly like the pre-opts version. */
+export function plexTranscodeUrl(
+  base: string,
+  ratingKey: string,
+  token: string,
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string },
+): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
-  return `${base}/video/:/transcode/universal/start.m3u8`
+  let url = `${base}/video/:/transcode/universal/start.m3u8`
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
     + `&mediaIndex=0&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
+  if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
+  if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
+  return url;
 }
+
+/** User-selectable quality presets. `original` means direct-play — no transcode. */
+export interface PlexQualityPreset {
+  key: string;
+  label: string;
+  maxVideoBitrateKbps?: number;
+  videoResolution?: string;
+}
+export const PLEX_QUALITY_PRESETS: PlexQualityPreset[] = [
+  { key: 'original', label: 'Original (direct)' },
+  { key: '1080-20', label: '1080p · 20 Mbps', maxVideoBitrateKbps: 20000, videoResolution: '1920x1080' },
+  { key: '1080-12', label: '1080p · 12 Mbps', maxVideoBitrateKbps: 12000, videoResolution: '1920x1080' },
+  { key: '1080-8',  label: '1080p · 8 Mbps',  maxVideoBitrateKbps: 8000,  videoResolution: '1920x1080' },
+  { key: '720-4',   label: '720p · 4 Mbps',   maxVideoBitrateKbps: 4000,  videoResolution: '1280x720' },
+  { key: '720-3',   label: '720p · 3 Mbps',   maxVideoBitrateKbps: 3000,  videoResolution: '1280x720' },
+  { key: '480-2',   label: '480p · 2 Mbps',   maxVideoBitrateKbps: 2000,  videoResolution: '854x480' },
+];
+
+const PLEX_QUALITY_KEY = 'snow-plex-quality-v1';
+
+export async function loadPlexQuality(): Promise<string> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { value } = await Preferences.get({ key: PLEX_QUALITY_KEY });
+    if (value) return value;
+  } catch { /* not native */ }
+  try {
+    const raw = localStorage.getItem(PLEX_QUALITY_KEY);
+    if (raw) return raw;
+  } catch { /* ignore */ }
+  return 'original';
+}
+
+export async function savePlexQuality(key: string): Promise<void> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.set({ key: PLEX_QUALITY_KEY, value: key });
+  } catch { /* not native */ }
+  try { localStorage.setItem(PLEX_QUALITY_KEY, key); } catch { /* ignore */ }
+}
+
 
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 

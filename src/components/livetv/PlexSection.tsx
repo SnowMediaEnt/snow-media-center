@@ -25,6 +25,7 @@ import {
   getCachedLibrary, setCachedLibrary, isLibraryCacheFresh,
   getCachedHub, setCachedHub,
   resolutionLabel,
+  PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
@@ -374,6 +375,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const [tracksTick, setTracksTick] = useState(0);
   const [subCtx, setSubCtx] = useState<SubtitleSearchContext | undefined>(undefined);
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
+  const [qualityKey, setQualityKey] = useState<string>('original');
+  useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
 
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
@@ -609,13 +612,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
-    setUseTranscode(false);
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
+    const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
     setPlayingResLabel(resLabel ?? '');
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
+    if (wantTranscode && preset) {
+      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
+        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
+        videoResolution: preset.videoResolution,
+      }));
+      setFullscreen(true);
+      return;
+    }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
@@ -626,7 +639,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       setUseTranscode(true);
       setFullscreen(true);
     }
-  }, [conn]);
+  }, [conn, qualityKey]);
+
 
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie' }); } catch { /* ignore */ }
@@ -646,6 +660,43 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     setStartPos(resumeSec);
     setStreamUrl((prev) => { if (prev) window.setTimeout(() => setStreamUrl(prev), 60); return null; });
   }, []);
+
+  // Switch quality on the fly: rebuilds the stream URL for the currently
+  // playing ratingKey, preserving any downloaded subtitle sidecars and the
+  // exact resume position. Uses the SAME setStreamUrl(null) → restore trick
+  // as external-subtitle loading so the native player fully re-inits.
+  const changeQuality = useCallback((presetKey: string, resumeSec: number) => {
+    void savePlexQuality(presetKey);
+    setQualityKey(presetKey);
+    if (!conn || !playing) return;
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === presetKey);
+    const goingTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    setUseTranscode(goingTranscode);
+    setStartPos(resumeSec > 0 ? resumeSec : undefined);
+    if (goingTranscode && preset) {
+      const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token, {
+        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
+        videoResolution: preset.videoResolution,
+      });
+      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+      return;
+    }
+    // Original — direct play via existing getPlexPart path.
+    void (async () => {
+      let url = '';
+      try {
+        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
+        url = partKey
+          ? plexDirectUrl(conn.base, partKey, conn.token)
+          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+      } catch {
+        url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        setUseTranscode(true);
+      }
+      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+    })();
+  }, [conn, playing]);
+
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
   const native = useNativePlayer({
@@ -838,6 +889,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
             onBackWhileHidden={exitFullscreen}
             subtitleContext={subCtx}
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
+            qualityKey={qualityKey}
+            onChangeQuality={changeQuality}
           />
         )}
 
