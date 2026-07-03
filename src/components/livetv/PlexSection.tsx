@@ -767,7 +767,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const cursorRef = useRef(cursor);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
-  const detailRef = useRef(detailItem);
+  // detailRef declared earlier (near openDetail); ref-sync effect below.
   const nativeErrRef = useRef(native.error); const nativeRetryRef = useRef(native.retry);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { libIdxRef.current = libIdx; }, [libIdx]);
