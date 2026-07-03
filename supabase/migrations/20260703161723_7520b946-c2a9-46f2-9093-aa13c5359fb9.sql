@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public._probe_canvas_all(int);
