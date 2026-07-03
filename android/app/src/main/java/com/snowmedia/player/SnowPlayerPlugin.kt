@@ -257,6 +257,21 @@ class SnowPlayerPlugin : Plugin() {
                 watchdogRunnable = null
             }
             override fun onPlayerError(error: PlaybackException) {
+                val code = error.errorCode
+                val isAudio = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                    code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+                if (isAudio) {
+                    // Reconnecting can't fix a codec init — surface a distinct
+                    // code to JS so PlexSection can switch to server-side
+                    // audio transcode (aac/5.1) at the current position.
+                    notifyListeners(
+                        "playerError",
+                        JSObject().put("code", "AUDIO_DECODE").put("message", error.message ?: "Audio decoder failed"),
+                    )
+                    return
+                }
                 if (currentUrl != null && reconnectAttempts < MAX_RECONNECTS) {
                     reconnect()
                     return
