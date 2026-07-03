@@ -179,7 +179,9 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
             const focused = isActive && zone === 'results' && cursor === idx;
             const badge = statusBadge(it.status);
             return (
-              <div key={`${it.mediaType}-${it.id}`} data-focused={focused ? 'true' : 'false'}
+              <div key={`${it.mediaType}-${it.id}`}
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
+                data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setCursor(idx); activate(it); }}
                 className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                 <div className="aspect-[2/3] bg-black/40 flex items-center justify-center">

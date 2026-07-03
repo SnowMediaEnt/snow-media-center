@@ -290,7 +290,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
           const focused = isActive && zone === 'tabs' && libIdx === i;
           const selected = libIdx === i;
           return (
-            <button key={lib.key} data-focused={focused ? 'true' : 'false'}
+            <button key={lib.key}
+              ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+              data-focused={focused ? 'true' : 'false'}
               onClick={() => { setLibIdx(i); setZone('grid'); }}
               className={`tv-focusable flex-shrink-0 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 text-white' : selected ? 'bg-white/10 border border-brand-gold/30 text-white' : 'border border-transparent text-brand-ice'}`}>
               {lib.title}
