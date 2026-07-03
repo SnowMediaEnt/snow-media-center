@@ -23,6 +23,8 @@ export interface SubtitleSearchContext {
 interface Props {
   active: boolean;                              // component only wires listeners when true
   title: string;
+  /** Optional display badge, e.g. "4K" / "1080p" — rendered next to the title. */
+  resolutionLabel?: string;
   controller: VideoController | null;
   tracksTick: number;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
