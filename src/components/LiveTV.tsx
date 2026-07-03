@@ -16,6 +16,7 @@ import {
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
+import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runWhenIdle } from '@/utils/idle';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
@@ -92,6 +93,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           if (!res.ok || !res.server || !res.creds) return;
           const acc = buildPlayerAccount(res.server, res.creds, res.userInfo);
           await savePlayerAccount(acc);
+          // Reconcile capture — refreshes expiration/last_seen for every
+          // player-signed-in user, even without a Supabase session. Does NOT
+          // bump signin_count.
+          void capturePlayerSignin(acc, res.server.label, 'reconcile');
           if (user?.id && user.email) {
             void syncPlayerAccountToCloud(user.id, user.email, acc);
           }

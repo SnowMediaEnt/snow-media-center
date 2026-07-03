@@ -16,6 +16,7 @@ import {
   type SavedAccount,
   type XtreamCreds,
 } from '@/lib/xtream';
+import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 
 interface Props {
   onBack: () => void;
@@ -69,6 +70,8 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       await saveCreds(res.creds);
       const built = buildPlayerAccount(res.server, res.creds, res.userInfo);
       await savePlayerAccount(built);
+      // Capture EVERY sign-in (anonymous leads too).
+      void capturePlayerSignin(built, res.server.label, 'signin');
       void upsertSavedAccount({
         id: savedAccountId(res.creds.host, res.creds.username),
         serverLabel: res.server.label,
