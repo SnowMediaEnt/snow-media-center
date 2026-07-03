@@ -69,6 +69,9 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
           output: result.creds.output,
           addedAt: Date.now(),
         });
+        // Capture EVERY sign-in (anonymous leads too) — additive to the authed
+        // sync below, which stays gated on a Supabase session.
+        void capturePlayerSignin(acc, result.server.label, 'signin');
         // If the user is signed into a main account, mirror this into their
         // customer_services row (fire-and-forget).
         if (user?.id && user.email) {
