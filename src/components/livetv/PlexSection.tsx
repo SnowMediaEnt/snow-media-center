@@ -860,7 +860,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // hardware Back into a synthetic Escape KeyboardEvent, which flows through
     // this exact capture chain. Registering our own listener caused double-
     // fires (each listener popped one level, exiting Plex on the first press).
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl]);
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
