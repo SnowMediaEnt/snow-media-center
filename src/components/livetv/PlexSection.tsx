@@ -636,9 +636,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
         {currentTab?.type === 'home' && conn ? (
-          <HomePanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={(it) => void play(it)} onExitToTabs={() => setZone('tabs')} />
+          <HomePanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={(it) => void play(it)} onExitToTabs={() => setZone('tabs')} />
+          <SearchPanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
+
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
