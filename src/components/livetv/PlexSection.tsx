@@ -625,6 +625,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!conn) return;
     const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
     const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    // Flip fullscreen ON *before* any await so the loading UI paints
+    // immediately — otherwise the user stares at the grid for the ~1-3s
+    // getPlexPart round-trip and mashes OK, queueing up phantom presses.
     setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
@@ -632,23 +635,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
+    setStreamUrl(null);
+    setFullscreen(true);
     if (wantTranscode && preset) {
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
         maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
         videoResolution: preset.videoResolution,
       }));
-      setFullscreen(true);
       return;
     }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
-      setFullscreen(true);
     } catch {
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
       setUseTranscode(true);
-      setFullscreen(true);
     }
   }, [conn, qualityKey]);
 
