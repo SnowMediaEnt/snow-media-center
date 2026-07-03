@@ -612,13 +612,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
-    setUseTranscode(false);
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
+    const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
     setPlayingResLabel(resLabel ?? '');
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
+    if (wantTranscode && preset) {
+      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
+        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
+        videoResolution: preset.videoResolution,
+      }));
+      setFullscreen(true);
+      return;
+    }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
@@ -629,7 +639,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       setUseTranscode(true);
       setFullscreen(true);
     }
-  }, [conn]);
+  }, [conn, qualityKey]);
+
 
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie' }); } catch { /* ignore */ }
