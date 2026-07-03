@@ -156,11 +156,13 @@ const PlexPlayerOverlay = memo(({ active, title, controller, tracksTick, getPosi
     const dl = await downloadOpenSubtitle(r.id);
     setOsdlBusyId(null);
     if (!dl.ok) {
-      if (dl.reason === 'not_configured') toast({ title: 'Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.' });
-      else if (dl.reason === 'quota') toast({ title: 'Daily subtitle download limit reached.' });
+      const reason = (dl as { reason?: string }).reason;
+      if (reason === 'not_configured') toast({ title: 'Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.' });
+      else if (reason === 'quota') toast({ title: 'Daily subtitle download limit reached.' });
       else toast({ title: 'Could not download subtitles.' });
       return;
     }
+
     if (!onLoadExternalSubtitle) return;
     const p = await getPosition();
     // Snapshot current track ids so we can detect the new one after reload.
