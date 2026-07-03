@@ -247,7 +247,13 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       });
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
-    const openGuide = () => { setTab('help'); setHelpView('menu'); setShowGuide(true); };
+    const openGuide = () => {
+      try {
+        const o = sessionStorage.getItem('smc-guide-origin');
+        if (o) setGuideOrigin(o);
+      } catch { /* ignore */ }
+      setTab('help'); setHelpView('menu'); setShowGuide(true);
+    };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-buffering-guide', openGuide);
