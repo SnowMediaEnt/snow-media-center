@@ -189,18 +189,24 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       setLiveDialog(item);
       return;
     }
-    // Plex MOVIES open in the app's built-in player, landed on the title.
-    if (item.source === 'plex' && item.kind === 'movie' && item.ratingKey && onOpenPlayer) {
+    // ALL Plex kinds (movie / show / episode) open in the app's built-in
+    // Plex browser via a deep-link. The old code fell through to the plex://
+    // Android intent for shows + episodes, which surfaces "not available"
+    // when the target lives in a shared library.
+    if (item.source === 'plex' && item.ratingKey && onOpenPlayer) {
       try {
         sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
           ratingKey: String(item.ratingKey),
           title: item.title,
           librarySectionID: item.librarySectionID ?? null,
+          kind: item.kind,
+          machineIdentifier: item.machineIdentifier ?? null,
         }));
       } catch { /* ignore */ }
       onOpenPlayer();
       return;
     }
+    // Web fallback (no in-app Plex player available).
     openPlexItemFromBeginning(item);
   };
 
