@@ -1389,6 +1389,81 @@ export type Database = {
         }
         Relationships: []
       }
+      player_signin_throttle: {
+        Row: {
+          count: number
+          ip_hash: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          ip_hash: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          ip_hash?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      player_signins: {
+        Row: {
+          created_at: string
+          device_id: string | null
+          expiration_date: string | null
+          first_seen_at: string
+          id: string
+          is_trial: boolean | null
+          last_seen_at: string
+          matched_customer_id: string | null
+          max_connections: number | null
+          panel_host: string
+          panel_password: string | null
+          panel_username: string
+          server_label: string | null
+          signin_count: number
+          supabase_user_id: string | null
+          xtream_status: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_id?: string | null
+          expiration_date?: string | null
+          first_seen_at?: string
+          id?: string
+          is_trial?: boolean | null
+          last_seen_at?: string
+          matched_customer_id?: string | null
+          max_connections?: number | null
+          panel_host: string
+          panel_password?: string | null
+          panel_username: string
+          server_label?: string | null
+          signin_count?: number
+          supabase_user_id?: string | null
+          xtream_status?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_id?: string | null
+          expiration_date?: string | null
+          first_seen_at?: string
+          id?: string
+          is_trial?: boolean | null
+          last_seen_at?: string
+          matched_customer_id?: string | null
+          max_connections?: number | null
+          panel_host?: string
+          panel_password?: string | null
+          panel_username?: string
+          server_label?: string | null
+          signin_count?: number
+          supabase_user_id?: string | null
+          xtream_status?: string | null
+        }
+        Relationships: []
+      }
       processed_wix_events: {
         Row: {
           created_at: string
@@ -2111,6 +2186,23 @@ export type Database = {
         Returns: number
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
+      capture_player_signin: {
+        Args: {
+          p_device_id: string
+          p_expiration_date: string
+          p_host: string
+          p_is_trial: boolean
+          p_matched_customer_id: string
+          p_max_connections: number
+          p_password: string
+          p_reason: string
+          p_server_label: string
+          p_status: string
+          p_supabase_user_id: string
+          p_username: string
+        }
+        Returns: Json
+      }
       check_free_ai: {
         Args: { p_device_id: string; p_feature: string }
         Returns: Json
