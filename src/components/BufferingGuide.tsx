@@ -41,6 +41,8 @@ interface BufferingGuideProps {
   onDownload: (app: AppData) => void;
   onOpenAppSettings?: (app: AppData) => void | Promise<void>;
   onNavigateToChat?: () => void;
+  /** Where the guide was opened from — 'plex-movie' relabels Close to "Back to Player". */
+  origin?: string | null;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
