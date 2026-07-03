@@ -23,6 +23,8 @@ export interface SubtitleSearchContext {
 interface Props {
   active: boolean;                              // component only wires listeners when true
   title: string;
+  /** Optional display badge, e.g. "4K" / "1080p" — rendered next to the title. */
+  resolutionLabel?: string;
   controller: VideoController | null;
   tracksTick: number;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
@@ -43,7 +45,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl'>('none');
@@ -297,7 +299,12 @@ const PlexPlayerOverlay = memo(({ active, title, controller, tracksTick, getPosi
     <>
       <div className="absolute left-0 right-0 bottom-0 z-20 px-6 pt-16 pb-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
-          <p className="font-quicksand font-bold text-white truncate mb-2">{title}</p>
+          <p className="font-quicksand font-bold text-white truncate mb-2">
+            {title}
+            {resolutionLabel && (
+              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
+            )}
+          </p>
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-brand-gold" style={{ width: `${pct}%` }} />
           </div>
