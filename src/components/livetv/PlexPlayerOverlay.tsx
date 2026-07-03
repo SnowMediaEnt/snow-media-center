@@ -34,6 +34,10 @@ interface Props {
   subtitleContext?: SubtitleSearchContext;
   /** Reload native player with an external subtitle sidecar at the given resume position. */
   onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
+  /** Currently active quality preset key (see PLEX_QUALITY_PRESETS). */
+  qualityKey: string;
+  /** Called when the user picks a new quality preset. */
+  onChangeQuality: (presetKey: string, resumeSec: number) => void;
 }
 
 
