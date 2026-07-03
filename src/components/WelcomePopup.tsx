@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.5.9': [
+    'Plex: movie & show detail pages with ratings, cast and Resume',
+    'Plex: full episode browsing for shows',
+    'Plex: playback controls — pause, skip, audio & subtitle tracks',
+    'Plex: download subtitles from OpenSubtitles',
+    'Plex: Home + Search + hide libraries; posters now load',
+    'New back-button flow inside Plex',
+  ],
   '1.5.8': [
     'Player now opens with two choices — Live TV and Movies & Shows',
     'New: Movies & Shows powered by Plex — sign in once and stream your library',
