@@ -201,9 +201,9 @@ class SnowPlayerPlugin : Plugin() {
         val offloadOff = TrackSelectionParameters.AudioOffloadPreferences.Builder()
             .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
             .build()
-        ts.setParameters(
-            ts.buildUponParameters().setAudioOffloadPreferences(offloadOff)
-        )
+        val tsParamsBuilder = ts.buildUponParameters()
+        tsParamsBuilder.setAudioOffloadPreferences(offloadOff)
+        ts.setParameters(tsParamsBuilder)
         trackSelector = ts
         // setEnableDecoderFallback(true) lets ExoPlayer try the next audio
         // decoder if the first init fails (also helps AC3/EAC3 titles).
