@@ -51,6 +51,8 @@ interface Props {
   isActive: boolean;
   onExitLeft?: () => void;
   onExitUp?: () => void;
+  /** Tear down Plex playback and route to Support → Buffering Guide. */
+  onOpenBufferingGuide?: () => void;
 }
 
 // ─── RES BADGE (grid / rails) ──────────────────────────────────────────────
@@ -340,7 +342,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs 
 ManagePanel.displayName = 'ManagePanel';
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
-const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
+const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
@@ -891,6 +893,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
             qualityKey={qualityKey}
             onChangeQuality={changeQuality}
+            onOpenBufferingGuide={onOpenBufferingGuide ? () => { exitFullscreen(); onOpenBufferingGuide(); } : undefined}
           />
         )}
 
