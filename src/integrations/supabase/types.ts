@@ -1423,6 +1423,7 @@ export type Database = {
           panel_password: string | null
           panel_username: string
           refresh_error: string | null
+          reseller_id: string | null
           server_label: string | null
           signin_count: number
           supabase_user_id: string | null
@@ -1443,6 +1444,7 @@ export type Database = {
           panel_password?: string | null
           panel_username: string
           refresh_error?: string | null
+          reseller_id?: string | null
           server_label?: string | null
           signin_count?: number
           supabase_user_id?: string | null
@@ -1463,6 +1465,7 @@ export type Database = {
           panel_password?: string | null
           panel_username?: string
           refresh_error?: string | null
+          reseller_id?: string | null
           server_label?: string | null
           signin_count?: number
           supabase_user_id?: string | null
@@ -2192,23 +2195,42 @@ export type Database = {
         Returns: number
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
-      capture_player_signin: {
-        Args: {
-          p_device_id: string
-          p_expiration_date: string
-          p_host: string
-          p_is_trial: boolean
-          p_matched_customer_id: string
-          p_max_connections: number
-          p_password: string
-          p_reason: string
-          p_server_label: string
-          p_status: string
-          p_supabase_user_id: string
-          p_username: string
-        }
-        Returns: Json
-      }
+      capture_player_signin:
+        | {
+            Args: {
+              p_device_id: string
+              p_expiration_date: string
+              p_host: string
+              p_is_trial: boolean
+              p_matched_customer_id: string
+              p_max_connections: number
+              p_password: string
+              p_reason: string
+              p_server_label: string
+              p_status: string
+              p_supabase_user_id: string
+              p_username: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_device_id: string
+              p_expiration_date: string
+              p_host: string
+              p_is_trial: boolean
+              p_matched_customer_id: string
+              p_max_connections: number
+              p_password: string
+              p_reason: string
+              p_server_label: string
+              p_status: string
+              p_supabase_user_id: string
+              p_tenant_code?: string
+              p_username: string
+            }
+            Returns: Json
+          }
       check_free_ai: {
         Args: { p_device_id: string; p_feature: string }
         Returns: Json
@@ -2291,12 +2313,44 @@ export type Database = {
         }
         Returns: undefined
       }
+      tenant_analytics_daily: {
+        Args: { p_code: string; p_days: number }
+        Returns: {
+          active_devices: number
+          day: string
+          events: number
+        }[]
+      }
+      tenant_analytics_overview: {
+        Args: { p_code: string; p_days: number }
+        Returns: Json
+      }
+      tenant_app_launches: {
+        Args: { p_code: string; p_days: number }
+        Returns: {
+          app: string
+          launches: number
+        }[]
+      }
+      tenant_area_time: {
+        Args: { p_code: string; p_days: number }
+        Returns: {
+          avg_seconds: number
+          samples: number
+          screen: string
+          total_seconds: number
+        }[]
+      }
       tenant_customer_counts: {
         Args: never
         Returns: {
           count: number
           tenant_id: string
         }[]
+      }
+      tenant_player_activity: {
+        Args: { p_code: string; p_days: number }
+        Returns: Json
       }
       update_user_credits: {
         Args: {

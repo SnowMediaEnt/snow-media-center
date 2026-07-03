@@ -200,6 +200,10 @@ Deno.serve(async (req) => {
     const expirationDate = parseExpirationDate(body.exp_date);
     const reasonRaw = typeof body.reason === 'string' ? body.reason : 'signin';
     const reason = reasonRaw === 'reconcile' ? 'reconcile' : 'signin';
+    // Optional tenant tag — RPC validates it against tenants.code and rejects
+    // the SMC/canvas/ask reserved codes. Anything invalid becomes null server-side.
+    const tenantCodeRaw = clampText(body.tenant_code, 64);
+    const tenantCode = tenantCodeRaw ? tenantCodeRaw.trim().toLowerCase() : null;
 
     // f. matched_customer_id — only when authed.
     let matchedCustomerId: string | null = null;
@@ -230,6 +234,7 @@ Deno.serve(async (req) => {
       p_supabase_user_id: supabaseUserId,
       p_matched_customer_id: matchedCustomerId,
       p_reason: reason,
+      p_tenant_code: tenantCode,
     });
 
     if (error) {
