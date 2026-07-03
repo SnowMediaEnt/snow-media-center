@@ -320,8 +320,12 @@ export function plexTranscodeUrl(
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
+  // audioCodec=aac + maxAudioChannels=6 force Plex to re-encode audio to AAC
+  // (up to 5.1) instead of direct-streaming the original — needed for Fire TV
+  // devices that reject offloaded EAC3/AC3 / trigger DECODER_INIT_FAILED.
   let url = `${base}/video/:/transcode/universal/start.m3u8`
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
+    + `&audioCodec=aac&maxAudioChannels=6`
     + `&mediaIndex=0&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
@@ -372,7 +376,10 @@ export async function savePlexQuality(key: string): Promise<void> {
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 
 export function plexPhotoTranscodeUrl(base: string, path: string, token: string, w: number, h: number): string {
-  return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1&upscale=1`
+  // No upscale — we render posters at a fixed on-screen box; asking Plex to
+  // upscale wastes server time and produces bigger payloads that pressure the
+  // Fire TV JS heap.
+  return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1`
     + `&url=${encodeURIComponent(path)}&X-Plex-Token=${encodeURIComponent(token)}`;
 }
 

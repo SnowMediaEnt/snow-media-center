@@ -108,7 +108,10 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           markStreaming(false);
           const msg = data.message || 'Playback error';
           const code = data.code;
-          if (retriesRef.current >= maxRetries) {
+          // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
+          // won't fix it. Surface immediately so the caller (PlexSection) can
+          // fall back to a server-side transcode.
+          if (code === 'AUDIO_DECODE' || retriesRef.current >= maxRetries) {
             setError({ code, message: msg });
             return;
           }

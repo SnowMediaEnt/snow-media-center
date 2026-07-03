@@ -156,7 +156,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
                   onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
                   className={`relative flex-shrink-0 w-[140px] cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                   <div className="relative aspect-[2/3]">
-                    <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                    <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                     <ResChip label={label} />
                   </div>
                   <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -267,7 +267,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
                 onClick={() => { setZone('grid'); setCursor(idx); onPlay(it); }}
                 className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                 <div className="relative aspect-[2/3]">
-                  <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                  <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                   <ResChip label={label} />
                 </div>
                 <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -610,12 +610,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [cursor, zone, rowVirtualizer]);
 
   // ── Playback ────────────────────────────────────────────────────────
-  const openDetail = useCallback((item: PlexItem) => { setDetailItem(item); }, []);
+  // Hoisted so openDetail can write to it synchronously (see comment below).
+  const detailRef = useRef(detailItem);
+  const openDetail = useCallback((item: PlexItem) => {
+    // Set the ref SYNCHRONOUSLY (before the React state update) so the main
+    // keydown effect below can short-circuit on the very next event — otherwise
+    // a fast D-pad press right after OK would race the post-render effect that
+    // syncs detailRef and get handled by the grid twice.
+    detailRef.current = item;
+    setDetailItem(item);
+  }, []);
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
     const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
     const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    // Flip fullscreen ON *before* any await so the loading UI paints
+    // immediately — otherwise the user stares at the grid for the ~1-3s
+    // getPlexPart round-trip and mashes OK, queueing up phantom presses.
     setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
@@ -623,23 +635,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
+    setStreamUrl(null);
+    setFullscreen(true);
     if (wantTranscode && preset) {
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
         maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
         videoResolution: preset.videoResolution,
       }));
-      setFullscreen(true);
       return;
     }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
-      setFullscreen(true);
     } catch {
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
       setUseTranscode(true);
-      setFullscreen(true);
     }
   }, [conn, qualityKey]);
 
@@ -718,12 +729,37 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
   }, [nativeActive]);
 
+  // Auto-fallback to Plex-side transcode when native playback errors — most
+  // notably AUDIO_DECODE from the Media3 plugin (Fire TV rejected the direct
+  // codec / offload path). Preserves the current playhead so switching feels
+  // like a hiccup, not a restart.
   useEffect(() => {
-    if (nativeActive && native.error && !useTranscode && playing && conn) {
+    if (!(nativeActive && native.error && !useTranscode && playing && conn)) return;
+    void (async () => {
+      let resume: number | undefined;
+      try {
+        const p = await native.getPosition();
+        if (p.position > 0) resume = p.position;
+      } catch { /* ignore */ }
+      setStartPos(resume);
       setUseTranscode(true);
       setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
-    }
-  }, [native.error, nativeActive, useTranscode, playing, conn]);
+    })();
+  }, [native.error, nativeActive, useTranscode, playing, conn, native]);
+
+  // Slow-load watchdog: if the native player hasn't emitted 'ready' within
+  // 8s of the fullscreen flipping on, expose a Retry button so the user can
+  // kick the pipeline instead of staring at a stalled spinner.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) { setSlowLoad(false); return; }
+    setSlowLoad(false);
+    const t = window.setTimeout(() => setSlowLoad(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [fullscreen, streamUrl]);
+  useEffect(() => {
+    if (nativeActive && !native.buffering && !native.error) setSlowLoad(false);
+  }, [nativeActive, native.buffering, native.error]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
@@ -758,7 +794,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const cursorRef = useRef(cursor);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
-  const detailRef = useRef(detailItem);
+  // detailRef declared earlier (near openDetail); ref-sync effect below.
   const nativeErrRef = useRef(native.error); const nativeRetryRef = useRef(native.retry);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { libIdxRef.current = libIdx; }, [libIdx]);
@@ -771,10 +807,27 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const goHome = useCallback(() => { setLibIdx(homeIdx); setZone('tabs'); }, []);
 
-  // Single keydown effect. Gated on `isActive` (not status), so it can catch
-  // Back during PlexAuthScreen too — the early branch below handles that.
+  // Single keydown effect. STRUCTURAL RULE: while `detailItem` OR `fullscreen`
+  // is set, this handler is TORN DOWN entirely — the detail overlay / player
+  // overlay wire their own capture listeners. That guarantees exactly ONE
+  // capture listener is active at a time, so a fast D-pad press right after
+  // Enter can't be handled by both the grid AND the detail page.
   useEffect(() => {
     if (!isActive) return;
+    // Pre-stream fullscreen (streamUrl not resolved yet): keep a MINIMAL Back
+    // handler so the user is never stuck on a black loading screen while the
+    // native decoder acquires. Everything else is deferred to the overlay.
+    if (fullscreen && !streamUrl) {
+      const backOnly = (e: KeyboardEvent) => {
+        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
+        if (!isBack) return;
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
+      };
+      window.addEventListener('keydown', backOnly, true);
+      return () => window.removeEventListener('keydown', backOnly, true);
+    }
+    if (detailItem || fullscreen) return;
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
@@ -790,11 +843,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         }
         return;
       }
-
-      // Detail page owns all keys (including Back) via its own capture handler.
-      if (detailRef.current) return;
-      // Fullscreen: overlay owns all keys via its own capture handler.
-      if (fullscreenRef.current) return;
 
       if (isBack) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -839,7 +887,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // hardware Back into a synthetic Escape KeyboardEvent, which flows through
     // this exact capture chain. Registering our own listener caused double-
     // fires (each listener popped one level, exiting Plex on the first press).
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl]);
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
@@ -858,8 +906,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
-        {NATIVE_PLAYBACK && native.buffering && !native.error && (
+        {NATIVE_PLAYBACK && !native.error && !slowLoad && (!streamUrl || !nativeActive || native.buffering) && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" /></div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && slowLoad && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
+            <Loader2 className="w-10 h-10 text-brand-gold animate-spin mb-3" />
+            <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
+            <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
+            <button onClick={() => { setSlowLoad(false); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+              <RotateCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
         )}
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center">
@@ -956,7 +1014,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                           onClick={() => { setCursor(idx); openDetail(it); }}
                           className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                           <div className="relative aspect-[2/3]">
-                            {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={240} h={360} className="w-full h-full object-cover" />}
+                            {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={180} h={270} className="w-full h-full object-cover" />}
                             <ResChip label={label} />
                           </div>
                           <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>

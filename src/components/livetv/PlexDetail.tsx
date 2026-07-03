@@ -4,11 +4,13 @@
 // hardware. Cast row + actor filmography overlay have their own D-pad zones
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Play, RotateCw, List } from 'lucide-react';
 import { getPlexMetadata, getPlexSeasons, getPlexEpisodes, getPlexActorItems, resolutionLabel,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson } from '@/lib/plex';
 import PlexImage from './PlexImage';
+import { isNativePlatform } from '@/utils/platform';
+import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 
 interface Props {
@@ -84,7 +86,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const [actorLoading, setActorLoading] = useState(false);
   const [actorCursor, setActorCursor] = useState(0);
 
-  // Reset all state when the top-of-stack item changes.
+  // Cast is mounted lazily AFTER meta resolves — poster images alone can pin
+  // 30-100MB into the WebView layer on a 1GB Fire TV Stick, and the detail
+  // page is already fighting a heap spike from getPlexMetadata's JSON parse.
+  const [castReady, setCastReady] = useState(false);
+
+  // Reset all state when the top-of-stack item changes. getPlexMetadata is
+  // deferred via runWhenIdle so its JSON parse can't block the first D-pad
+  // press after openDetail (the page renders instantly from `current`).
   useEffect(() => {
     setMeta(null);
     setMetaLoading(true);
@@ -92,22 +101,37 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     setZone('buttons');
     setBtn(0);
     setCastIdx(0);
+    setCastReady(false);
     setSeasons([]); setEpisodes([]); setSeasonIdx(0); setEpIdx(0);
     let cancelled = false;
-    getPlexMetadata(base, token, current.ratingKey)
-      .then((m) => { if (!cancelled) setMeta(m); })
-      .catch(() => { /* keep meta null — instant render from `current` still works */ })
-      .finally(() => { if (!cancelled) setMetaLoading(false); });
-    return () => { cancelled = true; };
+    const cancelIdle = runWhenIdle(() => {
+      if (cancelled) return;
+      getPlexMetadata(base, token, current.ratingKey)
+        .then((m) => { if (!cancelled) setMeta(m); })
+        .catch(() => { /* keep meta null — instant render from `current` still works */ })
+        .finally(() => {
+          if (cancelled) return;
+          setMetaLoading(false);
+          // Cast headshots mount on the NEXT idle window after meta resolves.
+          runWhenIdle(() => { if (!cancelled) setCastReady(true); }, 400);
+        });
+    }, 120);
+    return () => { cancelled = true; cancelIdle(); };
   }, [base, token, current]);
 
-  // Lazy-load the backdrop AFTER first paint so it never blocks interaction.
+  // Backdrop art is expensive to decode (a 1280x720 JPEG easily pushes 4-6MB
+  // into the WebView surface and, on the Fire TV Stick 4K Max we're targeting,
+  // is the direct cause of the ~200MB allocation → 25s GC pause when the
+  // detail page opens). On NATIVE we skip it entirely; on web we defer past
+  // first paint. Either way the gradient overlay below still frames the page.
   const [backdropReady, setBackdropReady] = useState(false);
+  const showBackdrop = !isNativePlatform();
   useEffect(() => {
+    if (!showBackdrop) { setBackdropReady(false); return; }
     setBackdropReady(false);
-    const t = window.setTimeout(() => setBackdropReady(true), 120);
-    return () => window.clearTimeout(t);
-  }, [current]);
+    const cancel = runWhenIdle(() => setBackdropReady(true), 600);
+    return cancel;
+  }, [current, showBackdrop]);
 
   const isShow = (meta?.type ?? current.type) === 'show';
   const isEpisode = (meta?.type ?? current.type) === 'episode';
@@ -210,7 +234,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const openActorRef = useRef(openActor); useEffect(() => { openActorRef.current = openActor; }, [openActor]);
   const pushItemRef = useRef(pushItem); useEffect(() => { pushItemRef.current = pushItem; }, [pushItem]);
 
-  useEffect(() => {
+  // useLayoutEffect (pre-paint) so no D-pad press is lost between openDetail
+  // firing setDetailItem in the parent and this handler being wired up.
+  useLayoutEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -312,15 +338,16 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   return (
     <div className="fixed inset-0 z-[55] text-white overflow-hidden">
-      {/* Backdrop (lazy-mounted) */}
+      {/* Backdrop — skipped on NATIVE (heap-cost, decorative only); on web
+          it's a small 640x360 image mounted after first paint. */}
       <div className="absolute inset-0 bg-black">
-        {backdropReady && (meta?.art || current.art) && (
+        {showBackdrop && backdropReady && (meta?.art || current.art) && (
           <PlexImage
             base={base}
             path={meta?.art || current.art}
             token={token}
-            w={1280}
-            h={720}
+            w={640}
+            h={360}
             className="w-full h-full object-cover opacity-40 blur-[2px]"
           />
         )}
@@ -404,7 +431,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
               <div className="mt-8">
                 <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-2">Cast</div>
-                {metaLoading && cast.length === 0 ? (
+                {metaLoading || !castReady ? (
                   <div className="flex gap-3">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="w-[110px] flex-shrink-0">
@@ -455,7 +482,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       className={`flex-shrink-0 w-[140px] rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" /></div>
+                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" /></div>
                       <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{s.title}</div>
                     </div>
                   );
@@ -521,7 +548,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       onClick={() => { setActorCursor(idx); pushItem(it); }}
                       className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                       <div className="relative aspect-[2/3]">
-                        <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                         {label && <div className="absolute top-1 right-1"><ResBadge label={label} /></div>}
                       </div>
                       <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>

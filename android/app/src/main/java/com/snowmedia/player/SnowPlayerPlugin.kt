@@ -18,9 +18,11 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.CueGroup
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -190,13 +192,32 @@ class SnowPlayerPlugin : Plugin() {
     private fun buildPlayer() {
         val act = activity ?: return
         val ts = DefaultTrackSelector(act)
+        // Disable audio offload for THIS player. On Fire TV Stick 4K Max the
+        // AudioFlinger repeatedly rejects the DIRECT/offload output ExoPlayer
+        // requests ("mismatch between requested flags 00000008 and output
+        // flags 00000002"), which starves the AAC decoder under GC pressure
+        // and produces the audio dropouts we're seeing. Plain PCM AudioTrack
+        // is Fire-TV-safe and only costs a few % CPU.
+        val offloadOff = TrackSelectionParameters.AudioOffloadPreferences.Builder()
+            .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
+            .build()
+        ts.parameters = ts.buildUponParameters()
+            .setAudioOffloadPreferences(offloadOff)
+            .build()
         trackSelector = ts
+        // setEnableDecoderFallback(true) lets ExoPlayer try the next audio
+        // decoder if the first init fails (also helps AC3/EAC3 titles).
+        // EXTENSION_RENDERER_MODE_PREFER lets bundled software decoders be
+        // used when hardware ones misbehave.
+        val renderersFactory = DefaultRenderersFactory(act)
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(8000)
         val dataSourceFactory = DefaultDataSource.Factory(act, httpFactory)
-        val p = ExoPlayer.Builder(act)
+        val p = ExoPlayer.Builder(act, renderersFactory)
             .setTrackSelector(ts)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(dataSourceFactory)
@@ -236,6 +257,21 @@ class SnowPlayerPlugin : Plugin() {
                 watchdogRunnable = null
             }
             override fun onPlayerError(error: PlaybackException) {
+                val code = error.errorCode
+                val isAudio = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                    code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+                if (isAudio) {
+                    // Reconnecting can't fix a codec init — surface a distinct
+                    // code to JS so PlexSection can switch to server-side
+                    // audio transcode (aac/5.1) at the current position.
+                    notifyListeners(
+                        "playerError",
+                        JSObject().put("code", "AUDIO_DECODE").put("message", error.message ?: "Audio decoder failed"),
+                    )
+                    return
+                }
                 if (currentUrl != null && reconnectAttempts < MAX_RECONNECTS) {
                     reconnect()
                     return
