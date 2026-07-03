@@ -34,15 +34,14 @@ async function login(key: string, user: string, pass: string, force = false): Pr
       headers: { 'Api-Key': key, 'User-Agent': UA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user, password: pass }),
     });
-    const txt = await r.text();
-    if (!r.ok) { console.error('login http', r.status, txt.slice(0,300)); return null; }
-    let d: any; try { d = JSON.parse(txt); } catch { console.error('login parse', txt.slice(0,300)); return null; }
+    if (!r.ok) { console.error('OS login failed', r.status); return null; }
+    const d = await r.json();
     const tok = typeof d?.token === 'string' ? d.token : null;
-    if (!tok) { console.error('login no token', JSON.stringify(d).slice(0,300)); return null; }
+    if (!tok) return null;
     cachedToken = tok;
     cachedTokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
     return tok;
-  } catch (e) { console.error('login exception', String(e)); return null; }
+  } catch { return null; }
 }
 
 serve(async (req) => {
