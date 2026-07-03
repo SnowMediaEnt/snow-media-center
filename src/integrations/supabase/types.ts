@@ -2165,6 +2165,18 @@ export type Database = {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
         Returns: number
       }
+      admin_activity_series: {
+        Args: { p_bucket: string; p_days: number }
+        Returns: {
+          active_devices: number
+          avg_session_seconds: number
+          bucket: string
+          events: number
+          sessions: number
+          signins: number
+        }[]
+      }
+      admin_activity_summary: { Args: never; Returns: Json }
       ai_tokens_last_hour: { Args: never; Returns: number }
       analytics_active_users: {
         Args: { p_period?: string }
