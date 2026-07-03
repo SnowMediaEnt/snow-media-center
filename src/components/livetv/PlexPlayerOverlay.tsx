@@ -299,7 +299,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     <>
       <div className="absolute left-0 right-0 bottom-0 z-20 px-6 pt-16 pb-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
-          <p className="font-quicksand font-bold text-white truncate mb-2">{title}</p>
+          <p className="font-quicksand font-bold text-white truncate mb-2">
+            {title}
+            {resolutionLabel && (
+              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
+            )}
+          </p>
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-brand-gold" style={{ width: `${pct}%` }} />
           </div>
