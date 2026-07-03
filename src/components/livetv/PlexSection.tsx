@@ -780,10 +780,27 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const goHome = useCallback(() => { setLibIdx(homeIdx); setZone('tabs'); }, []);
 
-  // Single keydown effect. Gated on `isActive` (not status), so it can catch
-  // Back during PlexAuthScreen too — the early branch below handles that.
+  // Single keydown effect. STRUCTURAL RULE: while `detailItem` OR `fullscreen`
+  // is set, this handler is TORN DOWN entirely — the detail overlay / player
+  // overlay wire their own capture listeners. That guarantees exactly ONE
+  // capture listener is active at a time, so a fast D-pad press right after
+  // Enter can't be handled by both the grid AND the detail page.
   useEffect(() => {
     if (!isActive) return;
+    // Pre-stream fullscreen (streamUrl not resolved yet): keep a MINIMAL Back
+    // handler so the user is never stuck on a black loading screen while the
+    // native decoder acquires. Everything else is deferred to the overlay.
+    if (fullscreen && !streamUrl) {
+      const backOnly = (e: KeyboardEvent) => {
+        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
+        if (!isBack) return;
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
+      };
+      window.addEventListener('keydown', backOnly, true);
+      return () => window.removeEventListener('keydown', backOnly, true);
+    }
+    if (detailItem || fullscreen) return;
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
@@ -799,11 +816,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         }
         return;
       }
-
-      // Detail page owns all keys (including Back) via its own capture handler.
-      if (detailRef.current) return;
-      // Fullscreen: overlay owns all keys via its own capture handler.
-      if (fullscreenRef.current) return;
 
       if (isBack) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
