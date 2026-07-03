@@ -332,6 +332,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const [useTranscode, setUseTranscode] = useState(false);
   const [startPos, setStartPos] = useState<number | undefined>(undefined);
   const [tracksTick, setTracksTick] = useState(0);
+  const [subCtx, setSubCtx] = useState<SubtitleSearchContext | undefined>(undefined);
+  const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
+
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
 
