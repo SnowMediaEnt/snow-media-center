@@ -690,11 +690,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       </div>
 
       <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-1.5 text-[11px] font-nunito text-brand-ice/60">
-        ◀ ▶ ▲ ▼ browse · OK to play · Back for Home / exit
+        ◀ ▶ ▲ ▼ browse · OK for details · Back for Home / exit
       </div>
+
+      {detailItem && conn && (
+        <PlexDetail
+          isActive={isActive}
+          base={conn.base}
+          token={conn.token}
+          item={detailItem}
+          onPlay={playFromDetail}
+          onPlayEpisode={playEpisode}
+          onBack={() => setDetailItem(null)}
+        />
+      )}
     </div>
   );
 });
+
 
 PlexSection.displayName = 'PlexSection';
 export default PlexSection;
