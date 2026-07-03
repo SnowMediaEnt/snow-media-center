@@ -373,6 +373,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         </div>
       )}
 
+      {menu === 'quality' && (
+        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Quality</p>
+          {PLEX_QUALITY_PRESETS.map((p, i) => (
+            <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
+              <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-[10px] text-brand-gold">●</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+
       {menu === 'subs' && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
           <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Subtitles</p>
