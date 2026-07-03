@@ -422,7 +422,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
       {showGuide && (
         <BufferingGuide
-          onClose={() => setShowGuide(false)}
+          onClose={() => {
+            setShowGuide(false);
+            const origin = guideOrigin;
+            try { sessionStorage.removeItem('smc-guide-origin'); } catch { /* ignore */ }
+            setGuideOrigin(null);
+            if (origin === 'plex-movie') {
+              // PlexSection will consume 'smc-plex-deeplink' on mount and open
+              // the movie's detail page — user presses Play to resume.
+              onNavigate?.('livetv');
+            }
+          }}
+          origin={guideOrigin}
           apps={apps}
           appStatuses={new Map()}
           onLaunch={launchApp}
