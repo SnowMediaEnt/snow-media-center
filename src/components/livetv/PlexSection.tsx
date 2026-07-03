@@ -951,7 +951,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
             qualityKey={qualityKey}
             onChangeQuality={changeQuality}
-            onOpenBufferingGuide={onOpenBufferingGuide ? () => { exitFullscreen(); onOpenBufferingGuide(); } : undefined}
+            onOpenBufferingGuide={onOpenBufferingGuide ? () => {
+              // Stash movie context so Support can hand it back to Plex on close.
+              try {
+                const p = playing;
+                if (p) {
+                  sessionStorage.setItem('smc-guide-origin', 'plex-movie');
+                  sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
+                    ratingKey: p.ratingKey,
+                    title: p.title,
+                    librarySectionID: (p as unknown as { librarySectionID?: string | number | null }).librarySectionID ?? null,
+                    kind: p.type ?? 'movie',
+                  }));
+                }
+              } catch { /* ignore */ }
+              exitFullscreen();
+              onOpenBufferingGuide();
+            } : undefined}
           />
         )}
 
