@@ -93,6 +93,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           if (!res.ok || !res.server || !res.creds) return;
           const acc = buildPlayerAccount(res.server, res.creds, res.userInfo);
           await savePlayerAccount(acc);
+          // Reconcile capture — refreshes expiration/last_seen for every
+          // player-signed-in user, even without a Supabase session. Does NOT
+          // bump signin_count.
+          void capturePlayerSignin(acc, res.server.label, 'reconcile');
           if (user?.id && user.email) {
             void syncPlayerAccountToCloud(user.id, user.email, acc);
           }
