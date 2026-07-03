@@ -153,7 +153,7 @@ const BufferingGuide = ({
   // Mark the guide as open globally so the app-wide Capacitor back-button
   // listener (in useNavigation) skips its goBack() — otherwise BACK pops
   // Support → Home in addition to closing the guide.
-  useEffect(() => {
+  useLayoutEffect(() => {
     (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = true;
     try { trackEvent('buffering_guide_start', 'support'); } catch { void 0; }
     return () => {
