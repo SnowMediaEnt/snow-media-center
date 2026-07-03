@@ -6,17 +6,19 @@ import { Loader2, Play, RotateCw, ArrowLeft, List } from 'lucide-react';
 import { getPlexMetadata, getPlexSeasons, getPlexEpisodes,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem } from '@/lib/plex';
 import PlexImage from './PlexImage';
+import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 
 interface Props {
   isActive: boolean;
   base: string;
   token: string;
   item: PlexItem;
-  onPlay: (item: PlexItem, resumeSec?: number) => void;
+  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => void;
   /** Play a specific episode (shows). */
-  onPlayEpisode: (ep: PlexEpisode) => void;
+  onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext) => void;
   onBack: () => void;
 }
+
 
 type Step = 'detail' | 'seasons' | 'episodes';
 
