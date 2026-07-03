@@ -12,11 +12,13 @@ import {
   saveCreds,
   authenticateRouted,
   loadCreds,
+  daysUntilExp,
   SAVED_ACCOUNTS_REFRESH_EVENT,
   type SavedAccount,
   type XtreamCreds,
 } from '@/lib/xtream';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
+import { trackEvent } from '@/lib/analytics';
 
 interface Props {
   onBack: () => void;
@@ -72,6 +74,14 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       await savePlayerAccount(built);
       // Capture EVERY sign-in (anonymous leads too).
       void capturePlayerSignin(built, res.server.label, 'signin');
+      try {
+        trackEvent('livetv_signin', 'player', {
+          server: res.server.label,
+          username: built.username,
+          is_trial: built.isTrial,
+          days_left: daysUntilExp(built),
+        });
+      } catch { /* ignore */ }
       void upsertSavedAccount({
         id: savedAccountId(res.creds.host, res.creds.username),
         serverLabel: res.server.label,

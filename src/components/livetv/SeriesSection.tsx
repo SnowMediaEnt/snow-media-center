@@ -18,6 +18,7 @@ import {
 } from '@/lib/xtream';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
+import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -238,7 +239,26 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       title: `${selectedSeries.name} · S${currentSeasonNumber}E${ep.episode_num} · ${ep.title}`,
       episodeIdx: index,
     });
+    try {
+      trackEvent('series_play', 'player', {
+        series: selectedSeries.name,
+        season: currentSeasonNumber,
+        episode: ep.episode_num,
+      });
+    } catch { /* ignore */ }
   }, [episodes, selectedSeries, creds, currentSeasonNumber]);
+
+  // player_search — debounce
+  useEffect(() => {
+    if (!searchOpen) return;
+    const q = searchQuery.trim();
+    if (!q) return;
+    const t = window.setTimeout(() => {
+      try { trackEvent('player_search', 'player', { scope: 'series', query: q.slice(0, 64) }); } catch { /* ignore */ }
+    }, 750);
+    return () => window.clearTimeout(t);
+  }, [searchOpen, searchQuery]);
+
 
   // Refs
   const paneRef = useRef(pane);
@@ -440,7 +460,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             src={playing.url}
             volume={volume}
             className="w-full h-full"
-            onError={() => { /* let VideoPlayer retry */ }}
+            onError={(msg) => {
+              try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
+            }}
             onEnded={() => {
               if (!autoplayNextRef.current) { setPlaying(null); return; }
               const next = playing.episodeIdx + 1;

@@ -20,6 +20,7 @@ import {
   type EpgNowNext,
 } from '@/lib/xtream';
 import { isFireTV } from '@/utils/platform';
+import { trackEvent } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import type { VideoController } from './VideoPlayer';
@@ -482,10 +483,27 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return buildLiveStreamUrl(creds, playingChannelId);
   }, [playingChannelId, creds]);
 
+  const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
-  }, []);
+    // Fire-and-forget analytics — dedupe rapid replays of same channel (<10s).
+    try {
+      const now = Date.now();
+      const last = lastPlayRef.current;
+      if (!last || last.id !== stream.stream_id || now - last.ts > 10_000) {
+        lastPlayRef.current = { id: stream.stream_id, ts: now };
+        const catName = visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
+          ?? currentCat?.name ?? '';
+        trackEvent('channel_play', 'player', {
+          channel: stream.name,
+          category: catName,
+          server: creds.serverLabel,
+        });
+      }
+    } catch { /* ignore */ }
+  }, [visibleCategories, currentCat, creds.serverLabel]);
+
 
   // Native ExoPlayer wiring — only active on native builds while fullscreen.
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;
@@ -530,6 +548,29 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setChannelIdx(next);
     playChannel(visibleChannels[next]);
   }, [visibleChannels, playingChannelId, channelIdx, playChannel]);
+
+  // player_error — track native player fatal error transitions.
+  const lastNativeErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    const msg = native.error?.message ?? null;
+    if (msg && msg !== lastNativeErrorRef.current) {
+      lastNativeErrorRef.current = msg;
+      try {
+        const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
+        trackEvent('player_error', 'player', {
+          kind: 'live_native',
+          channel_or_title: ch?.name ?? '',
+          server: creds.serverLabel,
+        });
+      } catch { /* ignore */ }
+    } else if (!msg) {
+      lastNativeErrorRef.current = null;
+    }
+  }, [native.error, visibleChannels, playingChannelId, creds.serverLabel]);
+
+  // (player_search intentionally NOT fired for Live TV — spec scopes it to movies/series/plex.)
+
+
 
   // Refs for keyboard handler
   const paneRef = useRef(pane);
@@ -888,6 +929,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               onReady={(c) => { videoControllerRef.current = c; setIsPaused(c.isPaused()); }}
               onPlayStateChange={(paused) => setIsPaused(paused)}
               onTracksChanged={() => setTracksTick(t => t + 1)}
+              onError={(msg) => {
+                try {
+                  const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
+                  trackEvent('player_error', 'player', {
+                    kind: 'live_web',
+                    channel_or_title: ch?.name ?? '',
+                    server: creds.serverLabel,
+                    message: msg.slice(0, 200),
+                  });
+                } catch { /* ignore */ }
+              }}
             />
           </Suspense>
         )}

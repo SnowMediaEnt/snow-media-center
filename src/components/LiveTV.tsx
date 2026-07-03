@@ -19,8 +19,13 @@ import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runWhenIdle } from '@/utils/idle';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
+import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+import { clearPlexToken } from '@/lib/plex';
+import { trackEvent, trackAlertShown } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
+import ExpirationNoticeDialog from './livetv/ExpirationNoticeDialog';
+import PlexBlockedScreen from './livetv/PlexBlockedScreen';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
@@ -65,6 +70,65 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(serverLabel);
   const serverAlertOpenRef = useRef(false);
   useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
+
+  // ── Expiration awareness (in-Player dialog + Plex block) ──────────────
+  const { account: playerAccount, days: playerDays } = usePlayerAccount();
+  const acctServerLabel = playerAccount?.serverLabel || serverLabel || 'your';
+  const plexBlocked =
+    playerAccount !== null && playerDays !== null && playerDays < 0;
+
+  // Expiration dialog — once per day per state (warn|expired).
+  const [expNoticeKind, setExpNoticeKind] = useState<'warn' | 'expired' | null>(null);
+  useEffect(() => {
+    if (!credsLoaded || !creds) return;
+    if (playerDays === null) return;
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    let kind: 'warn' | 'expired' | null = null;
+    if (playerDays < 0) kind = 'expired';
+    else if (playerDays <= 7) kind = 'warn';
+    if (!kind) return;
+    const key = `snow-player-exp-notice-${kind}-${ymd}`;
+    try {
+      if (localStorage.getItem(key) === '1') return;
+    } catch { /* ignore */ }
+    setExpNoticeKind(kind);
+    try { trackAlertShown(`player_expiration_${kind}`); } catch { /* ignore */ }
+    // trackAlertShown expects a title; pass extra props via trackEvent too.
+    try { trackEvent('player_expiration_shown', 'player', { kind, days: playerDays, server: acctServerLabel }); } catch { /* ignore */ }
+  }, [credsLoaded, creds, playerDays, acctServerLabel]);
+
+  const dismissExpNotice = useCallback(() => {
+    const kind = expNoticeKind;
+    setExpNoticeKind(null);
+    if (!kind) return;
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    try { localStorage.setItem(`snow-player-exp-notice-${kind}-${ymd}`, '1'); } catch { /* ignore */ }
+  }, [expNoticeKind]);
+
+  // On becoming blocked → sign out of Plex once per (expDate) so future
+  // renewals aren't punished. Flag stored in localStorage.
+  const PLEX_KICK_KEY = 'snow-plex-kicked-for-exp';
+  useEffect(() => {
+    if (!plexBlocked || !playerAccount) return;
+    const expTag = String(playerAccount.expDate ?? 'unknown');
+    try {
+      if (localStorage.getItem(PLEX_KICK_KEY) === expTag) return;
+      void clearPlexToken();
+      localStorage.setItem(PLEX_KICK_KEY, expTag);
+    } catch {
+      // Fire the sign-out anyway; missing storage is not fatal.
+      void clearPlexToken();
+    }
+  }, [plexBlocked, playerAccount]);
+  // If they renew (days back >= 0), clear the flag so a future expiration re-kicks.
+  useEffect(() => {
+    if (!plexBlocked) {
+      try { localStorage.removeItem(PLEX_KICK_KEY); } catch { /* ignore */ }
+    }
+  }, [plexBlocked]);
+
 
 
   // Load creds on mount
@@ -142,12 +206,32 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
     setPane('sections');
+    try { trackEvent('mode_enter', 'player', { mode: m }); } catch { /* ignore */ }
   }, []);
   const leaveMode = useCallback(() => {
     setMode('choose');
     setSectionIdx(0);
     setPane('sections');
   }, []);
+
+  // player_open — once per LiveTV mount.
+  const playerOpenRef = useRef(false);
+  useEffect(() => {
+    if (!credsLoaded || playerOpenRef.current) return;
+    playerOpenRef.current = true;
+    try { trackEvent('player_open', 'player', { has_creds: !!creds }); } catch { /* ignore */ }
+  }, [credsLoaded, creds]);
+
+  // mode_enter — also fire when the user changes SECTION inside a mode
+  // (e.g. Live TV → Guide, or Movies & Shows → Plex/Movies/Series).
+  const lastSectionRef = useRef<SectionId | null>(null);
+  useEffect(() => {
+    if (mode === 'choose') { lastSectionRef.current = null; return; }
+    if (lastSectionRef.current === section) return;
+    lastSectionRef.current = section;
+    try { trackEvent('mode_enter', 'player', { mode: section }); } catch { /* ignore */ }
+  }, [section, mode]);
+
 
   // Content-Bar deep-link: land straight in Movies & Shows (PlexSection
   // consumes the payload itself — do not remove it here).
@@ -174,6 +258,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const refreshChannels = useCallback(() => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+    try { trackEvent('update_channels', 'player', { server: serverLabel }); } catch { /* ignore */ }
     const updatingId = toast({
       title: 'Updating channels…',
       description: 'Fetching the latest list from the server.',
@@ -184,7 +269,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
       setIsRefreshing(false);
     }, 1400);
-  }, [isRefreshing, toast]);
+  }, [isRefreshing, toast, serverLabel]);
+
 
   // Auto-refresh once whenever the Player opens with valid creds.
   const autoRefreshedRef = useRef(false);
@@ -395,16 +481,29 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   if (mode === 'movies') {
     return (
       <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-          <PlexSection
-            isActive={true}
-            onExitLeft={leaveMode}
-            onExitUp={leaveMode}
+        {plexBlocked ? (
+          <PlexBlockedScreen serverLabel={acctServerLabel} onBack={leaveMode} />
+        ) : (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <PlexSection
+              isActive={true}
+              onExitLeft={leaveMode}
+              onExitUp={leaveMode}
+            />
+          </Suspense>
+        )}
+        {expNoticeKind && (
+          <ExpirationNoticeDialog
+            open={true}
+            serverLabel={acctServerLabel}
+            days={playerDays ?? 0}
+            onDismiss={dismissExpNotice}
           />
-        </Suspense>
+        )}
       </div>
     );
   }
+
 
   // Sign-in screen — shown when no creds OR user opened account form
   if (showCredsForm) {
@@ -588,18 +687,31 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
         {section === 'plex' && (
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-            <PlexSection
-              isActive={pane === 'content'}
-              onExitLeft={onExitLeft}
-              onExitUp={onExitUp}
-            />
-          </Suspense>
+          plexBlocked ? (
+            <PlexBlockedScreen serverLabel={acctServerLabel} onBack={onExitLeft} />
+          ) : (
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+              <PlexSection
+                isActive={pane === 'content'}
+                onExitLeft={onExitLeft}
+                onExitUp={onExitUp}
+              />
+            </Suspense>
+          )
         )}
       </div>
+      {expNoticeKind && (
+        <ExpirationNoticeDialog
+          open={true}
+          serverLabel={acctServerLabel}
+          days={playerDays ?? 0}
+          onDismiss={dismissExpNotice}
+        />
+      )}
     </div>
   );
 });
+
 
 Player.displayName = 'Player';
 export default Player;

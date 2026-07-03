@@ -17,6 +17,7 @@ import {
 } from '@/lib/xtream';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
+import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -214,7 +215,20 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const ext = movieInfo?.movie_data?.container_extension || selectedMovie.container_extension || 'mp4';
     const url = buildMovieUrl(creds, selectedMovie.stream_id, ext);
     setPlaying({ url, title: selectedMovie.name });
+    try { trackEvent('movie_play', 'player', { title: selectedMovie.name }); } catch { /* ignore */ }
   }, [creds, selectedMovie, movieInfo]);
+
+  // player_search — debounce
+  useEffect(() => {
+    if (!searchOpen) return;
+    const q = searchQuery.trim();
+    if (!q) return;
+    const t = window.setTimeout(() => {
+      try { trackEvent('player_search', 'player', { scope: 'movies', query: q.slice(0, 64) }); } catch { /* ignore */ }
+    }, 750);
+    return () => window.clearTimeout(t);
+  }, [searchOpen, searchQuery]);
+
 
   // Keyboard
   const paneRef = useRef(pane);
@@ -377,7 +391,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     return (
       <div className="fixed inset-0 z-[60] bg-black">
         <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
-          <VideoPlayer src={playing.url} volume={volume} className="w-full h-full" />
+          <VideoPlayer
+            src={playing.url}
+            volume={volume}
+            className="w-full h-full"
+            onError={(msg) => {
+              try { trackEvent('player_error', 'player', { kind: 'movie', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
+            }}
+          />
         </Suspense>
         <div className="absolute top-4 left-4 text-white font-quicksand font-bold text-lg drop-shadow-lg">
           {playing.title}

@@ -33,6 +33,7 @@ import PlexImage from './PlexImage';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
+import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
@@ -186,6 +187,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
     const mySeq = ++seqRef.current;
     setLoading(true);
     const t = window.setTimeout(() => {
+      try { trackEvent('player_search', 'player', { scope: 'plex', query: q.slice(0, 64) }); } catch { /* ignore */ }
       searchPlex(base, token, q)
         .then((r) => { if (mySeq === seqRef.current) { setResults(r); setCursor(0); } })
         .catch(() => { if (mySeq === seqRef.current) setResults([]); })
@@ -193,6 +195,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
     }, 400);
     return () => { window.clearTimeout(t); };
   }, [query, base, token]);
+
 
   useEffect(() => { if (isActive && zone === 'input') inputRef.current?.focus(); }, [isActive, zone]);
 
@@ -374,6 +377,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
+
+  // plex_open — once per mount when the section becomes active.
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (!isActive || openedRef.current) return;
+    openedRef.current = true;
+    try { trackEvent('plex_open', 'player'); } catch { /* ignore */ }
+  }, [isActive]);
+
 
   // Load libraries when connected.
   useEffect(() => {
@@ -617,11 +629,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   }, [conn]);
 
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
+    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie' }); } catch { /* ignore */ }
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution));
   }, [playRatingKey]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode' }); } catch { /* ignore */ }
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '');
   }, [playRatingKey]);
+
+  // (plex_error tracked below, once `native` is declared.)
+
+
 
   const handleLoadExternalSubtitle = useCallback((sub: SnowSubtitle, resumeSec: number) => {
     setExtraSubs([sub]);
@@ -653,6 +671,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
     }
   }, [native.error, nativeActive, useTranscode, playing, conn]);
+
+  // plex_error — track native player fatal error transitions (single fire per message).
+  const lastPlexErrRef = useRef<string | null>(null);
+  useEffect(() => {
+    const msg = native.error?.message ?? null;
+    if (msg && msg !== lastPlexErrRef.current) {
+      lastPlexErrRef.current = msg;
+      try {
+        trackEvent('player_error', 'player', {
+          kind: 'plex',
+          channel_or_title: playingTitle || playing?.title || '',
+          server: conn?.name || '',
+        });
+      } catch { /* ignore */ }
+    } else if (!msg) {
+      lastPlexErrRef.current = null;
+    }
+  }, [native.error, playingTitle, playing, conn]);
 
   const exitFullscreen = useCallback(() => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); }, []);
 
