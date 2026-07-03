@@ -123,6 +123,7 @@ const BufferingGuide = ({
   onDownload,
   onOpenAppSettings,
   onNavigateToChat,
+  origin,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
