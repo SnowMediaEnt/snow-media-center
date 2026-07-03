@@ -86,7 +86,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const [actorLoading, setActorLoading] = useState(false);
   const [actorCursor, setActorCursor] = useState(0);
 
-  // Reset all state when the top-of-stack item changes.
+  // Cast is mounted lazily AFTER meta resolves — poster images alone can pin
+  // 30-100MB into the WebView layer on a 1GB Fire TV Stick, and the detail
+  // page is already fighting a heap spike from getPlexMetadata's JSON parse.
+  const [castReady, setCastReady] = useState(false);
+
+  // Reset all state when the top-of-stack item changes. getPlexMetadata is
+  // deferred via runWhenIdle so its JSON parse can't block the first D-pad
+  // press after openDetail (the page renders instantly from `current`).
   useEffect(() => {
     setMeta(null);
     setMetaLoading(true);
@@ -94,22 +101,37 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     setZone('buttons');
     setBtn(0);
     setCastIdx(0);
+    setCastReady(false);
     setSeasons([]); setEpisodes([]); setSeasonIdx(0); setEpIdx(0);
     let cancelled = false;
-    getPlexMetadata(base, token, current.ratingKey)
-      .then((m) => { if (!cancelled) setMeta(m); })
-      .catch(() => { /* keep meta null — instant render from `current` still works */ })
-      .finally(() => { if (!cancelled) setMetaLoading(false); });
-    return () => { cancelled = true; };
+    const cancelIdle = runWhenIdle(() => {
+      if (cancelled) return;
+      getPlexMetadata(base, token, current.ratingKey)
+        .then((m) => { if (!cancelled) setMeta(m); })
+        .catch(() => { /* keep meta null — instant render from `current` still works */ })
+        .finally(() => {
+          if (cancelled) return;
+          setMetaLoading(false);
+          // Cast headshots mount on the NEXT idle window after meta resolves.
+          runWhenIdle(() => { if (!cancelled) setCastReady(true); }, 400);
+        });
+    }, 120);
+    return () => { cancelled = true; cancelIdle(); };
   }, [base, token, current]);
 
-  // Lazy-load the backdrop AFTER first paint so it never blocks interaction.
+  // Backdrop art is expensive to decode (a 1280x720 JPEG easily pushes 4-6MB
+  // into the WebView surface and, on the Fire TV Stick 4K Max we're targeting,
+  // is the direct cause of the ~200MB allocation → 25s GC pause when the
+  // detail page opens). On NATIVE we skip it entirely; on web we defer past
+  // first paint. Either way the gradient overlay below still frames the page.
   const [backdropReady, setBackdropReady] = useState(false);
+  const showBackdrop = !isNativePlatform();
   useEffect(() => {
+    if (!showBackdrop) { setBackdropReady(false); return; }
     setBackdropReady(false);
-    const t = window.setTimeout(() => setBackdropReady(true), 120);
-    return () => window.clearTimeout(t);
-  }, [current]);
+    const cancel = runWhenIdle(() => setBackdropReady(true), 600);
+    return cancel;
+  }, [current, showBackdrop]);
 
   const isShow = (meta?.type ?? current.type) === 'show';
   const isEpisode = (meta?.type ?? current.type) === 'episode';
