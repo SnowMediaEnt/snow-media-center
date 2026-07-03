@@ -7,7 +7,7 @@ import {
 } from '@/lib/plex';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
-export interface PlexConn { base: string; token: string; name: string; }
+export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; }
 
 export function usePlexAuth() {
   const [status, setStatus] = useState<PlexStatus>('loading');
