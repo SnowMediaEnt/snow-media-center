@@ -12,11 +12,14 @@ import { usePlexAuth } from '@/hooks/usePlexAuth';
 import {
   getPlexLibraries, getPlexLibraryItems, getPlexPart, getPlexHub, searchPlex,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
-  type PlexLibrary, type PlexItem,
+  type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
+import PlexDetail from './PlexDetail';
+import PlexPlayerOverlay from './PlexPlayerOverlay';
+
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
@@ -319,12 +322,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const [cursor, setCursor] = useState(0);
 
   const [volume] = useState(0.9);
+  const [detailItem, setDetailItem] = useState<PlexItem | null>(null);
   const [playing, setPlaying] = useState<PlexItem | null>(null);
+  const [playingTitle, setPlayingTitle] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [useTranscode, setUseTranscode] = useState(false);
+  const [startPos, setStartPos] = useState<number | undefined>(undefined);
+  const [tracksTick, setTracksTick] = useState(0);
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
+
+
 
   // Load libraries when connected.
   useEffect(() => {
@@ -409,25 +418,41 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   }, [cursor, zone, rowVirtualizer]);
 
   // ── Playback ────────────────────────────────────────────────────────
-  const play = useCallback(async (item: PlexItem) => {
+  /** Poster OK → open detail page (does not play). */
+  const openDetail = useCallback((item: PlexItem) => { setDetailItem(item); }, []);
+
+  /** Actual play: called from PlexDetail (movies + episodes). */
+  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number) => {
     if (!conn) return;
-    if (item.type !== 'movie') { toast({ title: 'Coming soon', description: 'Series playback from Plex arrives in the next update.' }); return; }
     setUseTranscode(false);
-    setPlaying(item);
+    setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
+    setPlayingTitle(title);
+    setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     try {
-      const { partKey } = await getPlexPart(conn.base, conn.token, item.ratingKey);
-      const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, item.ratingKey, conn.token);
+      const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
+      const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
       setFullscreen(true);
     } catch {
-      setStreamUrl(plexTranscodeUrl(conn.base, item.ratingKey, conn.token));
+      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
       setUseTranscode(true);
       setFullscreen(true);
     }
-  }, [conn, toast]);
+  }, [conn]);
+
+  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number) => { void playRatingKey(it.ratingKey, it.title, resumeSec); }, [playRatingKey]);
+  const playEpisode = useCallback((ep: PlexEpisode) => { void playRatingKey(ep.ratingKey, ep.title, undefined); }, [playRatingKey]);
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
-  const native = useNativePlayer({ active: nativeActive, url: nativeActive ? streamUrl : null, volume });
+  const native = useNativePlayer({
+    active: nativeActive,
+    url: nativeActive ? streamUrl : null,
+    volume,
+    live: false,
+    startPosition: startPos,
+    onTracksChanged: () => setTracksTick((n) => n + 1),
+    onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
+  });
 
   useEffect(() => {
     if (!nativeActive) return;
@@ -442,7 +467,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     }
   }, [native.error, nativeActive, useTranscode, playing, conn]);
 
-  const exitFullscreen = useCallback(() => { setFullscreen(false); setPlaying(null); setStreamUrl(null); setUseTranscode(false); }, []);
+  const exitFullscreen = useCallback(() => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); }, []);
+
 
   const toggleHidden = useCallback((key: string) => {
     setHidden((prev) => {
@@ -457,6 +483,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const zoneRef = useRef(zone); const cursorRef = useRef(cursor);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
+  const detailRef = useRef(detailItem);
   const nativeErrRef = useRef(native.error); const nativeRetryRef = useRef(native.retry);
   useEffect(() => { zoneRef.current = zone; }, [zone]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
@@ -464,6 +491,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   useEffect(() => { itemsRef.current = items; }, [items]);
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
+  useEffect(() => { detailRef.current = detailItem; }, [detailItem]);
   useEffect(() => { nativeErrRef.current = native.error; }, [native.error]);
   useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
 
@@ -475,12 +503,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
-      if (fullscreenRef.current) {
-        const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
-        if (isBack) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); exitFullscreen(); return; }
-        if (nativeErrRef.current && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); nativeRetryRef.current(); return; }
-        return;
-      }
+      // Detail page owns all keys (including Back) via its own capture handler.
+      if (detailRef.current) return;
+
+      // Fullscreen: overlay owns all keys via its own capture handler.
+      if (fullscreenRef.current) return;
 
       // BACK: 1st press → Home tabs; 2nd (already on Home) → exit Plex.
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
@@ -520,12 +547,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
       else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); /* col 0: do nothing */ }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const it = itemsRef.current[cur]; if (it) void play(it); }
+      else if (e.key === 'Enter' || e.key === ' ') { const it = itemsRef.current[cur]; if (it) openDetail(it); }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
     // onExitUp intentionally unused — arrows never leave Plex.
-  }, [isActive, status, onExitLeft, onExitUp, play, exitFullscreen, goHome]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, exitFullscreen, goHome]);
 
   // Hardware back
   useEffect(() => {
@@ -535,8 +562,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       try {
         const h = await CapApp.addListener('backButton', () => {
           if (fullscreenRef.current) { exitFullscreen(); return; }
+          if (detailRef.current) { setDetailItem(null); return; }
           if (libIdxRef.current !== homeIdx) { goHome(); return; }
           onExitLeft?.();
+
         });
         if (cancelled) h?.remove?.(); else handle = h;
       } catch { /* web */ }
@@ -575,12 +604,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
           </div>
         )}
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-          <p className="font-quicksand font-bold text-white truncate">{playing?.title || ''}{useTranscode ? ' · transcoding' : ''}</p>
+          <p className="font-quicksand font-bold text-white truncate">{playingTitle}{useTranscode ? ' · transcoding' : ''}</p>
         </div>
-        <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">Back to exit</div>
+        {NATIVE_PLAYBACK && !native.error && (
+          <PlexPlayerOverlay
+            active={nativeActive}
+            title={playingTitle}
+            controller={native.controller}
+            tracksTick={tracksTick}
+            getPosition={native.getPosition}
+            seekTo={native.seekTo}
+            onBackWhileHidden={exitFullscreen}
+          />
+        )}
       </div>
     );
   }
+
 
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
@@ -607,9 +647,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
         {currentTab?.type === 'home' && conn ? (
-          <HomePanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={(it) => void play(it)} onExitToTabs={() => setZone('tabs')} />
+          <HomePanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'search' && conn ? (
-          <SearchPanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={(it) => void play(it)} onExitToTabs={() => setZone('tabs')} />
+          <SearchPanel isActive={isActive && zone === 'grid'} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
+
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
@@ -631,7 +672,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
                       const focused = isActive && zone === 'grid' && cursor === idx;
                       return (
                         <div key={it.ratingKey} data-focused={focused ? 'true' : 'false'}
-                          onClick={() => { setCursor(idx); void play(it); }}
+                          onClick={() => { setCursor(idx); openDetail(it); }}
                           className={`cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                           <div className="aspect-[2/3]">
                             {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={240} h={360} className="w-full h-full object-cover" />}
@@ -649,11 +690,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       </div>
 
       <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-1.5 text-[11px] font-nunito text-brand-ice/60">
-        ◀ ▶ ▲ ▼ browse · OK to play · Back for Home / exit
+        ◀ ▶ ▲ ▼ browse · OK for details · Back for Home / exit
       </div>
+
+      {detailItem && conn && (
+        <PlexDetail
+          isActive={isActive}
+          base={conn.base}
+          token={conn.token}
+          item={detailItem}
+          onPlay={playFromDetail}
+          onPlayEpisode={playEpisode}
+          onBack={() => setDetailItem(null)}
+        />
+      )}
     </div>
   );
 });
+
 
 PlexSection.displayName = 'PlexSection';
 export default PlexSection;

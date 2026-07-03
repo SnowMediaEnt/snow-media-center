@@ -5,7 +5,7 @@
 // auto-retry (matches VideoPlayer's shape), background stop + resume, and
 // the 'streaming-active' documentElement flag for parity.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SnowPlayer } from '@/capacitor/SnowPlayer';
+import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 
@@ -13,9 +13,17 @@ interface UseNativePlayerArgs {
   active: boolean;
   url: string | null;
   volume: number;
+  /** false = VOD (Plex movies/episodes). Defaults true for backward compat (Live TV). */
+  live?: boolean;
+  /** Sidecar subtitles passed at load. */
+  subtitles?: SnowSubtitle[];
+  /** Seconds to resume at after load. */
+  startPosition?: number;
   maxRetries?: number;
   onTracksChanged?: () => void;
   onPlayStateChange?: (paused: boolean) => void;
+  /** Fired when the native player emits state='ended' (VOD only). */
+  onEnded?: () => void;
 }
 
 export interface NativePlayerState {
@@ -23,11 +31,13 @@ export interface NativePlayerState {
   buffering: boolean;
   error: { code?: string; message: string } | null;
   retry: () => void;
+  seekTo: (seconds: number) => Promise<void>;
+  getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
 }
 
 const MAX_RETRIES_DEFAULT = 5;
 
-export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -40,8 +50,10 @@ export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_
 
   const cbTracksRef = useRef(onTracksChanged);
   const cbPlayStateRef = useRef(onPlayStateChange);
+  const cbEndedRef = useRef(onEnded);
   useEffect(() => { cbTracksRef.current = onTracksChanged; }, [onTracksChanged]);
   useEffect(() => { cbPlayStateRef.current = onPlayStateChange; }, [onPlayStateChange]);
+  useEffect(() => { cbEndedRef.current = onEnded; }, [onEnded]);
 
   const markStreaming = (on: boolean) => {
     try {
@@ -89,6 +101,7 @@ export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_
         stateH = await SnowPlayer.addListener('playerState', (data) => {
           if (data.state === 'buffering') setBuffering(true);
           else if (data.state === 'ready') setBuffering(false);
+          else if (data.state === 'ended') { markStreaming(false); cbEndedRef.current?.(); }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         });
         errH = await SnowPlayer.addListener('playerError', (data) => {
@@ -126,7 +139,11 @@ export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_
       try {
         await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0 });
         if (cancelled || myNonce !== nonceRef.current) return;
-        await SnowPlayer.load({ url, isLive: true });
+        await SnowPlayer.load({ url, live, isLive: live, subtitles });
+        if (cancelled || myNonce !== nonceRef.current) return;
+        if (startPosition && startPosition > 0) {
+          try { await SnowPlayer.seekTo({ position: startPosition }); } catch { /* ignore */ }
+        }
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(1, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
@@ -207,5 +224,12 @@ export function useNativePlayer({ active, url, volume, maxRetries = MAX_RETRIES_
     };
   }, [active]);
 
-  return useMemo(() => ({ controller, buffering, error, retry }), [controller, buffering, error, retry]);
+  const seekTo = useCallback(async (seconds: number) => {
+    try { await SnowPlayer.seekTo({ position: Math.max(0, seconds) }); } catch { /* ignore */ }
+  }, []);
+  const getPosition = useCallback(async () => {
+    try { return await SnowPlayer.getPosition(); } catch { return { position: 0, duration: 0, playing: false }; }
+  }, []);
+
+  return useMemo(() => ({ controller, buffering, error, retry, seekTo, getPosition }), [controller, buffering, error, retry, seekTo, getPosition]);
 }
