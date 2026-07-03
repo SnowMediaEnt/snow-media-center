@@ -1,7 +1,17 @@
 // Plex "Movies & Shows" — auth gate → tabs (Home, Search, libraries, Request,
 // Manage) → poster grid → native play. Fire-TV D-pad only.
+//
+// Perf-critical:
+//   • Library items load in pages (60 first, then 200 at a time in the
+//     background) and cache in a module-level map (TTL 20 min).
+//   • Fetches only fire when the user ENTERS the grid or dwells 400ms on a
+//     tab — arrow-scrubbing across tabs no longer triggers requests.
+//   • Every network call carries a sequence id so late responses can't clobber
+//     a newer tab's state.
+//   • Row height in the virtualizer is measured with ResizeObserver so focus
+//     rings can't be occluded by an under-estimated row.
+//   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { App as CapApp } from '@capacitor/app';
 import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +22,9 @@ import { usePlexAuth } from '@/hooks/usePlexAuth';
 import {
   getPlexLibraries, getPlexLibraryItems, getPlexPart, getPlexHub, searchPlex,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
+  getCachedLibrary, setCachedLibrary, isLibraryCacheFresh,
+  getCachedHub, setCachedHub,
+  resolutionLabel,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
@@ -21,13 +34,13 @@ import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 
-
-
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 
 const COLS = 6;
-const ROW_H = 250;
+const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
+const PAGE_FIRST = 60;
+const PAGE_MORE = 200;
 
 type TabType = 'home' | 'search' | 'movie' | 'show' | 'request' | 'manage';
 interface Tab { key: string; title: string; type: TabType; libKey?: string; }
@@ -38,6 +51,18 @@ interface Props {
   onExitUp?: () => void;
 }
 
+// ─── RES BADGE (grid / rails) ──────────────────────────────────────────────
+const ResChip = memo(({ label }: { label: string }) => {
+  if (!label) return null;
+  const gold = label === '4K';
+  return (
+    <span className={`absolute top-1 right-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
+      {label}
+    </span>
+  );
+});
+ResChip.displayName = 'ResChip';
+
 // ─── HOME PANEL ────────────────────────────────────────────────────────────
 interface HomePanelProps {
   isActive: boolean;
@@ -47,22 +72,27 @@ interface HomePanelProps {
   onExitToTabs: () => void;
 }
 const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
-  const [onDeck, setOnDeck] = useState<PlexItem[]>([]);
-  const [recent, setRecent] = useState<PlexItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const onDeckPath = '/library/onDeck';
+  const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
+  const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
+  const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHub(base, recentPath) ?? []);
+  const [loading, setLoading] = useState(!(getCachedHub(base, onDeckPath) || getCachedHub(base, recentPath)));
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    const cachedOd = getCachedHub(base, onDeckPath);
+    const cachedRa = getCachedHub(base, recentPath);
+    if (cachedOd && cachedRa) { setLoading(false); return; }
     setLoading(true);
     Promise.all([
-      getPlexHub(base, token, '/library/onDeck').catch(() => [] as PlexItem[]),
-      getPlexHub(base, token, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30').catch(() => [] as PlexItem[]),
+      cachedOd ? Promise.resolve(cachedOd) : getPlexHub(base, token, onDeckPath).catch(() => [] as PlexItem[]),
+      cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => [] as PlexItem[]),
     ]).then(([od, ra]) => {
       if (cancelled) return;
-      setOnDeck(od);
-      setRecent(ra);
+      setOnDeck(od); setCachedHub(base, onDeckPath, od);
+      setRecent(ra); setCachedHub(base, recentPath, ra);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -115,15 +145,18 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
           <div className="flex gap-3 overflow-x-auto pb-2">
             {r.items.map((it, ci) => {
               const focused = isActive && ri === row && ci === col;
+              const label = resolutionLabel(it.videoResolution);
               return (
                 <div key={it.ratingKey}
                   ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                   onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
-                  className={`flex-shrink-0 w-[140px] cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                  <div className="aspect-[2/3]">
+                  className={`relative flex-shrink-0 w-[140px] cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                  <div className="relative aspect-[2/3]">
                     <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                    <ResChip label={label} />
                   </div>
-                  <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{it.title}</div>
+                  <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                  {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
                 </div>
               );
             })}
@@ -144,19 +177,21 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
   const [zone, setZone] = useState<'input' | 'grid'>('input');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const seqRef = useRef(0);
 
-  // Debounced search
+  // Debounced search: 400ms + stale-seq guard so only the latest keystroke wins.
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return; }
-    let cancelled = false;
+    const q = query.trim();
+    if (!q) { setResults([]); return; }
+    const mySeq = ++seqRef.current;
     setLoading(true);
     const t = window.setTimeout(() => {
-      searchPlex(base, token, query.trim())
-        .then((r) => { if (!cancelled) { setResults(r); setCursor(0); } })
-        .catch(() => { if (!cancelled) setResults([]); })
-        .finally(() => { if (!cancelled) setLoading(false); });
-    }, 350);
-    return () => { cancelled = true; window.clearTimeout(t); };
+      searchPlex(base, token, q)
+        .then((r) => { if (mySeq === seqRef.current) { setResults(r); setCursor(0); } })
+        .catch(() => { if (mySeq === seqRef.current) setResults([]); })
+        .finally(() => { if (mySeq === seqRef.current) setLoading(false); });
+    }, 400);
+    return () => { window.clearTimeout(t); };
   }, [query, base, token]);
 
   useEffect(() => { if (isActive && zone === 'input') inputRef.current?.focus(); }, [isActive, zone]);
@@ -172,7 +207,6 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
     const handler = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-      // In input zone, only intercept ArrowDown/ArrowUp; allow all typing.
       if (zoneRef.current === 'input') {
         if (inInput && e.key === 'ArrowDown') {
           if (resultsRef.current.length > 0) { e.preventDefault(); e.stopPropagation(); inputRef.current?.blur(); setZone('grid'); setCursor(0); }
@@ -181,7 +215,6 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
         }
         return;
       }
-      // grid zone
       if (inInput) return;
       const keys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
       if (!keys.includes(e.key)) return;
@@ -221,15 +254,18 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
             const it = results[idx];
             if (!it) return <div key={idx} />;
             const focused = isActive && zone === 'grid' && cursor === idx;
+            const label = resolutionLabel(it.videoResolution);
             return (
               <div key={it.ratingKey}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                 onClick={() => { setZone('grid'); setCursor(idx); onPlay(it); }}
-                className={`cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                <div className="aspect-[2/3]">
+                className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                <div className="relative aspect-[2/3]">
                   <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                  <ResChip label={label} />
                 </div>
-                <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{it.title}</div>
+                <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
               </div>
             );
           })}
@@ -304,7 +340,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
-  const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null } | null>(
+  const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
       try {
         const raw = sessionStorage.getItem('smc-plex-deeplink');
@@ -327,6 +363,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const [detailItem, setDetailItem] = useState<PlexItem | null>(null);
   const [playing, setPlaying] = useState<PlexItem | null>(null);
   const [playingTitle, setPlayingTitle] = useState('');
+  const [playingResLabel, setPlayingResLabel] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [useTranscode, setUseTranscode] = useState(false);
@@ -337,8 +374,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
-
-
 
   // Load libraries when connected.
   useEffect(() => {
@@ -371,50 +406,185 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
 
-  // Clamp libIdx if tabs shrink.
   useEffect(() => { if (libIdx >= tabs.length) setLibIdx(tabs.length - 1); }, [tabs.length, libIdx]);
 
-  // Deep-link step 1: pick the target library tab once libraries are known.
+  // ── Deep-link: ONE effect that opens the detail overlay directly. Works
+  //    even when the target library is hidden/reordered or hasn't loaded.
   useEffect(() => {
     const dl = deeplinkRef.current;
-    if (!dl || status !== 'ready' || !conn || tabs.length === 0) return;
-    let idx = tabs.findIndex((t) => (t.type === 'movie' || t.type === 'show') && String(t.libKey) === String(dl.librarySectionID ?? ''));
-    if (idx < 0) idx = tabs.findIndex((t) => t.type === 'movie');
-    if (idx < 0) return;
-    setLibIdx(idx);
-  }, [status, conn, tabs]);
+    if (!dl || status !== 'ready' || !conn) return;
+    deeplinkRef.current = null;
 
-  // Load items for the selected library tab (movie or show).
+    const kind = dl.kind;
+    const type = kind === 'episode' || kind === 'show' ? kind : 'movie';
+
+    const openDetail = (payload: PlexItem) => setDetailItem(payload);
+
+    if (dl.machineIdentifier && conn.clientIdentifier && dl.machineIdentifier !== conn.clientIdentifier) {
+      const title = dl.title || '';
+      if (!title) { toast({ title: 'This title lives on a different Plex server' }); return; }
+      searchPlex(conn.base, conn.token, title)
+        .then((results) => {
+          const norm = (s: string) => s.trim().toLowerCase();
+          const match = results.find((r) => norm(r.title) === norm(title)) || results[0];
+          if (match) openDetail(match);
+          else toast({ title: 'This title lives on a different Plex server' });
+        })
+        .catch(() => toast({ title: 'This title lives on a different Plex server' }));
+      return;
+    }
+
+    openDetail({ ratingKey: String(dl.ratingKey), title: dl.title ?? '', type });
+  }, [status, conn, toast]);
+
+  // ── Library items loader — paged, cached, sequence-guarded, and only
+  //    fires when the user enters the grid or dwells 400ms on the tab.
+  const seqRef = useRef(0);
   useEffect(() => {
-    if (!conn || !currentTab || (currentTab.type !== 'movie' && currentTab.type !== 'show') || !currentTab.libKey) { setItems([]); return; }
+    if (!conn || !currentTab || (currentTab.type !== 'movie' && currentTab.type !== 'show') || !currentTab.libKey) {
+      setItems([]); setItemsLoading(false); setCursor(0);
+      return;
+    }
+    const libKey = currentTab.libKey;
+    const mySeq = ++seqRef.current;
     let cancelled = false;
-    setItemsLoading(true);
-    setCursor(0);
-    getPlexLibraryItems(conn.base, conn.token, currentTab.libKey)
-      .then((list) => { if (!cancelled) setItems(list); })
-      .catch(() => { if (!cancelled) setItems([]); })
-      .finally(() => { if (!cancelled) setItemsLoading(false); });
-    return () => { cancelled = true; };
+    let dwellTimer: number | null = null;
+
+    // Instant paint from cache (fresh OR stale — a background refresh follows
+    // if stale). Skips the "flash of empty grid" on tab return.
+    const cached = getCachedLibrary(conn.base, libKey);
+    if (cached) {
+      setItems(cached.items);
+      setCursor(0);
+      if (isLibraryCacheFresh(cached) && cached.complete) {
+        setItemsLoading(false);
+        return () => { cancelled = true; };
+      }
+    } else {
+      setItems([]);
+      setCursor(0);
+    }
+
+    const load = async () => {
+      setItemsLoading(true);
+      try {
+        // First page — small (60) for fastest first paint.
+        const first = await getPlexLibraryItems(conn.base, conn.token, libKey, 0, PAGE_FIRST);
+        if (cancelled || mySeq !== seqRef.current) return;
+        setItems(first.items);
+        setCachedLibrary(conn.base, libKey, first.items, first.totalSize, first.items.length >= first.totalSize);
+        setItemsLoading(false);
+
+        // Background pages of 200. Sequential (never in parallel) so we don't
+        // blow up the heap with concurrent JSON payloads.
+        let loaded = first.items.length;
+        const total = first.totalSize;
+        let acc = first.items;
+        while (!cancelled && mySeq === seqRef.current && loaded < total) {
+          const page = await getPlexLibraryItems(conn.base, conn.token, libKey, loaded, PAGE_MORE);
+          if (cancelled || mySeq !== seqRef.current) return;
+          if (page.items.length === 0) break;
+          acc = acc.concat(page.items);
+          loaded += page.items.length;
+          setItems(acc);
+          setCachedLibrary(conn.base, libKey, acc, page.totalSize || total, loaded >= (page.totalSize || total));
+        }
+      } catch {
+        if (!cancelled && mySeq === seqRef.current) setItemsLoading(false);
+      }
+    };
+
+    // Zone === 'grid' → load immediately; otherwise wait 400ms of tab dwell.
+    if (zoneRef.current === 'grid') {
+      void load();
+    } else {
+      dwellTimer = window.setTimeout(() => { void load(); }, 400);
+    }
+    return () => {
+      cancelled = true;
+      if (dwellTimer != null) window.clearTimeout(dwellTimer);
+    };
+    // NOTE: intentionally NOT depending on `zone` — that would re-fire on
+    // grid entry, cancelling the debounce mid-flight. We check zoneRef inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn, currentTab]);
 
-  // Deep-link step 2: focus the exact title.
+  // If the user enters the grid before the 400ms dwell fires, kick the fetch
+  // immediately by re-issuing the effect: bump seq and re-run the loader.
+  const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
   useEffect(() => {
-    const dl = deeplinkRef.current;
-    if (!dl || items.length === 0) return;
-    deeplinkRef.current = null;
-    const idx = items.findIndex((it) => String(it.ratingKey) === String(dl.ratingKey));
-    if (idx >= 0) { setCursor(idx); setZone('grid'); }
-    else toast({ title: 'Not found', description: `Couldn't find "${dl.title ?? 'that title'}" in this library.` });
-  }, [items, toast]);
+    if (zone !== 'grid') return;
+    if (!conn || !currentTab || (currentTab.type !== 'movie' && currentTab.type !== 'show') || !currentTab.libKey) return;
+    const cached = getCachedLibrary(conn.base, currentTab.libKey);
+    if (cached && isLibraryCacheFresh(cached) && cached.complete) return;
+    if (items.length > 0 && itemsLoading) return;
+    // Only trigger if we haven't started yet — bumping seqRef reruns via key change is unavailable, so we call a lightweight starter.
+    // Actual kickoff happens naturally the next render when zoneRef.current !== 'grid' path already elapsed; if items are still empty, force by mutating currentTab dep indirectly is complex. Instead, do a direct micro-fetch:
+    let cancelled = false;
+    const mySeq = ++seqRef.current;
+    (async () => {
+      setItemsLoading(true);
+      try {
+        const first = await getPlexLibraryItems(conn.base, conn.token, currentTab.libKey!, 0, PAGE_FIRST);
+        if (cancelled || mySeq !== seqRef.current) return;
+        setItems(first.items);
+        setCachedLibrary(conn.base, currentTab.libKey!, first.items, first.totalSize, first.items.length >= first.totalSize);
+        setItemsLoading(false);
+        let loaded = first.items.length;
+        const total = first.totalSize;
+        let acc = first.items;
+        while (!cancelled && mySeq === seqRef.current && loaded < total) {
+          const page = await getPlexLibraryItems(conn.base, conn.token, currentTab.libKey!, loaded, PAGE_MORE);
+          if (cancelled || mySeq !== seqRef.current) return;
+          if (page.items.length === 0) break;
+          acc = acc.concat(page.items);
+          loaded += page.items.length;
+          setItems(acc);
+          setCachedLibrary(conn.base, currentTab.libKey!, acc, page.totalSize || total, loaded >= (page.totalSize || total));
+        }
+      } catch {
+        if (!cancelled && mySeq === seqRef.current) setItemsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone]);
+
+  // ── Row-height measurement (ResizeObserver on the scroll container) so
+  //    focus rings can't get occluded by an under-estimated row height.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [rowH, setRowH] = useState<number>(ROW_H_ESTIMATE);
+  const rowHRef = useRef(rowH); useEffect(() => { rowHRef.current = rowH; }, [rowH]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const calc = () => {
+      const cs = getComputedStyle(el);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const gap = 12; // gap-3
+      const inner = Math.max(0, el.clientWidth - padL - padR);
+      const colW = (inner - gap * (COLS - 1)) / COLS;
+      const posterH = colW * 1.5; // aspect 2/3
+      const titleArea = 34;       // px 1.5 py 1 * text-[11px]
+      const rowGap = 12;
+      const next = Math.max(200, Math.ceil(posterH + titleArea + rowGap));
+      setRowH((prev) => (prev !== next ? next : prev));
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const rows = Math.ceil(items.length / COLS);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: rows,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_H,
+    estimateSize: () => rowHRef.current,
     overscan: isFireTV() ? 1 : 3,
   });
+  useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line */ }, [rowH]);
 
   useEffect(() => {
     if (zone !== 'grid') return;
@@ -423,15 +593,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   }, [cursor, zone, rowVirtualizer]);
 
   // ── Playback ────────────────────────────────────────────────────────
-  /** Poster OK → open detail page (does not play). */
   const openDetail = useCallback((item: PlexItem) => { setDetailItem(item); }, []);
 
-  /** Actual play: called from PlexDetail (movies + episodes). */
-  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext) => {
+  const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
     setUseTranscode(false);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
+    setPlayingResLabel(resLabel ?? '');
     setStartPos(resumeSec && resumeSec > 0 ? resumeSec : undefined);
     setSubCtx(ctx ?? { title });
     setExtraSubs(undefined);
@@ -447,14 +616,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     }
   }, [conn]);
 
-  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => { void playRatingKey(it.ratingKey, it.title, resumeSec, ctx); }, [playRatingKey]);
-  const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => { void playRatingKey(ep.ratingKey, ep.title, undefined, ctx); }, [playRatingKey]);
+  const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
+    void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution));
+  }, [playRatingKey]);
+  const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
+    void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '');
+  }, [playRatingKey]);
 
-  /** Overlay → download picked. Reload player with sidecar + resume position. */
   const handleLoadExternalSubtitle = useCallback((sub: SnowSubtitle, resumeSec: number) => {
     setExtraSubs([sub]);
     setStartPos(resumeSec);
-    // Force a native reload by momentarily nulling the URL.
     setStreamUrl((prev) => { if (prev) window.setTimeout(() => setStreamUrl(prev), 60); return null; });
   }, []);
 
@@ -469,7 +640,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     onTracksChanged: () => setTracksTick((n) => n + 1),
     onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
   });
-
 
   useEffect(() => {
     if (!nativeActive) return;
@@ -486,7 +656,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
   const exitFullscreen = useCallback(() => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); }, []);
 
-
   const toggleHidden = useCallback((key: string) => {
     setHidden((prev) => {
       const has = prev.indexOf(key) >= 0;
@@ -497,12 +666,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
   }, []);
 
   // ── refs for keyboard ───────────────────────────────────────────────
-  const zoneRef = useRef(zone); const cursorRef = useRef(cursor);
+  const cursorRef = useRef(cursor);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
   const detailRef = useRef(detailItem);
   const nativeErrRef = useRef(native.error); const nativeRetryRef = useRef(native.retry);
-  useEffect(() => { zoneRef.current = zone; }, [zone]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   useEffect(() => { libIdxRef.current = libIdx; }, [libIdx]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -514,20 +682,31 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
   const goHome = useCallback(() => { setLibIdx(homeIdx); setZone('tabs'); }, []);
 
+  // Single keydown effect. Gated on `isActive` (not status), so it can catch
+  // Back during PlexAuthScreen too — the early branch below handles that.
   useEffect(() => {
-    if (!isActive || status !== 'ready') return;
+    if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
+
+      // Not-ready statuses (auth screen etc): only Back is handled here — all
+      // other keys pass through to whatever else is listening.
+      if (status !== 'ready') {
+        if (isBack) {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          try { cancelLink(); } catch { /* no-op */ }
+          onExitLeft?.();
+        }
+        return;
+      }
 
       // Detail page owns all keys (including Back) via its own capture handler.
       if (detailRef.current) return;
-
       // Fullscreen: overlay owns all keys via its own capture handler.
       if (fullscreenRef.current) return;
 
-      // BACK: 1st press → Home tabs; 2nd (already on Home) → exit Plex.
-      const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
       if (isBack) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         if (libIdxRef.current !== homeIdx) goHome();
@@ -535,11 +714,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
         return;
       }
 
-      // Sub-components own arrows/Enter for these tab types when in grid zone.
       const t = tabsRef.current[libIdxRef.current];
       if (zoneRef.current === 'grid' && t && (t.type === 'home' || t.type === 'search' || t.type === 'request' || t.type === 'manage')) return;
 
-      // Let search input typing through if input is currently focused.
       if (inInput) return;
 
       const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
@@ -550,9 +727,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
 
       if (zoneRef.current === 'tabs') {
         const n = tabsRef.current.length;
-        if (e.key === 'ArrowLeft') { if (libIdxRef.current > 0) setLibIdx((i) => Math.max(0, i - 1)); /* first tab: do nothing */ }
+        if (e.key === 'ArrowLeft') { if (libIdxRef.current > 0) setLibIdx((i) => Math.max(0, i - 1)); }
         else if (e.key === 'ArrowRight') setLibIdx((i) => Math.min(n - 1, i + 1));
-        else if (e.key === 'ArrowUp') { /* do nothing — never leave Plex via arrows */ }
+        else if (e.key === 'ArrowUp') { /* never leave Plex via arrows */ }
         else if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') setZone('grid');
         return;
       }
@@ -562,33 +739,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
       const cur = cursorRef.current;
       if (e.key === 'ArrowUp') { if (cur < COLS) setZone('tabs'); else setCursor(cur - COLS); }
       else if (e.key === 'ArrowDown') { if (cur + COLS < total) setCursor(cur + COLS); }
-      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); /* col 0: do nothing */ }
+      else if (e.key === 'ArrowLeft') { if (cur % COLS !== 0) setCursor(cur - 1); }
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { const it = itemsRef.current[cur]; if (it) openDetail(it); }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-    // onExitUp intentionally unused — arrows never leave Plex.
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, exitFullscreen, goHome]);
-
-  // Hardware back
-  useEffect(() => {
-    if (!isActive) return;
-    let handle: { remove?: () => void } | undefined; let cancelled = false;
-    (async () => {
-      try {
-        const h = await CapApp.addListener('backButton', () => {
-          if (fullscreenRef.current) { exitFullscreen(); return; }
-          if (detailRef.current) { setDetailItem(null); return; }
-          if (libIdxRef.current !== homeIdx) { goHome(); return; }
-          onExitLeft?.();
-
-        });
-        if (cancelled) h?.remove?.(); else handle = h;
-      } catch { /* web */ }
-    })();
-    return () => { cancelled = true; handle?.remove?.(); };
-  }, [isActive, onExitLeft, exitFullscreen, goHome]);
+    // NOTE: PlexSection intentionally does NOT register its own
+    // CapApp.backButton listener. The Player (LiveTV.tsx) already converts
+    // hardware Back into a synthetic Escape KeyboardEvent, which flows through
+    // this exact capture chain. Registering our own listener caused double-
+    // fires (each listener popped one level, exiting Plex on the first press).
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink]);
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
@@ -621,12 +783,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
           </div>
         )}
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-          <p className="font-quicksand font-bold text-white truncate">{playingTitle}{useTranscode ? ' · transcoding' : ''}</p>
+          <p className="font-quicksand font-bold text-white truncate">
+            {playingTitle}{useTranscode ? ' · transcoding' : ''}
+            {playingResLabel && (
+              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
+            )}
+          </p>
         </div>
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
             active={nativeActive}
             title={playingTitle}
+            resolutionLabel={playingResLabel}
             controller={native.controller}
             tracksTick={tracksTick}
             getPosition={native.getPosition}
@@ -685,19 +853,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
               const start = vr.index * COLS;
               const rowItems = items.slice(start, start + COLS);
               return (
-                <div key={vr.key} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: ROW_H, transform: `translateY(${vr.start}px)` }} className="grid gap-3" >
+                <div key={vr.key} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: rowH, transform: `translateY(${vr.start}px)` }} className="grid gap-3">
                   <div className="grid grid-cols-6 gap-3">
                     {rowItems.map((it, ci) => {
                       const idx = start + ci;
                       const focused = isActive && zone === 'grid' && cursor === idx;
+                      const label = resolutionLabel(it.videoResolution);
                       return (
                         <div key={it.ratingKey} data-focused={focused ? 'true' : 'false'}
                           onClick={() => { setCursor(idx); openDetail(it); }}
-                          className={`cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                          <div className="aspect-[2/3]">
+                          className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                          <div className="relative aspect-[2/3]">
                             {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={240} h={360} className="w-full h-full object-cover" />}
+                            <ResChip label={label} />
                           </div>
-                          <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{it.title}</div>
+                          <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                          {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
                         </div>
                       );
                     })}
