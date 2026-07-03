@@ -105,12 +105,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     } finally { setEpisodesLoading(false); }
   }, [base, token]);
 
+  const movieCtx: SubtitleSearchContext = { title: meta?.title || item.title, year: meta?.year };
   const activateDetail = useCallback((id: string) => {
-    if (id === 'play') onPlay(item);
-    else if (id === 'resume') onPlay(item, resumeSec);
+    if (id === 'play') onPlay(item, undefined, movieCtx);
+    else if (id === 'resume') onPlay(item, resumeSec, movieCtx);
     else if (id === 'back') onBack();
     else if (id === 'browse') { setStep('seasons'); void loadSeasons(); }
-  }, [item, onPlay, onBack, resumeSec, loadSeasons]);
+  }, [item, onPlay, onBack, resumeSec, loadSeasons, movieCtx]);
+
 
   // Refs for the key handler
   const stepRef = useRef(step); useEffect(() => { stepRef.current = step; }, [step]);
