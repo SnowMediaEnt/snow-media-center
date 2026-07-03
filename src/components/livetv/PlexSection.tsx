@@ -729,12 +729,37 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
   }, [nativeActive]);
 
+  // Auto-fallback to Plex-side transcode when native playback errors — most
+  // notably AUDIO_DECODE from the Media3 plugin (Fire TV rejected the direct
+  // codec / offload path). Preserves the current playhead so switching feels
+  // like a hiccup, not a restart.
   useEffect(() => {
-    if (nativeActive && native.error && !useTranscode && playing && conn) {
+    if (!(nativeActive && native.error && !useTranscode && playing && conn)) return;
+    void (async () => {
+      let resume: number | undefined;
+      try {
+        const p = await native.getPosition();
+        if (p.position > 0) resume = p.position;
+      } catch { /* ignore */ }
+      setStartPos(resume);
       setUseTranscode(true);
       setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
-    }
-  }, [native.error, nativeActive, useTranscode, playing, conn]);
+    })();
+  }, [native.error, nativeActive, useTranscode, playing, conn, native]);
+
+  // Slow-load watchdog: if the native player hasn't emitted 'ready' within
+  // 8s of the fullscreen flipping on, expose a Retry button so the user can
+  // kick the pipeline instead of staring at a stalled spinner.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) { setSlowLoad(false); return; }
+    setSlowLoad(false);
+    const t = window.setTimeout(() => setSlowLoad(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [fullscreen, streamUrl]);
+  useEffect(() => {
+    if (nativeActive && !native.buffering && !native.error) setSlowLoad(false);
+  }, [nativeActive, native.buffering, native.error]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
