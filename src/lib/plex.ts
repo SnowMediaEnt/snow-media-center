@@ -279,3 +279,108 @@ export function plexTranscodeUrl(base: string, ratingKey: string, token: string)
     + `?path=${path}&protocol=hls&fastSeek=1&directPlay=0&directStream=1`
     + `&mediaIndex=0&partIndex=0&X-Plex-Client-Identifier=${cid}&X-Plex-Token=${encodeURIComponent(token)}`;
 }
+
+// ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
+
+export function plexPhotoTranscodeUrl(base: string, path: string, token: string, w: number, h: number): string {
+  return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1&upscale=1`
+    + `&url=${encodeURIComponent(path)}&X-Plex-Token=${encodeURIComponent(token)}`;
+}
+
+const _imgCache: Map<string, string> = new Map();
+
+/** Fetch a Plex image and return a data URI. On native uses CapacitorHttp
+ *  (bypasses WebView mixed-content). On web returns the URL as-is. */
+export async function plexFetchImageDataUri(url: string): Promise<string> {
+  const cached = _imgCache.get(url);
+  if (cached) return cached;
+  let native = false;
+  let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
+  try {
+    const mod = await import('@capacitor/core');
+    native = !!mod.Capacitor.isNativePlatform?.();
+    CapacitorHttpRef = mod.CapacitorHttp;
+  } catch { /* web */ }
+  if (!native || !CapacitorHttpRef) {
+    _imgCache.set(url, url);
+    return url;
+  }
+  const headers = plexHeaders();
+  const res = await CapacitorHttpRef.request({
+    method: 'GET',
+    url,
+    headers,
+    responseType: 'blob',
+    connectTimeout: 15000,
+    readTimeout: 20000,
+  });
+  if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
+  const b64 = typeof res.data === 'string' ? res.data : '';
+  const data = `data:image/jpeg;base64,${b64}`;
+  _imgCache.set(url, data);
+  return data;
+}
+
+// ── hubs + search ─────────────────────────────────────────────────────────
+
+function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
+  return items.map((m) => ({
+    ratingKey: String(m.ratingKey ?? ''),
+    title: String(m.title || m.grandparentTitle || ''),
+    type: String(m.type || 'movie'),
+    thumb: (m.thumb as string | undefined) || (m.grandparentThumb as string | undefined),
+    art: m.art as string | undefined,
+    year: m.year as number | undefined,
+    summary: m.summary as string | undefined,
+    duration: m.duration as number | undefined,
+  }));
+}
+
+/** Fetch a hub (On Deck, Recently Added, etc.) by path. */
+export async function getPlexHub(base: string, token: string, path: string): Promise<PlexItem[]> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}`, token);
+  const items = data?.MediaContainer?.Metadata || [];
+  return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
+}
+
+/** Universal search across all libraries. Returns movies + shows only. */
+export async function searchPlex(base: string, token: string, query: string): Promise<PlexItem[]> {
+  const url = `${base}/hubs/search?query=${encodeURIComponent(query)}&limit=30`;
+  const data = await plexReq<{ MediaContainer?: { Hub?: Array<{ Metadata?: Array<Record<string, unknown>> }> } }>('GET', url, token);
+  const hubs = data?.MediaContainer?.Hub || [];
+  const out: PlexItem[] = [];
+  for (const h of hubs) {
+    if (!h.Metadata) continue;
+    for (const it of mapMetadata(h.Metadata)) {
+      if (it.type === 'movie' || it.type === 'show') out.push(it);
+    }
+  }
+  return out;
+}
+
+// ── hidden library persistence ────────────────────────────────────────────
+
+const PLEX_HIDDEN_KEY = 'snow-plex-hidden-libs-v1';
+
+export async function loadHiddenPlexLibs(): Promise<string[]> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { value } = await Preferences.get({ key: PLEX_HIDDEN_KEY });
+    if (value) return JSON.parse(value) as string[];
+  } catch { /* not native */ }
+  try {
+    const raw = localStorage.getItem(PLEX_HIDDEN_KEY);
+    if (raw) return JSON.parse(raw) as string[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+export async function saveHiddenPlexLibs(keys: string[]): Promise<void> {
+  const json = JSON.stringify(keys);
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.set({ key: PLEX_HIDDEN_KEY, value: json });
+  } catch { /* not native */ }
+  try { localStorage.setItem(PLEX_HIDDEN_KEY, json); } catch { /* ignore */ }
+}
+
