@@ -1,18 +1,17 @@
-// Plex poster loader — hybrid strategy to keep bytes off the JS heap:
-//   1. Absolute http(s) URL (e.g. actor headshots at metadata-static.plex.tv)
-//      → render directly as <img src>. Chromium caches it off-heap.
-//   2. Server-relative path (native platform) → first try a plain <img> against
-//      the PMS photo transcode URL. `allowMixedContent: true` (capacitor.config)
-//      + cleartext permitted in network_security_config lets Chromium load
-//      the http://plex-server:.../photo bytes without crossing the JS bridge.
-//      If that fails once, fall back to the CapacitorHttp → data-URI path so
-//      older installs still show art.
-//   3. Web / non-native → same photo transcode URL as plain <img>.
+// Plex poster loader — Fire-TV low-memory strategy:
+//   1. Absolute http(s) URL → render as-is (with token if it's a Plex URL).
+//   2. Server-relative path (native + web) → PRIMARY <img> src = the RAW
+//      tokenized thumb URL (`${base}${path}?X-Plex-Token=…`). Plex serves the
+//      already-sized cached thumbnail — no per-image /photo/:/transcode job
+//      spun up on the PMS, no heap pressure client-side.
+//   3. onError #1 → fall back to plexPhotoTranscodeUrl (small box, no upscale).
+//   4. onError #2 (native only) → last-ditch CapacitorHttp → data-URI path
+//      (this is the 200MB-heap culprit on 1GB Fire TV Sticks; only reached
+//      when the raw + transcoded HTTP paths both failed).
 //
-// The data-URI fallback shares a small concurrency gate inside plex.ts so at
-// most 4 CapacitorHttp image requests run at once — otherwise base64 payloads
-// would spike the JS heap and cause the OOM crashes we're solving here.
-import { memo, useEffect, useState } from 'react';
+// A module-level Map caches the resolved src per `${base}|${path}` so
+// scroll-back / remounts never refetch.
+import { memo, useEffect, useRef, useState } from 'react';
 import { Tv } from 'lucide-react';
 import { plexFetchImageDataUri, plexPhotoTranscodeUrl, plexTokenizedUrl } from '@/lib/plex';
 import { isNativePlatform } from '@/utils/platform';
@@ -27,41 +26,55 @@ interface Props {
   alt?: string;
 }
 
+// Cache the FINAL resolved src per (base|path). Keyed without token/size so
+// we still hit on remount even if the caller passes slightly different sizes.
+const _srcCache = new Map<string, string>();
+
 const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
-  // Once the direct <img> path errors we try ONE data-URI fallback.
-  const [fellBack, setFellBack] = useState(false);
+  // Fallback ladder: 0 = raw thumb, 1 = photo-transcode, 2 = data-URI (native).
+  const stepRef = useRef(0);
 
   useEffect(() => {
-    if (!path) { setSrc(null); setErr(true); return; }
+    stepRef.current = 0;
     setErr(false);
-    setFellBack(false);
-    // Absolute http(s) URL → serve directly (signs with token if it's a Plex
-    // metadata URL, otherwise leaves it alone).
+    if (!path) { setSrc(null); setErr(true); return; }
+    const key = `${base}|${path}`;
+    const cached = _srcCache.get(key);
+    if (cached) { setSrc(cached); return; }
     if (/^https?:\/\//i.test(path)) {
       const isPlex = /(^|\.)plex\.tv/i.test(path);
-      setSrc(isPlex ? plexTokenizedUrl(path, token) : path);
+      const resolved = isPlex ? plexTokenizedUrl(path, token) : path;
+      _srcCache.set(key, resolved);
+      setSrc(resolved);
       return;
     }
-    // Server-relative: build the transcode URL. Native + web both try plain
-    // <img> first; the CapacitorHttp fallback only kicks in on error.
-    setSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
-  }, [base, path, token, w, h]);
+    // Server-relative: raw tokenized thumb URL is the primary source.
+    const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
+    setSrc(raw);
+  }, [base, path, token]);
 
   const onImgError = () => {
-    // On web there's no bridge fallback — just show the placeholder.
-    if (!isNativePlatform() || fellBack || !path || /^https?:\/\//i.test(path)) {
-      setErr(true);
+    if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
+    const step = stepRef.current;
+    if (step === 0) {
+      // Try the server photo transcode with a SMALL box + no upscale.
+      stepRef.current = 1;
+      setSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
       return;
     }
-    setFellBack(true);
-    let cancelled = false;
-    const url = plexPhotoTranscodeUrl(base, path, token, w, h);
-    plexFetchImageDataUri(url)
-      .then((data) => { if (!cancelled) setSrc(data); })
-      .catch(() => { if (!cancelled) setErr(true); });
-    // No cleanup — one-shot fallback; component re-mounts if props change.
+    if (step === 1 && isNativePlatform()) {
+      // Last-ditch: CapacitorHttp → base64 data URI. Concurrency-gated in plex.ts.
+      stepRef.current = 2;
+      const url = plexPhotoTranscodeUrl(base, path, token, w, h);
+      let cancelled = false;
+      plexFetchImageDataUri(url)
+        .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); setSrc(data); })
+        .catch(() => { if (!cancelled) setErr(true); });
+      return;
+    }
+    setErr(true);
   };
 
   if (!path || err || !src) {
