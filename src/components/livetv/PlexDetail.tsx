@@ -431,7 +431,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
               <div className="mt-8">
                 <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-2">Cast</div>
-                {metaLoading && cast.length === 0 ? (
+                {metaLoading || !castReady ? (
                   <div className="flex gap-3">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="w-[110px] flex-shrink-0">
