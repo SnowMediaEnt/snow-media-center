@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { trackEvent } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -304,6 +305,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             ? "We received it. Create an account to get a reply in-app."
             : "We received your anonymous ticket. No reply will be possible.",
         });
+        try { trackEvent('ticket_create', 'support', { subject_len: newSubject.length, has_user: false, guest_has_email: hasEmail }); } catch { void 0; }
         setNewSubject('');
         setNewMessage('');
         setView('list');
@@ -328,6 +330,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
     try {
       const ticketId = await createTicket(newSubject, newMessage);
+      try { trackEvent('ticket_create', 'support', { subject_len: newSubject.length, has_user: true }); } catch { void 0; }
       setNewSubject('');
       setNewMessage('');
       setSelectedTicketId(ticketId);
