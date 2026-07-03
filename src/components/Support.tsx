@@ -44,7 +44,22 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  // Synchronous handoff from the Plex player's "Buffering?" shortcut: LiveTV
+  // sets this flag BEFORE navigating to Support so the guide opens in the
+  // same commit (no setTimeout race with the CustomEvent fallback).
+  const [showGuide, setShowGuide] = useState<boolean>(() => {
+    try {
+      if (sessionStorage.getItem('smc-open-buffering-guide') === '1') {
+        sessionStorage.removeItem('smc-open-buffering-guide');
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  });
+  // Origin of the guide open — 'plex-movie' means close should return to Plex.
+  const [guideOrigin, setGuideOrigin] = useState<string | null>(() => {
+    try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }
+  });
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
