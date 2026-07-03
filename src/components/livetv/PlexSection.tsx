@@ -661,6 +661,43 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
     setStreamUrl((prev) => { if (prev) window.setTimeout(() => setStreamUrl(prev), 60); return null; });
   }, []);
 
+  // Switch quality on the fly: rebuilds the stream URL for the currently
+  // playing ratingKey, preserving any downloaded subtitle sidecars and the
+  // exact resume position. Uses the SAME setStreamUrl(null) → restore trick
+  // as external-subtitle loading so the native player fully re-inits.
+  const changeQuality = useCallback((presetKey: string, resumeSec: number) => {
+    void savePlexQuality(presetKey);
+    setQualityKey(presetKey);
+    if (!conn || !playing) return;
+    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === presetKey);
+    const goingTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    setUseTranscode(goingTranscode);
+    setStartPos(resumeSec > 0 ? resumeSec : undefined);
+    if (goingTranscode && preset) {
+      const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token, {
+        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
+        videoResolution: preset.videoResolution,
+      });
+      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+      return;
+    }
+    // Original — direct play via existing getPlexPart path.
+    void (async () => {
+      let url = '';
+      try {
+        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
+        url = partKey
+          ? plexDirectUrl(conn.base, partKey, conn.token)
+          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+      } catch {
+        url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        setUseTranscode(true);
+      }
+      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+    })();
+  }, [conn, playing]);
+
+
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
   const native = useNativePlayer({
     active: nativeActive,
