@@ -16,6 +16,7 @@ import {
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
+import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runWhenIdle } from '@/utils/idle';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
