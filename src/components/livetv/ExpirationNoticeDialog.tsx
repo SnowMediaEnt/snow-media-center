@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { trackEvent } from '@/lib/analytics';
 
 interface Props {
   open: boolean;
@@ -13,6 +14,10 @@ interface Props {
 const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Props) => {
   const okRef = useRef<HTMLButtonElement>(null);
   const expired = days < 0;
+  const handleDismiss = () => {
+    try { trackEvent('alert_popup_action', 'alerts', { alert: 'player_expiration', action: 'ok', expired, days }); } catch { void 0; }
+    onDismiss();
+  };
 
   useEffect(() => {
     if (open) setTimeout(() => okRef.current?.focus(), 50);
@@ -24,7 +29,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
       if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4) {
         e.preventDefault();
         e.stopPropagation();
-        onDismiss();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -44,7 +49,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
   const Icon = expired ? ShieldAlert : AlertTriangle;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onDismiss(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent
         className="max-w-lg w-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white ring-4 ring-brand-gold/30 shadow-[0_0_60px_rgba(212,175,55,0.35)] p-0 overflow-hidden flex flex-col"
       >
@@ -63,7 +68,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
           <Button
             ref={okRef}
             variant="gold"
-            onClick={onDismiss}
+            onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 scale-100 focus:ring-brand-ice focus:scale-105 transition"
           >
             OK, got it

@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
-import { getDeviceId } from '@/lib/analytics';
+import { getDeviceId, trackEvent } from '@/lib/analytics';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 
 
@@ -37,6 +37,11 @@ type AIFunctionCall = {
 
 const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: ChatCommunityProps) => {
   const [activeTab, setActiveTab] = useState<'admin' | 'community' | 'ai'>(lockedTab ?? 'admin');
+  // Fire ai_chatbot_open exactly once per time the AI tab becomes visible.
+  useEffect(() => {
+    if (activeTab !== 'ai') return;
+    try { trackEvent('ai_chatbot_open', 'navigation', {}); } catch { void 0; }
+  }, [activeTab]);
   const [adminMessage, setAdminMessage] = useState('');
   const [adminSubject, setAdminSubject] = useState('');
   const [aiMessage, setAiMessage] = useState('');
@@ -736,6 +741,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const userMessage = messageToSend;
     setAiMessage('');
     setAiLoading(true);
+    try { trackEvent('ai_message_sent', 'support', { voice: !!voiceModeRef.current }); } catch { void 0; }
     if (voiceModeRef.current) voiceControlsRef.current?.setVoiceState('sending_to_ai');
 
     setAiChat(prev => [...prev, {

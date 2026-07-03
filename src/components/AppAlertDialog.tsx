@@ -10,6 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { AppAlert } from '@/hooks/useAppAlerts';
+import { trackEvent } from '@/lib/analytics';
 
 interface AppAlertDialogProps {
   alert: AppAlert | null;
@@ -32,6 +33,14 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
   const dismissRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLButtonElement>(null);
   const [focused, setFocused] = useState<'dismiss' | 'continue'>('continue');
+  const handleDismiss = () => {
+    try { trackEvent('alert_popup_action', 'alerts', { alert: 'app_alert', action: 'dismiss', title: alert?.title, severity: alert?.severity }); } catch { void 0; }
+    onDismiss();
+  };
+  const handleContinue = () => {
+    try { trackEvent('alert_popup_action', 'alerts', { alert: 'app_alert', action: 'cta', title: alert?.title, severity: alert?.severity }); } catch { void 0; }
+    onContinue();
+  };
 
   // When the dialog opens, focus 'Continue Anyway' so d-pad Enter works immediately
   useEffect(() => {
@@ -57,12 +66,12 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
         setFocused('continue');
         continueRef.current?.focus();
       } else if (e.key === 'Enter' || e.key === ' ') {
-        if (focused === 'dismiss') onDismiss();
-        else onContinue();
+        if (focused === 'dismiss') handleDismiss();
+        else handleContinue();
       } else if (e.key === 'Escape' || e.key === 'Backspace') {
         e.preventDefault();
         e.stopPropagation();
-        onDismiss();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', onKey, true); // capture phase
@@ -74,7 +83,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
   const { Icon } = style;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onDismiss(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent className={`bg-slate-900 border-slate-700 text-white ring-2 ${style.ring}`}>
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
@@ -90,7 +99,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
           <Button
             ref={dismissRef}
             variant="outline"
-            onClick={onDismiss}
+            onClick={handleDismiss}
             className={`bg-slate-800 border-slate-600 text-white hover:bg-slate-700 ${
               focused === 'dismiss' ? 'ring-4 ring-brand-ice scale-105' : ''
             }`}
@@ -100,7 +109,7 @@ const AppAlertDialog = ({ alert, appName, open, onDismiss, onContinue }: AppAler
           <Button
             ref={continueRef}
             variant="gold"
-            onClick={onContinue}
+            onClick={handleContinue}
             className={focused === 'continue' ? 'ring-4 ring-brand-ice scale-105' : ''}
           >
             Continue Anyway

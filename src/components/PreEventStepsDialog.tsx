@@ -3,6 +3,7 @@ import { Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { PRE_EVENT_STEPS, DEFAULT_PRE_EVENT_HEADLINE } from '@/hooks/usePreEventAlert';
+import { trackEvent } from '@/lib/analytics';
 
 interface PreEventStepsDialogProps {
   open: boolean;
@@ -12,6 +13,10 @@ interface PreEventStepsDialogProps {
 
 const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogProps) => {
   const okRef = useRef<HTMLButtonElement>(null);
+  const handleDismiss = () => {
+    try { trackEvent('alert_popup_action', 'alerts', { alert: 'pre_event', action: 'ok' }); } catch { void 0; }
+    onDismiss();
+  };
 
   useEffect(() => {
     if (open) setTimeout(() => okRef.current?.focus(), 50);
@@ -25,7 +30,7 @@ const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogP
       if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
-        onDismiss();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -35,7 +40,7 @@ const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogP
   const title = (headline && headline.trim()) || DEFAULT_PRE_EVENT_HEADLINE;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onDismiss(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent
         className="max-w-lg w-full max-h-[85vh] bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white ring-4 ring-brand-gold/30 shadow-[0_0_60px_rgba(212,175,55,0.35)] p-0 overflow-hidden flex flex-col"
       >
@@ -64,7 +69,7 @@ const PreEventStepsDialog = ({ open, headline, onDismiss }: PreEventStepsDialogP
           <Button
             ref={okRef}
             variant="gold"
-            onClick={onDismiss}
+            onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 scale-100 focus:ring-brand-ice focus:scale-105 transition"
           >
             OK, got it

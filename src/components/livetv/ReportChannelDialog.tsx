@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { supabase } from '@/integrations/supabase/client';
+import { trackEvent } from '@/lib/analytics';
 
 interface Props {
   channelName: string;
@@ -95,6 +96,7 @@ const ReportChannelDialog = memo(({
           });
           if (error) throw error;
         }
+        try { trackEvent('ticket_create', 'support', { source: 'player_report', has_user: !!user }); } catch { void 0; }
         toast({ title: 'Report sent — thanks!' });
         onClose();
       } catch (e) {
