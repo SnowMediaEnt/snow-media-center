@@ -18,7 +18,9 @@ import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
 import PlexDetail from './PlexDetail';
-import PlexPlayerOverlay from './PlexPlayerOverlay';
+import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
+import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
+
 
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
