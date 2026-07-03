@@ -376,7 +376,10 @@ export async function savePlexQuality(key: string): Promise<void> {
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 
 export function plexPhotoTranscodeUrl(base: string, path: string, token: string, w: number, h: number): string {
-  return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1&upscale=1`
+  // No upscale — we render posters at a fixed on-screen box; asking Plex to
+  // upscale wastes server time and produces bigger payloads that pressure the
+  // Fire TV JS heap.
+  return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1`
     + `&url=${encodeURIComponent(path)}&X-Plex-Token=${encodeURIComponent(token)}`;
 }
 
