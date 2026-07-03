@@ -213,6 +213,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const openOsdlRef = useRef(openOsdl); useEffect(() => { openOsdlRef.current = openOsdl; }, [openOsdl]);
   const openSubsRef = useRef(openSubs); useEffect(() => { openSubsRef.current = openSubs; }, [openSubs]);
   const pickOsdlRef = useRef(pickOsdl); useEffect(() => { pickOsdlRef.current = pickOsdl; }, [pickOsdl]);
+  const qualityKeyRef = useRef(qualityKey); useEffect(() => { qualityKeyRef.current = qualityKey; }, [qualityKey]);
+  const onChangeQualityRef = useRef(onChangeQuality); useEffect(() => { onChangeQualityRef.current = onChangeQuality; }, [onChangeQuality]);
+  const getPositionRef = useRef(getPosition); useEffect(() => { getPositionRef.current = getPosition; }, [getPosition]);
+  const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
 
   useEffect(() => {
     if (!active) return;
