@@ -338,15 +338,16 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
   return (
     <div className="fixed inset-0 z-[55] text-white overflow-hidden">
-      {/* Backdrop (lazy-mounted) */}
+      {/* Backdrop — skipped on NATIVE (heap-cost, decorative only); on web
+          it's a small 640x360 image mounted after first paint. */}
       <div className="absolute inset-0 bg-black">
-        {backdropReady && (meta?.art || current.art) && (
+        {showBackdrop && backdropReady && (meta?.art || current.art) && (
           <PlexImage
             base={base}
             path={meta?.art || current.art}
             token={token}
-            w={1280}
-            h={720}
+            w={640}
+            h={360}
             className="w-full h-full object-cover opacity-40 blur-[2px]"
           />
         )}
