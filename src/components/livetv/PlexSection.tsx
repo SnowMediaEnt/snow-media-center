@@ -604,12 +604,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
           </div>
         )}
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-          <p className="font-quicksand font-bold text-white truncate">{playing?.title || ''}{useTranscode ? ' · transcoding' : ''}</p>
+          <p className="font-quicksand font-bold text-white truncate">{playingTitle}{useTranscode ? ' · transcoding' : ''}</p>
         </div>
-        <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">Back to exit</div>
+        {NATIVE_PLAYBACK && !native.error && (
+          <PlexPlayerOverlay
+            active={nativeActive}
+            title={playingTitle}
+            controller={native.controller}
+            tracksTick={tracksTick}
+            getPosition={native.getPosition}
+            seekTo={native.seekTo}
+            onBackWhileHidden={exitFullscreen}
+          />
+        )}
       </div>
     );
   }
+
 
   // ── render: browse ─────────────────────────────────────────────────
   const totalH = rowVirtualizer.getTotalSize();
