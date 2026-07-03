@@ -967,7 +967,7 @@ const BufferingGuide = ({
             data-summary-order="0"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Close
+            <ArrowLeft className="w-4 h-4 mr-2" /> {origin === 'plex-movie' ? 'Back to Player' : 'Close'}
           </Button>
           <div className="text-center flex-1 min-w-0">
             <h1 className="text-lg sm:text-xl font-semibold text-white truncate">Buffering Walkthrough</h1>
