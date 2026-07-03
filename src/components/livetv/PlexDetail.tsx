@@ -126,6 +126,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const loadEpisodesRef = useRef(loadEpisodes); useEffect(() => { loadEpisodesRef.current = loadEpisodes; }, [loadEpisodes]);
   const onPlayEpisodeRef = useRef(onPlayEpisode); useEffect(() => { onPlayEpisodeRef.current = onPlayEpisode; }, [onPlayEpisode]);
   const onBackRef = useRef(onBack); useEffect(() => { onBackRef.current = onBack; }, [onBack]);
+  const metaRef = useRef(meta); useEffect(() => { metaRef.current = meta; }, [meta]);
+  const itemRef = useRef(item); useEffect(() => { itemRef.current = item; }, [item]);
+
 
   useEffect(() => {
     if (!isActive) return;
