@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
       p_supabase_user_id: supabaseUserId,
       p_matched_customer_id: matchedCustomerId,
       p_reason: reason,
+      p_tenant_code: tenantCode,
     });
 
     if (error) {
