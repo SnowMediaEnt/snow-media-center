@@ -169,7 +169,20 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       if (eps.length === 0) return;
       if (e.key === 'ArrowUp') { if (ei === 0) setStep('seasons'); else setEpIdx(ei - 1); }
       else if (e.key === 'ArrowDown') { if (ei < eps.length - 1) setEpIdx(ei + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const ep = eps[ei]; if (ep) onPlayEpisodeRef.current(ep); }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        const ep = eps[ei];
+        if (ep) {
+          const sea = seasonsRef.current[seasonIdxRef.current];
+          const ctx: SubtitleSearchContext = {
+            title: ep.title,
+            grandparentTitle: meta?.title || item.title,
+            season: sea?.index,
+            episode: ep.index,
+          };
+          onPlayEpisodeRef.current(ep, ctx);
+        }
+      }
+
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
