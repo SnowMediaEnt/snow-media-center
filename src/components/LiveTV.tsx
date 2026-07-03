@@ -490,7 +490,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={leaveMode}
               onExitUp={leaveMode}
               onOpenBufferingGuide={() => {
+                try {
+                  sessionStorage.setItem('smc-open-buffering-guide', '1');
+                  const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number; __bufferingGuideOpen?: boolean };
+                  w.__playerOwnsBack = false;
+                  w.__overlayHandledBackAt = 0;
+                  w.__bufferingGuideOpen = true;
+                } catch { /* ignore */ }
                 onNavigate?.('support');
+                // Event fallback for other callers / late listeners.
                 setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
               }}
             />
@@ -700,6 +708,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
                 onOpenBufferingGuide={() => {
+                  try {
+                    sessionStorage.setItem('smc-open-buffering-guide', '1');
+                    const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number; __bufferingGuideOpen?: boolean };
+                    w.__playerOwnsBack = false;
+                    w.__overlayHandledBackAt = 0;
+                    w.__bufferingGuideOpen = true;
+                  } catch { /* ignore */ }
                   onNavigate?.('support');
                   setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
                 }}

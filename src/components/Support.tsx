@@ -44,7 +44,22 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  // Synchronous handoff from the Plex player's "Buffering?" shortcut: LiveTV
+  // sets this flag BEFORE navigating to Support so the guide opens in the
+  // same commit (no setTimeout race with the CustomEvent fallback).
+  const [showGuide, setShowGuide] = useState<boolean>(() => {
+    try {
+      if (sessionStorage.getItem('smc-open-buffering-guide') === '1') {
+        sessionStorage.removeItem('smc-open-buffering-guide');
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  });
+  // Origin of the guide open — 'plex-movie' means close should return to Plex.
+  const [guideOrigin, setGuideOrigin] = useState<string | null>(() => {
+    try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }
+  });
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
   const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
@@ -232,7 +247,13 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       });
     };
     const openTickets = () => { setTab('help'); setHelpView('tickets'); };
-    const openGuide = () => { setTab('help'); setHelpView('menu'); setShowGuide(true); };
+    const openGuide = () => {
+      try {
+        const o = sessionStorage.getItem('smc-guide-origin');
+        if (o) setGuideOrigin(o);
+      } catch { /* ignore */ }
+      setTab('help'); setHelpView('menu'); setShowGuide(true);
+    };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-buffering-guide', openGuide);
@@ -401,7 +422,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
       {showGuide && (
         <BufferingGuide
-          onClose={() => setShowGuide(false)}
+          onClose={() => {
+            setShowGuide(false);
+            const origin = guideOrigin;
+            try { sessionStorage.removeItem('smc-guide-origin'); } catch { /* ignore */ }
+            setGuideOrigin(null);
+            if (origin === 'plex-movie') {
+              // PlexSection will consume 'smc-plex-deeplink' on mount and open
+              // the movie's detail page — user presses Play to resume.
+              onNavigate?.('livetv');
+            }
+          }}
+          origin={guideOrigin}
           apps={apps}
           appStatuses={new Map()}
           onLaunch={launchApp}

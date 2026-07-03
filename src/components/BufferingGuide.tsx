@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -41,6 +41,8 @@ interface BufferingGuideProps {
   onDownload: (app: AppData) => void;
   onOpenAppSettings?: (app: AppData) => void | Promise<void>;
   onNavigateToChat?: () => void;
+  /** Where the guide was opened from — 'plex-movie' relabels Close to "Back to Player". */
+  origin?: string | null;
 }
 
 type AppType = 'dreamstreams' | 'vibeztv' | 'plex' | 'other' | null;
@@ -121,6 +123,7 @@ const BufferingGuide = ({
   onDownload,
   onOpenAppSettings,
   onNavigateToChat,
+  origin,
 }: BufferingGuideProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -150,7 +153,7 @@ const BufferingGuide = ({
   // Mark the guide as open globally so the app-wide Capacitor back-button
   // listener (in useNavigation) skips its goBack() — otherwise BACK pops
   // Support → Home in addition to closing the guide.
-  useEffect(() => {
+  useLayoutEffect(() => {
     (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen = true;
     try { trackEvent('buffering_guide_start', 'support'); } catch { void 0; }
     return () => {
@@ -707,7 +710,7 @@ const BufferingGuide = ({
   // Capacitor native back button — intercept so the global navigation
   // handler doesn't pop us all the way out to the Home Screen. Always
   // step back inside the guide first, and only close when on the intro.
-  useEffect(() => {
+  useLayoutEffect(() => {
     let handle: { remove?: () => void } | undefined;
     let cancelled = false;
     (async () => {
@@ -964,7 +967,7 @@ const BufferingGuide = ({
             data-summary-order="0"
             className="bg-white/5 border-white/20 text-white hover:bg-white/10"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Close
+            <ArrowLeft className="w-4 h-4 mr-2" /> {origin === 'plex-movie' ? 'Back to Player' : 'Close'}
           </Button>
           <div className="text-center flex-1 min-w-0">
             <h1 className="text-lg sm:text-xl font-semibold text-white truncate">Buffering Walkthrough</h1>
