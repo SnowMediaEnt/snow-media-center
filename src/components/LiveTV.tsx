@@ -489,6 +489,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={true}
               onExitLeft={leaveMode}
               onExitUp={leaveMode}
+              onOpenBufferingGuide={() => {
+                onNavigate?.('support');
+                setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+              }}
             />
           </Suspense>
         )}
@@ -695,6 +699,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 isActive={pane === 'content'}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
+                onOpenBufferingGuide={() => {
+                  onNavigate?.('support');
+                  setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+                }}
               />
             </Suspense>
           )
