@@ -11,12 +11,14 @@ import {
   buildPlayerAccount,
   upsertSavedAccount,
   savedAccountId,
+  daysUntilExp,
   type XtreamCreds,
   type XtreamServer,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
+import { trackEvent } from '@/lib/analytics';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -77,6 +79,14 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         if (user?.id && user.email) {
           void syncPlayerAccountToCloud(user.id, user.email, acc);
         }
+        try {
+          trackEvent('livetv_signin', 'player', {
+            server: result.server.label,
+            username: acc.username,
+            is_trial: acc.isTrial,
+            days_left: daysUntilExp(acc),
+          });
+        } catch { /* ignore */ }
       }
       toast({ title: 'Connected', description: `Signed in to ${result.server?.label}.` });
       onSaved(result.creds);
