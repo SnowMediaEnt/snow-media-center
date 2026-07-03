@@ -140,11 +140,15 @@ async function fetchPanel(row: Row): Promise<
       signal: ctrl.signal,
       headers: { 'User-Agent': 'SnowMediaHub/1.0 (+refresh-player-signins)' },
     });
+    if (res.status === 401 || res.status === 403) return { kind: 'auth_failed' };
     if (!res.ok) return { kind: 'unreachable' };
+    const text = await res.text();
     let body: unknown;
     try {
-      body = await res.json();
+      body = JSON.parse(text);
     } catch {
+      // Some panels return an HTML error page for bad creds instead of JSON.
+      if (/login|auth|denied|invalid|forbidden/i.test(text)) return { kind: 'auth_failed' };
       return { kind: 'bad_response' };
     }
     const info = (body as { user_info?: Record<string, unknown> } | null)?.user_info;
