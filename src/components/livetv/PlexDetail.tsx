@@ -178,10 +178,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           const sea = seasonsRef.current[seasonIdxRef.current];
           const ctx: SubtitleSearchContext = {
             title: ep.title,
-            grandparentTitle: meta?.title || item.title,
+            grandparentTitle: metaRef.current?.title || itemRef.current.title,
             season: sea?.index,
             episode: ep.index,
           };
+
           onPlayEpisodeRef.current(ep, ctx);
         }
       }
