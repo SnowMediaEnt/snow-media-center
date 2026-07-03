@@ -632,8 +632,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
             getPosition={native.getPosition}
             seekTo={native.seekTo}
             onBackWhileHidden={exitFullscreen}
+            subtitleContext={subCtx}
+            onLoadExternalSubtitle={handleLoadExternalSubtitle}
           />
         )}
+
       </div>
     );
   }
