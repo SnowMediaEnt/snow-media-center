@@ -4,11 +4,13 @@
 // hardware. Cast row + actor filmography overlay have their own D-pad zones
 // and share the same Back stack as show → seasons → episodes.
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Play, RotateCw, List } from 'lucide-react';
 import { getPlexMetadata, getPlexSeasons, getPlexEpisodes, getPlexActorItems, resolutionLabel,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson } from '@/lib/plex';
 import PlexImage from './PlexImage';
+import { isNativePlatform } from '@/utils/platform';
+import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
 
 interface Props {
