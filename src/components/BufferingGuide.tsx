@@ -679,6 +679,10 @@ const BufferingGuide = ({
         e.stopPropagation();
         (e as any).stopImmediatePropagation?.();
         if (showSpeedTest) return; // SpeedTest handles its own
+        // Dismiss any transient confirm dialog first — don't step pages or exit.
+        if (showAnonConfirm) { setShowAnonConfirm(false); return; }
+        if (showVpnSkipConfirm) { setShowVpnSkipConfirm(false); return; }
+        if (showSignInPrompt) { setShowSignInPrompt(false); return; }
         // If we're inside the "report broken channel" sub-view, pop back to
         // the Step 1 yes/no choice instead of jumping to the intro screen.
         if (step === 'step1' && state.step1Choice === 'one_only') {
@@ -698,7 +702,7 @@ const BufferingGuide = ({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice]);
+  }, [stepIndex, onClose, showSpeedTest, step, state.step1Choice, showAnonConfirm, showVpnSkipConfirm, showSignInPrompt]);
 
   // Capacitor native back button — intercept so the global navigation
   // handler doesn't pop us all the way out to the Home Screen. Always
@@ -715,6 +719,9 @@ const BufferingGuide = ({
           // handler in useNavigation doesn't also pop Support → Home.
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (showSpeedTest) return;
+          if (showAnonConfirm) { setShowAnonConfirm(false); return; }
+          if (showVpnSkipConfirm) { setShowVpnSkipConfirm(false); return; }
+          if (showSignInPrompt) { setShowSignInPrompt(false); return; }
           if (step === 'step1' && state.step1Choice === 'one_only') {
             setReportTitle('');
             setReportDevice(null);
@@ -738,7 +745,7 @@ const BufferingGuide = ({
       cancelled = true;
       handle?.remove?.();
     };
-  }, [stepIndex, showSpeedTest, step, state.step1Choice, onClose]);
+  }, [stepIndex, showSpeedTest, step, state.step1Choice, onClose, showAnonConfirm, showVpnSkipConfirm, showSignInPrompt]);
 
   // Scroll content to top on step change
   useEffect(() => {

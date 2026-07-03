@@ -3,15 +3,15 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality';
-const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality'];
+type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'buffering';
+const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'buffering'];
 
 export interface SubtitleSearchContext {
   title: string;
@@ -38,6 +38,9 @@ interface Props {
   qualityKey: string;
   /** Called when the user picks a new quality preset. */
   onChangeQuality: (presetKey: string, resumeSec: number) => void;
+  /** Called when the user opens the Buffering help shortcut. Parent is expected
+   *  to tear down playback and route to Support → Buffering Guide. */
+  onOpenBufferingGuide?: () => void;
 }
 
 
@@ -50,7 +53,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality'>('none');
@@ -195,7 +198,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
-  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
+    else if (r === 'buffering') { onOpenBufferingGuide?.(); }
+  }, [controller, getPosition, seekTo, auds, openSubs, openQuality, onOpenBufferingGuide]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
@@ -355,6 +359,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <button type="button" data-focused={row === 'audio' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
+            <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Buffering help" onClick={() => onOpenBufferingGuide?.()}><LifeBuoy className="w-5 h-5" /></button>
           </div>
           <p className="text-center text-[11px] text-brand-ice/50 font-nunito mt-2">◀ ▶ select · OK activate · Back hides · idle 5s auto-hides</p>
         </div>
