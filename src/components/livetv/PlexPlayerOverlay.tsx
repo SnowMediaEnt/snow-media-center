@@ -140,11 +140,13 @@ const PlexPlayerOverlay = memo(({ active, title, controller, tracksTick, getPosi
     });
     setOsdlLoading(false);
     if (!res.ok) {
-      if (res.reason === 'not_configured') setOsdlError('Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.');
-      else if (res.reason === 'quota') setOsdlError('Daily subtitle download limit reached.');
+      const reason = (res as { reason?: string }).reason;
+      if (reason === 'not_configured') setOsdlError('Subtitle downloads are almost ready — the OpenSubtitles key still needs to be added.');
+      else if (reason === 'quota') setOsdlError('Daily subtitle download limit reached.');
       else setOsdlError('Could not reach OpenSubtitles.');
       return;
     }
+
     setOsdlResults(res.results);
   }, [subtitleContext, title]);
 
