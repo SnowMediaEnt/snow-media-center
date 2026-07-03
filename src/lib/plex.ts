@@ -198,7 +198,7 @@ export async function getPlexIdentity(base: string, token: string): Promise<void
   await plexReq('GET', `${base}/identity`, token, 5000);
 }
 
-export interface PlexSavedServer { base: string; token: string; name: string; }
+export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; }
 
 export async function savePlexServer(s: PlexSavedServer): Promise<void> {
   const json = JSON.stringify(s);
@@ -235,20 +235,57 @@ export async function getPlexLibraries(base: string, token: string): Promise<Ple
 export interface PlexItem {
   ratingKey: string; title: string; type: string;
   thumb?: string; art?: string; year?: number; summary?: string; duration?: number;
+  videoResolution?: string;
 }
-export async function getPlexLibraryItems(base: string, token: string, sectionKey: string): Promise<PlexItem[]> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}/library/sections/${sectionKey}/all`, token);
-  const items = data?.MediaContainer?.Metadata || [];
-  return items.map((m) => ({
-    ratingKey: String(m.ratingKey),
-    title: String(m.title || ''),
-    type: String(m.type || 'movie'),
-    thumb: m.thumb as string | undefined,
-    art: m.art as string | undefined,
-    year: m.year as number | undefined,
-    summary: m.summary as string | undefined,
-    duration: m.duration as number | undefined,
-  }));
+
+/** Extract videoResolution from Media[0] if present. */
+function mediaRes(m: Record<string, unknown>): string | undefined {
+  const media = m.Media as Array<Record<string, unknown>> | undefined;
+  const r = media?.[0]?.videoResolution;
+  return r ? String(r) : undefined;
+}
+
+/** Human label for videoResolution: '4k'→'4K'; '1080'→'1080p'; else uppercase. */
+export function resolutionLabel(res?: string): string {
+  if (!res) return '';
+  const s = String(res).trim().toLowerCase();
+  if (!s) return '';
+  if (s === '4k') return '4K';
+  if (/^\d+$/.test(s)) return `${s}p`;
+  return s.toUpperCase();
+}
+
+export interface PlexLibraryPage {
+  items: PlexItem[];
+  totalSize: number;
+}
+
+export async function getPlexLibraryItems(
+  base: string,
+  token: string,
+  sectionKey: string,
+  start = 0,
+  size = 120,
+): Promise<PlexLibraryPage> {
+  const url = `${base}/library/sections/${sectionKey}/all?X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>>; totalSize?: number; size?: number } }>('GET', url, token);
+  const container = data?.MediaContainer;
+  const items = container?.Metadata || [];
+  const totalSize = Number(container?.totalSize ?? container?.size ?? items.length) || items.length;
+  return {
+    items: items.map((m) => ({
+      ratingKey: String(m.ratingKey),
+      title: String(m.title || ''),
+      type: String(m.type || 'movie'),
+      thumb: m.thumb as string | undefined,
+      art: m.art as string | undefined,
+      year: m.year as number | undefined,
+      summary: m.summary as string | undefined,
+      duration: m.duration as number | undefined,
+      videoResolution: mediaRes(m),
+    })),
+    totalSize,
+  };
 }
 
 // ── images + stream URLs ───────────────────────────────────────────────────
@@ -287,7 +324,33 @@ export function plexPhotoTranscodeUrl(base: string, path: string, token: string,
     + `&url=${encodeURIComponent(path)}&X-Plex-Token=${encodeURIComponent(token)}`;
 }
 
+/** Signed direct image URL (no photo transcode) — used for absolute Plex asset URLs. */
+export function plexTokenizedUrl(url: string, token: string): string {
+  const sep = url.indexOf('?') >= 0 ? '&' : '?';
+  return `${url}${sep}X-Plex-Token=${encodeURIComponent(token)}`;
+}
+
 const _imgCache: Map<string, string> = new Map();
+
+// Concurrency gate for the CapacitorHttp data-URI fallback path — keeps at
+// most MAX_IMG_CONCURRENCY bridge round-trips in flight so we don't spike the
+// JS heap with base64 payloads. Chrome-66-safe (plain arrays / promises).
+const MAX_IMG_CONCURRENCY = 4;
+let _imgInflight = 0;
+const _imgWaiters: Array<() => void> = [];
+
+function acquireImgSlot(): Promise<void> {
+  if (_imgInflight < MAX_IMG_CONCURRENCY) {
+    _imgInflight += 1;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => { _imgWaiters.push(resolve); });
+}
+function releaseImgSlot(): void {
+  const next = _imgWaiters.shift();
+  if (next) { next(); }
+  else { _imgInflight = Math.max(0, _imgInflight - 1); }
+}
 
 /** Fetch a Plex image and return a data URI. On native uses CapacitorHttp
  *  (bypasses WebView mixed-content). On web returns the URL as-is. */
@@ -305,20 +368,25 @@ export async function plexFetchImageDataUri(url: string): Promise<string> {
     _imgCache.set(url, url);
     return url;
   }
-  const headers = plexHeaders();
-  const res = await CapacitorHttpRef.request({
-    method: 'GET',
-    url,
-    headers,
-    responseType: 'blob',
-    connectTimeout: 15000,
-    readTimeout: 20000,
-  });
-  if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
-  const b64 = typeof res.data === 'string' ? res.data : '';
-  const data = `data:image/jpeg;base64,${b64}`;
-  _imgCache.set(url, data);
-  return data;
+  await acquireImgSlot();
+  try {
+    const headers = plexHeaders();
+    const res = await CapacitorHttpRef.request({
+      method: 'GET',
+      url,
+      headers,
+      responseType: 'blob',
+      connectTimeout: 15000,
+      readTimeout: 20000,
+    });
+    if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
+    const b64 = typeof res.data === 'string' ? res.data : '';
+    const data = `data:image/jpeg;base64,${b64}`;
+    _imgCache.set(url, data);
+    return data;
+  } finally {
+    releaseImgSlot();
+  }
 }
 
 // ── hubs + search ─────────────────────────────────────────────────────────
@@ -333,6 +401,7 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     year: m.year as number | undefined,
     summary: m.summary as string | undefined,
     duration: m.duration as number | undefined,
+    videoResolution: mediaRes(m),
   }));
 }
 
@@ -386,7 +455,7 @@ export async function saveHiddenPlexLibs(keys: string[]): Promise<void> {
 
 // ── detail metadata + episodes ────────────────────────────────────────────
 
-export interface PlexPerson { tag: string; role?: string; }
+export interface PlexPerson { id?: string; tag: string; role?: string; thumb?: string; }
 export interface PlexMediaTech {
   videoResolution?: string;
   videoCodec?: string;
@@ -416,6 +485,7 @@ export interface PlexMetadata {
   /** Resume position, ms */
   viewOffset?: number;
   media?: PlexMediaTech;
+  librarySectionID?: string;
 }
 
 export async function getPlexMetadata(base: string, token: string, ratingKey: string): Promise<PlexMetadata> {
@@ -425,7 +495,12 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
   const m = data?.MediaContainer?.Metadata?.[0] ?? {};
   const asArr = (v: unknown): Array<Record<string, unknown>> => Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
   const genres = asArr(m.Genre).map((g) => String(g.tag || '')).filter(Boolean);
-  const cast: PlexPerson[] = asArr(m.Role).slice(0, 6).map((r) => ({ tag: String(r.tag || ''), role: r.role ? String(r.role) : undefined }));
+  const cast: PlexPerson[] = asArr(m.Role).slice(0, 20).map((r) => ({
+    id: r.id != null ? String(r.id) : undefined,
+    tag: String(r.tag || ''),
+    role: r.role ? String(r.role) : undefined,
+    thumb: r.thumb ? String(r.thumb) : undefined,
+  }));
   const directors = asArr(m.Director).map((d) => String(d.tag || '')).filter(Boolean);
   const mediaArr = asArr(m.Media);
   const media0 = mediaArr[0] as Record<string, unknown> | undefined;
@@ -451,6 +526,7 @@ export async function getPlexMetadata(base: string, token: string, ratingKey: st
     thumb: m.thumb as string | undefined,
     viewOffset: m.viewOffset as number | undefined,
     media,
+    librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
   };
 }
 
@@ -501,3 +577,74 @@ export async function getPlexEpisodes(base: string, token: string, seasonKey: st
   }));
 }
 
+/** Titles on a library section featuring the given actor. */
+export async function getPlexActorItems(
+  base: string,
+  token: string,
+  sectionKey: string,
+  actorId: string,
+): Promise<PlexItem[]> {
+  const url = `${base}/library/sections/${sectionKey}/all?actor=${encodeURIComponent(actorId)}`
+    + `&X-Plex-Container-Start=0&X-Plex-Container-Size=60`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
+  const items = data?.MediaContainer?.Metadata || [];
+  return items.map((m) => ({
+    ratingKey: String(m.ratingKey),
+    title: String(m.title || ''),
+    type: String(m.type || 'movie'),
+    thumb: m.thumb as string | undefined,
+    art: m.art as string | undefined,
+    year: m.year as number | undefined,
+    summary: m.summary as string | undefined,
+    duration: m.duration as number | undefined,
+    videoResolution: mediaRes(m),
+  }));
+}
+
+// ── module-level caches ────────────────────────────────────────────────────
+
+const LIB_TTL_MS = 20 * 60 * 1000;
+const HUB_TTL_MS = 5 * 60 * 1000;
+
+interface LibraryCacheEntry {
+  items: PlexItem[];
+  totalSize: number;
+  ts: number;
+  complete: boolean;
+}
+const _libraryCache: Map<string, LibraryCacheEntry> = new Map();
+
+export function libraryCacheKey(base: string, sectionKey: string): string {
+  return `${base}|${sectionKey}`;
+}
+export function getCachedLibrary(base: string, sectionKey: string): LibraryCacheEntry | null {
+  const e = _libraryCache.get(libraryCacheKey(base, sectionKey));
+  if (!e) return null;
+  return e;
+}
+export function isLibraryCacheFresh(entry: LibraryCacheEntry): boolean {
+  return Date.now() - entry.ts < LIB_TTL_MS;
+}
+export function setCachedLibrary(
+  base: string,
+  sectionKey: string,
+  items: PlexItem[],
+  totalSize: number,
+  complete: boolean,
+): void {
+  _libraryCache.set(libraryCacheKey(base, sectionKey), { items, totalSize, ts: Date.now(), complete });
+}
+
+interface HubCacheEntry { items: PlexItem[]; ts: number; }
+const _hubCache: Map<string, HubCacheEntry> = new Map();
+
+export function getCachedHub(base: string, path: string): PlexItem[] | null {
+  const key = `${base}|${path}`;
+  const e = _hubCache.get(key);
+  if (!e) return null;
+  if (Date.now() - e.ts >= HUB_TTL_MS) return null;
+  return e.items;
+}
+export function setCachedHub(base: string, path: string, items: PlexItem[]): void {
+  _hubCache.set(`${base}|${path}`, { items, ts: Date.now() });
+}
