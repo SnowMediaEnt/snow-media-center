@@ -2161,6 +2161,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _probe_canvas_all: { Args: { p_days: number }; Returns: string }
       adjust_customer_coins: {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
         Returns: number
@@ -2195,6 +2196,23 @@ export type Database = {
         Returns: number
       }
       backfill_customers_from_auth: { Args: never; Returns: Json }
+      canvas_all_tenants_summary: {
+        Args: { p_days: number }
+        Returns: {
+          active_devices: number
+          app_launches: number
+          avg_session_seconds: number
+          is_null_bucket: boolean
+          last_active: string
+          player_plays: number
+          reseller_id: string
+          sessions: number
+          signins: number
+          tenant_name: string
+          tenant_status: string
+          total_events: number
+        }[]
+      }
       capture_player_signin:
         | {
             Args: {
