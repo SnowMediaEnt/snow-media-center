@@ -906,8 +906,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
-        {NATIVE_PLAYBACK && native.buffering && !native.error && (
+        {NATIVE_PLAYBACK && !native.error && !slowLoad && (!streamUrl || !nativeActive || native.buffering) && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" /></div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && slowLoad && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
+            <Loader2 className="w-10 h-10 text-brand-gold animate-spin mb-3" />
+            <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
+            <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
+            <button onClick={() => { setSlowLoad(false); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+              <RotateCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
         )}
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center">
