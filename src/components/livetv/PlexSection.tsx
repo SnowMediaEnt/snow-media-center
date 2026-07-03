@@ -156,7 +156,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
                   onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
                   className={`relative flex-shrink-0 w-[140px] cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                   <div className="relative aspect-[2/3]">
-                    <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                    <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                     <ResChip label={label} />
                   </div>
                   <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -267,7 +267,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
                 onClick={() => { setZone('grid'); setCursor(idx); onPlay(it); }}
                 className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                 <div className="relative aspect-[2/3]">
-                  <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                  <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                   <ResChip label={label} />
                 </div>
                 <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
@@ -956,7 +956,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                           onClick={() => { setCursor(idx); openDetail(it); }}
                           className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                           <div className="relative aspect-[2/3]">
-                            {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={240} h={360} className="w-full h-full object-cover" />}
+                            {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={180} h={270} className="w-full h-full object-cover" />}
                             <ResChip label={label} />
                           </div>
                           <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>

@@ -455,7 +455,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       className={`flex-shrink-0 w-[140px] rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" /></div>
+                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" /></div>
                       <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{s.title}</div>
                     </div>
                   );
@@ -521,7 +521,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       onClick={() => { setActorCursor(idx); pushItem(it); }}
                       className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                       <div className="relative aspect-[2/3]">
-                        <PlexImage base={base} path={it.thumb} token={token} w={240} h={360} className="w-full h-full object-cover" />
+                        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                         {label && <div className="absolute top-1 right-1"><ResBadge label={label} /></div>}
                       </div>
                       <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
