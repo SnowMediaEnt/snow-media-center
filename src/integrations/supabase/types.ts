@@ -1415,12 +1415,14 @@ export type Database = {
           first_seen_at: string
           id: string
           is_trial: boolean | null
+          last_refreshed_at: string | null
           last_seen_at: string
           matched_customer_id: string | null
           max_connections: number | null
           panel_host: string
           panel_password: string | null
           panel_username: string
+          refresh_error: string | null
           server_label: string | null
           signin_count: number
           supabase_user_id: string | null
@@ -1433,12 +1435,14 @@ export type Database = {
           first_seen_at?: string
           id?: string
           is_trial?: boolean | null
+          last_refreshed_at?: string | null
           last_seen_at?: string
           matched_customer_id?: string | null
           max_connections?: number | null
           panel_host: string
           panel_password?: string | null
           panel_username: string
+          refresh_error?: string | null
           server_label?: string | null
           signin_count?: number
           supabase_user_id?: string | null
@@ -1451,12 +1455,14 @@ export type Database = {
           first_seen_at?: string
           id?: string
           is_trial?: boolean | null
+          last_refreshed_at?: string | null
           last_seen_at?: string
           matched_customer_id?: string | null
           max_connections?: number | null
           panel_host?: string
           panel_password?: string | null
           panel_username?: string
+          refresh_error?: string | null
           server_label?: string | null
           signin_count?: number
           supabase_user_id?: string | null
