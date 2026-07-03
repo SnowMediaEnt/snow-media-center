@@ -661,7 +661,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp }: Props) => {
                       const focused = isActive && zone === 'grid' && cursor === idx;
                       return (
                         <div key={it.ratingKey} data-focused={focused ? 'true' : 'false'}
-                          onClick={() => { setCursor(idx); void play(it); }}
+                          onClick={() => { setCursor(idx); openDetail(it); }}
                           className={`cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                           <div className="aspect-[2/3]">
                             {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={240} h={360} className="w-full h-full object-cover" />}
