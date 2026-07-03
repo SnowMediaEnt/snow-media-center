@@ -3,11 +3,22 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
+import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
+import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
+import { useToast } from '@/hooks/use-toast';
 
 type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs';
 const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs'];
+
+export interface SubtitleSearchContext {
+  title: string;
+  year?: number;
+  grandparentTitle?: string;
+  season?: number;
+  episode?: number;
+}
 
 interface Props {
   active: boolean;                              // component only wires listeners when true
@@ -17,7 +28,11 @@ interface Props {
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
   seekTo: (sec: number) => Promise<void>;
   onBackWhileHidden: () => void;                // called when Back pressed with overlay hidden (fullscreen exit)
+  subtitleContext?: SubtitleSearchContext;
+  /** Reload native player with an external subtitle sidecar at the given resume position. */
+  onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
 }
+
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const fmtTime = (sec: number) => {
