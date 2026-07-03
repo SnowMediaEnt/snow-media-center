@@ -285,6 +285,24 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         else if (e.key === 'Enter' || e.key === ' ') { const item = list[i]; if (item) void pickOsdlRef.current(item); }
         return;
       }
+      if (menuRef.current === 'quality') {
+        const list = PLEX_QUALITY_PRESETS;
+        const i = menuIdxRef.current;
+        if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          const p = list[i];
+          if (p && p.key !== qualityKeyRef.current) {
+            void (async () => {
+              const pos = await getPositionRef.current();
+              onChangeQualityRef.current(p.key, Math.floor(pos.position));
+              try { toastRef.current({ title: `Switching to ${p.label}…` }); } catch { /* ignore */ }
+            })();
+          }
+          setMenu('none');
+        }
+        return;
+      }
 
       // main control row (horizontal)
       const r = rowRef.current;
