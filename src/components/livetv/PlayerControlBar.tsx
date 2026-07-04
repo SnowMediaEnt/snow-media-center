@@ -51,6 +51,7 @@ const PlayerControlBar = memo(({
   categoryName, channelLogo, channelNum, channelName,
   nowTitle, nowStart, nowEnd, nextTitle,
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
+  volMenuOpen, volume,
 }: Props) => {
   // 1Hz clock + progress tick.
   const [now, setNow] = useState(() => Date.now());
@@ -71,6 +72,9 @@ const PlayerControlBar = memo(({
   const elapsed = total ? Math.max(0, Math.min(total, now - (nowStart || 0))) : 0;
   const progressPct = total ? (elapsed / total) * 100 : 0;
 
+  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  const volIcon = volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />;
+
   if (!visible) return null;
 
   const controls: { id: BarControlId; icon: JSX.Element; label: string; disabled?: boolean }[] = [
@@ -81,7 +85,9 @@ const PlayerControlBar = memo(({
     { id: 'next',  icon: <SkipForward className="w-6 h-6" />, label: 'Next channel' },
     { id: 'cc',    icon: <Subtitles className="w-6 h-6" />,   label: 'Subtitles', disabled: subs.length === 0 },
     { id: 'audio', icon: <AudioLines className="w-6 h-6" />,  label: 'Audio',     disabled: auds.length <= 1 },
+    { id: 'vol',   icon: volIcon,                              label: 'Volume' },
   ];
+
 
   const renderButton = (c: typeof controls[number]) => {
     const focused = focus === c.id;
