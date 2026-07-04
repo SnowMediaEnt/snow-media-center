@@ -342,6 +342,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   if (!visible) return null;
 
   const pct = dur > 0 ? Math.min(100, Math.max(0, (pos / dur) * 100)) : 0;
+  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
   const focusVis = (r: Row) => row === r
     ? 'bg-brand-gold text-brand-navy scale-110 shadow-[0_0_18px_rgba(245,200,80,0.55)]'
