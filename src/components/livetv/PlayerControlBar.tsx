@@ -7,7 +7,7 @@ import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 
 export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol';
 
-export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio';
+
 
 interface Props {
   visible: boolean;
