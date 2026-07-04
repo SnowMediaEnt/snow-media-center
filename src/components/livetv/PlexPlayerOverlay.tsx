@@ -380,6 +380,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
             <div className="flex flex-col items-center gap-0.5">
+              <button
+                type="button"
+                data-focused={row === 'volume' ? 'true' : 'false'}
+                className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
+                aria-label="Volume"
+              >
+                {volPct === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+              {row === 'volume' && (
+                <span className="text-[9px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
               <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Buffering help" onClick={() => onOpenBufferingGuide?.()}><LifeBuoy className="w-5 h-5" /></button>
               <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
@@ -387,7 +400,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
             {row === 'buffering'
               ? 'Buffering help — OK opens the fix-buffering guide'
-              : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
+              : row === 'volume'
+                ? 'Volume — OK opens the slider'
+                : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
           </p>
         </div>
       </div>
