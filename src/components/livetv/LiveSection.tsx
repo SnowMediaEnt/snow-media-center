@@ -153,6 +153,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       setBarVisible(false);
       setSubMenuOpen(false);
       setAudioMenuOpen(false);
+      setVolMenuOpen(false);
     }, 5000) as unknown as number;
   }, []);
   const hideBarNow = useCallback(() => {
@@ -160,6 +161,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setBarVisible(false);
     setSubMenuOpen(false);
     setAudioMenuOpen(false);
+    setVolMenuOpen(false);
   }, []);
   // Reset bar state when entering fullscreen or switching channel.
   useEffect(() => {
@@ -167,6 +169,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setBarFocus('play');
     setSubMenuOpen(false);
     setAudioMenuOpen(false);
+    setVolMenuOpen(false);
     pokeBar();
     return () => {
       if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
