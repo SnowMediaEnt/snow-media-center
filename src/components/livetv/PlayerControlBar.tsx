@@ -1,11 +1,13 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
-  Subtitles, AudioLines, Tv, Radio,
+  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 
-export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio';
+export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol';
+
+
 
 interface Props {
   visible: boolean;
@@ -29,6 +31,10 @@ interface Props {
   /** When > -2 indicates a focused menu row (or -1 = "Off"). -2 = none. */
   subMenuFocus: number;
   audioMenuFocus: number;
+  // Volume
+  volMenuOpen: boolean;
+  /** 0..1 */
+  volume: number;
 }
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -45,6 +51,7 @@ const PlayerControlBar = memo(({
   categoryName, channelLogo, channelNum, channelName,
   nowTitle, nowStart, nowEnd, nextTitle,
   subMenuOpen, audioMenuOpen, subMenuFocus, audioMenuFocus,
+  volMenuOpen, volume,
 }: Props) => {
   // 1Hz clock + progress tick.
   const [now, setNow] = useState(() => Date.now());
@@ -65,6 +72,9 @@ const PlayerControlBar = memo(({
   const elapsed = total ? Math.max(0, Math.min(total, now - (nowStart || 0))) : 0;
   const progressPct = total ? (elapsed / total) * 100 : 0;
 
+  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  const volIcon = volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />;
+
   if (!visible) return null;
 
   const controls: { id: BarControlId; icon: JSX.Element; label: string; disabled?: boolean }[] = [
@@ -75,7 +85,9 @@ const PlayerControlBar = memo(({
     { id: 'next',  icon: <SkipForward className="w-6 h-6" />, label: 'Next channel' },
     { id: 'cc',    icon: <Subtitles className="w-6 h-6" />,   label: 'Subtitles', disabled: subs.length === 0 },
     { id: 'audio', icon: <AudioLines className="w-6 h-6" />,  label: 'Audio',     disabled: auds.length <= 1 },
+    { id: 'vol',   icon: volIcon,                              label: 'Volume' },
   ];
+
 
   const renderButton = (c: typeof controls[number]) => {
     const focused = focus === c.id;
@@ -86,7 +98,7 @@ const PlayerControlBar = memo(({
       : c.disabled
         ? 'bg-white/5 text-white/30'
         : 'bg-white/10 text-white hover:bg-white/20';
-    return (
+    const btn = (
       <button
         key={c.id}
         type="button"
@@ -98,7 +110,19 @@ const PlayerControlBar = memo(({
         {c.icon}
       </button>
     );
+    if (c.id === 'vol') {
+      return (
+        <div key="vol-wrap" className="flex flex-col items-center gap-0.5">
+          {btn}
+          {focused && (
+            <span className="text-[10px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+          )}
+        </div>
+      );
+    }
+    return btn;
   };
+
 
   return (
     <>
@@ -222,6 +246,23 @@ const PlayerControlBar = memo(({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Volume menu */}
+      {volMenuOpen && (
+        <div className="absolute right-8 bottom-32 z-20 w-72 rounded-xl bg-black/90 border border-white/15 p-3 animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-1 py-1">
+            <p className="text-xs font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              Volume
+            </p>
+            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+          </div>
+          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div className="h-full bg-brand-gold transition-all" style={{ width: `${volPct}%` }} />
+          </div>
+          <p className="text-center text-[10px] text-brand-ice/60 font-nunito mt-2">◀ ▶ adjust · OK/Back done</p>
         </div>
       )}
     </>

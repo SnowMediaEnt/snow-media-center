@@ -3,15 +3,15 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'buffering';
-const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'buffering'];
+type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
+const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'volume', 'buffering'];
 
 export interface SubtitleSearchContext {
   title: string;
@@ -41,6 +41,10 @@ interface Props {
   /** Called when the user opens the Buffering help shortcut. Parent is expected
    *  to tear down playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Current playback volume 0..1. */
+  volume: number;
+  /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
+  onChangeVolume: (v: number) => void;
 }
 
 
@@ -53,10 +57,10 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, volume, onChangeVolume }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
-  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality'>('none');
+  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
@@ -191,13 +195,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   }, [qualityKey]);
 
   const doAction = useCallback(async (r: Row) => {
-    if (!controller) return;
-    if (r === 'play') controller.togglePlay();
+    if (!controller && r !== 'volume' && r !== 'buffering') return;
+    if (r === 'play') controller?.togglePlay();
     else if (r === 'seek-10') { const p = await getPosition(); await seekTo(Math.max(0, p.position - 10)); }
     else if (r === 'seek+30') { const p = await getPosition(); await seekTo(p.position + 30); }
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
+    else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
     else if (r === 'buffering') { onOpenBufferingGuide?.(); }
   }, [controller, getPosition, seekTo, auds, openSubs, openQuality, onOpenBufferingGuide]);
 
@@ -221,6 +226,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onChangeQualityRef = useRef(onChangeQuality); useEffect(() => { onChangeQualityRef.current = onChangeQuality; }, [onChangeQuality]);
   const getPositionRef = useRef(getPosition); useEffect(() => { getPositionRef.current = getPosition; }, [getPosition]);
   const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
+  const volumeRef = useRef(volume); useEffect(() => { volumeRef.current = volume; }, [volume]);
+  const onChangeVolumeRef = useRef(onChangeVolume); useEffect(() => { onChangeVolumeRef.current = onChangeVolume; }, [onChangeVolume]);
 
   useEffect(() => {
     if (!active) return;
@@ -307,6 +314,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         }
         return;
       }
+      if (menuRef.current === 'volume') {
+        if (e.key === 'ArrowLeft') {
+          const next = Math.max(0, +(volumeRef.current - 0.1).toFixed(2));
+          onChangeVolumeRef.current(next);
+        } else if (e.key === 'ArrowRight') {
+          const next = Math.min(1, +(volumeRef.current + 0.1).toFixed(2));
+          onChangeVolumeRef.current(next);
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          setMenu('none');
+        }
+        return;
+      }
+
 
       // main control row (horizontal)
       const r = rowRef.current;
@@ -322,6 +342,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   if (!visible) return null;
 
   const pct = dur > 0 ? Math.min(100, Math.max(0, (pos / dur) * 100)) : 0;
+  const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
   const focusVis = (r: Row) => row === r
     ? 'bg-brand-gold text-brand-navy scale-110 shadow-[0_0_18px_rgba(245,200,80,0.55)]'
@@ -360,6 +381,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
             <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
             <div className="flex flex-col items-center gap-0.5">
+              <button
+                type="button"
+                data-focused={row === 'volume' ? 'true' : 'false'}
+                className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
+                aria-label="Volume"
+              >
+                {volPct === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+              {row === 'volume' && (
+                <span className="text-[9px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
               <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Buffering help" onClick={() => onOpenBufferingGuide?.()}><LifeBuoy className="w-5 h-5" /></button>
               <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
@@ -367,7 +401,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
             {row === 'buffering'
               ? 'Buffering help — OK opens the fix-buffering guide'
-              : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
+              : row === 'volume'
+                ? 'Volume — OK opens the slider'
+                : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
           </p>
         </div>
       </div>
@@ -384,6 +420,23 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           ))}
         </div>
       )}
+
+      {menu === 'volume' && (
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-3 animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-1 py-1">
+            <p className="text-xs font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              Volume
+            </p>
+            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+          </div>
+          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div className="h-full bg-brand-gold transition-all" style={{ width: `${volPct}%` }} />
+          </div>
+          <p className="text-center text-[10px] text-brand-ice/60 font-nunito mt-2">◀ ▶ adjust · OK/Back done</p>
+        </div>
+      )}
+
 
       {menu === 'quality' && (
         <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">

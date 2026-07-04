@@ -5,8 +5,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
   saveFavoritesData,
-  loadVolume,
-  saveVolume,
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
@@ -19,6 +17,7 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
+import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
@@ -98,8 +97,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     });
   }, []);
 
-  const [volume, setVolume] = useState<number>(() => loadVolume());
-  useEffect(() => { saveVolume(volume); }, [volume]);
+  const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
+  useEffect(() => { savePlayerVolume(volume); }, [volume]);
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on Favorites (0). A separate effect bumps to the first REAL category
@@ -142,6 +141,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [isPaused, setIsPaused] = useState(false);
   const [subMenuOpen, setSubMenuOpen] = useState(false);
   const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [volMenuOpen, setVolMenuOpen] = useState(false);
   const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
   const [audioMenuFocus, setAudioMenuFocus] = useState(0);
   const [tracksTick, setTracksTick] = useState(0);
@@ -153,6 +153,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       setBarVisible(false);
       setSubMenuOpen(false);
       setAudioMenuOpen(false);
+      setVolMenuOpen(false);
     }, 5000) as unknown as number;
   }, []);
   const hideBarNow = useCallback(() => {
@@ -160,6 +161,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setBarVisible(false);
     setSubMenuOpen(false);
     setAudioMenuOpen(false);
+    setVolMenuOpen(false);
   }, []);
   // Reset bar state when entering fullscreen or switching channel.
   useEffect(() => {
@@ -167,6 +169,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setBarFocus('play');
     setSubMenuOpen(false);
     setAudioMenuOpen(false);
+    setVolMenuOpen(false);
     pokeBar();
     return () => {
       if (barHideTimerRef.current) { window.clearTimeout(barHideTimerRef.current); barHideTimerRef.current = null; }
@@ -589,6 +592,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const barFocusRef = useRef(barFocus);
   const subMenuOpenRef = useRef(subMenuOpen);
   const audioMenuOpenRef = useRef(audioMenuOpen);
+  const volMenuOpenRef = useRef(volMenuOpen);
   const subMenuFocusRef = useRef(subMenuFocus);
   const audioMenuFocusRef = useRef(audioMenuFocus);
 
@@ -603,6 +607,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
   useEffect(() => { subMenuOpenRef.current = subMenuOpen; }, [subMenuOpen]);
   useEffect(() => { audioMenuOpenRef.current = audioMenuOpen; }, [audioMenuOpen]);
+  useEffect(() => { volMenuOpenRef.current = volMenuOpen; }, [volMenuOpen]);
   useEffect(() => { subMenuFocusRef.current = subMenuFocus; }, [subMenuFocus]);
   useEffect(() => { audioMenuFocusRef.current = audioMenuFocus; }, [audioMenuFocus]);
 
@@ -639,10 +644,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
         const ctrl = videoControllerRef.current;
 
-        // --- Sub/Audio menus take priority ---
-        if (subMenuOpenRef.current || audioMenuOpenRef.current) {
+        // --- Sub/Audio/Volume menus take priority ---
+        if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) {
           e.preventDefault(); e.stopPropagation();
           pokeBar();
+          // Volume popup: ◀/▶ live-adjust in 10% steps, OK/Back closes.
+          if (volMenuOpenRef.current) {
+            if (isBack || e.key === 'Enter' || e.key === ' ') {
+              setVolMenuOpen(false);
+              return;
+            }
+            if (e.key === 'ArrowLeft') {
+              setVolume(v => Math.max(0, +(v - 0.1).toFixed(2)));
+              return;
+            }
+            if (e.key === 'ArrowRight') {
+              setVolume(v => Math.min(1, +(v + 0.1).toFixed(2)));
+              return;
+            }
+            return;
+          }
           const isSub = subMenuOpenRef.current;
           if (isBack || e.key === 'ArrowLeft') {
             setSubMenuOpen(false); setAudioMenuOpen(false);
@@ -710,7 +731,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const subs = ctrl?.getSubtitleTracks() ?? [];
         const auds = ctrl?.getAudioTracks() ?? [];
         const seekable = !!ctrl?.isSeekable();
-        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio'];
+        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio', 'vol'];
         const isDisabled = (id: BarControlId): boolean => {
           if (id === 'rew' || id === 'fwd') return !seekable;
           if (id === 'cc') return subs.length === 0;
@@ -747,12 +768,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             setSubMenuFocus(cur >= 0 ? cur : -1);
             setSubMenuOpen(true);
             setAudioMenuOpen(false);
+            setVolMenuOpen(false);
           }
           else if (id === 'audio') {
             const cur = auds.findIndex(a => a.active);
             setAudioMenuFocus(cur >= 0 ? cur : 0);
             setAudioMenuOpen(true);
             setSubMenuOpen(false);
+            setVolMenuOpen(false);
+          }
+          else if (id === 'vol') {
+            setVolMenuOpen(true);
+            setSubMenuOpen(false);
+            setAudioMenuOpen(false);
           }
           return;
         }
@@ -885,7 +913,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const h = await CapApp.addListener('backButton', () => {
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (reportForRef.current) return;
-          if (subMenuOpenRef.current || audioMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); return; }
+          if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (fullscreenRef.current) {
             if (barVisibleRef.current) hideBarNow();
             else { setFullscreen(false); }
@@ -980,6 +1008,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           audioMenuOpen={audioMenuOpen}
           subMenuFocus={subMenuFocus}
           audioMenuFocus={audioMenuFocus}
+          volMenuOpen={volMenuOpen}
+          volume={volume}
         />
         {/* Volume hint while bar is hidden */}
         {!barVisible && (

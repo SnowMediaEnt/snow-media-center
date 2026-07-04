@@ -34,6 +34,8 @@ import PlexImage from './PlexImage';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
+import { SnowPlayer } from '@/capacitor/SnowPlayer';
+import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
@@ -365,7 +367,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [zone, setZone] = useState<'tabs' | 'grid'>('tabs');
   const [cursor, setCursor] = useState(0);
 
-  const [volume] = useState(0.9);
+  const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
+  const changeVolume = useCallback((v: number) => {
+    const clamped = Math.min(1, Math.max(0, v));
+    setVolume(clamped);
+    savePlayerVolume(clamped);
+    // Live-apply to the native player when playback is active.
+    try { void SnowPlayer.setVolume({ volume: clamped }).catch(() => { /* ignore */ }); } catch { /* ignore */ }
+  }, []);
   const [detailItem, setDetailItem] = useState<PlexItem | null>(null);
   const [playing, setPlaying] = useState<PlexItem | null>(null);
   const [playingTitle, setPlayingTitle] = useState('');
@@ -968,6 +977,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               exitFullscreen();
               onOpenBufferingGuide();
             } : undefined}
+            volume={volume}
+            onChangeVolume={changeVolume}
           />
         )}
 
