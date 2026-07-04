@@ -97,8 +97,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     });
   }, []);
 
-  const [volume, setVolume] = useState<number>(() => loadVolume());
-  useEffect(() => { saveVolume(volume); }, [volume]);
+  const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
+  useEffect(() => { savePlayerVolume(volume); }, [volume]);
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on Favorites (0). A separate effect bumps to the first REAL category
