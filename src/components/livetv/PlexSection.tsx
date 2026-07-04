@@ -34,6 +34,8 @@ import PlexImage from './PlexImage';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
+import { SnowPlayer } from '@/capacitor/SnowPlayer';
+import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
