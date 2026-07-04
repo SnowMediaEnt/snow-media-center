@@ -41,6 +41,10 @@ interface Props {
   /** Called when the user opens the Buffering help shortcut. Parent is expected
    *  to tear down playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Current playback volume 0..1. */
+  volume: number;
+  /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
+  onChangeVolume: (v: number) => void;
 }
 
 
