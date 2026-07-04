@@ -3,15 +3,15 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'buffering';
-const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'buffering'];
+type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
+const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'volume', 'buffering'];
 
 export interface SubtitleSearchContext {
   title: string;
