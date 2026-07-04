@@ -1,9 +1,11 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Rewind, FastForward,
-  Subtitles, AudioLines, Tv, Radio,
+  Subtitles, AudioLines, Tv, Radio, Volume2, VolumeX,
 } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
+
+export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio' | 'vol';
 
 export type BarControlId = 'prev' | 'rew' | 'play' | 'fwd' | 'next' | 'cc' | 'audio';
 
