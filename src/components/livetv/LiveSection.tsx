@@ -731,7 +731,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const subs = ctrl?.getSubtitleTracks() ?? [];
         const auds = ctrl?.getAudioTracks() ?? [];
         const seekable = !!ctrl?.isSeekable();
-        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio'];
+        const order: BarControlId[] = ['prev', 'rew', 'play', 'fwd', 'next', 'cc', 'audio', 'vol'];
         const isDisabled = (id: BarControlId): boolean => {
           if (id === 'rew' || id === 'fwd') return !seekable;
           if (id === 'cc') return subs.length === 0;
@@ -768,12 +768,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             setSubMenuFocus(cur >= 0 ? cur : -1);
             setSubMenuOpen(true);
             setAudioMenuOpen(false);
+            setVolMenuOpen(false);
           }
           else if (id === 'audio') {
             const cur = auds.findIndex(a => a.active);
             setAudioMenuFocus(cur >= 0 ? cur : 0);
             setAudioMenuOpen(true);
             setSubMenuOpen(false);
+            setVolMenuOpen(false);
+          }
+          else if (id === 'vol') {
+            setVolMenuOpen(true);
+            setSubMenuOpen(false);
+            setAudioMenuOpen(false);
           }
           return;
         }
