@@ -977,6 +977,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               exitFullscreen();
               onOpenBufferingGuide();
             } : undefined}
+            volume={volume}
+            onChangeVolume={changeVolume}
           />
         )}
 
