@@ -421,6 +421,23 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         </div>
       )}
 
+      {menu === 'volume' && (
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-3 animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-1 py-1">
+            <p className="text-xs font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              Volume
+            </p>
+            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+          </div>
+          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
+            <div className="h-full bg-brand-gold transition-all" style={{ width: `${volPct}%` }} />
+          </div>
+          <p className="text-center text-[10px] text-brand-ice/60 font-nunito mt-2">◀ ▶ adjust · OK/Back done</p>
+        </div>
+      )}
+
+
       {menu === 'quality' && (
         <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
           <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Quality</p>
