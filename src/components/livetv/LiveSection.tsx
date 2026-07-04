@@ -141,6 +141,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [isPaused, setIsPaused] = useState(false);
   const [subMenuOpen, setSubMenuOpen] = useState(false);
   const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [volMenuOpen, setVolMenuOpen] = useState(false);
   const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
   const [audioMenuFocus, setAudioMenuFocus] = useState(0);
   const [tracksTick, setTracksTick] = useState(0);
