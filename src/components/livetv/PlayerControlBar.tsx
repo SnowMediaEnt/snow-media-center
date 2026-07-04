@@ -98,7 +98,7 @@ const PlayerControlBar = memo(({
       : c.disabled
         ? 'bg-white/5 text-white/30'
         : 'bg-white/10 text-white hover:bg-white/20';
-    return (
+    const btn = (
       <button
         key={c.id}
         type="button"
@@ -110,7 +110,19 @@ const PlayerControlBar = memo(({
         {c.icon}
       </button>
     );
+    if (c.id === 'vol') {
+      return (
+        <div key="vol-wrap" className="flex flex-col items-center gap-0.5">
+          {btn}
+          {focused && (
+            <span className="text-[10px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+          )}
+        </div>
+      );
+    }
+    return btn;
   };
+
 
   return (
     <>
