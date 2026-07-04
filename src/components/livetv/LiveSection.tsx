@@ -1008,6 +1008,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           audioMenuOpen={audioMenuOpen}
           subMenuFocus={subMenuFocus}
           audioMenuFocus={audioMenuFocus}
+          volMenuOpen={volMenuOpen}
+          volume={volume}
         />
         {/* Volume hint while bar is hidden */}
         {!barVisible && (
