@@ -592,6 +592,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const barFocusRef = useRef(barFocus);
   const subMenuOpenRef = useRef(subMenuOpen);
   const audioMenuOpenRef = useRef(audioMenuOpen);
+  const volMenuOpenRef = useRef(volMenuOpen);
   const subMenuFocusRef = useRef(subMenuFocus);
   const audioMenuFocusRef = useRef(audioMenuFocus);
 
