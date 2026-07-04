@@ -314,6 +314,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         }
         return;
       }
+      if (menuRef.current === 'volume') {
+        if (e.key === 'ArrowLeft') {
+          const next = Math.max(0, +(volumeRef.current - 0.1).toFixed(2));
+          onChangeVolumeRef.current(next);
+        } else if (e.key === 'ArrowRight') {
+          const next = Math.min(1, +(volumeRef.current + 0.1).toFixed(2));
+          onChangeVolumeRef.current(next);
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          setMenu('none');
+        }
+        return;
+      }
+
 
       // main control row (horizontal)
       const r = rowRef.current;
