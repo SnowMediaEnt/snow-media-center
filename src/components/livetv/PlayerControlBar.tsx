@@ -31,6 +31,10 @@ interface Props {
   /** When > -2 indicates a focused menu row (or -1 = "Off"). -2 = none. */
   subMenuFocus: number;
   audioMenuFocus: number;
+  // Volume
+  volMenuOpen: boolean;
+  /** 0..1 */
+  volume: number;
 }
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
