@@ -367,7 +367,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [zone, setZone] = useState<'tabs' | 'grid'>('tabs');
   const [cursor, setCursor] = useState(0);
 
-  const [volume] = useState(0.9);
+  const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
+  const changeVolume = useCallback((v: number) => {
+    const clamped = Math.min(1, Math.max(0, v));
+    setVolume(clamped);
+    savePlayerVolume(clamped);
+    // Live-apply to the native player when playback is active.
+    try { void SnowPlayer.setVolume({ volume: clamped }).catch(() => { /* ignore */ }); } catch { /* ignore */ }
+  }, []);
   const [detailItem, setDetailItem] = useState<PlexItem | null>(null);
   const [playing, setPlaying] = useState<PlexItem | null>(null);
   const [playingTitle, setPlayingTitle] = useState('');
