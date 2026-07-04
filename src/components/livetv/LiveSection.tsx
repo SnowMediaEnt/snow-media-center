@@ -5,8 +5,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
   saveFavoritesData,
-  loadVolume,
-  saveVolume,
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
@@ -19,6 +17,7 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
+import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
