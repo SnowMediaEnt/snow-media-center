@@ -607,6 +607,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => { barFocusRef.current = barFocus; }, [barFocus]);
   useEffect(() => { subMenuOpenRef.current = subMenuOpen; }, [subMenuOpen]);
   useEffect(() => { audioMenuOpenRef.current = audioMenuOpen; }, [audioMenuOpen]);
+  useEffect(() => { volMenuOpenRef.current = volMenuOpen; }, [volMenuOpen]);
   useEffect(() => { subMenuFocusRef.current = subMenuFocus; }, [subMenuFocus]);
   useEffect(() => { audioMenuFocusRef.current = audioMenuFocus; }, [audioMenuFocus]);
 
