@@ -195,13 +195,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   }, [qualityKey]);
 
   const doAction = useCallback(async (r: Row) => {
-    if (!controller) return;
-    if (r === 'play') controller.togglePlay();
+    if (!controller && r !== 'volume' && r !== 'buffering') return;
+    if (r === 'play') controller?.togglePlay();
     else if (r === 'seek-10') { const p = await getPosition(); await seekTo(Math.max(0, p.position - 10)); }
     else if (r === 'seek+30') { const p = await getPosition(); await seekTo(p.position + 30); }
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
+    else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
     else if (r === 'buffering') { onOpenBufferingGuide?.(); }
   }, [controller, getPosition, seekTo, auds, openSubs, openQuality, onOpenBufferingGuide]);
 
