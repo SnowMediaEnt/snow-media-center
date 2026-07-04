@@ -644,10 +644,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
         const ctrl = videoControllerRef.current;
 
-        // --- Sub/Audio menus take priority ---
-        if (subMenuOpenRef.current || audioMenuOpenRef.current) {
+        // --- Sub/Audio/Volume menus take priority ---
+        if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) {
           e.preventDefault(); e.stopPropagation();
           pokeBar();
+          // Volume popup: ◀/▶ live-adjust in 10% steps, OK/Back closes.
+          if (volMenuOpenRef.current) {
+            if (isBack || e.key === 'Enter' || e.key === ' ') {
+              setVolMenuOpen(false);
+              return;
+            }
+            if (e.key === 'ArrowLeft') {
+              setVolume(v => Math.max(0, +(v - 0.1).toFixed(2)));
+              return;
+            }
+            if (e.key === 'ArrowRight') {
+              setVolume(v => Math.min(1, +(v + 0.1).toFixed(2)));
+              return;
+            }
+            return;
+          }
           const isSub = subMenuOpenRef.current;
           if (isBack || e.key === 'ArrowLeft') {
             setSubMenuOpen(false); setAudioMenuOpen(false);
