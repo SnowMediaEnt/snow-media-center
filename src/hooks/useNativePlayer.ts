@@ -99,12 +99,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     (async () => {
       try {
         stateH = await SnowPlayer.addListener('playerState', (data) => {
+          if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           if (data.state === 'buffering') setBuffering(true);
           else if (data.state === 'ready') setBuffering(false);
           else if (data.state === 'ended') { markStreaming(false); cbEndedRef.current?.(); }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         });
         errH = await SnowPlayer.addListener('playerError', (data) => {
+          if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           markStreaming(false);
           const msg = data.message || 'Playback error';
           const code = data.code;
