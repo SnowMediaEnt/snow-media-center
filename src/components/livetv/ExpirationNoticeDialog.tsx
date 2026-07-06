@@ -26,7 +26,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4) {
+      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23) {
         e.preventDefault();
         e.stopPropagation();
         handleDismiss();
