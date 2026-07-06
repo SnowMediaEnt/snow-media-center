@@ -1048,6 +1048,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
+  // ── render: warm-up ─────────────────────────────────────────────────
+  // Delay revealing the tabs+grid until Home rails + first ~12 posters have
+  // loaded (or 8s cap). Back during warm-up still exits Plex via the keydown
+  // effect above (status==='ready', no detail/fullscreen).
+  if (!warmedUp && !fullscreen && !detailItem) {
+    return (
+      <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
+        <Loader2 className="w-12 h-12 animate-spin text-brand-gold" />
+        <p className="font-quicksand font-semibold text-brand-ice">Loading your library…</p>
+        <p className="text-xs font-nunito text-brand-ice/50">Plex · {conn?.name}</p>
+      </div>
+    );
+  }
+
   // ── render: fullscreen ──────────────────────────────────────────────
   if (fullscreen) {
     return (
