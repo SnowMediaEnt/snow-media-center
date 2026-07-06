@@ -749,24 +749,31 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const key = playing.ratingKey;
     if (audioSafetyRef.current === key) return;
     try {
-      const audio = SnowPlayer.getAudioTracks();
-      void audio.then(({ tracks }) => {
+      void (async () => {
+        // Readiness gate — prime() fires this callback immediately after
+        // load() resolves, before ExoPlayer parses the container. Without
+        // this gate getAudioTracks() returns [] and we wrongly reload into
+        // transcode ("Fixing audio…") on virtually every direct play.
+        try {
+          const pos = await SnowPlayer.getPosition();
+          if (!pos || pos.duration <= 0) return;
+        } catch { return; }
+        if (audioSafetyRef.current === key) return;
+        const { tracks } = await SnowPlayer.getAudioTracks();
         if (!tracks || tracks.length > 0) return;
         if (audioSafetyRef.current === key) return;
         audioSafetyRef.current = key;
         try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }
-        void (async () => {
-          let resume: number | undefined;
-          try {
-            const p = await SnowPlayer.getPosition();
-            if (p.position > 0) resume = p.position;
-          } catch { /* ignore */ }
-          setStartPos(resume);
-          setUseTranscode(true);
-          const url = plexTranscodeUrl(conn.base, key, conn.token);
-          setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-        })();
-      }).catch(() => { /* ignore */ });
+        let resume: number | undefined;
+        try {
+          const p = await SnowPlayer.getPosition();
+          if (p.position > 0) resume = p.position;
+        } catch { /* ignore */ }
+        setStartPos(resume);
+        setUseTranscode(true);
+        const url = plexTranscodeUrl(conn.base, key, conn.token);
+        setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+      })();
     } catch { /* ignore */ }
   }, [nativeActive, useTranscode, playing, conn, toast]);
   const setSlowLoadRef = useRef<(v: boolean) => void>(() => { /* filled below */ });
