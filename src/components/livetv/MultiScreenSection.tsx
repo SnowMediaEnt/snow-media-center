@@ -693,7 +693,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       {tileMenuOpen && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto bg-brand-navy border border-white/15 rounded-2xl p-3 w-64 shadow-2xl">
-            {['Fullscreen', 'Change channel', 'Close screen'].map((label, i) => (
+            {['Change channel', 'Fullscreen', 'Close screen'].map((label, i) => (
               <div
                 key={label}
                 data-focused={tileMenuIdx === i ? 'true' : 'false'}
