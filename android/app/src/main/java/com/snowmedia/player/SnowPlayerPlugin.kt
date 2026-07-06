@@ -66,6 +66,10 @@ class SnowPlayerPlugin : Plugin() {
         // decoder has ≥10s buffered (or 12s wall-clock elapse). Prevents the
         // initial "playing → immediate rebuffer" flash on slow Plex servers.
         var preBufferRunnable: Runnable? = null
+        // Rect requested BEFORE the surface existed (or before load()). load()
+        // applies this after ensureSurface. Null = "no explicit rect yet".
+        // IntArray of size 5: [x, y, w, h, fullscreenFlag(0/1)].
+        var pendingRect: IntArray? = null
     }
 
     private val slots = HashMap<String, PlayerSlot>()
