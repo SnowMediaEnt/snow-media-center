@@ -344,13 +344,14 @@ class SnowPlayerPlugin : Plugin() {
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            // Apply any pendingRect captured before the surface existed. Non-main
-            // slots with NO pendingRect stay INVISIBLE until setRect flips them
-            // VISIBLE so a freshly-loaded multiview slot never briefly paints
-            // fullscreen over the other tiles.
+            // Apply any pendingRect captured before the surface existed. A slot
+            // that is about to stream is ALWAYS visible; without a pendingRect
+            // yet, default the container to fullscreen so it composites (a
+            // later setRect resizes it). Prior INVISIBLE default caused
+            // "tile is black but audio plays" when a degenerate rect dropped.
             val pending = s.pendingRect
-            val c = s.container
-            if (c != null) {
+            s.container?.let { c ->
+                c.visibility = View.VISIBLE
                 if (pending != null) {
                     val fs = pending[4] == 1
                     val lp = c.layoutParams
@@ -366,11 +367,12 @@ class SnowPlayerPlugin : Plugin() {
                     }
                     c.layoutParams = lp
                     c.requestLayout()
-                    c.visibility = View.VISIBLE
-                } else if (screenId == MAIN) {
-                    c.visibility = View.VISIBLE
-                } else {
-                    c.visibility = View.INVISIBLE
+                } else if (screenId != MAIN) {
+                    val lp = c.layoutParams
+                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                    c.layoutParams = lp
+                    c.x = 0f; c.y = 0f
                 }
             }
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
