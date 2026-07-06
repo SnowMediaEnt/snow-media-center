@@ -767,6 +767,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       }).catch(() => { /* ignore */ });
     } catch { /* ignore */ }
   }, [nativeActive, useTranscode, playing, conn, toast]);
+  const setSlowLoadRef = useRef<(v: boolean) => void>(() => { /* filled below */ });
   const onPlayStateChangeCb = useCallback((paused: boolean) => {
     // Playing is authoritative — kill the "Still preparing…" overlay the moment
     // the native player reports it's actually rolling.
