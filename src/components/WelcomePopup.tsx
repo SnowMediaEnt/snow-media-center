@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.1': [
+    'Plex: posters load fast again',
+    'Plex: fixed missing audio on some movies',
+    'Plex: movies pre-buffer 10 seconds for smoother starts',
+    'Fixed the stuck "Still preparing" popup',
+    'Player Help button now offers support options',
+  ],
   '1.6': [
     'Multi-Screen: watch 2 or 4 channels at once (side-by-side, stacked, or 4-grid)',
     'Volume slider added to the player menu',
