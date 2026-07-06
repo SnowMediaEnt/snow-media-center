@@ -309,12 +309,13 @@ export function plexImageUrl(base: string, path: string | undefined, token: stri
 }
 
 /** Resolve the direct-play part for a movie (its original file on the server). */
-export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string }> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ Part?: Array<{ key?: string; container?: string }> }> }> } }>(
+export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string }> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ audioCodec?: string; Part?: Array<{ key?: string; container?: string }> }> }> } }>(
     'GET', `${base}/library/metadata/${ratingKey}`, token,
   );
-  const part = data?.MediaContainer?.Metadata?.[0]?.Media?.[0]?.Part?.[0];
-  return { partKey: part?.key, container: part?.container };
+  const media0 = data?.MediaContainer?.Metadata?.[0]?.Media?.[0];
+  const part = media0?.Part?.[0];
+  return { partKey: part?.key, container: part?.container, audioCodec: media0?.audioCodec };
 }
 
 export function plexDirectUrl(base: string, partKey: string, token: string): string {
