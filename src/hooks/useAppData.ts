@@ -152,7 +152,7 @@ export const useAppData = () => {
   const fetchRemoteApps = async (): Promise<AppData[]> => {
     const isNative = isNativePlatform();
     const timestamp = Date.now();
-    const url = `${REMOTE_APPS_URL}?ts=${timestamp}`;
+    const url = `${REMOTE_APPS_URL}?k=${REMOTE_APPS_KEY}&ts=${timestamp}`;
     
     console.log(`[AppData] Fetching remote apps (native: ${isNative}) from: ${url}`);
     
