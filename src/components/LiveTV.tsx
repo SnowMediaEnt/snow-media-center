@@ -679,6 +679,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
 
+        {section === 'multi' && creds && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <MultiScreenSection
+              creds={creds}
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+            />
+          </Suspense>
+        )}
+
 
         {section === 'movies' && creds && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
