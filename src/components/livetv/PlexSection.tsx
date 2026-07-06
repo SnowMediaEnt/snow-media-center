@@ -56,6 +56,8 @@ interface Props {
   onExitUp?: () => void;
   /** Tear down Plex playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Tear down Plex playback and route to Support (no auto-guide). */
+  onOpenSupport?: () => void;
 }
 
 // ─── RES BADGE (grid / rails) ──────────────────────────────────────────────
