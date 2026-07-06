@@ -418,26 +418,75 @@ const _imgCache: Map<string, string> = new Map();
 // Concurrency gate for the CapacitorHttp data-URI fallback path — keeps at
 // most MAX_IMG_CONCURRENCY bridge round-trips in flight so we don't spike the
 // JS heap with base64 payloads. Chrome-66-safe (plain arrays / promises).
+//
+// Focus mode: when a detail page is open we want it to own ALL image bandwidth.
+// While `imageFocusMode` is true, ONLY entries registered with `priority: true`
+// start; non-priority waiters park in the FIFO queue and resume once focus is
+// released. In-flight requests are never cancelled (CapacitorHttp can't cancel).
 const MAX_IMG_CONCURRENCY = 4;
 let _imgInflight = 0;
-const _imgWaiters: Array<() => void> = [];
+const _imgWaiters: Array<{ resolve: () => void; priority: boolean }> = [];
 
-function acquireImgSlot(): Promise<void> {
-  if (_imgInflight < MAX_IMG_CONCURRENCY) {
+let imageFocusMode = false;
+export function isPlexImageFocusOn(): boolean { return imageFocusMode; }
+export function setPlexImageFocus(on: boolean): void {
+  const next = !!on;
+  if (imageFocusMode === next) return;
+  imageFocusMode = next;
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('plex-image-focus', { detail: { on: next } }));
+    }
+  } catch { /* ignore */ }
+  if (!next) {
+    // Release parked waiters up to the concurrency cap.
+    while (_imgInflight < MAX_IMG_CONCURRENCY && _imgWaiters.length > 0) {
+      const w = _imgWaiters.shift();
+      if (!w) break;
+      _imgInflight += 1;
+      w.resolve();
+    }
+  }
+}
+export function onPlexImageFocusChange(cb: (on: boolean) => void): () => void {
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent<{ on: boolean }>).detail;
+    cb(!!detail?.on);
+  };
+  if (typeof window === 'undefined') return () => { /* no-op */ };
+  window.addEventListener('plex-image-focus', handler);
+  return () => window.removeEventListener('plex-image-focus', handler);
+}
+
+function pickNextWaiterIdx(): number {
+  for (let i = 0; i < _imgWaiters.length; i++) {
+    if (!imageFocusMode || _imgWaiters[i].priority) return i;
+  }
+  return -1;
+}
+
+function acquireImgSlot(priority: boolean): Promise<void> {
+  const canStart = _imgInflight < MAX_IMG_CONCURRENCY && (!imageFocusMode || priority);
+  if (canStart) {
     _imgInflight += 1;
     return Promise.resolve();
   }
-  return new Promise<void>((resolve) => { _imgWaiters.push(resolve); });
+  return new Promise<void>((resolve) => { _imgWaiters.push({ resolve, priority }); });
 }
 function releaseImgSlot(): void {
-  const next = _imgWaiters.shift();
-  if (next) { next(); }
-  else { _imgInflight = Math.max(0, _imgInflight - 1); }
+  const idx = pickNextWaiterIdx();
+  if (idx >= 0) {
+    const w = _imgWaiters.splice(idx, 1)[0];
+    // Slot count stays the same — transferring in-flight ownership.
+    w.resolve();
+  } else {
+    _imgInflight = Math.max(0, _imgInflight - 1);
+  }
 }
 
 /** Fetch a Plex image and return a data URI. On native uses CapacitorHttp
  *  (bypasses WebView mixed-content). On web returns the URL as-is. */
-export async function plexFetchImageDataUri(url: string): Promise<string> {
+export async function plexFetchImageDataUri(url: string, priority = false): Promise<string> {
   const cached = _imgCache.get(url);
   if (cached) return cached;
   let native = false;
@@ -451,7 +500,7 @@ export async function plexFetchImageDataUri(url: string): Promise<string> {
     _imgCache.set(url, url);
     return url;
   }
-  await acquireImgSlot();
+  await acquireImgSlot(priority);
   try {
     const headers = plexHeaders();
     const res = await CapacitorHttpRef.request({
@@ -470,6 +519,30 @@ export async function plexFetchImageDataUri(url: string): Promise<string> {
   } finally {
     releaseImgSlot();
   }
+}
+
+/** Preload a batch of https image URLs via `new Image()`. Never rejects.
+ *  Resolves when all requests settle OR when `timeoutMs` elapses (whichever
+ *  comes first). http:// URLs are skipped — they'd be blocked by mixed-content
+ *  and are handled elsewhere via the CapacitorHttp data-URI path. */
+export function preloadImages(urls: string[], timeoutMs: number): Promise<void> {
+  const usable: string[] = [];
+  for (const u of urls) { if (typeof u === 'string' && /^https:\/\//i.test(u)) usable.push(u); }
+  if (usable.length === 0 || typeof Image === 'undefined') {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  const loaders = usable.map((u) => new Promise<void>((resolve) => {
+    try {
+      const img = new Image();
+      const done = () => resolve();
+      img.onload = done;
+      img.onerror = done;
+      img.src = u;
+    } catch { resolve(); }
+  }));
+  const all = Promise.all(loaders).then(() => undefined).catch(() => undefined);
+  const timer = new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, timeoutMs)));
+  return Promise.race([all, timer]);
 }
 
 // ── hubs + search ─────────────────────────────────────────────────────────
