@@ -360,7 +360,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           <div className="max-w-6xl mx-auto flex gap-8">
             <div className="w-64 flex-shrink-0">
               <div className="relative aspect-[2/3] rounded-xl overflow-hidden ring-1 ring-white/10 bg-black/40">
-                <PlexImage base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="w-full h-full object-cover" />
+                <PlexImage priority base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="w-full h-full object-cover" />
                 {resLabel && (
                   <div className="absolute top-2 right-2"><ResBadge label={resLabel} /></div>
                 )}
