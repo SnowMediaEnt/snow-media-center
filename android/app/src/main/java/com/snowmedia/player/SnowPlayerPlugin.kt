@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.TextureView
 import android.view.View
@@ -61,6 +62,10 @@ class SnowPlayerPlugin : Plugin() {
         var watchdogRunnable: Runnable? = null
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
+        // VOD only: while we hold playback with playWhenReady=false until the
+        // decoder has ≥10s buffered (or 12s wall-clock elapse). Prevents the
+        // initial "playing → immediate rebuffer" flash on slow Plex servers.
+        var preBufferRunnable: Runnable? = null
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -93,6 +98,8 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectRunnable = null
         s.positionTickRunnable?.let { mainHandler.removeCallbacks(it) }
         s.positionTickRunnable = null
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.preBufferRunnable = null
     }
 
     private fun schedulePositionTick(s: PlayerSlot) {
@@ -119,6 +126,32 @@ class SnowPlayerPlugin : Plugin() {
         s.watchdogRunnable = r
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
     }
+
+    /** VOD pre-buffer: hold playWhenReady=false for up to 12s or until the
+     *  player has buffered ≥10s ahead of the current position. Live streams
+     *  keep the legacy behavior (start immediately). */
+    private fun schedulePreBuffer(s: PlayerSlot) {
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        val startedAt = SystemClock.elapsedRealtime()
+        val r = object : Runnable {
+            override fun run() {
+                val p = s.player ?: return
+                if (s.currentUrl == null) return
+                val bufMs = p.bufferedPosition - p.currentPosition
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                val readyEnough = p.playbackState == Player.STATE_READY && bufMs >= 4000L
+                if (bufMs >= 10000L || elapsed >= 12000L || readyEnough) {
+                    p.playWhenReady = true
+                    s.preBufferRunnable = null
+                    return
+                }
+                mainHandler.postDelayed(this, 500L)
+            }
+        }
+        s.preBufferRunnable = r
+        mainHandler.postDelayed(r, 500L)
+    }
+
 
     private fun buildMediaItem(url: String, subs: JSArray?): MediaItem {
         val builder = MediaItem.Builder().setUri(Uri.parse(url))
@@ -315,7 +348,15 @@ class SnowPlayerPlugin : Plugin() {
             s.firstFrameSeen = false
             p.setMediaItem(buildMediaItem(url, subs))
             p.prepare()
-            p.playWhenReady = true
+            if (live) {
+                p.playWhenReady = true
+            } else {
+                // VOD: pre-buffer ≥10s (or 12s wall-clock) before starting so
+                // slow Plex servers don't cause the "playing → immediate
+                // rebuffer" flash and the JS overlay's slow-load watchdog.
+                p.playWhenReady = false
+                schedulePreBuffer(s)
+            }
             scheduleWatchdog(s, screenId)
             schedulePositionTick(s)
             call.resolve()

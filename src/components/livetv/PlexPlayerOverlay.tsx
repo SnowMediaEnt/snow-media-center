@@ -41,6 +41,10 @@ interface Props {
   /** Called when the user opens the Buffering help shortcut. Parent is expected
    *  to tear down playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Called when the user picks "More help & support" from the Help menu.
+   *  Parent tears down playback and routes to Support WITHOUT auto-opening
+   *  the buffering guide. */
+  onOpenSupport?: () => void;
   /** Current playback volume 0..1. */
   volume: number;
   /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
@@ -57,10 +61,10 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, volume, onChangeVolume }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
-  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume'>('none');
+  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume' | 'help'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
@@ -203,8 +207,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
     else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
-    else if (r === 'buffering') { onOpenBufferingGuide?.(); }
-  }, [controller, getPosition, seekTo, auds, openSubs, openQuality, onOpenBufferingGuide]);
+    else if (r === 'buffering') { setMenu('help'); setMenuIdx(0); }
+  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
@@ -228,6 +232,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
   const volumeRef = useRef(volume); useEffect(() => { volumeRef.current = volume; }, [volume]);
   const onChangeVolumeRef = useRef(onChangeVolume); useEffect(() => { onChangeVolumeRef.current = onChangeVolume; }, [onChangeVolume]);
+  const onOpenBufferingGuideRef = useRef(onOpenBufferingGuide); useEffect(() => { onOpenBufferingGuideRef.current = onOpenBufferingGuide; }, [onOpenBufferingGuide]);
+  const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
 
   useEffect(() => {
     if (!active) return;
@@ -326,6 +332,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         }
         return;
       }
+      if (menuRef.current === 'help') {
+        const i = menuIdxRef.current;
+        if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          setMenu('none');
+          if (i === 0) onOpenBufferingGuideRef.current?.();
+          else onOpenSupportRef.current?.();
+        }
+        return;
+      }
+
+
 
 
       // main control row (horizontal)
@@ -394,13 +413,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               )}
             </div>
             <div className="flex flex-col items-center gap-0.5">
-              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Buffering help" onClick={() => onOpenBufferingGuide?.()}><LifeBuoy className="w-5 h-5" /></button>
+              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
               <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
           </div>
           <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
             {row === 'buffering'
-              ? 'Buffering help — OK opens the fix-buffering guide'
+              ? 'Help — OK for support options'
               : row === 'volume'
                 ? 'Volume — OK opens the slider'
                 : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
@@ -491,6 +510,21 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </div>
           ))}
           <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK download · Back</p>
+        </div>
+      )}
+
+      {menu === 'help' && (
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1 flex items-center gap-2">
+            <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
+          </p>
+          {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
+            <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
+              className={`px-3 py-2 rounded-lg font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
+              {label}
+            </div>
+          ))}
+          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK · Back closes</p>
         </div>
       )}
     </>

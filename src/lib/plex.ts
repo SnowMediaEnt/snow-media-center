@@ -168,9 +168,14 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
     let pending = candidates.length;
     let best: Candidate | null = null;
     let settled = false;
+    const isHttps = (u: string) => u.slice(0, 6).toLowerCase() === 'https:';
     const maybeFinish = (force = false) => {
       if (settled) return;
-      if (best && (best.priority === 1 || pending === 0 || force)) {
+      // Only early-finish when we already have the ideal candidate (local https)
+      // — otherwise a raw-IP http local candidate would win a race against the
+      // plex.direct https candidate and every poster <img> would be blocked as
+      // mixed content when the WebView origin is https://localhost.
+      if (best && ((best.priority === 1 && isHttps(best.url)) || pending === 0 || force)) {
         settled = true;
         resolve(best.url);
       } else if (pending === 0 || force) {
@@ -182,7 +187,15 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
     candidates.forEach((cand) => {
       plexReq('GET', `${cand.url}/identity`, server.accessToken, timeoutMs)
         .then(() => {
-          if (!best || cand.priority < best.priority) best = cand;
+          // Prefer lower priority (local > remote > relay); within the same
+          // tier, prefer https over http (mixed-content safe on Fire TV).
+          if (
+            !best
+            || cand.priority < best.priority
+            || (cand.priority === best.priority && !isHttps(best.url) && isHttps(cand.url))
+          ) {
+            best = cand;
+          }
         })
         .catch(() => { /* unreachable candidate */ })
         .then(() => {
@@ -296,17 +309,28 @@ export function plexImageUrl(base: string, path: string | undefined, token: stri
 }
 
 /** Resolve the direct-play part for a movie (its original file on the server). */
-export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string }> {
-  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ Part?: Array<{ key?: string; container?: string }> }> }> } }>(
+export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string }> {
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<{ Media?: Array<{ audioCodec?: string; Part?: Array<{ key?: string; container?: string }> }> }> } }>(
     'GET', `${base}/library/metadata/${ratingKey}`, token,
   );
-  const part = data?.MediaContainer?.Metadata?.[0]?.Media?.[0]?.Part?.[0];
-  return { partKey: part?.key, container: part?.container };
+  const media0 = data?.MediaContainer?.Metadata?.[0]?.Media?.[0];
+  const part = media0?.Part?.[0];
+  return { partKey: part?.key, container: part?.container, audioCodec: media0?.audioCodec };
 }
 
 export function plexDirectUrl(base: string, partKey: string, token: string): string {
   return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}`;
 }
+
+/** Codecs the Media3 decoder + Fire TV audio path can direct-play reliably.
+ *  Anything else (ac3/eac3/dts/truehd/…) gets silently deselected by ExoPlayer
+ *  and the file plays with zero audio — force a Plex server-side transcode. */
+const SUPPORTED_DIRECT_AUDIO_CODECS: string[] = ['aac', 'mp3', 'mp2', 'flac', 'opus', 'vorbis', 'pcm'];
+export function isDirectAudioCodec(codec: string | undefined | null): boolean {
+  if (!codec) return true; // unknown → assume ok, let normal error path handle it
+  return SUPPORTED_DIRECT_AUDIO_CODECS.indexOf(String(codec).toLowerCase()) >= 0;
+}
+
 
 /** HLS transcode fallback — offloads decoding to the Plex server (any codec).
  *  Optional `opts` clamp video bitrate/resolution so the user can pick a

@@ -503,6 +503,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 // Event fallback for other callers / late listeners.
                 setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
               }}
+              onOpenSupport={() => {
+                try {
+                  const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
+                  w.__playerOwnsBack = false;
+                  w.__overlayHandledBackAt = 0;
+                } catch { /* ignore */ }
+                onNavigate?.('support');
+              }}
             />
           </Suspense>
         )}
@@ -730,6 +738,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                   } catch { /* ignore */ }
                   onNavigate?.('support');
                   setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+                }}
+                onOpenSupport={() => {
+                  try {
+                    const w = window as unknown as { __playerOwnsBack?: boolean; __overlayHandledBackAt?: number };
+                    w.__playerOwnsBack = false;
+                    w.__overlayHandledBackAt = 0;
+                  } catch { /* ignore */ }
+                  onNavigate?.('support');
                 }}
               />
             </Suspense>

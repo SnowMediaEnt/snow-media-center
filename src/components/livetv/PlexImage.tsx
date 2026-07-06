@@ -30,6 +30,13 @@ interface Props {
 // we still hit on remount even if the caller passes slightly different sizes.
 const _srcCache = new Map<string, string>();
 
+// When the WebView origin is https://localhost, every http:// image URL is
+// blocked by Chrome's mixed-content policy — the plain <img> + photo-transcode
+// fallbacks both fail before we finally hit the CapacitorHttp bridge, wasting
+// two failed round-trips per poster. Detect once and jump straight to the
+// data-URI path when the PMS connection is plain http.
+const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
 const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
@@ -50,10 +57,22 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props)
       setSrc(resolved);
       return;
     }
+    // Mixed-content shortcut: https page + http PMS → skip plain <img> and
+    // photo-transcode (both would be blocked) and go straight to CapacitorHttp.
+    const baseIsHttp = /^http:\/\//i.test(base);
+    if (PAGE_HTTPS && baseIsHttp && isNativePlatform()) {
+      stepRef.current = 2;
+      const url = plexPhotoTranscodeUrl(base, path, token, w, h);
+      let cancelled = false;
+      plexFetchImageDataUri(url)
+        .then((data) => { if (cancelled) return; _srcCache.set(key, data); setSrc(data); })
+        .catch(() => { if (!cancelled) setErr(true); });
+      return () => { cancelled = true; };
+    }
     // Server-relative: raw tokenized thumb URL is the primary source.
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
     setSrc(raw);
-  }, [base, path, token]);
+  }, [base, path, token, w, h]);
 
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }

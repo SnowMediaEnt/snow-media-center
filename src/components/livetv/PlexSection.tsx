@@ -26,6 +26,7 @@ import {
   getCachedHub, setCachedHub,
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
+  isDirectAudioCodec,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
@@ -55,6 +56,8 @@ interface Props {
   onExitUp?: () => void;
   /** Tear down Plex playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Tear down Plex playback and route to Support (no auto-guide). */
+  onOpenSupport?: () => void;
 }
 
 // ─── RES BADGE (grid / rails) ──────────────────────────────────────────────
@@ -344,7 +347,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs 
 ManagePanel.displayName = 'ManagePanel';
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
-const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide }: Props) => {
+const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
@@ -654,7 +657,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       return;
     }
     try {
-      const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
+      const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, ratingKey);
+      // Pre-emptive transcode: ExoPlayer silently deselects unsupported audio
+      // codecs (ac3/eac3/dts/truehd/…) and plays the file with zero audio and
+      // no error. When we see one, ask Plex to transcode audio→AAC while still
+      // direct-streaming video (no bitrate/resolution clamp).
+      if (!isDirectAudioCodec(audioCodec)) {
+        setUseTranscode(true);
+        setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
+        return;
+      }
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
     } catch {
@@ -707,10 +719,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     void (async () => {
       let url = '';
       try {
-        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
-        url = partKey
-          ? plexDirectUrl(conn.base, partKey, conn.token)
-          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
+        if (!isDirectAudioCodec(audioCodec)) {
+          url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+          setUseTranscode(true);
+        } else {
+          url = partKey
+            ? plexDirectUrl(conn.base, partKey, conn.token)
+            : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+        }
       } catch {
         url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
         setUseTranscode(true);
@@ -721,6 +738,43 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
+  // Safety net: DIRECT playback of an unknown-codec file where ExoPlayer
+  // silently deselects the audio → zero audio tracks after load. Reload as
+  // Plex transcode. Guarded per (ratingKey, direct/transcode) so it fires
+  // exactly once per title.
+  const audioSafetyRef = useRef<string | null>(null);
+  const onTracksChanged = useCallback(() => {
+    setTracksTick((n) => n + 1);
+    if (!nativeActive || useTranscode || !playing || !conn) return;
+    const key = playing.ratingKey;
+    if (audioSafetyRef.current === key) return;
+    try {
+      const audio = SnowPlayer.getAudioTracks();
+      void audio.then(({ tracks }) => {
+        if (!tracks || tracks.length > 0) return;
+        if (audioSafetyRef.current === key) return;
+        audioSafetyRef.current = key;
+        try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }
+        void (async () => {
+          let resume: number | undefined;
+          try {
+            const p = await SnowPlayer.getPosition();
+            if (p.position > 0) resume = p.position;
+          } catch { /* ignore */ }
+          setStartPos(resume);
+          setUseTranscode(true);
+          const url = plexTranscodeUrl(conn.base, key, conn.token);
+          setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+        })();
+      }).catch(() => { /* ignore */ });
+    } catch { /* ignore */ }
+  }, [nativeActive, useTranscode, playing, conn, toast]);
+  const setSlowLoadRef = useRef<(v: boolean) => void>(() => { /* filled below */ });
+  const onPlayStateChangeCb = useCallback((paused: boolean) => {
+    // Playing is authoritative — kill the "Still preparing…" overlay the moment
+    // the native player reports it's actually rolling.
+    if (!paused) setSlowLoadRef.current(false);
+  }, []);
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
@@ -728,9 +782,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     live: false,
     startPosition: startPos,
     subtitles: extraSubs,
-    onTracksChanged: () => setTracksTick((n) => n + 1),
+    onTracksChanged,
+    onPlayStateChange: onPlayStateChangeCb,
     onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
   });
+  // Reset the safety-net guard whenever the underlying title changes.
+  useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
 
   useEffect(() => {
     if (!nativeActive) return;
@@ -760,6 +817,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // 8s of the fullscreen flipping on, expose a Retry button so the user can
   // kick the pipeline instead of staring at a stalled spinner.
   const [slowLoad, setSlowLoad] = useState(false);
+  setSlowLoadRef.current = setSlowLoad;
   useEffect(() => {
     if (!fullscreen) { setSlowLoad(false); return; }
     setSlowLoad(false);
@@ -976,6 +1034,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               } catch { /* ignore */ }
               exitFullscreen();
               onOpenBufferingGuide();
+            } : undefined}
+            onOpenSupport={onOpenSupport ? () => {
+              // Same deep-link stash as the buffering-guide path so Support can
+              // hand the user back to their movie when they're done.
+              try {
+                const p = playing;
+                if (p) {
+                  sessionStorage.setItem('smc-guide-origin', 'plex-movie');
+                  sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
+                    ratingKey: p.ratingKey,
+                    title: p.title,
+                    librarySectionID: (p as unknown as { librarySectionID?: string | number | null }).librarySectionID ?? null,
+                    kind: p.type ?? 'movie',
+                  }));
+                }
+              } catch { /* ignore */ }
+              exitFullscreen();
+              onOpenSupport();
             } : undefined}
             volume={volume}
             onChangeVolume={changeVolume}
