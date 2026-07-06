@@ -1035,6 +1035,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               exitFullscreen();
               onOpenBufferingGuide();
             } : undefined}
+            onOpenSupport={onOpenSupport ? () => {
+              // Same deep-link stash as the buffering-guide path so Support can
+              // hand the user back to their movie when they're done.
+              try {
+                const p = playing;
+                if (p) {
+                  sessionStorage.setItem('smc-guide-origin', 'plex-movie');
+                  sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
+                    ratingKey: p.ratingKey,
+                    title: p.title,
+                    librarySectionID: (p as unknown as { librarySectionID?: string | number | null }).librarySectionID ?? null,
+                    kind: p.type ?? 'movie',
+                  }));
+                }
+              } catch { /* ignore */ }
+              exitFullscreen();
+              onOpenSupport();
+            } : undefined}
             volume={volume}
             onChangeVolume={changeVolume}
           />
