@@ -453,7 +453,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           onClick={() => { setZone('cast'); setCastIdx(i); void openActor(p); }}
                           className={`relative flex-shrink-0 w-[120px] rounded-xl transition-transform duration-150 cursor-pointer ${focused ? 'scale-110 z-10' : ''}`}>
                           <div className={`w-[110px] h-[110px] mx-auto rounded-full overflow-hidden ring-1 ring-white/10 bg-black/40 ${focused ? 'ring-2 ring-brand-gold shadow-[0_0_16px_rgba(245,200,80,0.5)]' : ''}`}>
-                            <PlexImage base={base} path={p.thumb} token={token} w={120} h={120} className="w-full h-full object-cover" />
+                            <PlexImage priority base={base} path={p.thumb} token={token} w={120} h={120} className="w-full h-full object-cover" />
                           </div>
                           <div className={`mt-1 text-center text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/85'}`}>{p.tag}</div>
                           {p.role && <div className="text-center text-[10px] font-nunito text-brand-ice/60 truncate">{p.role}</div>}
@@ -482,7 +482,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       className={`flex-shrink-0 w-[140px] rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
-                      <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" /></div>
+                      <div className="aspect-[2/3]"><PlexImage priority base={base} path={s.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" /></div>
                       <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{s.title}</div>
                     </div>
                   );
@@ -511,7 +511,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                       className={`flex items-center gap-3 p-2 rounded-lg transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.01]' : 'bg-black/40 ring-1 ring-white/10'}`}>
                       <div className="w-40 aspect-video flex-shrink-0 rounded overflow-hidden bg-black/60">
-                        <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} className="w-full h-full object-cover" />
+                        <PlexImage priority base={base} path={ep.thumb} token={token} w={320} h={180} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-quicksand font-semibold truncate">
@@ -548,7 +548,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       onClick={() => { setActorCursor(idx); pushItem(it); }}
                       className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
                       <div className="relative aspect-[2/3]">
-                        <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
+                        <PlexImage priority base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                         {label && <div className="absolute top-1 right-1"><ResBadge label={label} /></div>}
                       </div>
                       <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
