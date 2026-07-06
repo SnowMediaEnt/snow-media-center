@@ -26,6 +26,7 @@ import {
   getCachedHub, setCachedHub,
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
+  isDirectAudioCodec,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
