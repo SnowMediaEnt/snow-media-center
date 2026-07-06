@@ -336,6 +336,12 @@
   animation-delay: 0s !important;
   transition: none !important;
 }
+/* Rescue Loader2 (and any other .animate-spin) from the blanket duration:0
+   above — otherwise Fire TV freezes every spinner into a static "C". */
+.native-low-memory .animate-spin {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
+}
 /* Drop heavy outer glow shadows app-wide; keep the home focus indicator
    defined above. */
 .native-low-memory [class*="shadow-["],
