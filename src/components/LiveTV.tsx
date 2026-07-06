@@ -42,7 +42,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
+type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
