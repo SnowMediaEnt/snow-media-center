@@ -204,7 +204,7 @@ export const useAppData = () => {
       return appsArray.map((app: any, index: number) => {
         let downloadUrl = app.downloadUrl || app.download_url || app.apk || app.url || '';
         if (!downloadUrl && app.file) {
-          downloadUrl = `https://snowmediaapps.com/apps/${app.file}`;
+          downloadUrl = `https://snowmediaapps.com/guesswhat/download.php?file=${encodeURIComponent(app.file)}&k=${REMOTE_APPS_KEY}`;
         }
         if (downloadUrl && !downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
           downloadUrl = `https://${downloadUrl}`;
