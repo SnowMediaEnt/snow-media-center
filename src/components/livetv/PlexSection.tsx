@@ -815,6 +815,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // 8s of the fullscreen flipping on, expose a Retry button so the user can
   // kick the pipeline instead of staring at a stalled spinner.
   const [slowLoad, setSlowLoad] = useState(false);
+  setSlowLoadRef.current = setSlowLoad;
   useEffect(() => {
     if (!fullscreen) { setSlowLoad(false); return; }
     setSlowLoad(false);
