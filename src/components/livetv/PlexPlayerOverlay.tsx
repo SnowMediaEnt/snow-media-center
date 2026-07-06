@@ -332,6 +332,19 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         }
         return;
       }
+      if (menuRef.current === 'help') {
+        const i = menuIdxRef.current;
+        if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          setMenu('none');
+          if (i === 0) onOpenBufferingGuideRef.current?.();
+          else onOpenSupportRef.current?.();
+        }
+        return;
+      }
+
+
 
 
       // main control row (horizontal)
