@@ -646,12 +646,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
               }}
             >
               <div
-                data-focused={isFocused ? 'true' : 'false'}
-                className={`w-full h-full rounded-md relative ${
+                data-focused={isFocused && !chromeHidden ? 'true' : 'false'}
+                className={`ms-tile w-full h-full rounded-md relative ${
                   occupied ? '' : 'bg-black'
                 } ${
                   chromeHidden ? '' : (isFocused
-                    ? 'ring-[3px] ring-brand-gold shadow-[0_0_18px_2px_rgba(245,200,80,0.4)]'
+                    ? 'ring-[3px] ring-brand-gold'
                     : 'ring-1 ring-white/20')
                 }`}
               >
