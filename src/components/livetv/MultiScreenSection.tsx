@@ -464,8 +464,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
           const idx = tileMenuIdxRef.current;
           const tIdx = focusedTileRef.current;
           setTileMenuOpen(false);
-          if (idx === 0) void enterFullscreen(tIdx);
-          else if (idx === 1) openPickerForTile(tIdx);
+          if (idx === 0) openPickerForTile(tIdx);
+          else if (idx === 1) void enterFullscreen(tIdx);
           else if (idx === 2) void closeTile(tIdx);
         }
         return;
