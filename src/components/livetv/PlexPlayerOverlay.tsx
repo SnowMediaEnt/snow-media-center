@@ -512,6 +512,21 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK download · Back</p>
         </div>
       )}
+
+      {menu === 'help' && (
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1 flex items-center gap-2">
+            <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
+          </p>
+          {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
+            <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
+              className={`px-3 py-2 rounded-lg font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
+              {label}
+            </div>
+          ))}
+          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK · Back closes</p>
+        </div>
+      )}
     </>
   );
 });
