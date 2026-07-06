@@ -46,8 +46,12 @@ export function createNativeVideoController(cb: Callbacks = {}): NativeControlle
   };
 
   const listenersP = Promise.all([
-    SnowPlayer.addListener('tracksChanged', () => { void prime(); }).catch(() => null),
+    SnowPlayer.addListener('tracksChanged', (data) => {
+      if ((data as { screenId?: string })?.screenId && (data as { screenId?: string }).screenId !== 'main') return;
+      void prime();
+    }).catch(() => null),
     SnowPlayer.addListener('playerState', (data) => {
+      if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
       if (typeof data.playing === 'boolean') {
         state.paused = !data.playing;
         cb.onPlayStateChange?.(state.paused);
