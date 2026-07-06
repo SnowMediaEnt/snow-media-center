@@ -126,6 +126,32 @@ class SnowPlayerPlugin : Plugin() {
         mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
     }
 
+    /** VOD pre-buffer: hold playWhenReady=false for up to 12s or until the
+     *  player has buffered ≥10s ahead of the current position. Live streams
+     *  keep the legacy behavior (start immediately). */
+    private fun schedulePreBuffer(s: PlayerSlot) {
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        val startedAt = SystemClock.elapsedRealtime()
+        val r = object : Runnable {
+            override fun run() {
+                val p = s.player ?: return
+                if (s.currentUrl == null) return
+                val bufMs = p.bufferedPosition - p.currentPosition
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                val readyEnough = p.playbackState == Player.STATE_READY && bufMs >= 4000L
+                if (bufMs >= 10000L || elapsed >= 12000L || readyEnough) {
+                    p.playWhenReady = true
+                    s.preBufferRunnable = null
+                    return
+                }
+                mainHandler.postDelayed(this, 500L)
+            }
+        }
+        s.preBufferRunnable = r
+        mainHandler.postDelayed(r, 500L)
+    }
+
+
     private fun buildMediaItem(url: String, subs: JSArray?): MediaItem {
         val builder = MediaItem.Builder().setUri(Uri.parse(url))
         if (subs != null && subs.length() > 0) {
