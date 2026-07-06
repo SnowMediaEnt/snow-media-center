@@ -344,7 +344,35 @@ class SnowPlayerPlugin : Plugin() {
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            s.container?.visibility = View.VISIBLE
+            // Apply any pendingRect captured before the surface existed. Non-main
+            // slots with NO pendingRect stay INVISIBLE until setRect flips them
+            // VISIBLE so a freshly-loaded multiview slot never briefly paints
+            // fullscreen over the other tiles.
+            val pending = s.pendingRect
+            val c = s.container
+            if (c != null) {
+                if (pending != null) {
+                    val fs = pending[4] == 1
+                    val lp = c.layoutParams
+                    if (fs) {
+                        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                        c.x = 0f; c.y = 0f
+                    } else {
+                        lp.width = pending[2]
+                        lp.height = pending[3]
+                        c.x = pending[0].toFloat()
+                        c.y = pending[1].toFloat()
+                    }
+                    c.layoutParams = lp
+                    c.requestLayout()
+                    c.visibility = View.VISIBLE
+                } else if (screenId == MAIN) {
+                    c.visibility = View.VISIBLE
+                } else {
+                    c.visibility = View.INVISIBLE
+                }
+            }
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
             s.currentUrl = url
