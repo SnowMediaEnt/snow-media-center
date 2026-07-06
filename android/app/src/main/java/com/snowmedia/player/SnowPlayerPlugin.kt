@@ -348,7 +348,15 @@ class SnowPlayerPlugin : Plugin() {
             s.firstFrameSeen = false
             p.setMediaItem(buildMediaItem(url, subs))
             p.prepare()
-            p.playWhenReady = true
+            if (live) {
+                p.playWhenReady = true
+            } else {
+                // VOD: pre-buffer ≥10s (or 12s wall-clock) before starting so
+                // slow Plex servers don't cause the "playing → immediate
+                // rebuffer" flash and the JS overlay's slow-load watchdog.
+                p.playWhenReady = false
+                schedulePreBuffer(s)
+            }
             scheduleWatchdog(s, screenId)
             schedulePositionTick(s)
             call.resolve()
