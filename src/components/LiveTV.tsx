@@ -34,6 +34,7 @@ const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
+const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 
 
 interface Props {
