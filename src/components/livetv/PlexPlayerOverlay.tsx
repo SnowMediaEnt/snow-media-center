@@ -207,8 +207,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
     else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
-    else if (r === 'buffering') { onOpenBufferingGuide?.(); }
-  }, [controller, getPosition, seekTo, auds, openSubs, openQuality, onOpenBufferingGuide]);
+    else if (r === 'buffering') { setMenu('help'); setMenuIdx(0); }
+  }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
