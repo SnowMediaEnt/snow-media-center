@@ -413,13 +413,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               )}
             </div>
             <div className="flex flex-col items-center gap-0.5">
-              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Buffering help" onClick={() => onOpenBufferingGuide?.()}><LifeBuoy className="w-5 h-5" /></button>
+              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
               <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
           </div>
           <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
             {row === 'buffering'
-              ? 'Buffering help — OK opens the fix-buffering guide'
+              ? 'Help — OK for support options'
               : row === 'volume'
                 ? 'Volume — OK opens the slider'
                 : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
