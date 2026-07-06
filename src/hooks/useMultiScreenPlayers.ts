@@ -269,6 +269,7 @@ export function useMultiScreenPlayers(): Api {
     return () => {
       try { SnowPlayer.stopAll(); } catch { /* ignore */ }
       document.documentElement.classList.remove('snowplayer-fullscreen');
+      document.documentElement.classList.remove('snowplayer-multiview');
       document.documentElement.classList.remove('streaming-active');
     };
   }, []);
