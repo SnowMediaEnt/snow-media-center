@@ -11,9 +11,18 @@
 //
 // A module-level Map caches the resolved src per `${base}|${path}` so
 // scroll-back / remounts never refetch.
+//
+// PRIORITY / FOCUS MODE: when a detail page is open, PlexSection flips the
+// module-level `imageFocusMode` in plex.ts. Non-priority images defer their
+// <img src> write until focus is released (a small subscription via the
+// `plex-image-focus` window event). Priority images (detail poster, backdrop,
+// cast, filmography) are unaffected.
 import { memo, useEffect, useRef, useState } from 'react';
 import { Tv } from 'lucide-react';
-import { plexFetchImageDataUri, plexPhotoTranscodeUrl, plexTokenizedUrl } from '@/lib/plex';
+import {
+  plexFetchImageDataUri, plexPhotoTranscodeUrl, plexTokenizedUrl,
+  isPlexImageFocusOn, onPlexImageFocusChange,
+} from '@/lib/plex';
 import { isNativePlatform } from '@/utils/platform';
 
 interface Props {
@@ -24,6 +33,9 @@ interface Props {
   h: number;
   className?: string;
   alt?: string;
+  /** When true, this image bypasses focus-mode parking and is treated as high
+   *  priority in the CapacitorHttp data-URI queue. Set on detail-page assets. */
+  priority?: boolean;
 }
 
 // Cache the FINAL resolved src per (base|path). Keyed without token/size so
@@ -37,24 +49,51 @@ const _srcCache = new Map<string, string>();
 // data-URI path when the PMS connection is plain http.
 const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props) => {
+const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false }: Props) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   // Fallback ladder: 0 = raw thumb, 1 = photo-transcode, 2 = data-URI (native).
   const stepRef = useRef(0);
+  // Deferred src while imageFocusMode is on and this image is not priority.
+  const pendingSrcRef = useRef<string | null>(null);
+
+  // Commit a src, honoring focus-mode parking for non-priority images.
+  const commitSrc = (s: string) => {
+    if (!priority && isPlexImageFocusOn()) {
+      pendingSrcRef.current = s;
+    } else {
+      pendingSrcRef.current = null;
+      setSrc(s);
+    }
+  };
+
+  // Release parked src the moment focus mode flips off (or priority is true).
+  useEffect(() => {
+    const flush = () => {
+      if ((priority || !isPlexImageFocusOn()) && pendingSrcRef.current) {
+        const s = pendingSrcRef.current;
+        pendingSrcRef.current = null;
+        setSrc(s);
+      }
+    };
+    if (priority) flush();
+    const off = onPlexImageFocusChange(() => flush());
+    return () => { off(); };
+  }, [priority]);
 
   useEffect(() => {
     stepRef.current = 0;
     setErr(false);
+    pendingSrcRef.current = null;
     if (!path) { setSrc(null); setErr(true); return; }
     const key = `${base}|${path}`;
     const cached = _srcCache.get(key);
-    if (cached) { setSrc(cached); return; }
+    if (cached) { commitSrc(cached); return; }
     if (/^https?:\/\//i.test(path)) {
       const isPlex = /(^|\.)plex\.tv/i.test(path);
       const resolved = isPlex ? plexTokenizedUrl(path, token) : path;
       _srcCache.set(key, resolved);
-      setSrc(resolved);
+      commitSrc(resolved);
       return;
     }
     // Mixed-content shortcut: https page + http PMS → skip plain <img> and
@@ -64,15 +103,16 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props)
       stepRef.current = 2;
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
-      plexFetchImageDataUri(url)
-        .then((data) => { if (cancelled) return; _srcCache.set(key, data); setSrc(data); })
+      plexFetchImageDataUri(url, priority)
+        .then((data) => { if (cancelled) return; _srcCache.set(key, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return () => { cancelled = true; };
     }
     // Server-relative: raw tokenized thumb URL is the primary source.
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
-    setSrc(raw);
-  }, [base, path, token, w, h]);
+    commitSrc(raw);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, path, token, w, h, priority]);
 
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
@@ -88,7 +128,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '' }: Props)
       stepRef.current = 2;
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
-      plexFetchImageDataUri(url)
+      plexFetchImageDataUri(url, priority)
         .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); setSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return;

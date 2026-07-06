@@ -27,6 +27,7 @@ import {
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   isDirectAudioCodec,
+  setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
@@ -391,6 +392,61 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [extraSubs, setExtraSubs] = useState<SnowSubtitle[] | undefined>(undefined);
   const [qualityKey, setQualityKey] = useState<string>('original');
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
+
+  // Image focus mode: while a detail page is open, non-priority images (grid,
+  // rails, search results) park their loads so the detail poster/backdrop/
+  // cast/filmography own image bandwidth.
+  useEffect(() => {
+    setPlexImageFocus(!!detailItem);
+    return () => { setPlexImageFocus(false); };
+  }, [detailItem]);
+
+  // Post-connect warm-up: preload the first screen (Home rails + first ~12
+  // poster URLs + library list) before revealing the tabs+grid UI. Runs ONCE
+  // per connect. Deep-links skip warm-up (they route straight to detail).
+  const [warmedUp, setWarmedUp] = useState(false);
+  const warmedRef = useRef(false);
+  useEffect(() => {
+    if (status !== 'ready' || !conn) return;
+    if (warmedRef.current) return;
+    warmedRef.current = true;
+    if (deeplinkRef.current) { setWarmedUp(true); return; }
+    let cancelled = false;
+    const base = conn.base;
+    const token = conn.token;
+    const onDeckPath = '/library/onDeck';
+    const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
+    (async () => {
+      try {
+        const [libs, od, ra] = await Promise.all([
+          getPlexLibraries(base, token).catch(() => [] as PlexLibrary[]),
+          (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => [] as PlexItem[])),
+          (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => [] as PlexItem[])),
+        ]);
+        if (cancelled) return;
+        setCachedHub(base, onDeckPath, od);
+        setCachedHub(base, recentPath, ra);
+        setLibraries(libs);
+        // First ~12 rail poster URLs — https only; http URLs go through the
+        // data-URI path and shouldn't block warm-up.
+        const posters: string[] = [];
+        const httpsBase = /^https:\/\//i.test(base);
+        if (httpsBase) {
+          const feed: PlexItem[] = [];
+          for (const it of od) feed.push(it);
+          for (const it of ra) feed.push(it);
+          for (const it of feed) {
+            if (posters.length >= 12) break;
+            if (it.thumb) posters.push(`${base}${it.thumb}?X-Plex-Token=${encodeURIComponent(token)}`);
+          }
+        }
+        await preloadImages(posters, 8000);
+      } finally {
+        if (!cancelled) setWarmedUp(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [status, conn]);
 
 
   useEffect(() => { void loadHiddenPlexLibs().then(setHidden); }, []);
@@ -990,6 +1046,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }
   if (status !== 'ready') {
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
+  }
+
+  // ── render: warm-up ─────────────────────────────────────────────────
+  // Delay revealing the tabs+grid until Home rails + first ~12 posters have
+  // loaded (or 8s cap). Back during warm-up still exits Plex via the keydown
+  // effect above (status==='ready', no detail/fullscreen).
+  if (!warmedUp && !fullscreen && !detailItem) {
+    return (
+      <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
+        <Loader2 className="w-12 h-12 animate-spin text-brand-gold" />
+        <p className="font-quicksand font-semibold text-brand-ice">Loading your library…</p>
+        <p className="text-xs font-nunito text-brand-ice/50">Plex · {conn?.name}</p>
+      </div>
+    );
   }
 
   // ── render: fullscreen ──────────────────────────────────────────────
