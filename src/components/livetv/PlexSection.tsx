@@ -736,6 +736,42 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
+  // Safety net: DIRECT playback of an unknown-codec file where ExoPlayer
+  // silently deselects the audio → zero audio tracks after load. Reload as
+  // Plex transcode. Guarded per (ratingKey, direct/transcode) so it fires
+  // exactly once per title.
+  const audioSafetyRef = useRef<string | null>(null);
+  const onTracksChanged = useCallback(() => {
+    setTracksTick((n) => n + 1);
+    if (!nativeActive || useTranscode || !playing || !conn) return;
+    const key = playing.ratingKey;
+    if (audioSafetyRef.current === key) return;
+    try {
+      const audio = SnowPlayer.getAudioTracks();
+      void audio.then(({ tracks }) => {
+        if (!tracks || tracks.length > 0) return;
+        if (audioSafetyRef.current === key) return;
+        audioSafetyRef.current = key;
+        try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }
+        void (async () => {
+          let resume: number | undefined;
+          try {
+            const p = await SnowPlayer.getPosition();
+            if (p.position > 0) resume = p.position;
+          } catch { /* ignore */ }
+          setStartPos(resume);
+          setUseTranscode(true);
+          const url = plexTranscodeUrl(conn.base, key, conn.token);
+          setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+        })();
+      }).catch(() => { /* ignore */ });
+    } catch { /* ignore */ }
+  }, [nativeActive, useTranscode, playing, conn, toast]);
+  const onPlayStateChangeCb = useCallback((paused: boolean) => {
+    // Playing is authoritative — kill the "Still preparing…" overlay the moment
+    // the native player reports it's actually rolling.
+    if (!paused) setSlowLoadRef.current(false);
+  }, []);
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
@@ -743,9 +779,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     live: false,
     startPosition: startPos,
     subtitles: extraSubs,
-    onTracksChanged: () => setTracksTick((n) => n + 1),
+    onTracksChanged,
+    onPlayStateChange: onPlayStateChangeCb,
     onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
   });
+  // Reset the safety-net guard whenever the underlying title changes.
+  useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
 
   useEffect(() => {
     if (!nativeActive) return;
