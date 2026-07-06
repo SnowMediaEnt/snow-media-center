@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -34,6 +34,7 @@ const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
+const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 
 
 interface Props {
@@ -41,7 +42,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex';
+type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
@@ -180,6 +181,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'live') return [
       { id: 'live',  label: 'Live TV', icon: Tv },
       { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+      { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
@@ -673,6 +675,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={onNavigate}
+            />
+          </Suspense>
+        )}
+
+        {section === 'multi' && creds && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <MultiScreenSection
+              creds={creds}
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}
