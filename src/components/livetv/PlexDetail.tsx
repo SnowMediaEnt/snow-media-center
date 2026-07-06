@@ -343,6 +343,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       <div className="absolute inset-0 bg-black">
         {showBackdrop && backdropReady && (meta?.art || current.art) && (
           <PlexImage
+            priority
             base={base}
             path={meta?.art || current.art}
             token={token}
