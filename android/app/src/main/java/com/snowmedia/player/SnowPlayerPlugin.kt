@@ -97,6 +97,8 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectRunnable = null
         s.positionTickRunnable?.let { mainHandler.removeCallbacks(it) }
         s.positionTickRunnable = null
+        s.preBufferRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.preBufferRunnable = null
     }
 
     private fun schedulePositionTick(s: PlayerSlot) {
