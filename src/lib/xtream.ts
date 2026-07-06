@@ -576,6 +576,15 @@ export function buildLiveStreamUrl(c: XtreamCreds, streamId: number): string {
   return `${c.host}/live/${encodeURIComponent(c.username)}/${encodeURIComponent(c.password)}/${streamId}.${ext}`;
 }
 
+/**
+ * Native ExoPlayer variant of the Live stream URL: Vibez (strmz.xyz) is only
+ * reliable via the raw .ts container on Fire TV — always swap .m3u8 → .ts for
+ * the native player. Dreamstreams works with both.
+ */
+export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
+  return buildLiveStreamUrl(c, streamId).replace(/\.m3u8(\?|$)/i, '.ts$1');
+}
+
 // --- Movies (VOD) -----------------------------------------------------------
 
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
