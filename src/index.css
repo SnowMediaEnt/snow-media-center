@@ -682,5 +682,8 @@ html.snowplayer-fullscreen .flex-shrink-0.bg-black\/50 {
   background-color: transparent !important;
   backdrop-filter: none !important;
 }
+html.snowplayer-fullscreen [data-player-chrome] {
+  visibility: hidden !important;
+}
 
 

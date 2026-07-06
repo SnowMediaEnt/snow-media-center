@@ -552,7 +552,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.9</div>
+      <div data-player-chrome="" style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.5.9</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog
@@ -564,7 +564,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div data-player-chrome="" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Button
             variant="white"
@@ -625,7 +625,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       {/* Three-pane layout */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Pane 1 — Sections */}
-        <div
+        <div data-player-chrome=""
           onClick={() => { if (pane !== 'sections') setPane('sections'); }}
           className={`flex-shrink-0 border-r border-white/10 p-3 space-y-2 bg-black/50 overflow-hidden ${pane === 'sections' ? 'w-44 bg-white/5' : 'w-12 cursor-pointer'}`}
         >
