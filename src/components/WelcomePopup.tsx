@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6': [
+    'Multi-Screen: watch 2 or 4 channels at once (side-by-side, stacked, or 4-grid)',
+    'Volume slider added to the player menu',
+    'Live TV: player controls now hide fully in fullscreen',
+    'Plex: faster browsing, cast photos, quality selector, download subtitles',
+    'Fix-buffering shortcut inside the player',
+  ],
   '1.5.9': [
     'Plex: movie & show detail pages with ratings, cast and Resume',
     'Plex: full episode browsing for shows',
