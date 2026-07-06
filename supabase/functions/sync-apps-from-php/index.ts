@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
     // 1. Fetch the PHP feed
     console.log("[sync-apps] Fetching feed:", FEED_URL);
-    const feedRes = await fetch(`${FEED_URL}?ts=${Date.now()}`, {
+    const feedRes = await fetch(`${FEED_URL}&ts=${Date.now()}`, {
       headers: { Accept: "application/json", "Cache-Control": "no-cache" },
     });
     if (!feedRes.ok) {
