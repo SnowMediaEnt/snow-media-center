@@ -449,6 +449,7 @@ class SnowPlayerPlugin : Plugin() {
         s.player?.clearMediaItems()
         s.subtitleView?.setCues(emptyList())
         s.container?.visibility = View.GONE
+        s.pendingRect = null
     }
 
     @PluginMethod
