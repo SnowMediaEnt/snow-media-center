@@ -501,17 +501,64 @@ class SnowPlayerPlugin : Plugin() {
         val y = call.getInt("y") ?: 0
         val w = call.getInt("width") ?: 0
         val h = call.getInt("height") ?: 0
+        val fs = call.getBoolean("fullscreen", false) ?: false
+        val cssW = call.getInt("cssW") ?: 0
+        val cssH = call.getInt("cssH") ?: 0
         val s = slot(call)
+        val screenId = screenIdOf(call)
         activity?.runOnUiThread {
+            // Guard: only an explicit fullscreen=true request may size to
+            // MATCH_PARENT. Degenerate zero/negative multiview rects are
+            // dropped so they can NEVER accidentally cover other tiles.
+            if (!fs && (w <= 0 || h <= 0)) { call.resolve(); return@runOnUiThread }
+
             ensureSurface(s)
-            val c = s.container ?: run { call.resolve(); return@runOnUiThread }
+            val c = s.container ?: run {
+                // Surface not built yet — remember the request for load().
+                s.pendingRect = if (fs) intArrayOf(0, 0, 0, 0, 1)
+                    else intArrayOf(x, y, w, h, 0)
+                call.resolve(); return@runOnUiThread
+            }
             val lp = c.layoutParams
-            lp.width = if (w > 0) w else ViewGroup.LayoutParams.MATCH_PARENT
-            lp.height = if (h > 0) h else ViewGroup.LayoutParams.MATCH_PARENT
+            if (fs) {
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                c.x = 0f; c.y = 0f
+                s.pendingRect = intArrayOf(0, 0, 0, 0, 1)
+            } else {
+                val wvW = bridge?.webView?.width ?: 0
+                val wvH = bridge?.webView?.height ?: 0
+                val density = activity?.resources?.displayMetrics?.density ?: 1f
+                val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
+                val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
+                val devX = Math.round(x * sx)
+                val devY = Math.round(y * sy)
+                val devW = Math.round(w * sx)
+                val devH = Math.round(h * sy)
+                lp.width = devW
+                lp.height = devH
+                c.x = devX.toFloat()
+                c.y = devY.toFloat()
+                s.pendingRect = intArrayOf(devX, devY, devW, devH, 0)
+            }
             c.layoutParams = lp
-            c.x = x.toFloat()
-            c.y = y.toFloat()
             c.requestLayout()
+            // Non-main slots that already have a URL loaded must become VISIBLE
+            // now that a real rect has arrived.
+            if (screenId != MAIN && s.currentUrl != null && c.visibility != View.VISIBLE) {
+                c.visibility = View.VISIBLE
+            }
+            // Z-order guard: keep our container directly BENEATH the WebView so
+            // the transparent HTML chrome always composites above the video.
+            val parent = c.parent as? ViewGroup
+            val wv = bridge?.webView
+            if (parent != null && wv != null) {
+                val wvIdx = parent.indexOfChild(wv)
+                if (wvIdx > 0 && parent.indexOfChild(c) != wvIdx - 1) {
+                    parent.removeView(c)
+                    parent.addView(c, parent.indexOfChild(wv))
+                }
+            }
             call.resolve()
         }
     }
