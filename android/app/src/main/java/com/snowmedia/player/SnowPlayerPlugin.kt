@@ -218,6 +218,9 @@ class SnowPlayerPlugin : Plugin() {
         val webView = bridge?.webView ?: return false
         val parent = webView.parent as? ViewGroup ?: return false
         webView.setBackgroundColor(Color.TRANSPARENT)
+        // Ensure every transparency gap around/behind the WebView reads BLACK,
+        // never the light-theme window default (white flash on layout).
+        act.window.decorView.setBackgroundColor(Color.BLACK)
         val tv = TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
