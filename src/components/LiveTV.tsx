@@ -181,6 +181,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'live') return [
       { id: 'live',  label: 'Live TV', icon: Tv },
       { id: 'guide', label: 'Guide',   icon: LayoutGrid },
+      { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
