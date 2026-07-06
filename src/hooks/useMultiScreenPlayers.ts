@@ -236,6 +236,8 @@ export function useMultiScreenPlayers(): Api {
           SnowPlayer.play({ screenId: id }).catch(() => { /* ignore */ });
         }
       }
+      // Kick the section into re-measuring so applyRect fires post-restore.
+      try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
     };
 
     const onVis = () => {
