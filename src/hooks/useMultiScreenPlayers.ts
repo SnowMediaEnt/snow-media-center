@@ -67,9 +67,11 @@ export function useMultiScreenPlayers(): Api {
     const root = document.documentElement;
     if (anyOccupied) {
       root.classList.add('snowplayer-fullscreen');
+      root.classList.add('snowplayer-multiview');
       root.classList.add('streaming-active');
     } else {
       root.classList.remove('snowplayer-fullscreen');
+      root.classList.remove('snowplayer-multiview');
       root.classList.remove('streaming-active');
     }
   }, [slots]);
