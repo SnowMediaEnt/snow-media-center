@@ -27,6 +27,7 @@ import {
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   isDirectAudioCodec,
+  setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
 import PlexAuthScreen from './PlexAuthScreen';
