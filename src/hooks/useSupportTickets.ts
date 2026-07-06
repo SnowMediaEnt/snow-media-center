@@ -90,7 +90,11 @@ export const useSupportTickets = (user: User | null) => {
   };
 
   // Create a new support ticket
-  const createTicket = async (subject: string, initialMessage: string) => {
+  const createTicket = async (
+    subject: string,
+    initialMessage: string,
+    opts?: { discordKind?: 'channel_report' | 'ticket' }
+  ) => {
     try {
       setLoading(true);
       
@@ -126,10 +130,12 @@ export const useSupportTickets = (user: User | null) => {
       await sendSupportEmail(ticket.id, subject, initialMessage);
 
       // Fire-and-forget Discord alert — must NOT fail ticket creation.
+      const discordKind = opts?.discordKind ?? 'ticket';
+      const content = discordKind === 'channel_report'
+        ? '🚨 **Channel Report** (from ' + user.email + ')\n```\n' + initialMessage.slice(0, 1500) + '\n```'
+        : `🎫 **New Ticket** from ${user.email}\n**${subject}**\n\`\`\`\n${initialMessage.slice(0, 1500)}\n\`\`\``;
       supabase.functions.invoke('notify-discord', {
-        body: {
-          content: `🎫 **New Ticket** from ${user.email}\n**${subject}**\n\`\`\`\n${initialMessage.slice(0, 1500)}\n\`\`\``,
-        },
+        body: { kind: discordKind, content },
       }).catch(() => {});
 
       toast({
