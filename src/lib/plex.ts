@@ -322,6 +322,14 @@ export function plexDirectUrl(base: string, partKey: string, token: string): str
   return `${base}${partKey}?X-Plex-Token=${encodeURIComponent(token)}`;
 }
 
+/** Codecs the Media3 decoder + Fire TV audio path can direct-play reliably.
+ *  Anything else (ac3/eac3/dts/truehd/…) gets silently deselected by ExoPlayer
+ *  and the file plays with zero audio — force a Plex server-side transcode. */
+const SUPPORTED_DIRECT_AUDIO_CODECS: string[] = ['aac', 'mp3', 'mp2', 'flac', 'opus', 'vorbis', 'pcm'];
+export function isDirectAudioCodec(codec: string | undefined | null): boolean {
+  if (!codec) return true; // unknown → assume ok, let normal error path handle it
+  return SUPPORTED_DIRECT_AUDIO_CODECS.indexOf(String(codec).toLowerCase()) >= 0;
+
 /** HLS transcode fallback — offloads decoding to the Plex server (any codec).
  *  Optional `opts` clamp video bitrate/resolution so the user can pick a
  *  lower-bandwidth ladder ("Play at 1080p · 8 Mbps" etc.) without leaving
