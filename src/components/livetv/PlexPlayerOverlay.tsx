@@ -232,6 +232,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
   const volumeRef = useRef(volume); useEffect(() => { volumeRef.current = volume; }, [volume]);
   const onChangeVolumeRef = useRef(onChangeVolume); useEffect(() => { onChangeVolumeRef.current = onChangeVolume; }, [onChangeVolume]);
+  const onOpenBufferingGuideRef = useRef(onOpenBufferingGuide); useEffect(() => { onOpenBufferingGuideRef.current = onOpenBufferingGuide; }, [onOpenBufferingGuide]);
+  const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
 
   useEffect(() => {
     if (!active) return;
