@@ -776,12 +776,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       })();
     } catch { /* ignore */ }
   }, [nativeActive, useTranscode, playing, conn, toast]);
+  const slowLoadTimerRef = useRef<number | null>(null);
+  const stillLoadingRef = useRef(true);
+  const clearSlowLoadTimer = useCallback(() => {
+    if (slowLoadTimerRef.current !== null) {
+      window.clearTimeout(slowLoadTimerRef.current);
+      slowLoadTimerRef.current = null;
+    }
+  }, []);
   const setSlowLoadRef = useRef<(v: boolean) => void>(() => { /* filled below */ });
   const onPlayStateChangeCb = useCallback((paused: boolean) => {
-    // Playing is authoritative — kill the "Still preparing…" overlay the moment
-    // the native player reports it's actually rolling.
-    if (!paused) setSlowLoadRef.current(false);
-  }, []);
+    // Playing is authoritative — kill the "Still preparing…" overlay AND its
+    // watchdog timer the moment the native player reports it's rolling.
+    if (!paused) {
+      stillLoadingRef.current = false;
+      clearSlowLoadTimer();
+      setSlowLoadRef.current(false);
+    }
+  }, [clearSlowLoadTimer]);
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
