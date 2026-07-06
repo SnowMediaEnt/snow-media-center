@@ -688,8 +688,18 @@ html.snowplayer-fullscreen .flex-shrink-0.bg-black\/50 {
   background-color: transparent !important;
   backdrop-filter: none !important;
 }
-html.snowplayer-fullscreen [data-player-chrome] {
+html.snowplayer-fullscreen:not(.snowplayer-multiview) [data-player-chrome] {
   visibility: hidden !important;
 }
+html.snowplayer-multiview [data-player-chrome] {
+  background-color: #000 !important;
+  backdrop-filter: none !important;
+}
+.ms-tile[data-focused="true"] {
+  outline: 4px solid hsl(var(--brand-gold)) !important;
+  outline-offset: -4px;
+}
+
+
 
 
