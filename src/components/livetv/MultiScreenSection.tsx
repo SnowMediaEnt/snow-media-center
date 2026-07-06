@@ -145,6 +145,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
   const categoriesRef = useRef(categories);
   const channelsRef = useRef(channels);
   const tilesRef = useRef(tiles);
+  const slotsRef = useRef(slots);
   useEffect(() => { layoutRef.current = layout; }, [layout]);
   useEffect(() => { focusedTileRef.current = focusedTile; }, [focusedTile]);
   useEffect(() => { fullscreenSlotRef.current = fullscreenSlot; }, [fullscreenSlot]);
@@ -158,6 +159,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
   useEffect(() => { channelsRef.current = channels; }, [channels]);
   useEffect(() => { tilesRef.current = tiles; }, [tiles]);
+  useEffect(() => { slotsRef.current = slots; }, [slots]);
 
   // Grid tile refs
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -334,8 +336,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       copy[tileIdx] = { channel: ch, nowNext: undefined };
       return copy;
     });
-    // Measure THIS tile now and applyRect BEFORE loadSlot
-    requestAnimationFrame(async () => {
+    // Measure THIS tile now and applyRect BEFORE loadSlot. DOUBLE rAF so the
+    // setTiles/picker-close layout flush lands first — never measure a 0×0 box.
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
       const el = tileRefs.current[tileIdx];
       if (el) {
         const r = el.getBoundingClientRect();
@@ -343,11 +346,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       }
       const url = buildNativeLiveUrl(creds, ch.stream_id);
       await loadSlot(sid, url);
-      await focusAudio(sid);
+      // Audio follows the highlighter: only grab audio if the loaded tile is
+      // still under it; otherwise re-assert the currently focused tile.
+      if (focusedTileRef.current === tileIdx) {
+        await focusAudio(sid);
+      } else {
+        const fsid = tilesForLayout(layoutRef.current!)[focusedTileRef.current]?.id;
+        await focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
+      }
       void fetchEpgForTile(tileIdx, ch.stream_id);
       const occupiedCount = tilesRef.current.filter(t => t.channel).length;
       try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ }
-    });
+    }));
   }, [layout, applyRect, loadSlot, focusAudio, creds, fetchEpgForTile]);
 
   const closeTile = useCallback(async (tileIdx: number) => {
@@ -390,9 +400,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
 
   const exitFullscreen = useCallback(() => {
     setFullscreenSlot(null);
-    // Re-measure all occupied
-    requestAnimationFrame(() => measureAndApply());
-  }, [measureAndApply]);
+    // Re-measure all occupied, then re-assert audio on the focused tile.
+    requestAnimationFrame(() => {
+      measureAndApply();
+      const fsid = layoutRef.current
+        ? tilesForLayout(layoutRef.current)[focusedTileRef.current]?.id
+        : undefined;
+      void focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
+    });
+  }, [measureAndApply, focusAudio]);
 
   // Categories virtualizer
   const catScrollRef = useRef<HTMLDivElement | null>(null);
@@ -520,7 +536,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const dir = e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'left' : 'right';
         const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir);
-        if (n !== null) { consume(e); setFocusedTile(n); }
+        if (n !== null) {
+          consume(e);
+          setFocusedTile(n);
+          const sid = tilesForLayout(layoutRef.current!)[n]?.id;
+          void focusAudio(sid && slotsRef.current[sid]?.url ? sid : null);
+        }
         return;
       }
       if (e.key === 'Enter' || e.key === ' ') {
@@ -533,7 +554,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel]);
+  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio]);
 
   // Hardware back
   useEffect(() => {
@@ -710,7 +731,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
 
       {/* Channel picker (solid bg overlay, right side ~40%) */}
       {pickerOpenForTile !== null && (
-        <div className="absolute top-0 right-0 bottom-0 z-40 w-[40%] min-w-[420px] bg-brand-navy/95 border-l border-white/10 flex flex-col">
+        <div className="absolute top-0 right-[2vw] bottom-0 z-40 w-[40%] min-w-[360px] max-w-[560px] bg-brand-navy/95 border border-white/10 rounded-l-xl flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <div className="text-white font-quicksand font-bold">Add channel to screen {pickerOpenForTile + 1}</div>
             <button
