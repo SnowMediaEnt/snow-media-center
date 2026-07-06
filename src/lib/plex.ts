@@ -168,9 +168,14 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
     let pending = candidates.length;
     let best: Candidate | null = null;
     let settled = false;
+    const isHttps = (u: string) => u.slice(0, 6).toLowerCase() === 'https:';
     const maybeFinish = (force = false) => {
       if (settled) return;
-      if (best && (best.priority === 1 || pending === 0 || force)) {
+      // Only early-finish when we already have the ideal candidate (local https)
+      // — otherwise a raw-IP http local candidate would win a race against the
+      // plex.direct https candidate and every poster <img> would be blocked as
+      // mixed content when the WebView origin is https://localhost.
+      if (best && ((best.priority === 1 && isHttps(best.url)) || pending === 0 || force)) {
         settled = true;
         resolve(best.url);
       } else if (pending === 0 || force) {
@@ -182,7 +187,15 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
     candidates.forEach((cand) => {
       plexReq('GET', `${cand.url}/identity`, server.accessToken, timeoutMs)
         .then(() => {
-          if (!best || cand.priority < best.priority) best = cand;
+          // Prefer lower priority (local > remote > relay); within the same
+          // tier, prefer https over http (mixed-content safe on Fire TV).
+          if (
+            !best
+            || cand.priority < best.priority
+            || (cand.priority === best.priority && !isHttps(best.url) && isHttps(cand.url))
+          ) {
+            best = cand;
+          }
         })
         .catch(() => { /* unreachable candidate */ })
         .then(() => {
