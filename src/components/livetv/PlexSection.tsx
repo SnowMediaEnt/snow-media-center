@@ -347,7 +347,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs 
 ManagePanel.displayName = 'ManagePanel';
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
-const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide }: Props) => {
+const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
   const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
