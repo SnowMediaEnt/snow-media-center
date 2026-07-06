@@ -470,12 +470,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Debounced preview
   const [previewChannelId, setPreviewChannelId] = useState<number | null>(null);
+  // Freeze fix: the muted always-on preview <video> saturates the WebView main
+  // thread on non-Fire-TV low-RAM boxes (T95/X96/legacy WebView). Fire TV is
+  // already excluded because it spawns a hardware decoder slot per <video>.
+  const [previewDisabled] = useState(() =>
+    isFireTV()
+    || document.documentElement.classList.contains('native-low-memory')
+    || document.documentElement.classList.contains('legacy-webview'),
+  );
   useEffect(() => {
+    if (previewDisabled) { setPreviewChannelId(null); return; }
     if (!focusedChannel) { setPreviewChannelId(null); return; }
     const id = focusedChannel.stream_id;
     const t = window.setTimeout(() => setPreviewChannelId(id), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel]);
+  }, [focusedChannel, previewDisabled]);
 
   const previewUrl = useMemo(
     () => (previewChannelId ? buildLiveStreamUrl(creds, previewChannelId) : null),
