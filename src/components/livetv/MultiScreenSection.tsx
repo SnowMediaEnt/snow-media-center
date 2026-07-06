@@ -623,7 +623,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
   // Grid mode
   const spec = tilesForLayout(layout);
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div className="flex-1 relative overflow-hidden bg-black">
       {/* Transparent grid; native video renders BEHIND */}
       <div ref={gridRef} className="absolute inset-0">
         {spec.map((sp, i) => {
