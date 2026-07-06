@@ -1919,6 +1919,7 @@ export type Database = {
       tenant_settings: {
         Row: {
           apps_source_url: string | null
+          apps_source_urls: Json | null
           community_enabled: boolean
           content_bar_default: boolean
           discord_guild_id: string | null
@@ -1936,6 +1937,7 @@ export type Database = {
         }
         Insert: {
           apps_source_url?: string | null
+          apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
           discord_guild_id?: string | null
@@ -1953,6 +1955,7 @@ export type Database = {
         }
         Update: {
           apps_source_url?: string | null
+          apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
           discord_guild_id?: string | null
