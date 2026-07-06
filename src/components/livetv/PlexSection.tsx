@@ -655,7 +655,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       return;
     }
     try {
-      const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
+      const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, ratingKey);
+      // Pre-emptive transcode: ExoPlayer silently deselects unsupported audio
+      // codecs (ac3/eac3/dts/truehd/…) and plays the file with zero audio and
+      // no error. When we see one, ask Plex to transcode audio→AAC while still
+      // direct-streaming video (no bitrate/resolution clamp).
+      if (!isDirectAudioCodec(audioCodec)) {
+        setUseTranscode(true);
+        setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
+        return;
+      }
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
     } catch {
