@@ -838,14 +838,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [slowLoad, setSlowLoad] = useState(false);
   setSlowLoadRef.current = setSlowLoad;
   useEffect(() => {
-    if (!fullscreen) { setSlowLoad(false); return; }
+    clearSlowLoadTimer();
+    if (!fullscreen) { stillLoadingRef.current = false; setSlowLoad(false); return; }
+    stillLoadingRef.current = true;
     setSlowLoad(false);
-    const t = window.setTimeout(() => setSlowLoad(true), 8000);
-    return () => window.clearTimeout(t);
-  }, [fullscreen, streamUrl]);
+    slowLoadTimerRef.current = window.setTimeout(() => {
+      if (stillLoadingRef.current) setSlowLoad(true);
+      slowLoadTimerRef.current = null;
+    }, 8000) as unknown as number;
+    return () => { clearSlowLoadTimer(); };
+  }, [fullscreen, streamUrl, clearSlowLoadTimer]);
   useEffect(() => {
-    if (nativeActive && !native.buffering && !native.error) setSlowLoad(false);
-  }, [nativeActive, native.buffering, native.error]);
+    if (nativeActive && !native.buffering && !native.error) {
+      stillLoadingRef.current = false;
+      clearSlowLoadTimer();
+      setSlowLoad(false);
+    }
+  }, [nativeActive, native.buffering, native.error, clearSlowLoadTimer]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
