@@ -61,6 +61,10 @@ class SnowPlayerPlugin : Plugin() {
         var watchdogRunnable: Runnable? = null
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
+        // VOD only: while we hold playback with playWhenReady=false until the
+        // decoder has ≥10s buffered (or 12s wall-clock elapse). Prevents the
+        // initial "playing → immediate rebuffer" flash on slow Plex servers.
+        var preBufferRunnable: Runnable? = null
     }
 
     private val slots = HashMap<String, PlayerSlot>()
