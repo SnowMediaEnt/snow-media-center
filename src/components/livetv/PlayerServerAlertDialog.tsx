@@ -22,7 +22,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
-      if (e.keyCode === 4 || ['Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
+      if (e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23 || ['Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         onDismiss();
       }

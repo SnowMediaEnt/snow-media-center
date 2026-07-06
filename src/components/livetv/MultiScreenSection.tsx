@@ -464,8 +464,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
           const idx = tileMenuIdxRef.current;
           const tIdx = focusedTileRef.current;
           setTileMenuOpen(false);
-          if (idx === 0) void enterFullscreen(tIdx);
-          else if (idx === 1) openPickerForTile(tIdx);
+          if (idx === 0) openPickerForTile(tIdx);
+          else if (idx === 1) void enterFullscreen(tIdx);
           else if (idx === 2) void closeTile(tIdx);
         }
         return;
@@ -623,7 +623,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
   // Grid mode
   const spec = tilesForLayout(layout);
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div className="flex-1 relative overflow-hidden bg-black">
       {/* Transparent grid; native video renders BEHIND */}
       <div ref={gridRef} className="absolute inset-0">
         {spec.map((sp, i) => {
@@ -646,12 +646,12 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
               }}
             >
               <div
-                data-focused={isFocused ? 'true' : 'false'}
-                className={`w-full h-full rounded-md relative ${
+                data-focused={isFocused && !chromeHidden ? 'true' : 'false'}
+                className={`ms-tile w-full h-full rounded-md relative ${
                   occupied ? '' : 'bg-black'
                 } ${
                   chromeHidden ? '' : (isFocused
-                    ? 'ring-[3px] ring-brand-gold shadow-[0_0_18px_2px_rgba(245,200,80,0.4)]'
+                    ? 'ring-[3px] ring-brand-gold'
                     : 'ring-1 ring-white/20')
                 }`}
               >
@@ -693,7 +693,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       {tileMenuOpen && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto bg-brand-navy border border-white/15 rounded-2xl p-3 w-64 shadow-2xl">
-            {['Fullscreen', 'Change channel', 'Close screen'].map((label, i) => (
+            {['Change channel', 'Fullscreen', 'Close screen'].map((label, i) => (
               <div
                 key={label}
                 data-focused={tileMenuIdx === i ? 'true' : 'false'}

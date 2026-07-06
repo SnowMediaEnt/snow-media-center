@@ -749,32 +749,51 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const key = playing.ratingKey;
     if (audioSafetyRef.current === key) return;
     try {
-      const audio = SnowPlayer.getAudioTracks();
-      void audio.then(({ tracks }) => {
+      void (async () => {
+        // Readiness gate — prime() fires this callback immediately after
+        // load() resolves, before ExoPlayer parses the container. Without
+        // this gate getAudioTracks() returns [] and we wrongly reload into
+        // transcode ("Fixing audio…") on virtually every direct play.
+        try {
+          const pos = await SnowPlayer.getPosition();
+          if (!pos || pos.duration <= 0) return;
+        } catch { return; }
+        if (audioSafetyRef.current === key) return;
+        const { tracks } = await SnowPlayer.getAudioTracks();
         if (!tracks || tracks.length > 0) return;
         if (audioSafetyRef.current === key) return;
         audioSafetyRef.current = key;
         try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }
-        void (async () => {
-          let resume: number | undefined;
-          try {
-            const p = await SnowPlayer.getPosition();
-            if (p.position > 0) resume = p.position;
-          } catch { /* ignore */ }
-          setStartPos(resume);
-          setUseTranscode(true);
-          const url = plexTranscodeUrl(conn.base, key, conn.token);
-          setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
-        })();
-      }).catch(() => { /* ignore */ });
+        let resume: number | undefined;
+        try {
+          const p = await SnowPlayer.getPosition();
+          if (p.position > 0) resume = p.position;
+        } catch { /* ignore */ }
+        setStartPos(resume);
+        setUseTranscode(true);
+        const url = plexTranscodeUrl(conn.base, key, conn.token);
+        setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+      })();
     } catch { /* ignore */ }
   }, [nativeActive, useTranscode, playing, conn, toast]);
+  const slowLoadTimerRef = useRef<number | null>(null);
+  const stillLoadingRef = useRef(true);
+  const clearSlowLoadTimer = useCallback(() => {
+    if (slowLoadTimerRef.current !== null) {
+      window.clearTimeout(slowLoadTimerRef.current);
+      slowLoadTimerRef.current = null;
+    }
+  }, []);
   const setSlowLoadRef = useRef<(v: boolean) => void>(() => { /* filled below */ });
   const onPlayStateChangeCb = useCallback((paused: boolean) => {
-    // Playing is authoritative — kill the "Still preparing…" overlay the moment
-    // the native player reports it's actually rolling.
-    if (!paused) setSlowLoadRef.current(false);
-  }, []);
+    // Playing is authoritative — kill the "Still preparing…" overlay AND its
+    // watchdog timer the moment the native player reports it's rolling.
+    if (!paused) {
+      stillLoadingRef.current = false;
+      clearSlowLoadTimer();
+      setSlowLoadRef.current(false);
+    }
+  }, [clearSlowLoadTimer]);
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
@@ -819,14 +838,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [slowLoad, setSlowLoad] = useState(false);
   setSlowLoadRef.current = setSlowLoad;
   useEffect(() => {
-    if (!fullscreen) { setSlowLoad(false); return; }
+    clearSlowLoadTimer();
+    if (!fullscreen) { stillLoadingRef.current = false; setSlowLoad(false); return; }
+    stillLoadingRef.current = true;
     setSlowLoad(false);
-    const t = window.setTimeout(() => setSlowLoad(true), 8000);
-    return () => window.clearTimeout(t);
-  }, [fullscreen, streamUrl]);
+    slowLoadTimerRef.current = window.setTimeout(() => {
+      if (stillLoadingRef.current) setSlowLoad(true);
+      slowLoadTimerRef.current = null;
+    }, 8000) as unknown as number;
+    return () => { clearSlowLoadTimer(); };
+  }, [fullscreen, streamUrl, clearSlowLoadTimer]);
   useEffect(() => {
-    if (nativeActive && !native.buffering && !native.error) setSlowLoad(false);
-  }, [nativeActive, native.buffering, native.error]);
+    if (nativeActive && !native.buffering && !native.error) {
+      stillLoadingRef.current = false;
+      clearSlowLoadTimer();
+      setSlowLoad(false);
+    }
+  }, [nativeActive, native.buffering, native.error, clearSlowLoadTimer]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
@@ -981,7 +1009,17 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <Loader2 className="w-10 h-10 text-brand-gold animate-spin mb-3" />
             <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
-            <button onClick={() => { setSlowLoad(false); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+            <button onClick={() => {
+              setSlowLoad(false);
+              stillLoadingRef.current = true;
+              if (!streamUrl && playing) {
+                // No stream URL resolved yet — native.retry() would be a no-op.
+                // Re-invoke the current item's play path from scratch.
+                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel);
+              } else {
+                native.retry();
+              }
+            }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
               <RotateCw className="w-4 h-4" /> Retry
             </button>
           </div>

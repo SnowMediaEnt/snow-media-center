@@ -67,9 +67,11 @@ export function useMultiScreenPlayers(): Api {
     const root = document.documentElement;
     if (anyOccupied) {
       root.classList.add('snowplayer-fullscreen');
+      root.classList.add('snowplayer-multiview');
       root.classList.add('streaming-active');
     } else {
       root.classList.remove('snowplayer-fullscreen');
+      root.classList.remove('snowplayer-multiview');
       root.classList.remove('streaming-active');
     }
   }, [slots]);
@@ -133,13 +135,28 @@ export function useMultiScreenPlayers(): Api {
   }, [updateSlot]);
 
   const applyRect = useCallback(async (screenId: MultiScreenId, rect: CssRect): Promise<void> => {
-    const dpr = window.devicePixelRatio || 1;
+    // Fullscreen sentinel (w/h<=0) → dedicated fullscreen flag.
+    if (rect.width <= 0 || rect.height <= 0) {
+      try {
+        await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true, screenId });
+      } catch { /* ignore */ }
+      return;
+    }
+    const l = Math.round(rect.x);
+    const t = Math.round(rect.y);
+    const r = Math.round(rect.x + rect.width);
+    const b = Math.round(rect.y + rect.height);
+    const w = r - l;
+    const h = b - t;
+    if (w <= 0 || h <= 0) {
+      try { console.warn('[multiscreen] skip applyRect: degenerate rect', screenId, rect); } catch { /* ignore */ }
+      return;
+    }
     try {
       await SnowPlayer.setRect({
-        x: Math.round(rect.x * dpr),
-        y: Math.round(rect.y * dpr),
-        width: Math.round(rect.width * dpr),
-        height: Math.round(rect.height * dpr),
+        x: l, y: t, width: w, height: h,
+        cssW: Math.round(window.innerWidth),
+        cssH: Math.round(window.innerHeight),
         screenId,
       });
     } catch { /* ignore */ }
@@ -219,6 +236,8 @@ export function useMultiScreenPlayers(): Api {
           SnowPlayer.play({ screenId: id }).catch(() => { /* ignore */ });
         }
       }
+      // Kick the section into re-measuring so applyRect fires post-restore.
+      try { window.dispatchEvent(new Event('resize')); } catch { /* ignore */ }
     };
 
     const onVis = () => {
@@ -250,6 +269,7 @@ export function useMultiScreenPlayers(): Api {
     return () => {
       try { SnowPlayer.stopAll(); } catch { /* ignore */ }
       document.documentElement.classList.remove('snowplayer-fullscreen');
+      document.documentElement.classList.remove('snowplayer-multiview');
       document.documentElement.classList.remove('streaming-active');
     };
   }, []);

@@ -470,12 +470,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Debounced preview
   const [previewChannelId, setPreviewChannelId] = useState<number | null>(null);
+  // Freeze fix: the muted always-on preview <video> saturates the WebView main
+  // thread on non-Fire-TV low-RAM boxes (T95/X96/legacy WebView). Fire TV is
+  // already excluded because it spawns a hardware decoder slot per <video>.
+  const [previewDisabled] = useState(() =>
+    isFireTV()
+    || document.documentElement.classList.contains('native-low-memory')
+    || document.documentElement.classList.contains('legacy-webview'),
+  );
   useEffect(() => {
+    if (previewDisabled) { setPreviewChannelId(null); return; }
     if (!focusedChannel) { setPreviewChannelId(null); return; }
     const id = focusedChannel.stream_id;
     const t = window.setTimeout(() => setPreviewChannelId(id), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel]);
+  }, [focusedChannel, previewDisabled]);
 
   const previewUrl = useMemo(
     () => (previewChannelId ? buildLiveStreamUrl(creds, previewChannelId) : null),
@@ -1122,12 +1131,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
         <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
           <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-            {isFireTV() ? (
-              // Fire TV: NEVER mount the always-on preview <video>. Each
-              // <video> spawns a WebMediaPlayer (and a hardware decoder slot)
-              // on Amazon WebView — that 2nd pipeline alongside the
-              // fullscreen player is the direct cause of black-screen /
-              // freeze. Only the fullscreen player gets a <video> here.
+            {previewDisabled ? (
+              // Preview <video> is disabled on Fire TV and low-memory / legacy
+              // WebView devices — each <video> spawns a WebMediaPlayer that
+              // saturates the compositor thread and freezes the UI.
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
                 {focusedChannel ? 'Press OK to play' : 'No channel selected'}
               </div>

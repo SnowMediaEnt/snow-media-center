@@ -66,6 +66,10 @@ class SnowPlayerPlugin : Plugin() {
         // decoder has ≥10s buffered (or 12s wall-clock elapse). Prevents the
         // initial "playing → immediate rebuffer" flash on slow Plex servers.
         var preBufferRunnable: Runnable? = null
+        // Rect requested BEFORE the surface existed (or before load()). load()
+        // applies this after ensureSurface. Null = "no explicit rect yet".
+        // IntArray of size 5: [x, y, w, h, fullscreenFlag(0/1)].
+        var pendingRect: IntArray? = null
     }
 
     private val slots = HashMap<String, PlayerSlot>()
@@ -214,6 +218,9 @@ class SnowPlayerPlugin : Plugin() {
         val webView = bridge?.webView ?: return false
         val parent = webView.parent as? ViewGroup ?: return false
         webView.setBackgroundColor(Color.TRANSPARENT)
+        // Ensure every transparency gap around/behind the WebView reads BLACK,
+        // never the light-theme window default (white flash on layout).
+        act.window.decorView.setBackgroundColor(Color.BLACK)
         val tv = TextureView(act)
         val fl = FrameLayout(act)
         fl.setBackgroundColor(Color.BLACK)
@@ -337,7 +344,35 @@ class SnowPlayerPlugin : Plugin() {
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            s.container?.visibility = View.VISIBLE
+            // Apply any pendingRect captured before the surface existed. Non-main
+            // slots with NO pendingRect stay INVISIBLE until setRect flips them
+            // VISIBLE so a freshly-loaded multiview slot never briefly paints
+            // fullscreen over the other tiles.
+            val pending = s.pendingRect
+            val c = s.container
+            if (c != null) {
+                if (pending != null) {
+                    val fs = pending[4] == 1
+                    val lp = c.layoutParams
+                    if (fs) {
+                        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                        c.x = 0f; c.y = 0f
+                    } else {
+                        lp.width = pending[2]
+                        lp.height = pending[3]
+                        c.x = pending[0].toFloat()
+                        c.y = pending[1].toFloat()
+                    }
+                    c.layoutParams = lp
+                    c.requestLayout()
+                    c.visibility = View.VISIBLE
+                } else if (screenId == MAIN) {
+                    c.visibility = View.VISIBLE
+                } else {
+                    c.visibility = View.INVISIBLE
+                }
+            }
             val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
             s.currentUrl = url
@@ -414,6 +449,7 @@ class SnowPlayerPlugin : Plugin() {
         s.player?.clearMediaItems()
         s.subtitleView?.setCues(emptyList())
         s.container?.visibility = View.GONE
+        s.pendingRect = null
     }
 
     @PluginMethod
@@ -466,17 +502,64 @@ class SnowPlayerPlugin : Plugin() {
         val y = call.getInt("y") ?: 0
         val w = call.getInt("width") ?: 0
         val h = call.getInt("height") ?: 0
+        val fs = call.getBoolean("fullscreen", false) ?: false
+        val cssW = call.getInt("cssW") ?: 0
+        val cssH = call.getInt("cssH") ?: 0
         val s = slot(call)
+        val screenId = screenIdOf(call)
         activity?.runOnUiThread {
+            // Guard: only an explicit fullscreen=true request may size to
+            // MATCH_PARENT. Degenerate zero/negative multiview rects are
+            // dropped so they can NEVER accidentally cover other tiles.
+            if (!fs && (w <= 0 || h <= 0)) { call.resolve(); return@runOnUiThread }
+
             ensureSurface(s)
-            val c = s.container ?: run { call.resolve(); return@runOnUiThread }
+            val c = s.container ?: run {
+                // Surface not built yet — remember the request for load().
+                s.pendingRect = if (fs) intArrayOf(0, 0, 0, 0, 1)
+                    else intArrayOf(x, y, w, h, 0)
+                call.resolve(); return@runOnUiThread
+            }
             val lp = c.layoutParams
-            lp.width = if (w > 0) w else ViewGroup.LayoutParams.MATCH_PARENT
-            lp.height = if (h > 0) h else ViewGroup.LayoutParams.MATCH_PARENT
+            if (fs) {
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                c.x = 0f; c.y = 0f
+                s.pendingRect = intArrayOf(0, 0, 0, 0, 1)
+            } else {
+                val wvW = bridge?.webView?.width ?: 0
+                val wvH = bridge?.webView?.height ?: 0
+                val density = activity?.resources?.displayMetrics?.density ?: 1f
+                val sx = if (cssW > 0 && wvW > 0) wvW.toFloat() / cssW else density
+                val sy = if (cssH > 0 && wvH > 0) wvH.toFloat() / cssH else density
+                val devX = Math.round(x * sx)
+                val devY = Math.round(y * sy)
+                val devW = Math.round(w * sx)
+                val devH = Math.round(h * sy)
+                lp.width = devW
+                lp.height = devH
+                c.x = devX.toFloat()
+                c.y = devY.toFloat()
+                s.pendingRect = intArrayOf(devX, devY, devW, devH, 0)
+            }
             c.layoutParams = lp
-            c.x = x.toFloat()
-            c.y = y.toFloat()
             c.requestLayout()
+            // Non-main slots that already have a URL loaded must become VISIBLE
+            // now that a real rect has arrived.
+            if (screenId != MAIN && s.currentUrl != null && c.visibility != View.VISIBLE) {
+                c.visibility = View.VISIBLE
+            }
+            // Z-order guard: keep our container directly BENEATH the WebView so
+            // the transparent HTML chrome always composites above the video.
+            val parent = c.parent as? ViewGroup
+            val wv = bridge?.webView
+            if (parent != null && wv != null) {
+                val wvIdx = parent.indexOfChild(wv)
+                if (wvIdx > 0 && parent.indexOfChild(c) != wvIdx - 1) {
+                    parent.removeView(c)
+                    parent.addView(c, parent.indexOfChild(wv))
+                }
+            }
             call.resolve()
         }
     }

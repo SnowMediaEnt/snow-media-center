@@ -78,6 +78,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const plexBlocked =
     playerAccount !== null && playerDays !== null && playerDays < 0;
 
+  // Safety net: shell must never mount with a stray fullscreen/multiview flag
+  // (only the active player is allowed to set these). Clear on entry so a
+  // reload while the class was set never leaks a hidden chrome / black window.
+  useEffect(() => {
+    document.documentElement.classList.remove('snowplayer-fullscreen');
+    document.documentElement.classList.remove('snowplayer-multiview');
+  }, []);
+
   // Expiration dialog — once per day per state (warn|expired).
   const [expNoticeKind, setExpNoticeKind] = useState<'warn' | 'expired' | null>(null);
   useEffect(() => {

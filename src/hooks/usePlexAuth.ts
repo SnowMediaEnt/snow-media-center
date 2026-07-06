@@ -30,7 +30,30 @@ export function usePlexAuth() {
       if (cached?.base && cached?.token) {
         try {
           await getPlexIdentity(cached.base, cached.token);
-          setConn(cached); setStatus('ready'); return true;
+          setConn(cached); setStatus('ready');
+          // Mixed-content upgrade: if the cached base is http:// but a
+          // reachable https:// mirror exists on the same account, silently
+          // migrate so posters stop being blocked by the WebView on https
+          // origins. Runs in the background — no UX change.
+          if (cached.base.startsWith('http://')) {
+            void (async () => {
+              try {
+                const servers = await getPlexServers(accountToken);
+                const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
+                for (const s of owned) {
+                  if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
+                  const better = await pickPlexConnection(s);
+                  if (better && better !== cached.base && better.startsWith('https://')) {
+                    const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
+                    await savePlexServer(upgraded);
+                    setConn(upgraded);
+                    return;
+                  }
+                }
+              } catch { /* ignore — cached http keeps working */ }
+            })();
+          }
+          return true;
         } catch { /* stale cache — rediscover */ }
       }
       const servers = await getPlexServers(accountToken);

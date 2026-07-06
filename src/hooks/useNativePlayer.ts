@@ -144,7 +144,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
 
     (async () => {
       try {
-        await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0 });
+        await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.load({ url, live, isLive: live, subtitles });
         if (cancelled || myNonce !== nonceRef.current) return;
