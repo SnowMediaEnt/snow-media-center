@@ -50,8 +50,8 @@ const fallbackApps: AppData[] = [
     size: '45MB',
     description: 'Premium streaming service',
     icon: 'https://snowmediaapps.com/apps/icons/dreamstreams.png',
-    apk: 'https://104.168.147.178/apps/dreamstreams.apk',
-    downloadUrl: 'https://104.168.147.178/apps/dreamstreams.apk',
+    apk: 'https://snowmediaapps.com/guesswhat/download.php?file=dreamstreams.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
+    downloadUrl: 'https://snowmediaapps.com/guesswhat/download.php?file=dreamstreams.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
     packageName: 'com.dreamstreams.app',
     featured: true,
     category: 'streaming'
@@ -63,15 +63,16 @@ const fallbackApps: AppData[] = [
     size: '35MB',
     description: 'Live TV streaming',
     icon: 'https://snowmediaapps.com/apps/icons/vibeztv.png',
-    apk: 'https://104.168.147.178/apps/vibeztv.apk',
-    downloadUrl: 'https://104.168.147.178/apps/vibeztv.apk',
+    apk: 'https://snowmediaapps.com/guesswhat/download.php?file=vibeztv.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
+    downloadUrl: 'https://snowmediaapps.com/guesswhat/download.php?file=vibeztv.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
     packageName: 'com.vibeztv.app',
     featured: true,
     category: 'streaming'
   }
 ];
 
-const REMOTE_APPS_URL = 'https://snowmediaapps.com/apps/apps.json.php';
+const REMOTE_APPS_URL = 'https://snowmediaapps.com/guesswhat/apps.json.php';
+const REMOTE_APPS_KEY = 'tJIso9tAokZ937fFcnpWT6YL0oJQ';
 
 export const useAppData = () => {
   const [apps, setApps] = useState<AppData[]>([]);
