@@ -1,7 +1,8 @@
-// Sync the public.apps table from https://snowmediaapps.com/apps/apps.json.php
-// - Public function (no auth required) — mirrors a public file
+// Sync the public.apps table from https://snowmediaapps.com/guesswhat/apps.json.php
+// - Public function (no auth required) — mirrors a key-protected file
 // - Uses service role to bypass RLS for the upsert
 // - Preserves manually-edited metadata (description, icon_url, package_name, category)
+// - Always refreshes download_url / size / version from the feed so URL migrations propagate
 // - Soft-disables rows whose filename is no longer in the feed (is_available = false)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -13,7 +14,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const FEED_URL = "https://snowmediaapps.com/apps/apps.json.php";
+const FEED_KEY = "tJIso9tAokZ937fFcnpWT6YL0oJQ";
+const FEED_URL = `https://snowmediaapps.com/guesswhat/apps.json.php?k=${FEED_KEY}`;
 
 // Pretty display names for known build variants. Anything not listed
 // falls back to a title-cased version of the PHP `name` field.
