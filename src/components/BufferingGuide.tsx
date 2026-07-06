@@ -100,7 +100,7 @@ const VPN_INFO = {
     signupUrl: 'https://ssqt.co/mzS1auK',
     matchKeys: ['ipvanish'],
     icon: 'https://snowmediaapps.com/icons/ipvanish.png',
-    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=IPVanishTV.apk',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/guesswhat/download.php?file=IPVanishTV.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
   },
   surfshark: {
     label: 'Surfshark',
@@ -110,7 +110,7 @@ const VPN_INFO = {
     signupUrl: 'https://surfshark.com',
     matchKeys: ['surfshark'],
     icon: 'https://snowmediaapps.com/icons/surfsharkvpn.png',
-    fallbackDownloadUrl: 'https://snowmediaapps.com/apps/download.php?file=Surfshark.apk',
+    fallbackDownloadUrl: 'https://snowmediaapps.com/guesswhat/download.php?file=Surfshark.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ',
   },
 } as const;
 
