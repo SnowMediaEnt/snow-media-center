@@ -103,6 +103,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           if (data.state === 'buffering') setBuffering(true);
           else if (data.state === 'ready') setBuffering(false);
           else if (data.state === 'ended') { markStreaming(false); cbEndedRef.current?.(); }
+          // Playing is authoritative — clear the spinner immediately.
+          if (data.playing === true) setBuffering(false);
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         });
         errH = await SnowPlayer.addListener('playerError', (data) => {
