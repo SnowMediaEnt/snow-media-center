@@ -86,7 +86,7 @@ const ReportChannelDialog = memo(({
         const subject = `Channel issue: ${channelName}`;
         const message = buildMessage(choice, otherNote);
         if (user) {
-          await createTicket(subject, message);
+          await createTicket(subject, message, { discordKind: 'channel_report' });
         } else {
           const { error } = await supabase.functions.invoke('report-channel', {
             body: {

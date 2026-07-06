@@ -1,5 +1,8 @@
-// Signed-in ticket notification → Discord webhook.
-// Destination is ALWAYS the env-configured webhook — never caller-supplied.
+// Signed-in ticket/report notification → Discord webhook.
+// Routing by `kind`:
+//   - 'channel_report' → DISCORD_WEBHOOK_URL       (channel-reports channel)
+//   - 'ticket' (default) → DISCORD_WEBHOOK_URL_TICKETS (general tickets channel)
+// If the target webhook env is not set, returns { skipped: true } without posting.
 // Leaves verify_jwt at its default (true); only signed-in users can invoke it.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,14 +13,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
-    if (!hook) {
-      return new Response(
-        JSON.stringify({ skipped: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
     const body = await req.json().catch(() => ({}));
     const raw = typeof body?.content === 'string' ? body.content.trim() : '';
     if (!raw) {
@@ -26,6 +21,21 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+
+    const kind: 'channel_report' | 'ticket' =
+      body?.kind === 'channel_report' ? 'channel_report' : 'ticket';
+
+    const hook = kind === 'channel_report'
+      ? Deno.env.get('DISCORD_WEBHOOK_URL')
+      : Deno.env.get('DISCORD_WEBHOOK_URL_TICKETS');
+
+    if (!hook) {
+      return new Response(
+        JSON.stringify({ skipped: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const content = raw.slice(0, 1900);
 
     const res = await fetch(hook, {
