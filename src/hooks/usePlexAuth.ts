@@ -31,6 +31,8 @@ export function usePlexAuth() {
       if (cached?.base && cached?.token) {
         try {
           await getPlexIdentity(cached.base, cached.token);
+          if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
+          connBaseRef.current = cached.base;
           setConn(cached); setStatus('ready');
           // Mixed-content upgrade: if the cached base is http:// but a
           // reachable https:// mirror exists on the same account, silently
