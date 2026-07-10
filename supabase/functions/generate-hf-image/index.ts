@@ -9,6 +9,7 @@ import {
   hashClientIp,
   reserveFree,
   settleFree,
+  storeGeneratedImage,
   ANON_IMAGE_COST_USD,
 } from '../_shared/ai-guard.ts'
 
@@ -55,6 +56,21 @@ serve(async (req) => {
         estImages: 1,
       });
       if (!gate.allowed) {
+        try {
+          const denyPrompt = typeof (body as { prompt?: unknown }).prompt === 'string'
+            ? ((body as { prompt?: string }).prompt as string)
+            : '';
+          await logUsage({
+            user_id: null,
+            user_email: `anon:${caller.deviceId}`,
+            feature: 'image',
+            prompt: denyPrompt,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: gate.reason || 'denied',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -73,6 +89,21 @@ serve(async (req) => {
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
+        try {
+          const denyPrompt = typeof (body as { prompt?: unknown }).prompt === 'string'
+            ? ((body as { prompt?: string }).prompt as string)
+            : '';
+          await logUsage({
+            user_id: userId,
+            user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+            feature: 'image',
+            prompt: denyPrompt,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: pause.reason || 'paused',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(
           JSON.stringify({ error: 'AI temporarily paused', details: pause.reason }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -213,6 +244,20 @@ serve(async (req) => {
         succeeded: true,
       });
       anonSettled = true;
+    }
+
+    // Admin-review archive: store the generated image + row (best-effort).
+    // imageUrl may be a data URI (data:image/..;base64,..) or a remote URL.
+    {
+      const isDataUri = typeof imageUrl === 'string' && imageUrl.startsWith('data:');
+      await storeGeneratedImage({
+        user_id: userId,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+        model: usedModel,
+        prompt,
+        base64: isDataUri ? imageUrl : null,
+        imageUrl: isDataUri ? null : imageUrl,
+      });
     }
 
     return new Response(

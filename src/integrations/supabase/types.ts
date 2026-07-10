@@ -137,6 +137,42 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_generated_images: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          model: string | null
+          prompt: string | null
+          status: string
+          storage_path: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          prompt?: string | null
+          status?: string
+          storage_path: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          model?: string | null
+          prompt?: string | null
+          status?: string
+          storage_path?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ai_image_usage: {
         Row: {
           cost_credits: number
