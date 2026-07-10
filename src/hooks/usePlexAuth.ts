@@ -18,6 +18,7 @@ export function usePlexAuth() {
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
   const cancelledRef = useRef(false);
+  const connBaseRef = useRef<string | null>(null);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
