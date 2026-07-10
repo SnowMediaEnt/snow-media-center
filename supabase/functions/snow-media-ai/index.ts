@@ -69,6 +69,21 @@ serve(async (req) => {
         estImages: 0,
       });
       if (!gate.allowed) {
+        try {
+          const denyMsg = typeof (body as { message?: unknown }).message === 'string'
+            ? ((body as { message?: string }).message as string)
+            : '';
+          await logUsage({
+            user_id: null,
+            user_email: `anon:${caller.deviceId}`,
+            feature: 'chat',
+            prompt: denyMsg,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: gate.reason || 'denied',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
