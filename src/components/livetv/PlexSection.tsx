@@ -12,7 +12,7 @@
 //     rings can't be occluded by an under-estimated row.
 //   • Poster images are loaded off the JS heap by PlexImage (see that file).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Settings as SettingsIcon, Eye, EyeOff, LogOut } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useToast } from '@/hooks/use-toast';
 import { isFireTV } from '@/utils/platform';
@@ -26,7 +26,7 @@ import {
   getCachedHub, setCachedHub,
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
-  
+  getPlexAccount,
   setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
@@ -288,20 +288,43 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
 });
 SearchPanel.displayName = 'SearchPanel';
 
-// ─── MANAGE PANEL ──────────────────────────────────────────────────────────
+// ─── SETTINGS PANEL (formerly Manage) ──────────────────────────────────────
 interface ManagePanelProps {
   isActive: boolean;
   libraries: PlexLibrary[];
   hidden: string[];
   onToggle: (key: string) => void;
   onExitToTabs: () => void;
+  serverName?: string;
+  owned?: boolean;
+  token?: string;
+  onSignOut: () => void;
 }
-const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs }: ManagePanelProps) => {
+const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs, serverName, owned, token, onSignOut }: ManagePanelProps) => {
   const [cursor, setCursor] = useState(0);
+  const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const confirmTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   const libsRef = useRef(libraries); useEffect(() => { libsRef.current = libraries; }, [libraries]);
   const onToggleRef = useRef(onToggle); useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
+  const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
+  const confirmRef = useRef(confirmSignOut); useEffect(() => { confirmRef.current = confirmSignOut; }, [confirmSignOut]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void getPlexAccount(token).then((a) => { if (!cancelled) setAccount(a); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const disarmConfirm = useCallback(() => {
+    if (confirmTimerRef.current) { window.clearTimeout(confirmTimerRef.current); confirmTimerRef.current = null; }
+    setConfirmSignOut(false);
+  }, []);
+
+  useEffect(() => () => { if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current); }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -312,45 +335,186 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs 
       if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const c = cursorRef.current;
-      if (e.key === 'ArrowUp') { if (c === 0) onExitRef.current(); else setCursor(c - 1); }
-      else if (e.key === 'ArrowDown') { if (c < libsRef.current.length - 1) setCursor(c + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const lib = libsRef.current[c]; if (lib) onToggleRef.current(lib.key); }
+      const total = libsRef.current.length + 1; // + Sign out row at end
+      const signOutIdx = libsRef.current.length;
+      if (e.key === 'ArrowUp') {
+        if (c === 0) onExitRef.current();
+        else setCursor(c - 1);
+        if (confirmRef.current) disarmConfirm();
+      } else if (e.key === 'ArrowDown') {
+        if (c < total - 1) setCursor(c + 1);
+        if (confirmRef.current) disarmConfirm();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        if (c === signOutIdx) {
+          if (confirmRef.current) {
+            disarmConfirm();
+            onSignOutRef.current();
+          } else {
+            setConfirmSignOut(true);
+            if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
+            confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
+          }
+          return;
+        }
+        const lib = libsRef.current[c];
+        if (lib) onToggleRef.current(lib.key);
+      }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive]);
+  }, [isActive, disarmConfirm]);
 
-  if (libraries.length === 0) return <div className="text-brand-ice/60 font-nunito text-sm">No libraries found.</div>;
+  const accountLine = account?.username || account?.email;
+  const ownedLine = owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
+
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-2">
-      <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-1">Show / hide libraries</div>
-      {libraries.map((lib, i) => {
-        const focused = isActive && cursor === i;
-        const isHidden = hidden.indexOf(lib.key) >= 0;
+      {(serverName || ownedLine || accountLine) && (
+        <div className="mb-3 rounded-lg bg-black/30 ring-1 ring-white/10 px-4 py-3">
+          {serverName && <div className="font-quicksand font-bold text-white">{serverName}</div>}
+          {ownedLine && <div className="text-xs font-nunito text-brand-ice/70 mt-0.5">{ownedLine}</div>}
+          {accountLine && <div className="text-xs font-nunito text-brand-ice/50 mt-0.5">{accountLine}</div>}
+        </div>
+      )}
+      {libraries.length === 0 ? (
+        <div className="text-brand-ice/60 font-nunito text-sm">No libraries found.</div>
+      ) : (
+        <>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-1">Show / hide libraries</div>
+          {libraries.map((lib, i) => {
+            const focused = isActive && cursor === i;
+            const isHidden = hidden.indexOf(lib.key) >= 0;
+            return (
+              <div key={lib.key}
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
+                onClick={() => { setCursor(i); onToggle(lib.key); }}
+                className={`flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]' : 'bg-black/40 ring-1 ring-white/10'}`}>
+                <div>
+                  <div className="font-quicksand text-white">{lib.title}</div>
+                  <div className="text-[11px] font-nunito text-brand-ice/50 uppercase">{lib.type}</div>
+                </div>
+                {isHidden
+                  ? <span className="flex items-center gap-1.5 text-xs text-brand-ice/60"><EyeOff className="w-4 h-4" /> Hidden</span>
+                  : <span className="flex items-center gap-1.5 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
+              </div>
+            );
+          })}
+        </>
+      )}
+      {(() => {
+        const signOutIdx = libraries.length;
+        const focused = isActive && cursor === signOutIdx;
         return (
-          <div key={lib.key}
+          <div key="__signout"
             ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-            onClick={() => { setCursor(i); onToggle(lib.key); }}
-            className={`flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]' : 'bg-black/40 ring-1 ring-white/10'}`}>
-            <div>
-              <div className="font-quicksand text-white">{lib.title}</div>
-              <div className="text-[11px] font-nunito text-brand-ice/50 uppercase">{lib.type}</div>
+            onClick={() => {
+              setCursor(signOutIdx);
+              if (confirmSignOut) { disarmConfirm(); onSignOut(); }
+              else {
+                setConfirmSignOut(true);
+                if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
+                confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
+              }
+            }}
+            className={`mt-3 flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? (confirmSignOut ? 'bg-red-500/25 ring-2 ring-red-400 scale-[1.02]' : 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]') : (confirmSignOut ? 'bg-red-500/15 ring-1 ring-red-500/40' : 'bg-black/40 ring-1 ring-white/10')}`}>
+            <LogOut className={`w-4 h-4 ${confirmSignOut ? 'text-red-300' : 'text-brand-ice/70'}`} />
+            <div className={`font-quicksand ${confirmSignOut ? 'text-red-200' : 'text-white'}`}>
+              {confirmSignOut ? "Press OK again to sign out — you'll need a new code to sign back in" : 'Sign out of Plex'}
             </div>
-            {isHidden
-              ? <span className="flex items-center gap-1.5 text-xs text-brand-ice/60"><EyeOff className="w-4 h-4" /> Hidden</span>
-              : <span className="flex items-center gap-1.5 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
           </div>
         );
-      })}
+      })()}
     </div>
   );
 });
 ManagePanel.displayName = 'ManagePanel';
 
+// ─── POST-LINK CONFIRMATION CARD ───────────────────────────────────────────
+interface JustLinkedCardProps {
+  conn: { base: string; token: string; name: string; owned?: boolean } | null;
+  onContinue: () => void;
+  onSignOut: () => void;
+}
+const JustLinkedCard = memo(({ conn, onContinue, onSignOut }: JustLinkedCardProps) => {
+  const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0); // 0=Continue, 1=Sign out
+  const focusRef = useRef(focusIdx); useEffect(() => { focusRef.current = focusIdx; }, [focusIdx]);
+  const onContinueRef = useRef(onContinue); useEffect(() => { onContinueRef.current = onContinue; }, [onContinue]);
+  const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
+
+  useEffect(() => {
+    if (!conn?.token) return;
+    let cancelled = false;
+    void getPlexAccount(conn.token).then((a) => { if (!cancelled) setAccount(a); });
+    return () => { cancelled = true; };
+  }, [conn?.token]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+      if (isBack) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        onContinueRef.current();
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        setFocusIdx((i) => (i === 0 ? 1 : 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (focusRef.current === 0) onContinueRef.current();
+        else onSignOutRef.current();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, []);
+
+  const accountLine = account?.username || account?.email;
+  const owned = conn?.owned === true;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8 text-white">
+      <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
+        <h2 className="text-2xl font-quicksand font-bold mb-2">Connected to {conn?.name || 'Plex'}</h2>
+        {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">as {accountLine}</p>}
+        {owned && (
+          <div className="mb-5 rounded-xl bg-red-500/15 ring-1 ring-red-500/40 px-4 py-3 text-left">
+            <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">Heads up</p>
+            <p className="text-red-100/90 font-nunito text-xs">
+              This looks like <span className="font-bold">YOUR OWN</span> Plex server. If you meant to use your provider's service, sign out and send them the code instead.
+            </p>
+          </div>
+        )}
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <button type="button"
+            data-focused={focusIdx === 0 ? 'true' : 'false'}
+            onClick={onContinue}
+            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-bold transition-transform duration-150 ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            Continue
+          </button>
+          <button type="button"
+            data-focused={focusIdx === 1 ? 'true' : 'false'}
+            onClick={onSignOut}
+            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-semibold transition-transform duration-150 ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            Sign out
+          </button>
+        </div>
+        <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-4">◀ ▶ select · OK activate · Back continues</p>
+      </div>
+    </div>
+  );
+});
+JustLinkedCard.displayName = 'JustLinkedCard';
+
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
+  const { status, conn, pinCode, error, justLinked, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
@@ -484,7 +648,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       t.push({ key: l.key, title: l.title, type: (l.type === 'show' ? 'show' : 'movie'), libKey: l.key });
     }
     t.push({ key: '__request', title: 'Request', type: 'request' });
-    t.push({ key: '__manage', title: 'Manage', type: 'manage' });
+    t.push({ key: '__manage', title: 'Settings', type: 'manage' });
     return t;
   }, [visibleLibraries]);
 
@@ -781,6 +945,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     })();
   }, [conn, playing]);
 
+  // Manual audio rescue: user pressed "Fix audio" in the Audio menu. Reload
+  // the currently-playing item as an audio-only transcode (AAC) — video
+  // stays direct-streamed. No-op if already transcoding, or nothing playing.
+  const fixAudioTranscode = useCallback((resumeSec: number) => {
+    if (!conn || !playing || useTranscode) return;
+    try { trackEvent('plex_fix_audio', 'player', { ratingKey: playing.ratingKey }); } catch { /* ignore */ }
+    setUseTranscode(true);
+    setStartPos(resumeSec > 0 ? resumeSec : undefined);
+    const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+    setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+  }, [conn, playing, useTranscode]);
+
+
+
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
   // Safety net: DIRECT playback of an unknown-codec file where ExoPlayer
@@ -1037,6 +1215,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
+  // ── render: post-link confirmation ──────────────────────────────────
+  // Shown ONCE after a fresh PIN link succeeds, before warm-up/browse UI.
+  if (justLinked && status === 'ready' && !fullscreen && !detailItem) {
+    return (
+      <JustLinkedCard
+        conn={conn}
+        onContinue={() => clearJustLinked()}
+        onSignOut={() => { void signOut(); }}
+      />
+    );
+  }
+
   // ── render: warm-up ─────────────────────────────────────────────────
   // Delay revealing the tabs+grid until Home rails + first ~12 posters have
   // loaded (or 8s cap). Back during warm-up still exits Plex via the keydown
@@ -1050,6 +1240,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       </div>
     );
   }
+
 
   // ── render: fullscreen ──────────────────────────────────────────────
   if (fullscreen) {
@@ -1152,6 +1343,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             } : undefined}
             volume={volume}
             onChangeVolume={changeVolume}
+            onFixAudio={fixAudioTranscode}
           />
         )}
 
@@ -1192,7 +1384,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
-          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} />
+          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} token={conn?.token} onSignOut={() => { void signOut(); }} />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (

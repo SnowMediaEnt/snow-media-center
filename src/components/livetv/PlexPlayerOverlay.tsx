@@ -49,6 +49,10 @@ interface Props {
   volume: number;
   /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
   onChangeVolume: (v: number) => void;
+  /** Called when the user picks "Fix audio" from the Audio menu. Parent
+   *  should reload the stream as an audio-only transcode at the given
+   *  resume position. */
+  onFixAudio?: (resumeSec: number) => void;
 }
 
 
@@ -61,7 +65,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume' | 'help'>('none');
@@ -234,6 +238,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onChangeVolumeRef = useRef(onChangeVolume); useEffect(() => { onChangeVolumeRef.current = onChangeVolume; }, [onChangeVolume]);
   const onOpenBufferingGuideRef = useRef(onOpenBufferingGuide); useEffect(() => { onOpenBufferingGuideRef.current = onOpenBufferingGuide; }, [onOpenBufferingGuide]);
   const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
+  const onFixAudioRef = useRef(onFixAudio); useEffect(() => { onFixAudioRef.current = onFixAudio; }, [onFixAudio]);
 
   useEffect(() => {
     if (!active) return;
@@ -270,11 +275,25 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
       if (menuRef.current === 'audio') {
         const list = audsRef.current;
-        if (list.length === 0) { setMenu('none'); return; }
+        const total = list.length + 1;   // + synthetic "Fix audio" row at end
+        const fixIdx = list.length;
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
-        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') { const track = list[i]; if (track) controllerRef.current?.setAudioTrack(track.id); setMenu('none'); }
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          if (i === fixIdx) {
+            void (async () => {
+              const p = await getPositionRef.current();
+              onFixAudioRef.current?.(Math.floor(p.position));
+              try { toastRef.current({ title: 'Fixing audio — converting sound only…' }); } catch { /* ignore */ }
+            })();
+            setMenu('none');
+            return;
+          }
+          const track = list[i];
+          if (track) controllerRef.current?.setAudioTrack(track.id);
+          setMenu('none');
+        }
         return;
       }
       if (menuRef.current === 'subs') {
@@ -437,6 +456,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <span className="truncate">{a.label}</span>{a.active && <span className="text-[10px] text-brand-gold">●</span>}
             </div>
           ))}
+          <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
+            className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-gold'}`}>
+            <VolumeX className="w-3.5 h-3.5" />
+            <span className="truncate">Fix audio (no sound?)</span>
+          </div>
         </div>
       )}
 

@@ -88,6 +88,20 @@ export async function checkPlexPin(id: number): Promise<string | null> {
   return data?.authToken || null;
 }
 
+/** Fetch the signed-in Plex account (username/email). Returns null on ANY failure. */
+export async function getPlexAccount(token: string): Promise<{ username?: string; email?: string } | null> {
+  try {
+    const data = await plexReq<{ username?: string; email?: string; title?: string }>('GET', 'https://plex.tv/api/v2/user', token, 8000);
+    if (!data) return null;
+    return {
+      username: (data.username || data.title) as string | undefined,
+      email: data.email as string | undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── token persistence ──────────────────────────────────────────────────────
 
 export async function loadPlexToken(): Promise<string | null> {
@@ -245,7 +259,7 @@ export async function getPlexIdentity(base: string, token: string): Promise<void
   await plexReq('GET', `${base}/identity`, token, 5000);
 }
 
-export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; }
+export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
 
 export async function savePlexServer(s: PlexSavedServer): Promise<void> {
   const json = JSON.stringify(s);

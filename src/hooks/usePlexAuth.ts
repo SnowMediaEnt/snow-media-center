@@ -7,13 +7,14 @@ import {
 } from '@/lib/plex';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
-export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; }
+export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
 
 export function usePlexAuth() {
   const [status, setStatus] = useState<PlexStatus>('loading');
   const [conn, setConn] = useState<PlexConn | null>(null);
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [justLinked, setJustLinked] = useState(false);
   const pollRef = useRef<number | null>(null);
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
@@ -47,7 +48,7 @@ export function usePlexAuth() {
                   if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
                   const better = await pickPlexConnection(s, 3500, { httpsOnly: true });
                   if (better && better !== cached.base && better.startsWith('https://')) {
-                    const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
+                    const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
                     await savePlexServer(upgraded);
                     // Invalidate any http-queued image fetches BEFORE swapping
                     // the conn so rail <img> tags re-commit on https.
@@ -75,7 +76,7 @@ export function usePlexAuth() {
       for (const s of ordered) {
         const base = await pickPlexConnection(s);
         if (base) {
-          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
+          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
           await savePlexServer(c);
           if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
           connBaseRef.current = base;
@@ -123,6 +124,7 @@ export function usePlexAuth() {
             startingRef.current = false;
             setPinCode(null);
             await savePlexToken(token);
+            setJustLinked(true);
             await discover(token);
           }
         } catch { /* keep polling */ }
@@ -143,7 +145,7 @@ export function usePlexAuth() {
     startingRef.current = false;
     await clearPlexToken();
     connBaseRef.current = null;
-    setConn(null); setPinCode(null); setError(null); setStatus('signed-out');
+    setConn(null); setPinCode(null); setError(null); setJustLinked(false); setStatus('signed-out');
   }, []);
 
   const retryConnect = useCallback(async () => {
@@ -153,5 +155,7 @@ export function usePlexAuth() {
     await discover(token);
   }, [discover]);
 
-  return { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect };
+  const clearJustLinked = useCallback(() => { setJustLinked(false); }, []);
+
+  return { status, conn, pinCode, error, justLinked, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
 }
