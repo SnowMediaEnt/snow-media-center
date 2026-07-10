@@ -246,6 +246,20 @@ serve(async (req) => {
       anonSettled = true;
     }
 
+    // Admin-review archive: store the generated image + row (best-effort).
+    // imageUrl may be a data URI (data:image/..;base64,..) or a remote URL.
+    {
+      const isDataUri = typeof imageUrl === 'string' && imageUrl.startsWith('data:');
+      await storeGeneratedImage({
+        user_id: userId,
+        user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+        model: usedModel,
+        prompt,
+        base64: isDataUri ? imageUrl : null,
+        imageUrl: isDataUri ? null : imageUrl,
+      });
+    }
+
     return new Response(
       JSON.stringify({ image: imageUrl, isAdmin: isOwnerEmail(userEmail) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
