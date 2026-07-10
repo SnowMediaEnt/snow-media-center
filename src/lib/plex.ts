@@ -448,6 +448,14 @@ export function plexTokenizedUrl(url: string, token: string): string {
 }
 
 const _imgCache: Map<string, string> = new Map();
+// Dedup concurrent identical fetches (warm-up race vs rail mounts).
+const _imgPending: Map<string, Promise<string>> = new Map();
+
+// Epoch: bumped when the underlying Plex base URL migrates (http→https).
+// Any queued waiter whose epoch is stale releases its slot and throws
+// 'stale-conn' instead of firing an http request that would 404/mixed-content.
+let _imgEpoch = 0;
+export function bumpPlexImageEpoch(): void { _imgEpoch += 1; }
 
 // Concurrency gate for the CapacitorHttp data-URI fallback path — keeps at
 // most MAX_IMG_CONCURRENCY bridge round-trips in flight so we don't spike the
