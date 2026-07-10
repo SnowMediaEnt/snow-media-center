@@ -1133,6 +1133,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
+  // ── render: post-link confirmation ──────────────────────────────────
+  // Shown ONCE after a fresh PIN link succeeds, before warm-up/browse UI.
+  if (justLinked && status === 'ready' && !fullscreen && !detailItem) {
+    return (
+      <JustLinkedCard
+        conn={conn}
+        onContinue={() => clearJustLinked()}
+        onSignOut={() => { void signOut(); }}
+      />
+    );
+  }
+
   // ── render: warm-up ─────────────────────────────────────────────────
   // Delay revealing the tabs+grid until Home rails + first ~12 posters have
   // loaded (or 8s cap). Back during warm-up still exits Plex via the keydown
@@ -1146,6 +1158,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       </div>
     );
   }
+
 
   // ── render: fullscreen ──────────────────────────────────────────────
   if (fullscreen) {
