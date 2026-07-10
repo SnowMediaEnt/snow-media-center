@@ -42,10 +42,13 @@ export function usePlexAuth() {
                 const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
                 for (const s of owned) {
                   if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
-                  const better = await pickPlexConnection(s);
+                  const better = await pickPlexConnection(s, 3500, { httpsOnly: true });
                   if (better && better !== cached.base && better.startsWith('https://')) {
                     const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
                     await savePlexServer(upgraded);
+                    // Invalidate any http-queued image fetches BEFORE swapping
+                    // the conn so rail <img> tags re-commit on https.
+                    bumpPlexImageEpoch();
                     setConn(upgraded);
                     return;
                   }
