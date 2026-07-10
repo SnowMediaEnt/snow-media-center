@@ -142,6 +142,7 @@ export function usePlexAuth() {
     clearPoll();
     startingRef.current = false;
     await clearPlexToken();
+    connBaseRef.current = null;
     setConn(null); setPinCode(null); setError(null); setStatus('signed-out');
   }, []);
 
