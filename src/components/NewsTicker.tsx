@@ -209,6 +209,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
           }}
         >
           <div
+            ref={trackRef}
             className="news-ticker-track h-full flex items-center"
             style={{
               willChange: 'transform',
