@@ -77,6 +77,8 @@ export function usePlexAuth() {
         if (base) {
           const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
           await savePlexServer(c);
+          if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
+          connBaseRef.current = base;
           setConn(c); setStatus('ready'); return true;
         }
       }
