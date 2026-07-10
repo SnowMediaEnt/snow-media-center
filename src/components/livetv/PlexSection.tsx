@@ -429,6 +429,88 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
 });
 ManagePanel.displayName = 'ManagePanel';
 
+// ─── POST-LINK CONFIRMATION CARD ───────────────────────────────────────────
+interface JustLinkedCardProps {
+  conn: { base: string; token: string; name: string; owned?: boolean } | null;
+  onContinue: () => void;
+  onSignOut: () => void;
+}
+const JustLinkedCard = memo(({ conn, onContinue, onSignOut }: JustLinkedCardProps) => {
+  const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0); // 0=Continue, 1=Sign out
+  const focusRef = useRef(focusIdx); useEffect(() => { focusRef.current = focusIdx; }, [focusIdx]);
+  const onContinueRef = useRef(onContinue); useEffect(() => { onContinueRef.current = onContinue; }, [onContinue]);
+  const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
+
+  useEffect(() => {
+    if (!conn?.token) return;
+    let cancelled = false;
+    void getPlexAccount(conn.token).then((a) => { if (!cancelled) setAccount(a); });
+    return () => { cancelled = true; };
+  }, [conn?.token]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+      if (isBack) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        onContinueRef.current();
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        setFocusIdx((i) => (i === 0 ? 1 : 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (focusRef.current === 0) onContinueRef.current();
+        else onSignOutRef.current();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, []);
+
+  const accountLine = account?.username || account?.email;
+  const owned = conn?.owned === true;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8 text-white">
+      <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
+        <h2 className="text-2xl font-quicksand font-bold mb-2">Connected to {conn?.name || 'Plex'}</h2>
+        {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">as {accountLine}</p>}
+        {owned && (
+          <div className="mb-5 rounded-xl bg-red-500/15 ring-1 ring-red-500/40 px-4 py-3 text-left">
+            <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">Heads up</p>
+            <p className="text-red-100/90 font-nunito text-xs">
+              This looks like <span className="font-bold">YOUR OWN</span> Plex server. If you meant to use your provider's service, sign out and send them the code instead.
+            </p>
+          </div>
+        )}
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <button type="button"
+            data-focused={focusIdx === 0 ? 'true' : 'false'}
+            onClick={onContinue}
+            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-bold transition-transform duration-150 ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            Continue
+          </button>
+          <button type="button"
+            data-focused={focusIdx === 1 ? 'true' : 'false'}
+            onClick={onSignOut}
+            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-semibold transition-transform duration-150 ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            Sign out
+          </button>
+        </div>
+        <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-4">◀ ▶ select · OK activate · Back continues</p>
+      </div>
+    </div>
+  );
+});
+JustLinkedCard.displayName = 'JustLinkedCard';
+
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
