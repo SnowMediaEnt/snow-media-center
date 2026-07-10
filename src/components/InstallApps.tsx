@@ -842,10 +842,9 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
                     <Button
                       onClick={(e) => { e.stopPropagation(); setExpandedAppId(app.id); setFocusedElement(`app-${app.id}` as FocusType); }}
                       tabIndex={-1}
-                      className="flex-shrink-0 h-9 px-3 text-sm transition-all duration-200 bg-brand-ice hover:bg-brand-ice/80 text-white"
+                      className="flex-shrink-0 h-9 px-3 text-xs font-medium transition-all duration-200 bg-slate-600/40 hover:bg-slate-600/50 text-brand-ice/70 border-0"
                     >
-                      <Download className="w-4 h-4 mr-1" />
-                      Download
+                      Not installed
                     </Button>
                   )
                 )}
