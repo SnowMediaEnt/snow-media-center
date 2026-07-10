@@ -1343,6 +1343,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             } : undefined}
             volume={volume}
             onChangeVolume={changeVolume}
+            onFixAudio={fixAudioTranscode}
           />
         )}
 
