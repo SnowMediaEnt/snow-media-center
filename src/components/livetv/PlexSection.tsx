@@ -863,6 +863,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     })();
   }, [conn, playing]);
 
+  // Manual audio rescue: user pressed "Fix audio" in the Audio menu. Reload
+  // the currently-playing item as an audio-only transcode (AAC) — video
+  // stays direct-streamed. No-op if already transcoding, or nothing playing.
+  const fixAudioTranscode = useCallback((resumeSec: number) => {
+    if (!conn || !playing || useTranscode) return;
+    try { trackEvent('plex_fix_audio', 'player', { ratingKey: playing.ratingKey }); } catch { /* ignore */ }
+    setUseTranscode(true);
+    setStartPos(resumeSec > 0 ? resumeSec : undefined);
+    const url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
+    setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+  }, [conn, playing, useTranscode]);
+
+
+
 
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!streamUrl;
   // Safety net: DIRECT playback of an unknown-codec file where ExoPlayer
