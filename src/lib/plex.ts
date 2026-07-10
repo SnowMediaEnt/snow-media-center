@@ -144,23 +144,50 @@ export async function getPlexServers(token: string): Promise<PlexServer[]> {
     }));
 }
 
+/** Reject docker-internal / link-local / CGNAT IPs that a PMS may advertise
+ *  but which are unreachable from a Fire TV on a normal LAN. Waiting the full
+ *  SocketTimeout on these drowns the https candidate. */
+function isDeadIp(addr: string): boolean {
+  if (!addr) return false;
+  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(addr)) return true;   // docker-internal
+  if (/^169\.254\./.test(addr)) return true;                     // link-local
+  if (/^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(addr)) return true; // CGNAT
+  return false;
+}
+
 /** Probe ALL of a server's connections in parallel (LAN, remote, relay, plus
  *  plain http://ip:port fallbacks) and return the best reachable base URL.
  *  Priority: local non-relay > remote non-relay > relay. Chrome-66-safe
  *  (no Promise.any/allSettled). */
-export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): Promise<string | null> {
-  interface Candidate { url: string; priority: number; }
+export async function pickPlexConnection(
+  server: PlexServer,
+  timeoutMs = 3500,
+  opts?: { httpsOnly?: boolean },
+): Promise<string | null> {
+  const httpsOnly = !!opts?.httpsOnly;
+  interface Candidate { url: string; priority: number; timeoutMs: number; }
   const seen: Record<string, boolean> = {};
   const candidates: Candidate[] = [];
+  const isHttps = (u: string) => u.slice(0, 6).toLowerCase() === 'https:';
   const push = (url: string | undefined, priority: number) => {
     if (!url || seen[url]) return;
+    if (httpsOnly && !isHttps(url)) return;
     seen[url] = true;
-    candidates.push({ url, priority });
+    // Local candidates get an even shorter probe window — a live LAN PMS
+    // answers /identity in <300ms; anything slower is the docker/CGNAT tarpit.
+    const t = priority === 1 ? Math.min(2500, timeoutMs) : timeoutMs;
+    candidates.push({ url, priority, timeoutMs: t });
   };
   for (const c of server.connections) {
     const prio = c.relay ? 3 : c.local ? 1 : 2;
-    push(c.uri, prio);
-    if (!c.relay && c.address && c.port) push(`http://${c.address}:${c.port}`, prio); // raw IPs can't satisfy plex.direct TLS — always plain http
+    // Skip dead IP families both in the plex.direct dashed-IP hostname AND
+    // the raw address field.
+    const hostMatch = /^https?:\/\/(\d+)-(\d+)-(\d+)-(\d+)\./i.exec(c.uri || '');
+    const dashedIp = hostMatch ? `${hostMatch[1]}.${hostMatch[2]}.${hostMatch[3]}.${hostMatch[4]}` : '';
+    if (dashedIp && isDeadIp(dashedIp)) { /* skip */ } else { push(c.uri, prio); }
+    if (!httpsOnly && !c.relay && c.address && c.port && !isDeadIp(c.address)) {
+      push(`http://${c.address}:${c.port}`, prio);
+    }
   }
   if (candidates.length === 0) return null;
 
@@ -168,27 +195,33 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
     let pending = candidates.length;
     let best: Candidate | null = null;
     let settled = false;
-    const isHttps = (u: string) => u.slice(0, 6).toLowerCase() === 'https:';
+    interface Pend { priority: number; }
+    const pendList: Pend[] = candidates.map((c) => ({ priority: c.priority }));
+    const cannotBeat = (): boolean => {
+      if (!best) return false;
+      for (const p of pendList) {
+        if (p.priority < best.priority) return false;
+        if (p.priority === best.priority && !isHttps(best.url)) return false; // could still upgrade http→https at same tier
+      }
+      return true;
+    };
     const maybeFinish = (force = false) => {
       if (settled) return;
-      // Only early-finish when we already have the ideal candidate (local https)
-      // — otherwise a raw-IP http local candidate would win a race against the
-      // plex.direct https candidate and every poster <img> would be blocked as
-      // mixed content when the WebView origin is https://localhost.
-      if (best && ((best.priority === 1 && isHttps(best.url)) || pending === 0 || force)) {
-        settled = true;
-        resolve(best.url);
-      } else if (pending === 0 || force) {
+      if (pending === 0 || force) {
         settled = true;
         resolve(best ? best.url : null);
+        return;
+      }
+      if (best && cannotBeat()) {
+        settled = true;
+        resolve(best.url);
       }
     };
-    const timer = window.setTimeout(() => maybeFinish(true), timeoutMs + 1000);
-    candidates.forEach((cand) => {
-      plexReq('GET', `${cand.url}/identity`, server.accessToken, timeoutMs)
+    const maxT = Math.max(...candidates.map((c) => c.timeoutMs));
+    const timer = window.setTimeout(() => maybeFinish(true), maxT + 1000);
+    candidates.forEach((cand, idx) => {
+      plexReq('GET', `${cand.url}/identity`, server.accessToken, cand.timeoutMs)
         .then(() => {
-          // Prefer lower priority (local > remote > relay); within the same
-          // tier, prefer https over http (mixed-content safe on Fire TV).
           if (
             !best
             || cand.priority < best.priority
@@ -200,6 +233,7 @@ export async function pickPlexConnection(server: PlexServer, timeoutMs = 8000): 
         .catch(() => { /* unreachable candidate */ })
         .then(() => {
           pending -= 1;
+          pendList[idx].priority = 999; // mark settled
           if (pending === 0) window.clearTimeout(timer);
           maybeFinish();
         });
@@ -414,6 +448,14 @@ export function plexTokenizedUrl(url: string, token: string): string {
 }
 
 const _imgCache: Map<string, string> = new Map();
+// Dedup concurrent identical fetches (warm-up race vs rail mounts).
+const _imgPending: Map<string, Promise<string>> = new Map();
+
+// Epoch: bumped when the underlying Plex base URL migrates (http→https).
+// Any queued waiter whose epoch is stale releases its slot and throws
+// 'stale-conn' instead of firing an http request that would 404/mixed-content.
+let _imgEpoch = 0;
+export function bumpPlexImageEpoch(): void { _imgEpoch += 1; }
 
 // Concurrency gate for the CapacitorHttp data-URI fallback path — keeps at
 // most MAX_IMG_CONCURRENCY bridge round-trips in flight so we don't spike the
@@ -489,36 +531,48 @@ function releaseImgSlot(): void {
 export async function plexFetchImageDataUri(url: string, priority = false): Promise<string> {
   const cached = _imgCache.get(url);
   if (cached) return cached;
-  let native = false;
-  let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
-  try {
-    const mod = await import('@capacitor/core');
-    native = !!mod.Capacitor.isNativePlatform?.();
-    CapacitorHttpRef = mod.CapacitorHttp;
-  } catch { /* web */ }
-  if (!native || !CapacitorHttpRef) {
-    _imgCache.set(url, url);
-    return url;
-  }
-  await acquireImgSlot(priority);
-  try {
-    const headers = plexHeaders();
-    const res = await CapacitorHttpRef.request({
-      method: 'GET',
-      url,
-      headers,
-      responseType: 'blob',
-      connectTimeout: 15000,
-      readTimeout: 20000,
-    });
-    if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
-    const b64 = typeof res.data === 'string' ? res.data : '';
-    const data = `data:image/jpeg;base64,${b64}`;
-    _imgCache.set(url, data);
-    return data;
-  } finally {
-    releaseImgSlot();
-  }
+  const pending = _imgPending.get(url);
+  if (pending) return pending;
+  const p = (async (): Promise<string> => {
+    let native = false;
+    let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
+    try {
+      const mod = await import('@capacitor/core');
+      native = !!mod.Capacitor.isNativePlatform?.();
+      CapacitorHttpRef = mod.CapacitorHttp;
+    } catch { /* web */ }
+    if (!native || !CapacitorHttpRef) {
+      _imgCache.set(url, url);
+      return url;
+    }
+    const myEpoch = _imgEpoch;
+    await acquireImgSlot(priority);
+    if (myEpoch !== _imgEpoch) {
+      releaseImgSlot();
+      throw new Error('stale-conn');
+    }
+    try {
+      const headers = plexHeaders();
+      const res = await CapacitorHttpRef.request({
+        method: 'GET',
+        url,
+        headers,
+        responseType: 'blob',
+        connectTimeout: 15000,
+        readTimeout: 20000,
+      });
+      if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
+      const b64 = typeof res.data === 'string' ? res.data : '';
+      const data = `data:image/jpeg;base64,${b64}`;
+      _imgCache.set(url, data);
+      return data;
+    } finally {
+      releaseImgSlot();
+    }
+  })();
+  _imgPending.set(url, p);
+  p.finally(() => { _imgPending.delete(url); }).catch(() => { /* swallow: caller sees the rejection */ });
+  return p;
 }
 
 /** Preload a batch of https image URLs via `new Image()`. Never rejects.

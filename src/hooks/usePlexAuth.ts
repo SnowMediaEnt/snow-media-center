@@ -3,7 +3,7 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
-  getPlexIdentity,
+  getPlexIdentity, bumpPlexImageEpoch,
 } from '@/lib/plex';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
@@ -18,6 +18,7 @@ export function usePlexAuth() {
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
   const cancelledRef = useRef(false);
+  const connBaseRef = useRef<string | null>(null);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
@@ -30,6 +31,8 @@ export function usePlexAuth() {
       if (cached?.base && cached?.token) {
         try {
           await getPlexIdentity(cached.base, cached.token);
+          if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
+          connBaseRef.current = cached.base;
           setConn(cached); setStatus('ready');
           // Mixed-content upgrade: if the cached base is http:// but a
           // reachable https:// mirror exists on the same account, silently
@@ -42,10 +45,14 @@ export function usePlexAuth() {
                 const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
                 for (const s of owned) {
                   if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
-                  const better = await pickPlexConnection(s);
+                  const better = await pickPlexConnection(s, 3500, { httpsOnly: true });
                   if (better && better !== cached.base && better.startsWith('https://')) {
                     const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
                     await savePlexServer(upgraded);
+                    // Invalidate any http-queued image fetches BEFORE swapping
+                    // the conn so rail <img> tags re-commit on https.
+                    bumpPlexImageEpoch();
+                    connBaseRef.current = upgraded.base;
                     setConn(upgraded);
                     return;
                   }
@@ -70,6 +77,8 @@ export function usePlexAuth() {
         if (base) {
           const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier };
           await savePlexServer(c);
+          if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
+          connBaseRef.current = base;
           setConn(c); setStatus('ready'); return true;
         }
       }
@@ -133,6 +142,7 @@ export function usePlexAuth() {
     clearPoll();
     startingRef.current = false;
     await clearPlexToken();
+    connBaseRef.current = null;
     setConn(null); setPinCode(null); setError(null); setStatus('signed-out');
   }, []);
 

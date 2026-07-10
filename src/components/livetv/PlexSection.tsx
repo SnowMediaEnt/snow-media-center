@@ -82,7 +82,7 @@ interface HomePanelProps {
   onExitToTabs: () => void;
 }
 const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
-  const onDeckPath = '/library/onDeck';
+  const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHub(base, recentPath) ?? []);
@@ -110,8 +110,8 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
 
   const rows = useMemo(() => {
     const r: Array<{ title: string; items: PlexItem[] }> = [];
-    if (onDeck.length > 0) r.push({ title: 'Continue Watching', items: onDeck });
-    r.push({ title: 'Recently Added', items: recent });
+    if (onDeck.length > 0) r.push({ title: 'Continue Watching', items: onDeck.slice(0, 40) });
+    r.push({ title: 'Recently Added', items: recent.slice(0, 40) });
     return r;
   }, [onDeck, recent]);
 
@@ -414,7 +414,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     let cancelled = false;
     const base = conn.base;
     const token = conn.token;
-    const onDeckPath = '/library/onDeck';
+    const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     (async () => {
       try {

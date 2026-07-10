@@ -56,6 +56,10 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
   const stepRef = useRef(0);
   // Deferred src while imageFocusMode is on and this image is not priority.
   const pendingSrcRef = useRef<string | null>(null);
+  // Viewport gate for the heavy CapacitorHttp bridge fetch — non-priority
+  // images only fire once at/near the viewport.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [inView, setInView] = useState<boolean>(priority);
 
   // Commit a src, honoring focus-mode parking for non-priority images.
   const commitSrc = (s: string) => {
@@ -81,6 +85,21 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     return () => { off(); };
   }, [priority]);
 
+  // IntersectionObserver gate — only applies to non-priority images.
+  useEffect(() => {
+    if (priority) { setInView(true); return; }
+    if (typeof IntersectionObserver === 'undefined') { setInView(true); return; }
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { setInView(true); io.disconnect(); return; }
+      }
+    }, { rootMargin: '200px' });
+    io.observe(el);
+    return () => { io.disconnect(); };
+  }, [priority]);
+
   useEffect(() => {
     stepRef.current = 0;
     setErr(false);
@@ -101,6 +120,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     const baseIsHttp = /^http:\/\//i.test(base);
     if (PAGE_HTTPS && baseIsHttp && isNativePlatform()) {
       stepRef.current = 2;
+      if (!inView) return; // wait until in-viewport for non-priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority)
@@ -112,7 +132,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
     commitSrc(raw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, path, token, w, h, priority]);
+  }, [base, path, token, w, h, priority, inView]);
 
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
@@ -126,6 +146,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     if (step === 1 && isNativePlatform()) {
       // Last-ditch: CapacitorHttp → base64 data URI. Concurrency-gated in plex.ts.
       stepRef.current = 2;
+      if (!priority && !inView) { setErr(true); return; }
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority)
@@ -138,12 +159,13 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
 
   if (!path || err || !src) {
     return (
-      <div className={`bg-black/40 flex items-center justify-center ${className || ''}`}>
+      <div ref={wrapRef} className={`bg-black/40 flex items-center justify-center ${className || ''}`}>
         <Tv className="w-8 h-8 text-brand-ice/40" />
       </div>
     );
   }
-  return <img src={src} alt={alt} className={className} onError={onImgError} loading="lazy" decoding="async" />;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return <img ref={wrapRef as any} src={src} alt={alt} className={className} onError={onImgError} loading="lazy" decoding="async" />;
 });
 
 PlexImage.displayName = 'PlexImage';
