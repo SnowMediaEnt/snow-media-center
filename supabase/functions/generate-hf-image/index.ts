@@ -9,6 +9,7 @@ import {
   hashClientIp,
   reserveFree,
   settleFree,
+  storeGeneratedImage,
   ANON_IMAGE_COST_USD,
 } from '../_shared/ai-guard.ts'
 
