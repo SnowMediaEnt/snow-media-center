@@ -326,16 +326,47 @@ export async function loadCreds(): Promise<XtreamCreds | null> {
     const raw = localStorage.getItem(CREDS_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
+  // Fallback: recover from the redundant player-account store. signOut clears
+  // both keys, so this never resurrects a deliberately signed-out user.
+  try {
+    const acc = await loadPlayerAccount();
+    if (acc?.host && acc?.username && acc?.password) {
+      const c = normalizeCreds({
+        host: acc.host,
+        username: acc.username,
+        password: acc.password,
+        output: acc.output ?? 'm3u8',
+        serverLabel: acc.serverLabel,
+      });
+      void saveCreds(c);
+      return c;
+    }
+  } catch { /* ignore */ }
   return null;
 }
 
 export async function saveCreds(creds: XtreamCreds): Promise<void> {
-  const json = JSON.stringify(normalizeCreds(creds));
+  const normalized = normalizeCreds(creds);
+  const json = JSON.stringify(normalized);
   try {
     const { Preferences } = await import('@capacitor/preferences');
     await Preferences.set({ key: CREDS_KEY, value: json });
   } catch { /* not native */ }
   try { localStorage.setItem(CREDS_KEY, json); } catch { /* ignore */ }
+  // Diagnostic: read back and confirm the write is durable.
+  try {
+    const back = await loadCreds();
+    if (!back || back.host !== normalized.host || back.username !== normalized.username) {
+      console.warn('[xtream] saveCreds readback mismatch');
+      try {
+        const [{ trackEvent }, { isNativePlatform }] = await Promise.all([
+          import('@/lib/analytics'),
+          import('@/utils/platform'),
+        ]);
+        trackEvent('creds_save_failed', 'player', { native: isNativePlatform() });
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 }
 
 export async function clearCreds(): Promise<void> {
@@ -532,23 +563,35 @@ export async function authenticateRouted(
     serverLabel: server.label,
   });
 
+  const tryOnce = async () => authenticate(creds);
+  let info: any;
   try {
-    const info: any = await authenticate(creds);
-    const ui: XtreamUserInfo | undefined = info?.user_info;
-    const auth = ui?.auth;
-    const status = String(ui?.status || '').toLowerCase();
-    const authed = auth === 1 || auth === '1' || auth === true;
-    const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
-    if (authed && !disabled) {
-      return { ok: true, server, creds, info, userInfo: ui };
+    info = await tryOnce();
+  } catch (e1) {
+    // Retry ONCE on transport/5xx (network drop, Vibez PHP-OOM 500s).
+    // Do NOT retry a definitive auth!==1 JSON response.
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      info = await tryOnce();
+    } catch (e2) {
+      return {
+        ok: false,
+        error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
+      };
     }
-    return { ok: false, error: 'Invalid username or password.' };
-  } catch (e) {
-    return {
-      ok: false,
-      error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
-    };
   }
+  const ui: XtreamUserInfo | undefined = info?.user_info;
+  const auth = ui?.auth;
+  const status = String(ui?.status || '').toLowerCase();
+  const authed = auth === 1 || auth === '1' || auth === true;
+  const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
+  if (authed && !disabled) {
+    return { ok: true, server, creds, info, userInfo: ui };
+  }
+  if (authed && disabled) {
+    return { ok: false, error: 'Your subscription is ' + status + '. Please renew to keep watching.' };
+  }
+  return { ok: false, error: 'Invalid username or password.' };
 }
 
 // --- Live -------------------------------------------------------------------

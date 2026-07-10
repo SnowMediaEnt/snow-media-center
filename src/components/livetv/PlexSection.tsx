@@ -816,7 +816,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         } catch { return; }
         if (audioSafetyRef.current === key) return;
         const { tracks } = await SnowPlayer.getAudioTracks();
-        if (!tracks || tracks.length > 0) return;
+        if (tracks && tracks.length > 0 && tracks.some(t => t.selected)) return;
         if (audioSafetyRef.current === key) return;
         audioSafetyRef.current = key;
         try { toast({ title: 'Fixing audio…' }); } catch { /* ignore */ }

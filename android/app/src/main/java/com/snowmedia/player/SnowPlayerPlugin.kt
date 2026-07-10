@@ -305,11 +305,18 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 val code = error.errorCode
-                val isAudio = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                    code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
-                    code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+                val isAudioTrack = code == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
                     code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
-                if (isAudio) {
+                val isDecoder = code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    code == PlaybackException.ERROR_CODE_DECODING_FAILED
+                // Only flag decoder failures as AUDIO_DECODE when the failing
+                // renderer's format is actually audio; otherwise a video-decoder
+                // failure would incorrectly suppress Live TV reconnect.
+                val isAudioDecoder = isDecoder && run {
+                    val fmt = (error as? androidx.media3.exoplayer.ExoPlaybackException)?.rendererFormat
+                    fmt?.sampleMimeType?.startsWith("audio/") == true
+                }
+                if (isAudioTrack || isAudioDecoder) {
                     notifyListeners(
                         "playerError",
                         JSObject().put("screenId", screenId).put("code", "AUDIO_DECODE").put("message", error.message ?: "Audio decoder failed"),

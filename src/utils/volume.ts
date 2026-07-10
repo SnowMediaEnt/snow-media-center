@@ -22,7 +22,9 @@ export function loadPlayerVolume(): number {
       }
     }
     if (raw == null) return DEFAULT_VOLUME;
-    return clamp(Number(raw));
+    const v = clamp(Number(raw));
+    if (v === 0) return 0.1;
+    return v;
   } catch {
     return DEFAULT_VOLUME;
   }
