@@ -52,6 +52,7 @@ export function usePlexAuth() {
                     // Invalidate any http-queued image fetches BEFORE swapping
                     // the conn so rail <img> tags re-commit on https.
                     bumpPlexImageEpoch();
+                    connBaseRef.current = upgraded.base;
                     setConn(upgraded);
                     return;
                   }
