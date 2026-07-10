@@ -60,7 +60,12 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
         {(status === 'signed-out') && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
-            <p className="text-brand-ice/70 font-nunito mb-6">Sign in to stream Movies &amp; Shows from your own Plex server.</p>
+            <p className="text-brand-ice/80 font-nunito mb-2">
+              Most members: press Sign in to get a code, then <span className="text-brand-gold font-semibold">SEND THE CODE TO YOUR PROVIDER</span> — they link this device for you.
+            </p>
+            <p className="text-brand-ice/60 font-nunito text-sm mb-6">
+              Only enter the code at plex.tv/link yourself if you run your OWN Plex server.
+            </p>
             <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-focusable home-focus-surface px-8">
               <LogIn className="w-4 h-4 mr-2" /> Sign in with Plex
             </Button>
