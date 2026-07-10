@@ -326,6 +326,22 @@ export async function loadCreds(): Promise<XtreamCreds | null> {
     const raw = localStorage.getItem(CREDS_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
+  // Fallback: recover from the redundant player-account store. signOut clears
+  // both keys, so this never resurrects a deliberately signed-out user.
+  try {
+    const acc = await loadPlayerAccount();
+    if (acc?.host && acc?.username && acc?.password) {
+      const c = normalizeCreds({
+        host: acc.host,
+        username: acc.username,
+        password: acc.password,
+        output: acc.output ?? 'm3u8',
+        serverLabel: acc.serverLabel,
+      });
+      void saveCreds(c);
+      return c;
+    }
+  } catch { /* ignore */ }
   return null;
 }
 
