@@ -566,7 +566,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       t.push({ key: l.key, title: l.title, type: (l.type === 'show' ? 'show' : 'movie'), libKey: l.key });
     }
     t.push({ key: '__request', title: 'Request', type: 'request' });
-    t.push({ key: '__manage', title: 'Manage', type: 'manage' });
+    t.push({ key: '__manage', title: 'Settings', type: 'manage' });
     return t;
   }, [visibleLibraries]);
 
