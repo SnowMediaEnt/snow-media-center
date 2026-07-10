@@ -26,7 +26,7 @@ import {
   getCachedHub, setCachedHub,
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
-  
+  getPlexAccount,
   setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
