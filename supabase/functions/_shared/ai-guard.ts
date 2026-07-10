@@ -81,6 +81,74 @@ export async function logUsage(params: {
 }
 
 /**
+ * Best-effort store of a generated image + admin-review row.
+ * Never throws — logs on failure so the caller can still return the image to the device.
+ * Accepts either base64 (data URI or bare) OR a remote URL (will be fetched to bytes).
+ * If the fetch fails, still inserts a row with storage_path '' so the prompt is reviewable.
+ */
+export async function storeGeneratedImage(params: {
+  user_id?: string | null;
+  user_email?: string | null;
+  model?: string;
+  prompt: string;
+  base64?: string | null;
+  imageUrl?: string | null;
+}): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    let bytes: Uint8Array | null = null;
+
+    if (params.base64) {
+      const b64 = params.base64.replace(/^data:image\/[^;]+;base64,/, '');
+      try {
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        bytes = buf;
+      } catch (e) {
+        console.error('[ai-guard] storeGeneratedImage: base64 decode failed:', e);
+      }
+    } else if (params.imageUrl) {
+      try {
+        const r = await fetch(params.imageUrl);
+        if (r.ok) {
+          const ab = await r.arrayBuffer();
+          bytes = new Uint8Array(ab);
+        } else {
+          console.error('[ai-guard] storeGeneratedImage: fetch imageUrl status', r.status);
+        }
+      } catch (e) {
+        console.error('[ai-guard] storeGeneratedImage: fetch imageUrl threw:', e);
+      }
+    }
+
+    let storagePath = '';
+    if (bytes && bytes.length > 0) {
+      const yyyymm = new Date().toISOString().slice(0, 7);
+      storagePath = `${yyyymm}/${crypto.randomUUID()}.png`;
+      const { error: upErr } = await admin.storage
+        .from('ai-generated-images')
+        .upload(storagePath, bytes, { contentType: 'image/png', upsert: false });
+      if (upErr) {
+        console.error('[ai-guard] storeGeneratedImage upload failed:', upErr);
+        storagePath = '';
+      }
+    }
+
+    const { error: insErr } = await admin.from('ai_generated_images').insert({
+      user_id: params.user_id ?? null,
+      user_email: params.user_email ?? null,
+      model: params.model ?? null,
+      prompt: (params.prompt ?? '').slice(0, 4000),
+      storage_path: storagePath,
+      status: 'ok',
+    });
+    if (insErr) console.error('[ai-guard] storeGeneratedImage insert failed:', insErr);
+  } catch (e) {
+    console.error('[ai-guard] storeGeneratedImage threw:', e);
+  }
+
+/**
  * After logging a request, check if platform-wide tokens in last hour
  * exceed the threshold. If so, auto-pause and email the admin.
  * Returns true if a pause was triggered by THIS call.
