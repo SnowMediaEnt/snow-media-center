@@ -49,6 +49,10 @@ interface Props {
   volume: number;
   /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
   onChangeVolume: (v: number) => void;
+  /** Called when the user picks "Fix audio" from the Audio menu. Parent
+   *  should reload the stream as an audio-only transcode at the given
+   *  resume position. */
+  onFixAudio?: (resumeSec: number) => void;
 }
 
 
