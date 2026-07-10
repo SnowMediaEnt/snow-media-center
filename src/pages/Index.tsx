@@ -181,6 +181,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
   return (
     <div
       className="absolute z-20 flex flex-wrap items-center justify-end"
+      data-home-header
       style={{
         top: `max(env(safe-area-inset-top, 0px), ${inset})`,
         right: `max(env(safe-area-inset-right, 0px), ${inset})`,
