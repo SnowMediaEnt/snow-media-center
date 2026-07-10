@@ -26,7 +26,7 @@ import {
   getCachedHub, setCachedHub,
   resolutionLabel,
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
-  isDirectAudioCodec,
+  
   setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
@@ -713,16 +713,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       return;
     }
     try {
-      const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, ratingKey);
-      // Pre-emptive transcode: ExoPlayer silently deselects unsupported audio
-      // codecs (ac3/eac3/dts/truehd/…) and plays the file with zero audio and
-      // no error. When we see one, ask Plex to transcode audio→AAC while still
-      // direct-streaming video (no bitrate/resolution clamp).
-      if (!isDirectAudioCodec(audioCodec)) {
-        setUseTranscode(true);
-        setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
-        return;
-      }
+      const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
+      // Always direct-play the original. If a title's audio genuinely can't be
+      // decoded, the onTracksChanged zero-audio safety net reloads it as a
+      // transcode automatically — no pre-emptive transcode.
       const url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, ratingKey, conn.token);
       setStreamUrl(url);
     } catch {
@@ -775,15 +769,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     void (async () => {
       let url = '';
       try {
-        const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
-        if (!isDirectAudioCodec(audioCodec)) {
-          url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
-          setUseTranscode(true);
-        } else {
-          url = partKey
-            ? plexDirectUrl(conn.base, partKey, conn.token)
-            : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
-        }
+        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
+        url = partKey
+          ? plexDirectUrl(conn.base, partKey, conn.token)
+          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
       } catch {
         url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
         setUseTranscode(true);
@@ -1186,7 +1175,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
               data-focused={focused ? 'true' : 'false'}
               onClick={() => { setLibIdx(i); setZone('grid'); }}
-              className={`tv-focusable flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 text-white' : selected ? 'bg-white/10 border border-brand-gold/30 text-white' : 'border border-transparent text-brand-ice'}`}>
+              className={`tv-focusable flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold text-black font-bold scale-105 shadow-lg' : selected ? 'bg-white/90 text-black font-semibold' : 'bg-white/10 text-white'}`}>
               {Icon && <Icon className="w-3.5 h-3.5" />}
               {tab.title}
             </button>
