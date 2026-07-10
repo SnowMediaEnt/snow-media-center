@@ -288,20 +288,43 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
 });
 SearchPanel.displayName = 'SearchPanel';
 
-// ─── MANAGE PANEL ──────────────────────────────────────────────────────────
+// ─── SETTINGS PANEL (formerly Manage) ──────────────────────────────────────
 interface ManagePanelProps {
   isActive: boolean;
   libraries: PlexLibrary[];
   hidden: string[];
   onToggle: (key: string) => void;
   onExitToTabs: () => void;
+  serverName?: string;
+  owned?: boolean;
+  token?: string;
+  onSignOut: () => void;
 }
-const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs }: ManagePanelProps) => {
+const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs, serverName, owned, token, onSignOut }: ManagePanelProps) => {
   const [cursor, setCursor] = useState(0);
+  const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const confirmTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   const libsRef = useRef(libraries); useEffect(() => { libsRef.current = libraries; }, [libraries]);
   const onToggleRef = useRef(onToggle); useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
+  const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
+  const confirmRef = useRef(confirmSignOut); useEffect(() => { confirmRef.current = confirmSignOut; }, [confirmSignOut]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void getPlexAccount(token).then((a) => { if (!cancelled) setAccount(a); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const disarmConfirm = useCallback(() => {
+    if (confirmTimerRef.current) { window.clearTimeout(confirmTimerRef.current); confirmTimerRef.current = null; }
+    setConfirmSignOut(false);
+  }, []);
+
+  useEffect(() => () => { if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current); }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -312,36 +335,95 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs 
       if (!keys.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const c = cursorRef.current;
-      if (e.key === 'ArrowUp') { if (c === 0) onExitRef.current(); else setCursor(c - 1); }
-      else if (e.key === 'ArrowDown') { if (c < libsRef.current.length - 1) setCursor(c + 1); }
-      else if (e.key === 'Enter' || e.key === ' ') { const lib = libsRef.current[c]; if (lib) onToggleRef.current(lib.key); }
+      const total = libsRef.current.length + 1; // + Sign out row at end
+      const signOutIdx = libsRef.current.length;
+      if (e.key === 'ArrowUp') {
+        if (c === 0) onExitRef.current();
+        else setCursor(c - 1);
+        if (confirmRef.current) disarmConfirm();
+      } else if (e.key === 'ArrowDown') {
+        if (c < total - 1) setCursor(c + 1);
+        if (confirmRef.current) disarmConfirm();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        if (c === signOutIdx) {
+          if (confirmRef.current) {
+            disarmConfirm();
+            onSignOutRef.current();
+          } else {
+            setConfirmSignOut(true);
+            if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
+            confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
+          }
+          return;
+        }
+        const lib = libsRef.current[c];
+        if (lib) onToggleRef.current(lib.key);
+      }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive]);
+  }, [isActive, disarmConfirm]);
 
-  if (libraries.length === 0) return <div className="text-brand-ice/60 font-nunito text-sm">No libraries found.</div>;
+  const accountLine = account?.username || account?.email;
+  const ownedLine = owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
+
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-2">
-      <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-1">Show / hide libraries</div>
-      {libraries.map((lib, i) => {
-        const focused = isActive && cursor === i;
-        const isHidden = hidden.indexOf(lib.key) >= 0;
+      {(serverName || ownedLine || accountLine) && (
+        <div className="mb-3 rounded-lg bg-black/30 ring-1 ring-white/10 px-4 py-3">
+          {serverName && <div className="font-quicksand font-bold text-white">{serverName}</div>}
+          {ownedLine && <div className="text-xs font-nunito text-brand-ice/70 mt-0.5">{ownedLine}</div>}
+          {accountLine && <div className="text-xs font-nunito text-brand-ice/50 mt-0.5">{accountLine}</div>}
+        </div>
+      )}
+      {libraries.length === 0 ? (
+        <div className="text-brand-ice/60 font-nunito text-sm">No libraries found.</div>
+      ) : (
+        <>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-1">Show / hide libraries</div>
+          {libraries.map((lib, i) => {
+            const focused = isActive && cursor === i;
+            const isHidden = hidden.indexOf(lib.key) >= 0;
+            return (
+              <div key={lib.key}
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
+                onClick={() => { setCursor(i); onToggle(lib.key); }}
+                className={`flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]' : 'bg-black/40 ring-1 ring-white/10'}`}>
+                <div>
+                  <div className="font-quicksand text-white">{lib.title}</div>
+                  <div className="text-[11px] font-nunito text-brand-ice/50 uppercase">{lib.type}</div>
+                </div>
+                {isHidden
+                  ? <span className="flex items-center gap-1.5 text-xs text-brand-ice/60"><EyeOff className="w-4 h-4" /> Hidden</span>
+                  : <span className="flex items-center gap-1.5 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
+              </div>
+            );
+          })}
+        </>
+      )}
+      {(() => {
+        const signOutIdx = libraries.length;
+        const focused = isActive && cursor === signOutIdx;
         return (
-          <div key={lib.key}
+          <div key="__signout"
             ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-            onClick={() => { setCursor(i); onToggle(lib.key); }}
-            className={`flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]' : 'bg-black/40 ring-1 ring-white/10'}`}>
-            <div>
-              <div className="font-quicksand text-white">{lib.title}</div>
-              <div className="text-[11px] font-nunito text-brand-ice/50 uppercase">{lib.type}</div>
+            onClick={() => {
+              setCursor(signOutIdx);
+              if (confirmSignOut) { disarmConfirm(); onSignOut(); }
+              else {
+                setConfirmSignOut(true);
+                if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
+                confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
+              }
+            }}
+            className={`mt-3 flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? (confirmSignOut ? 'bg-red-500/25 ring-2 ring-red-400 scale-[1.02]' : 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]') : (confirmSignOut ? 'bg-red-500/15 ring-1 ring-red-500/40' : 'bg-black/40 ring-1 ring-white/10')}`}>
+            <LogOut className={`w-4 h-4 ${confirmSignOut ? 'text-red-300' : 'text-brand-ice/70'}`} />
+            <div className={`font-quicksand ${confirmSignOut ? 'text-red-200' : 'text-white'}`}>
+              {confirmSignOut ? "Press OK again to sign out — you'll need a new code to sign back in" : 'Sign out of Plex'}
             </div>
-            {isHidden
-              ? <span className="flex items-center gap-1.5 text-xs text-brand-ice/60"><EyeOff className="w-4 h-4" /> Hidden</span>
-              : <span className="flex items-center gap-1.5 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
           </div>
         );
-      })}
+      })()}
     </div>
   );
 });
