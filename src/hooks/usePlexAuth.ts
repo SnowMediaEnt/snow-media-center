@@ -14,6 +14,7 @@ export function usePlexAuth() {
   const [conn, setConn] = useState<PlexConn | null>(null);
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [justLinked, setJustLinked] = useState(false);
   const pollRef = useRef<number | null>(null);
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
