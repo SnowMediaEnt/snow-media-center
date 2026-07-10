@@ -164,7 +164,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       </div>
     );
   }
-  return <img ref={wrapRef as unknown as React.RefObject<HTMLImageElement>} src={src} alt={alt} className={className} onError={onImgError} loading="lazy" decoding="async" />;
+  return <img ref={wrapRef as unknown as React.MutableRefObject<HTMLImageElement | null>} src={src} alt={alt} className={className} onError={onImgError} loading="lazy" decoding="async" />;
 });
 
 PlexImage.displayName = 'PlexImage';
