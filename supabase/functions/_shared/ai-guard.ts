@@ -147,6 +147,9 @@ export async function storeGeneratedImage(params: {
   } catch (e) {
     console.error('[ai-guard] storeGeneratedImage threw:', e);
   }
+}
+
+
 
 /**
  * After logging a request, check if platform-wide tokens in last hour
