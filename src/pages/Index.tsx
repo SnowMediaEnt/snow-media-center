@@ -181,6 +181,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
   return (
     <div
       className="absolute z-20 flex flex-wrap items-center justify-end"
+      data-home-header
       style={{
         top: `max(env(safe-area-inset-top, 0px), ${inset})`,
         right: `max(env(safe-area-inset-right, 0px), ${inset})`,
@@ -950,6 +951,7 @@ const Index = () => {
               between the bar and the cards. */}
           <div
             className="relative z-10 flex-1 min-h-0 flex flex-col justify-end"
+            data-home-bottom
             style={{
               gap: 'clamp(0.75rem, 2vh, 1.5rem)',
               paddingBottom: 'max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vh, 2.5rem))',

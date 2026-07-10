@@ -708,3 +708,23 @@ html.snowplayer-multiview [data-player-chrome] {
 
 
 
+
+/* Flex `gap` is unsupported below Chrome 84 (renders 0). These margin
+   fallbacks apply ONLY when the runtime probe added .no-flex-gap. Grid gap
+   works from Chrome 66, so grid containers are deliberately excluded. */
+html.no-flex-gap [data-home-card] {
+  margin-left: 2.5vw; margin-right: 2.5vw;
+  margin-left: clamp(1rem, 2.5vw, 3rem); margin-right: clamp(1rem, 2.5vw, 3rem);
+}
+html.no-flex-gap [data-home-bottom] > * + * { margin-top: clamp(0.75rem, 2vh, 1.5rem); }
+html.no-flex-gap [data-home-header] > * + * { margin-left: 0.5rem; }
+/* Generic Tailwind flex-gap emulation (exclude flex-col rows handled above;
+   NEVER match grid — these selectors require .flex). */
+html.no-flex-gap .flex.gap-1:not(.flex-col) > * + * { margin-left: 0.25rem; }
+html.no-flex-gap .flex.gap-1\.5:not(.flex-col) > * + * { margin-left: 0.375rem; }
+html.no-flex-gap .flex.gap-2:not(.flex-col) > * + * { margin-left: 0.5rem; }
+html.no-flex-gap .flex.gap-3:not(.flex-col) > * + * { margin-left: 0.75rem; }
+html.no-flex-gap .flex.gap-4:not(.flex-col) > * + * { margin-left: 1rem; }
+html.no-flex-gap .flex.flex-col.gap-1\.5 > * + * { margin-top: 0.375rem; }
+html.no-flex-gap .flex.flex-col.gap-2 > * + * { margin-top: 0.5rem; }
+html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
