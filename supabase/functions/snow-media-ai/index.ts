@@ -106,6 +106,21 @@ serve(async (req) => {
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
+        try {
+          const denyMsg = typeof (body as { message?: unknown }).message === 'string'
+            ? ((body as { message?: string }).message as string)
+            : '';
+          await logUsage({
+            user_id: userId,
+            user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+            feature: 'chat',
+            prompt: denyMsg,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: pause.reason || 'paused',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(
           JSON.stringify({ error: 'AI temporarily paused', message: pause.reason }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
