@@ -275,11 +275,25 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
       if (menuRef.current === 'audio') {
         const list = audsRef.current;
-        if (list.length === 0) { setMenu('none'); return; }
+        const total = list.length + 1;   // + synthetic "Fix audio" row at end
+        const fixIdx = list.length;
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
-        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') { const track = list[i]; if (track) controllerRef.current?.setAudioTrack(track.id); setMenu('none'); }
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
+        else if (e.key === 'Enter' || e.key === ' ') {
+          if (i === fixIdx) {
+            void (async () => {
+              const p = await getPositionRef.current();
+              onFixAudioRef.current?.(Math.floor(p.position));
+              try { toastRef.current({ title: 'Fixing audio — converting sound only…' }); } catch { /* ignore */ }
+            })();
+            setMenu('none');
+            return;
+          }
+          const track = list[i];
+          if (track) controllerRef.current?.setAudioTrack(track.id);
+          setMenu('none');
+        }
         return;
       }
       if (menuRef.current === 'subs') {
