@@ -107,7 +107,10 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
         {status === 'unreachable' && (
           <>
             <h2 className="text-xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
-            <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || 'Your Plex server did not respond.'}</p>
+            <p className="text-brand-ice/80 font-nunito text-sm mb-4">{error || 'Your Plex server did not respond.'}</p>
+            <p className="text-brand-ice/70 font-nunito text-xs mb-6 max-w-sm mx-auto">
+              Wrong account? If you signed in with your personal Plex account by mistake, sign out and send your provider the new code instead.
+            </p>
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}
                 className={`tv-focusable home-focus-surface px-6 ${focusIdx === 0 ? 'scale-105' : ''}`}>
