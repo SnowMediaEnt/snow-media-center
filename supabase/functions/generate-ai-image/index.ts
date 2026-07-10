@@ -199,6 +199,15 @@ serve(async (req) => {
       console.error('[generate-ai-image] log/threshold failed:', e);
     }
 
+    // Admin-review archive: store the generated image + row (best-effort).
+    await storeGeneratedImage({
+      user_id: userId,
+      user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+      model: 'dall-e-3',
+      prompt,
+      base64: imageData,
+    });
+
     // Settle anon reservation at the TRUE per-image price (no delta).
     if (!caller.authed && anonReserved) {
       await settleFree({
