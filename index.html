@@ -56,6 +56,15 @@
         if (!(window.CSS && window.CSS.supports && window.CSS.supports('width','clamp(1rem,2vw,3rem)'))) {
           document.documentElement.className += ' legacy-webview';
         }
+        // inset shorthand (Chrome 87+) — Tailwind inset-0 breaks below it
+        if (!(window.CSS && CSS.supports && CSS.supports('inset','0px'))) document.documentElement.className += ' no-inset';
+        // flex gap (Chrome 84+) — no CSS.supports probe exists (gap parses for grid since 66), so measure it
+        var __p=document.createElement('div');
+        __p.style.cssText='position:absolute;visibility:hidden;width:100px;display:flex;flex-direction:column;gap:1px';
+        __p.appendChild(document.createElement('div')); __p.appendChild(document.createElement('div'));
+        document.documentElement.appendChild(__p);
+        if(__p.scrollHeight!==1) document.documentElement.className+=' no-flex-gap';
+        document.documentElement.removeChild(__p);
       } catch (e) {}
     </script>
 
