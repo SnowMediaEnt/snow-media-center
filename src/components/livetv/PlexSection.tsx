@@ -297,10 +297,10 @@ interface ManagePanelProps {
   onExitToTabs: () => void;
   serverName?: string;
   owned?: boolean;
-  token?: string;
+  accountToken?: string;
   onSignOut: () => void;
 }
-const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs, serverName, owned, token, onSignOut }: ManagePanelProps) => {
+const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs, serverName, owned, accountToken, onSignOut }: ManagePanelProps) => {
   const [cursor, setCursor] = useState(0);
   const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -313,11 +313,11 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
   const confirmRef = useRef(confirmSignOut); useEffect(() => { confirmRef.current = confirmSignOut; }, [confirmSignOut]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!accountToken) return;
     let cancelled = false;
-    void getPlexAccount(token).then((a) => { if (!cancelled) setAccount(a); });
+    void getPlexAccount(accountToken).then((a) => { if (!cancelled) setAccount(a); });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [accountToken]);
 
   const disarmConfirm = useCallback(() => {
     if (confirmTimerRef.current) { window.clearTimeout(confirmTimerRef.current); confirmTimerRef.current = null; }
@@ -432,10 +432,11 @@ ManagePanel.displayName = 'ManagePanel';
 // ─── POST-LINK CONFIRMATION CARD ───────────────────────────────────────────
 interface JustLinkedCardProps {
   conn: { base: string; token: string; name: string; owned?: boolean } | null;
+  accountToken?: string | null;
   onContinue: () => void;
   onSignOut: () => void;
 }
-const JustLinkedCard = memo(({ conn, onContinue, onSignOut }: JustLinkedCardProps) => {
+const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: JustLinkedCardProps) => {
   const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
   const [focusIdx, setFocusIdx] = useState(0); // 0=Continue, 1=Sign out
   const focusRef = useRef(focusIdx); useEffect(() => { focusRef.current = focusIdx; }, [focusIdx]);
@@ -443,11 +444,12 @@ const JustLinkedCard = memo(({ conn, onContinue, onSignOut }: JustLinkedCardProp
   const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
 
   useEffect(() => {
-    if (!conn?.token) return;
+    const token = accountToken ?? conn?.token;
+    if (!token) return;
     let cancelled = false;
-    void getPlexAccount(conn.token).then((a) => { if (!cancelled) setAccount(a); });
+    void getPlexAccount(token).then((a) => { if (!cancelled) setAccount(a); });
     return () => { cancelled = true; };
-  }, [conn?.token]);
+  }, [accountToken, conn?.token]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -459,7 +461,7 @@ const JustLinkedCard = memo(({ conn, onContinue, onSignOut }: JustLinkedCardProp
         onContinueRef.current();
         return;
       }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         setFocusIdx((i) => (i === 0 ? 1 : 0));
         return;
@@ -514,7 +516,7 @@ JustLinkedCard.displayName = 'JustLinkedCard';
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, justLinked, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
+  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
@@ -1221,6 +1223,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return (
       <JustLinkedCard
         conn={conn}
+        accountToken={accountToken ?? conn?.token}
         onContinue={() => clearJustLinked()}
         onSignOut={() => { void signOut(); }}
       />
@@ -1384,7 +1387,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
-          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} token={conn?.token} onSignOut={() => { void signOut(); }} />
+          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (
