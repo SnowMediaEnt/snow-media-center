@@ -414,7 +414,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     let cancelled = false;
     const base = conn.base;
     const token = conn.token;
-    const onDeckPath = '/library/onDeck';
+    const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     (async () => {
       try {
