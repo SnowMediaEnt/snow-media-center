@@ -346,12 +346,27 @@ export async function loadCreds(): Promise<XtreamCreds | null> {
 }
 
 export async function saveCreds(creds: XtreamCreds): Promise<void> {
-  const json = JSON.stringify(normalizeCreds(creds));
+  const normalized = normalizeCreds(creds);
+  const json = JSON.stringify(normalized);
   try {
     const { Preferences } = await import('@capacitor/preferences');
     await Preferences.set({ key: CREDS_KEY, value: json });
   } catch { /* not native */ }
   try { localStorage.setItem(CREDS_KEY, json); } catch { /* ignore */ }
+  // Diagnostic: read back and confirm the write is durable.
+  try {
+    const back = await loadCreds();
+    if (!back || back.host !== normalized.host || back.username !== normalized.username) {
+      console.warn('[xtream] saveCreds readback mismatch');
+      try {
+        const [{ trackEvent }, { isNativePlatform }] = await Promise.all([
+          import('@/lib/analytics'),
+          import('@/utils/platform'),
+        ]);
+        trackEvent('creds_save_failed', 'player', { native: isNativePlatform() });
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 }
 
 export async function clearCreds(): Promise<void> {
