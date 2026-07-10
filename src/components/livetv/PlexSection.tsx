@@ -82,7 +82,7 @@ interface HomePanelProps {
   onExitToTabs: () => void;
 }
 const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
-  const onDeckPath = '/library/onDeck';
+  const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
   const [recent, setRecent] = useState<PlexItem[]>(() => getCachedHub(base, recentPath) ?? []);
