@@ -1274,7 +1274,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid'} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
-          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} />
+          <ManagePanel isActive={isActive && zone === 'grid'} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} token={conn?.token} onSignOut={() => { void signOut(); }} />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/60 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (
