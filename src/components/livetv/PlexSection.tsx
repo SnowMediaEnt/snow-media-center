@@ -769,15 +769,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     void (async () => {
       let url = '';
       try {
-        const { partKey, audioCodec } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
-        if (!isDirectAudioCodec(audioCodec)) {
-          url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
-          setUseTranscode(true);
-        } else {
-          url = partKey
-            ? plexDirectUrl(conn.base, partKey, conn.token)
-            : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
-        }
+        const { partKey } = await getPlexPart(conn.base, conn.token, playing.ratingKey);
+        url = partKey
+          ? plexDirectUrl(conn.base, partKey, conn.token)
+          : plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
       } catch {
         url = plexTranscodeUrl(conn.base, playing.ratingKey, conn.token);
         setUseTranscode(true);
