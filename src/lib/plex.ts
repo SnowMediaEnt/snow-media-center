@@ -259,7 +259,7 @@ export async function getPlexIdentity(base: string, token: string): Promise<void
   await plexReq('GET', `${base}/identity`, token, 5000);
 }
 
-export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; }
+export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
 
 export async function savePlexServer(s: PlexSavedServer): Promise<void> {
   const json = JSON.stringify(s);
