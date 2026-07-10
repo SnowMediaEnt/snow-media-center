@@ -15,6 +15,7 @@ export function usePlexAuth() {
   const [pinCode, setPinCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justLinked, setJustLinked] = useState(false);
+  const [accountToken, setAccountToken] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
@@ -100,8 +101,8 @@ export function usePlexAuth() {
     (async () => {
       const token = await loadPlexToken();
       if (cancelledRef.current) return;
-      if (token) { await discover(token); }
-      else setStatus('signed-out');
+      if (token) { setAccountToken(token); await discover(token); }
+      else { setAccountToken(null); setStatus('signed-out'); }
     })();
     return () => { cancelledRef.current = true; clearPoll(); };
   }, [discover]);
@@ -124,6 +125,7 @@ export function usePlexAuth() {
             startingRef.current = false;
             setPinCode(null);
             await savePlexToken(token);
+            setAccountToken(token);
             setJustLinked(true);
             await discover(token);
           }
@@ -145,6 +147,7 @@ export function usePlexAuth() {
     startingRef.current = false;
     await clearPlexToken();
     connBaseRef.current = null;
+    setAccountToken(null);
     setConn(null); setPinCode(null); setError(null); setJustLinked(false); setStatus('signed-out');
   }, []);
 
@@ -157,5 +160,5 @@ export function usePlexAuth() {
 
   const clearJustLinked = useCallback(() => { setJustLinked(false); }, []);
 
-  return { status, conn, pinCode, error, justLinked, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
+  return { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
 }
