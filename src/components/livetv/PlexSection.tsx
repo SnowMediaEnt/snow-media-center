@@ -1175,7 +1175,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
               data-focused={focused ? 'true' : 'false'}
               onClick={() => { setLibIdx(i); setZone('grid'); }}
-              className={`tv-focusable flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 text-white' : selected ? 'bg-white/10 border border-brand-gold/30 text-white' : 'border border-transparent text-brand-ice'}`}>
+              className={`tv-focusable flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold text-black font-bold scale-105 shadow-lg' : selected ? 'bg-white/90 text-black font-semibold' : 'bg-white/10 text-white'}`}>
               {Icon && <Icon className="w-3.5 h-3.5" />}
               {tab.title}
             </button>
