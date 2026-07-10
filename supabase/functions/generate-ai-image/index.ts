@@ -10,6 +10,7 @@ import {
   hashClientIp,
   reserveFree,
   settleFree,
+  storeGeneratedImage,
   DALLE3_HD_1024_COST_USD,
 } from '../_shared/ai-guard.ts';
 
