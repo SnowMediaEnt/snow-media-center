@@ -70,6 +70,21 @@ serve(async (req) => {
         estImages: 1,
       });
       if (!gate.allowed) {
+        try {
+          const denyPrompt = typeof (body as { prompt?: unknown }).prompt === 'string'
+            ? ((body as { prompt?: string }).prompt as string)
+            : '';
+          await logUsage({
+            user_id: null,
+            user_email: `anon:${caller.deviceId}`,
+            feature: 'image',
+            prompt: denyPrompt,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: gate.reason || 'denied',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(
           JSON.stringify({ blocked: true, reason: gate.reason }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -88,6 +103,21 @@ serve(async (req) => {
     if (!isOwnerEmail(userEmail)) {
       const pause = await checkPause();
       if (pause.blocked) {
+        try {
+          const denyPrompt = typeof (body as { prompt?: unknown }).prompt === 'string'
+            ? ((body as { prompt?: string }).prompt as string)
+            : '';
+          await logUsage({
+            user_id: userId,
+            user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
+            feature: 'image',
+            prompt: denyPrompt,
+            response_preview: '',
+            cost_credits: 0,
+            status: 'blocked',
+            error_message: pause.reason || 'paused',
+          });
+        } catch (_) { /* swallow */ }
         return new Response(JSON.stringify({ success: false, error: pause.reason }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
