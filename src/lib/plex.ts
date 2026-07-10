@@ -531,36 +531,48 @@ function releaseImgSlot(): void {
 export async function plexFetchImageDataUri(url: string, priority = false): Promise<string> {
   const cached = _imgCache.get(url);
   if (cached) return cached;
-  let native = false;
-  let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
-  try {
-    const mod = await import('@capacitor/core');
-    native = !!mod.Capacitor.isNativePlatform?.();
-    CapacitorHttpRef = mod.CapacitorHttp;
-  } catch { /* web */ }
-  if (!native || !CapacitorHttpRef) {
-    _imgCache.set(url, url);
-    return url;
-  }
-  await acquireImgSlot(priority);
-  try {
-    const headers = plexHeaders();
-    const res = await CapacitorHttpRef.request({
-      method: 'GET',
-      url,
-      headers,
-      responseType: 'blob',
-      connectTimeout: 15000,
-      readTimeout: 20000,
-    });
-    if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
-    const b64 = typeof res.data === 'string' ? res.data : '';
-    const data = `data:image/jpeg;base64,${b64}`;
-    _imgCache.set(url, data);
-    return data;
-  } finally {
-    releaseImgSlot();
-  }
+  const pending = _imgPending.get(url);
+  if (pending) return pending;
+  const p = (async (): Promise<string> => {
+    let native = false;
+    let CapacitorHttpRef: typeof import('@capacitor/core').CapacitorHttp | null = null;
+    try {
+      const mod = await import('@capacitor/core');
+      native = !!mod.Capacitor.isNativePlatform?.();
+      CapacitorHttpRef = mod.CapacitorHttp;
+    } catch { /* web */ }
+    if (!native || !CapacitorHttpRef) {
+      _imgCache.set(url, url);
+      return url;
+    }
+    const myEpoch = _imgEpoch;
+    await acquireImgSlot(priority);
+    if (myEpoch !== _imgEpoch) {
+      releaseImgSlot();
+      throw new Error('stale-conn');
+    }
+    try {
+      const headers = plexHeaders();
+      const res = await CapacitorHttpRef.request({
+        method: 'GET',
+        url,
+        headers,
+        responseType: 'blob',
+        connectTimeout: 15000,
+        readTimeout: 20000,
+      });
+      if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
+      const b64 = typeof res.data === 'string' ? res.data : '';
+      const data = `data:image/jpeg;base64,${b64}`;
+      _imgCache.set(url, data);
+      return data;
+    } finally {
+      releaseImgSlot();
+    }
+  })();
+  _imgPending.set(url, p);
+  p.finally(() => { _imgPending.delete(url); }).catch(() => { /* swallow: caller sees the rejection */ });
+  return p;
 }
 
 /** Preload a batch of https image URLs via `new Image()`. Never rejects.
