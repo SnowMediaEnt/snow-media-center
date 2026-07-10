@@ -760,8 +760,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
         if (e.key === 'ArrowLeft')  { moveFocus(-1); return; }
         if (e.key === 'ArrowRight') { moveFocus(+1); return; }
-        if (e.key === 'ArrowUp')    { hideBarNow(); return; }
-        if (e.key === 'ArrowDown')  { /* bar already shown; keep focus */ return; }
+        if (e.key === 'ArrowUp')    { changeChannelInFullscreen(-1); setBarFocus('play'); pokeBar(); return; }
+        if (e.key === 'ArrowDown')  { changeChannelInFullscreen(+1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           const id = barFocusRef.current;
           if (id === 'prev')  changeChannelInFullscreen(-1);
