@@ -164,6 +164,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         try {
           const res = await authenticateRouted(creds.username, creds.password);
           if (!res.ok || !res.server || !res.creds) return;
+          // Guard: bail if creds changed/cleared during the reconcile so we
+          // don't clobber a fresh sign-out or account switch.
+          const nowCreds = await loadCreds();
+          if (!nowCreds || nowCreds.username !== creds.username || nowCreds.host !== creds.host) return;
           const acc = buildPlayerAccount(res.server, res.creds, res.userInfo);
           await savePlayerAccount(acc);
           // Reconcile capture — refreshes expiration/last_seen for every
