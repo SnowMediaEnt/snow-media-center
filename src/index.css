@@ -362,7 +362,7 @@
      exactly on the start of the second copy. The separator is baked into
      the text itself (see NewsTicker.tsx). */
   white-space: nowrap;
-  animation: news-ticker-marquee 120s linear infinite;
+  animation: news-ticker-marquee var(--news-ticker-duration, 120s) linear infinite;
 }
 
 .home-focus-surface {
