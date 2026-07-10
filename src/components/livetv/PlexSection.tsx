@@ -110,8 +110,8 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
 
   const rows = useMemo(() => {
     const r: Array<{ title: string; items: PlexItem[] }> = [];
-    if (onDeck.length > 0) r.push({ title: 'Continue Watching', items: onDeck });
-    r.push({ title: 'Recently Added', items: recent });
+    if (onDeck.length > 0) r.push({ title: 'Continue Watching', items: onDeck.slice(0, 40) });
+    r.push({ title: 'Recently Added', items: recent.slice(0, 40) });
     return r;
   }, [onDeck, recent]);
 
