@@ -563,23 +563,35 @@ export async function authenticateRouted(
     serverLabel: server.label,
   });
 
+  const tryOnce = async () => authenticate(creds);
+  let info: any;
   try {
-    const info: any = await authenticate(creds);
-    const ui: XtreamUserInfo | undefined = info?.user_info;
-    const auth = ui?.auth;
-    const status = String(ui?.status || '').toLowerCase();
-    const authed = auth === 1 || auth === '1' || auth === true;
-    const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
-    if (authed && !disabled) {
-      return { ok: true, server, creds, info, userInfo: ui };
+    info = await tryOnce();
+  } catch (e1) {
+    // Retry ONCE on transport/5xx (network drop, Vibez PHP-OOM 500s).
+    // Do NOT retry a definitive auth!==1 JSON response.
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      info = await tryOnce();
+    } catch (e2) {
+      return {
+        ok: false,
+        error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
+      };
     }
-    return { ok: false, error: 'Invalid username or password.' };
-  } catch (e) {
-    return {
-      ok: false,
-      error: `Couldn't reach ${server.label}. If you're testing in a web browser this is expected — it works in the installed Android app.`,
-    };
   }
+  const ui: XtreamUserInfo | undefined = info?.user_info;
+  const auth = ui?.auth;
+  const status = String(ui?.status || '').toLowerCase();
+  const authed = auth === 1 || auth === '1' || auth === true;
+  const disabled = status === 'disabled' || status === 'expired' || status === 'banned';
+  if (authed && !disabled) {
+    return { ok: true, server, creds, info, userInfo: ui };
+  }
+  if (authed && disabled) {
+    return { ok: false, error: 'Your subscription is ' + status + '. Please renew to keep watching.' };
+  }
+  return { ok: false, error: 'Invalid username or password.' };
 }
 
 // --- Live -------------------------------------------------------------------
