@@ -432,7 +432,7 @@ ManagePanel.displayName = 'ManagePanel';
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
+  const { status, conn, pinCode, error, justLinked, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
