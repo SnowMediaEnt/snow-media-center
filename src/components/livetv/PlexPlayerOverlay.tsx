@@ -456,6 +456,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <span className="truncate">{a.label}</span>{a.active && <span className="text-[10px] text-brand-gold">●</span>}
             </div>
           ))}
+          <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
+            className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-gold'}`}>
+            <VolumeX className="w-3.5 h-3.5" />
+            <span className="truncate">Fix audio (no sound?)</span>
+          </div>
         </div>
       )}
 
