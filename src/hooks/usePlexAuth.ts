@@ -3,7 +3,7 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
-  getPlexIdentity,
+  getPlexIdentity, bumpPlexImageEpoch,
 } from '@/lib/plex';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
