@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isNativePlatform } from '@/utils/platform';
 import { robustFetch } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
@@ -161,6 +161,33 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
   const maskEnd = compact ? '80px' : '128px';
   const badgeMargin = compact ? 'ml-2' : 'ml-3';
 
+  // Constant pixel-speed marquee: scale animation duration to content width
+  // so the ticker moves at a steady PX_PER_SEC regardless of item count.
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const PX_PER_SEC = 45;
+    const recompute = () => {
+      // Track holds two flush copies; single-copy width = scrollWidth / 2.
+      const oneCopy = el.scrollWidth / 2;
+      if (!oneCopy || !Number.isFinite(oneCopy)) return;
+      const durationSec = Math.max(60, Math.round(oneCopy / PX_PER_SEC));
+      el.style.setProperty('--news-ticker-duration', durationSec + 's');
+    };
+    recompute();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(recompute);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', recompute);
+    return () => {
+      window.removeEventListener('resize', recompute);
+      ro?.disconnect();
+    };
+  }, [tickerText, compact]);
+
   return (
     <div
       className="news-ticker relative z-10 border-y border-primary/30 overflow-hidden"
@@ -182,6 +209,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
           }}
         >
           <div
+            ref={trackRef}
             className="news-ticker-track h-full flex items-center"
             style={{
               willChange: 'transform',

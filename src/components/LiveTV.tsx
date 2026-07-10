@@ -574,7 +574,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div data-player-chrome="" style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.6.1</div>
+      <div data-player-chrome="" style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.6.2</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog
