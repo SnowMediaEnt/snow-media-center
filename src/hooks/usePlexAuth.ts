@@ -124,6 +124,7 @@ export function usePlexAuth() {
             startingRef.current = false;
             setPinCode(null);
             await savePlexToken(token);
+            setJustLinked(true);
             await discover(token);
           }
         } catch { /* keep polling */ }
