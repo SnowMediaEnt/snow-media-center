@@ -1075,6 +1075,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       slowLoadTimerRef.current = null;
     }, 8000) as unknown as number;
   }, [clearSlowLoadTimer]);
+  useEffect(() => { armSlowLoadTimerRef.current = armSlowLoadTimer; }, [armSlowLoadTimer]);
   useEffect(() => {
     if (!fullscreen) { clearSlowLoadTimer(); stillLoadingRef.current = false; setSlowLoad(false); return; }
     armSlowLoadTimer();
