@@ -1114,15 +1114,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       } catch { /* ignore */ }
       if (cancelled) return;
       let url = '';
+      let fellBack = false;
       try {
         const { partKey } = await getPlexPart(conn.base, conn.token, key);
         url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, key, conn.token);
       } catch {
         url = plexTranscodeUrl(conn.base, key, conn.token);
-        setUseTranscode(true);
+        fellBack = true;
       }
       if (cancelled) return;
-      setUseTranscode(false);
+      setUseTranscode(fellBack);
       setQualityKey('original');
       setStartPos(resume);
       setSlowLoad(false);
