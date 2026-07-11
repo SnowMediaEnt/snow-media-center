@@ -132,6 +132,13 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     };
   }, [active, maxRetries]);
 
+  // Reset retry counter only when the source URL changes (not on retryNonce),
+  // so RECONNECT_EXHAUSTED auto-retries accumulate against maxRetries and the
+  // error panel eventually surfaces on permanently hung streams.
+  useEffect(() => {
+    retriesRef.current = 0;
+  }, [active, url]);
+
   // Main load pipeline — runs on (active, url, retryNonce) changes.
   useEffect(() => {
     if (!active || !url) return;
@@ -139,7 +146,6 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let cancelled = false;
     setBuffering(true);
     setError(null);
-    retriesRef.current = 0;
     clearRetryTimer();
 
     (async () => {
