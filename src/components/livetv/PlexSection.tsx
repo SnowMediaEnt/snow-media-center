@@ -1119,6 +1119,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, key, conn.token);
       } catch {
         url = plexTranscodeUrl(conn.base, key, conn.token);
+        setUseTranscode(true);
       }
       if (cancelled) return;
       setUseTranscode(false);
@@ -1191,7 +1192,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // Pre-stream fullscreen (streamUrl not resolved yet): keep a MINIMAL Back
     // handler so the user is never stuck on a black loading screen while the
     // native decoder acquires. Everything else is deferred to the overlay.
-    if (fullscreen && !streamUrl) {
+    if (fullscreen && (!streamUrl || slowLoad || !!native.error)) {
       const backOnly = (e: KeyboardEvent) => {
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
         if (!isBack) return;
@@ -1261,7 +1262,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // hardware Back into a synthetic Escape KeyboardEvent, which flows through
     // this exact capture chain. Registering our own listener caused double-
     // fires (each listener popped one level, exiting Plex on the first press).
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
@@ -1351,7 +1352,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         </div>
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
-            active={nativeActive}
+            active={nativeActive && !slowLoad}
             title={playingTitle}
             resolutionLabel={playingResLabel}
             controller={native.controller}
