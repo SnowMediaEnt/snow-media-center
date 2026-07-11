@@ -857,12 +857,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
-    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
-    const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    // Owner directive: playback ALWAYS starts at Original / direct play. A
+    // persisted quality preset must never influence how playback STARTS —
+    // picking a preset DURING playback still works via changeQuality below.
+    // Reset quality state so the overlay's Quality menu reflects reality.
+    setQualityKey('original');
+    setUseTranscode(false);
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
-    setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
     setPlayingResLabel(resLabel ?? '');
@@ -871,13 +874,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setExtraSubs(undefined);
     setStreamUrl(null);
     setFullscreen(true);
-    if (wantTranscode && preset) {
-      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
-        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
-        videoResolution: preset.videoResolution,
-      }));
-      return;
-    }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       // Always direct-play the original. If a title's audio genuinely can't be
@@ -889,7 +885,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
       setUseTranscode(true);
     }
-  }, [conn, qualityKey]);
+  }, [conn]);
 
 
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
