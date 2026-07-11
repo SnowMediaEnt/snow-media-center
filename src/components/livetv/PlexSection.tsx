@@ -1058,17 +1058,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // kick the pipeline instead of staring at a stalled spinner.
   const [slowLoad, setSlowLoad] = useState(false);
   setSlowLoadRef.current = setSlowLoad;
-  useEffect(() => {
+  const armSlowLoadTimer = useCallback(() => {
     clearSlowLoadTimer();
-    if (!fullscreen) { stillLoadingRef.current = false; setSlowLoad(false); return; }
     stillLoadingRef.current = true;
     setSlowLoad(false);
     slowLoadTimerRef.current = window.setTimeout(() => {
       if (stillLoadingRef.current) setSlowLoad(true);
       slowLoadTimerRef.current = null;
     }, 8000) as unknown as number;
+  }, [clearSlowLoadTimer]);
+  useEffect(() => {
+    if (!fullscreen) { clearSlowLoadTimer(); stillLoadingRef.current = false; setSlowLoad(false); return; }
+    armSlowLoadTimer();
     return () => { clearSlowLoadTimer(); };
-  }, [fullscreen, streamUrl, clearSlowLoadTimer]);
+  }, [fullscreen, streamUrl, clearSlowLoadTimer, armSlowLoadTimer]);
   // Only clear the slow-load watchdog when playback ACTUALLY starts — i.e.
   // the native player reports playing or the polled position advances past 0.
   // The onPlayStateChangeCb above already clears on the 'playing' event; this
@@ -1076,10 +1079,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => {
     if (!fullscreen || !streamUrl) return;
     let lastPos: number | null = null;
+    let alive = true;
     const id = window.setInterval(async () => {
       try {
         const p = await native.getPosition();
-        const advanced = lastPos !== null && p.position > lastPos + 0.1;
+        if (!alive) return;
+        const advanced = p.duration > 0 && lastPos !== null && p.position > lastPos + 0.1;
         lastPos = p.position;
         if (p.playing || advanced) {
           stillLoadingRef.current = false;
@@ -1088,7 +1093,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         }
       } catch { /* ignore */ }
     }, 1500);
-    return () => window.clearInterval(id);
+    return () => { alive = false; window.clearInterval(id); };
   }, [fullscreen, streamUrl, native, clearSlowLoadTimer]);
 
   // Auto-rescue: if the slow-load watchdog fires while we're playing a
@@ -1312,13 +1317,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
             <button onClick={() => {
-              setSlowLoad(false);
-              stillLoadingRef.current = true;
               if (!streamUrl && playing) {
                 // No stream URL resolved yet — native.retry() would be a no-op.
                 // Re-invoke the current item's play path from scratch.
+                armSlowLoadTimer();
                 void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel);
               } else {
+                armSlowLoadTimer();
                 native.retry();
               }
             }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
@@ -1331,7 +1336,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
             <p className="font-quicksand font-semibold mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
-            <button onClick={() => native.retry()} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+            <button onClick={() => { armSlowLoadTimer(); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
               <RotateCw className="w-4 h-4" /> Retry
             </button>
           </div>
