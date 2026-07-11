@@ -857,6 +857,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
+    // Reset one-shot rescue guards so replaying the same title after backing
+    // out regains its silent auto-revert and zero-audio safety-net.
+    autoRevertRef.current = null;
+    audioSafetyRef.current = null;
     // Owner directive: playback ALWAYS starts at Original / direct play. A
     // persisted quality preset must never influence how playback STARTS —
     // picking a preset DURING playback still works via changeQuality below.
