@@ -1019,6 +1019,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setSlowLoadRef.current(false);
     }
   }, [clearSlowLoadTimer]);
+  // Forward-referenced from armSlowLoadTimer (declared below) so app-resume
+  // reloads from the hook can re-arm the slow-load watchdog.
+  const armSlowLoadTimerRef = useRef<() => void>(() => { /* set below */ });
   const native = useNativePlayer({
     active: nativeActive,
     url: nativeActive ? streamUrl : null,
@@ -1029,6 +1032,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     onTracksChanged,
     onPlayStateChange: onPlayStateChangeCb,
     onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
+    onReload: () => { armSlowLoadTimerRef.current?.(); },
   });
   // Reset the safety-net guard whenever the underlying title changes.
   useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
