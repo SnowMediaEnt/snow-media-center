@@ -857,12 +857,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
     if (!conn) return;
-    const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKey);
-    const wantTranscode = !!(preset && preset.key !== 'original' && (preset.maxVideoBitrateKbps || preset.videoResolution));
+    // Owner directive: playback ALWAYS starts at Original / direct play. A
+    // persisted quality preset must never influence how playback STARTS —
+    // picking a preset DURING playback still works via changeQuality below.
+    // Reset quality state so the overlay's Quality menu reflects reality.
+    setQualityKey('original');
+    setUseTranscode(false);
     // Flip fullscreen ON *before* any await so the loading UI paints
     // immediately — otherwise the user stares at the grid for the ~1-3s
     // getPlexPart round-trip and mashes OK, queueing up phantom presses.
-    setUseTranscode(wantTranscode);
     setPlaying({ ratingKey, title, type: 'movie', thumb: '' });
     setPlayingTitle(title);
     setPlayingResLabel(resLabel ?? '');
@@ -871,13 +874,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setExtraSubs(undefined);
     setStreamUrl(null);
     setFullscreen(true);
-    if (wantTranscode && preset) {
-      setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token, {
-        maxVideoBitrateKbps: preset.maxVideoBitrateKbps,
-        videoResolution: preset.videoResolution,
-      }));
-      return;
-    }
     try {
       const { partKey } = await getPlexPart(conn.base, conn.token, ratingKey);
       // Always direct-play the original. If a title's audio genuinely can't be
@@ -889,7 +885,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setStreamUrl(plexTranscodeUrl(conn.base, ratingKey, conn.token));
       setUseTranscode(true);
     }
-  }, [conn, qualityKey]);
+  }, [conn]);
 
 
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
@@ -1073,13 +1069,63 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }, 8000) as unknown as number;
     return () => { clearSlowLoadTimer(); };
   }, [fullscreen, streamUrl, clearSlowLoadTimer]);
+  // Only clear the slow-load watchdog when playback ACTUALLY starts — i.e.
+  // the native player reports playing or the polled position advances past 0.
+  // The onPlayStateChangeCb above already clears on the 'playing' event; this
+  // interval is a belt-and-braces poll in case that event is missed.
   useEffect(() => {
-    if (nativeActive && !native.buffering && !native.error) {
-      stillLoadingRef.current = false;
-      clearSlowLoadTimer();
+    if (!fullscreen || !streamUrl) return;
+    const id = window.setInterval(async () => {
+      try {
+        const p = await native.getPosition();
+        if (p.playing || p.position > 0) {
+          stillLoadingRef.current = false;
+          clearSlowLoadTimer();
+          setSlowLoad(false);
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+    return () => window.clearInterval(id);
+  }, [fullscreen, streamUrl, native, clearSlowLoadTimer]);
+
+  // Auto-rescue: if the slow-load watchdog fires while we're playing a
+  // TRANSCODE stream, the server's transcoder is almost certainly stuck.
+  // Silently revert to direct play instead of showing the Retry panel.
+  const autoRevertRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!(slowLoad && useTranscode && playing && conn)) return;
+    const key = playing.ratingKey;
+    if (autoRevertRef.current === key) return;
+    autoRevertRef.current = key;
+    let cancelled = false;
+    void (async () => {
+      let resume: number | undefined = startPos;
+      try {
+        const p = await native.getPosition();
+        if (p.position > 0) resume = p.position;
+      } catch { /* ignore */ }
+      if (cancelled) return;
+      let url = '';
+      try {
+        const { partKey } = await getPlexPart(conn.base, conn.token, key);
+        url = partKey ? plexDirectUrl(conn.base, partKey, conn.token) : plexTranscodeUrl(conn.base, key, conn.token);
+      } catch {
+        url = plexTranscodeUrl(conn.base, key, conn.token);
+      }
+      if (cancelled) return;
+      setUseTranscode(false);
+      setQualityKey('original');
+      setStartPos(resume);
       setSlowLoad(false);
-    }
-  }, [nativeActive, native.buffering, native.error, clearSlowLoadTimer]);
+      stillLoadingRef.current = true;
+      setStreamUrl(() => { window.setTimeout(() => setStreamUrl(url), 60); return null; });
+      try { toast({ title: 'Converting failed — playing original quality' }); } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [slowLoad, useTranscode, playing, conn, native, startPos, toast]);
+
+  // Reset the auto-revert guard when a new title starts.
+  useEffect(() => { autoRevertRef.current = null; }, [playing?.ratingKey]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
