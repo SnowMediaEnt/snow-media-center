@@ -1317,13 +1317,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
             <button onClick={() => {
-              setSlowLoad(false);
-              stillLoadingRef.current = true;
               if (!streamUrl && playing) {
                 // No stream URL resolved yet — native.retry() would be a no-op.
                 // Re-invoke the current item's play path from scratch.
+                armSlowLoadTimer();
                 void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel);
               } else {
+                armSlowLoadTimer();
                 native.retry();
               }
             }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
@@ -1336,7 +1336,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
             <p className="font-quicksand font-semibold mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
-            <button onClick={() => native.retry()} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+            <button onClick={() => { armSlowLoadTimer(); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
               <RotateCw className="w-4 h-4" /> Retry
             </button>
           </div>
