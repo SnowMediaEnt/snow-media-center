@@ -24,6 +24,8 @@ interface UseNativePlayerArgs {
   onPlayStateChange?: (paused: boolean) => void;
   /** Fired when the native player emits state='ended' (VOD only). */
   onEnded?: () => void;
+  /** Fired when the hook triggers a reload (app resume / visibility return). */
+  onReload?: () => void;
 }
 
 export interface NativePlayerState {
@@ -37,7 +39,7 @@ export interface NativePlayerState {
 
 const MAX_RETRIES_DEFAULT = 5;
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -51,9 +53,11 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   const cbTracksRef = useRef(onTracksChanged);
   const cbPlayStateRef = useRef(onPlayStateChange);
   const cbEndedRef = useRef(onEnded);
+  const cbReloadRef = useRef(onReload);
   useEffect(() => { cbTracksRef.current = onTracksChanged; }, [onTracksChanged]);
   useEffect(() => { cbPlayStateRef.current = onPlayStateChange; }, [onPlayStateChange]);
   useEffect(() => { cbEndedRef.current = onEnded; }, [onEnded]);
+  useEffect(() => { cbReloadRef.current = onReload; }, [onReload]);
 
   const markStreaming = (on: boolean) => {
     try {
@@ -216,7 +220,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let capH: { remove?: () => void } | undefined;
     let cancelled = false;
     const onHidden = () => { void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); };
-    const onVisible = () => { setRetryNonce((n) => n + 1); };
+    const onVisible = () => { try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1); };
     const onVis = () => { if (document.hidden) onHidden(); else onVisible(); };
     document.addEventListener('visibilitychange', onVis);
     (async () => {
