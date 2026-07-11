@@ -1075,10 +1075,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // interval is a belt-and-braces poll in case that event is missed.
   useEffect(() => {
     if (!fullscreen || !streamUrl) return;
+    let lastPos: number | null = null;
     const id = window.setInterval(async () => {
       try {
         const p = await native.getPosition();
-        if (p.playing || p.position > 0) {
+        const advanced = lastPos !== null && p.position > lastPos + 0.1;
+        lastPos = p.position;
+        if (p.playing || advanced) {
           stillLoadingRef.current = false;
           clearSlowLoadTimer();
           setSlowLoad(false);
