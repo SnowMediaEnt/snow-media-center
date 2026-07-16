@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.telegram-notify]
 verify_jwt = false
 
+[functions.notify-ticket]
+verify_jwt = false
+
 
 
 [functions.overseerr-request]

@@ -98,27 +98,9 @@ Deno.serve(async (req) => {
     });
     if (msgErr) throw msgErr;
 
-    // Fire-and-forget Discord ping — failure must NOT fail the request.
-    try {
-      const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
-      if (hook) {
-        const res = await fetch(hook, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: '🚨 **Channel Report**\n```\n' + message.slice(0, 1800) + '\n```',
-          }),
-        });
-        if (!res.ok && res.status !== 204) {
-          const details = await res.text().catch(() => '');
-          console.error('[report-channel] Discord webhook failed', res.status, details.slice(0, 500));
-        }
-      } else {
-        console.error('[report-channel] DISCORD_WEBHOOK_URL not set');
-      }
-    } catch (err) {
-      console.error('[report-channel] Discord webhook threw', err);
-    }
+    // Discord + email notification is now sent server-side by the
+    // AFTER INSERT trigger on support_tickets → notify-ticket edge function.
+
 
     return new Response(
       JSON.stringify({ success: true, ticketId: ticket.id }),
