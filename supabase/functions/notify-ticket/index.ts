@@ -126,9 +126,44 @@ Deno.serve(async (req) => {
       console.error('[notify-ticket] resend threw:', e instanceof Error ? e.message : String(e));
     }
 
-    return jsonOk({ discord_status, resend_status });
+    // ---------- Web Push ----------
+    let push_status: number | string = 'skipped';
+    try {
+      const internal = Deno.env.get('INTERNAL_FN_SECRET');
+      const supaUrl = Deno.env.get('SUPABASE_URL');
+      if (!internal || !supaUrl) {
+        push_status = 'no_config';
+      } else {
+        const title = source === 'player_report' ? '📺 New Player Report' : '🎫 New Ticket';
+        const shortPreview = preview.slice(0, 140);
+        const msgBody = `${subject}${shortPreview ? ` — ${shortPreview}` : ''}`;
+        const res = await fetch(`${supaUrl}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': internal,
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') ?? ''}`,
+          },
+          body: JSON.stringify({
+            title,
+            body: msgBody,
+            url: 'https://smchub.lovable.app/tickets',
+            tag: ticketId ? `ticket-${ticketId}` : undefined,
+          }),
+        });
+        push_status = res.status;
+        const details = await res.text().catch(() => '');
+        console.log(`[notify-ticket] push status: ${res.status} body: ${details.slice(0, 300)}`);
+      }
+    } catch (e) {
+      push_status = 'threw';
+      console.error('[notify-ticket] push threw:', e instanceof Error ? e.message : String(e));
+    }
+
+    return jsonOk({ discord_status, resend_status, push_status });
   } catch (e) {
     console.error('[notify-ticket] unhandled:', e instanceof Error ? e.message : String(e));
     return jsonOk({ handled_error: true, discord_status, resend_status });
   }
 });
+
