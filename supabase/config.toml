@@ -50,8 +50,6 @@ verify_jwt = false
 [functions.capture-player-signin]
 verify_jwt = false
 
-[functions.capture-player-signin]
-verify_jwt = false
 
 [functions.refresh-player-signins]
 verify_jwt = false
