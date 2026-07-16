@@ -126,17 +126,11 @@ export const useSupportTickets = (user: User | null) => {
 
       if (messageError) throw messageError;
 
-      // Send email notification
-      await sendSupportEmail(ticket.id, subject, initialMessage);
-
-      // Fire-and-forget Discord alert — must NOT fail ticket creation.
-      const discordKind = opts?.discordKind ?? 'ticket';
-      const content = discordKind === 'channel_report'
-        ? '🚨 **Channel Report** (from ' + user.email + ')\n```\n' + initialMessage.slice(0, 1500) + '\n```'
-        : `🎫 **New Ticket** from ${user.email}\n**${subject}**\n\`\`\`\n${initialMessage.slice(0, 1500)}\n\`\`\``;
-      supabase.functions.invoke('notify-discord', {
-        body: { kind: discordKind, content },
-      }).catch(() => {});
+      // Ticket create → notify-ticket edge function is fired server-side by an
+      // AFTER INSERT trigger on support_tickets (mirrors app_alerts pattern).
+      // No client-side Discord/email invoke on create; ticket replies still
+      // trigger their email via sendSupportEmail() from sendMessage().
+      void opts;
 
       toast({
         title: "Success",
