@@ -161,7 +161,7 @@ interface HomeHeaderProps {
   onOpenUser: () => void;
   onOpenAuth: () => void;
   onOpenSettings: () => void;
-  onOpenDashboard: () => void;
+  onOpenDashboard?: () => void;
 }
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
@@ -169,7 +169,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     tier, isAdmin, hasUser,
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
-    onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings, onOpenDashboard,
+    onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
   } = props;
 
   const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
