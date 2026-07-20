@@ -356,6 +356,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <TabsContent value="help" className="mt-0">
             <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
               <Button
+                onClick={() => setShowHowTo(true)}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-howto"
+                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+              >
+                <GraduationCap className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">How to use SMC</span>
+                <span className="text-sm text-emerald-100 justify-self-end">
+                  A simple tour of every screen
+                </span>
+              </Button>
+              <Button
                 onClick={() => { try { trackEvent('speed_test_launch', 'tools'); } catch { void 0; } setShowSpeedTest(true); }}
                 variant="outline"
                 size="lg"
