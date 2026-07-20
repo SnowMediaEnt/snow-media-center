@@ -169,7 +169,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
   const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
     'support-back': { down: `tab-${tab}` },
-    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-speedtest' },
+    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-howto' },
     'tab-ai': {
       up: 'support-back', right: 'tab-community', left: 'tab-help',
       down: () => { focusIntoChild('ai'); return null; },
@@ -178,17 +178,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       up: 'support-back', right: 'tab-help', left: 'tab-ai',
       down: () => { focusIntoChild('community'); return null; },
     },
-    'help-speedtest': { up: 'tab-help', down: 'help-guide' },
+    'help-howto': { up: 'tab-help', down: 'help-speedtest' },
+    'help-speedtest': { up: 'help-howto', down: 'help-guide' },
     'help-guide': { up: 'help-speedtest', down: 'help-videos' },
     'help-videos': { up: 'help-guide', down: 'help-tickets' },
     'help-tickets': { up: 'help-videos' },
   }), [tab, focusIntoChild]);
 
-  // When a sub-view (videos / tickets) or overlay (speedtest / guide) is open,
+  // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
   // the child component owns D-pad + Back. Disabling the parent focus manager
   // here prevents its Back handler from firing first and exiting Support
   // straight to the Home screen.
-  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu' && !childFocusActive;
+  const supportFocusActive = !showSpeedTest && !showGuide && !showHowTo && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
     initialFocusId: 'support-back',
     focusableSelector: '[data-support-tv-focus-id]',
