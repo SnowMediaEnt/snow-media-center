@@ -27,7 +27,6 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const slidesLen = chapter?.slides.length ?? 0;
   const isLast = slidesLen > 0 && slideIdx === slidesLen - 1;
   const hasDeepLink = !!slide?.deepLink;
-  const footerCount = hasDeepLink ? 3 : 2;
 
   // Analytics
   useEffect(() => {
@@ -82,10 +81,10 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     }, 0);
   }, [slide, onClose, onNavigate]);
 
-  // Reset footer focus when slide changes
+  // Reset footer focus to Next when slide changes
   useEffect(() => {
-    setFooterFocus((f) => Math.min(f, (hasDeepLink ? 3 : 2) - 1));
-  }, [slideIdx, hasDeepLink]);
+    setFooterFocus(1);
+  }, [slideIdx]);
 
   // Focus commit: chapters view
   useEffect(() => {
@@ -146,8 +145,17 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
       if (e.key === 'ArrowLeft') { handled(); goPrev(); return; }
       if (e.key === 'ArrowRight') { handled(); goNext(); return; }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        // No-op vertically in slides — keep focus in footer
-        handled();
+        if (!hasDeepLink) {
+          handled();
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          handled();
+          setFooterFocus(2);
+        } else if (e.key === 'ArrowDown') {
+          handled();
+          setFooterFocus(1);
+        }
         return;
       }
       if (e.key === 'Enter' || e.keyCode === 23 || e.keyCode === 66) {
@@ -159,15 +167,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, slideIdx, chapterFocus, footerFocus, goPrev, goNext, openChapter, backToChapters, onClose]);
+  }, [view, slideIdx, chapterFocus, footerFocus, hasDeepLink, goPrev, goNext, openChapter, backToChapters, onClose]);
 
-  // Horizontal footer nav via ArrowLeft/Right conflicts with slide paging — use
-  // simple rule: paging owns L/R. Focus moves are handled by clicks/openings.
-  // To let the user pick DeepLink vs Next, they use Tab-less scheme: we always
-  // land on Next; ArrowRight = go to next slide; if they want DeepLink, they
-  // must move focus via mouse or… Actually: repurpose so that on the LAST
-  // interactive: we cycle footerFocus when they press OK repeatedly? Keep it
-  // simple — DeepLink is triggered by its own dedicated key path.
 
   // Capacitor back
   useLayoutEffect(() => {
@@ -345,8 +346,6 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 </Button>
               </div>
             </div>
-            {/* Suppress unused var warnings for footerCount */}
-            <span aria-hidden="true" hidden>{footerCount}</span>
           </div>
         </>
       )}
