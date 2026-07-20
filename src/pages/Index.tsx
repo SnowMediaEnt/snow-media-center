@@ -180,7 +180,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
 
   return (
     <div
-      className="absolute z-20 flex flex-wrap items-center justify-end"
+      className="absolute z-20 flex flex-nowrap items-center justify-end whitespace-nowrap"
       data-home-header
       style={{
         top: `max(env(safe-area-inset-top, 0px), ${inset})`,
@@ -189,7 +189,6 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         maxWidth: 'min(50vw, 32rem)',
       }}
     >
-      <ServiceExpirationBanner onOpenDashboard={onOpenDashboard} />
 
       {isAdmin && (
         <Button
