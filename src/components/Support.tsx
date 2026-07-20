@@ -58,6 +58,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     } catch { /* ignore */ }
     return false;
   });
+  const [showHowTo, setShowHowTo] = useState<boolean>(() => {
+    try {
+      if (sessionStorage.getItem('smc-open-howto') === '1') {
+        sessionStorage.removeItem('smc-open-howto');
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  });
   // Origin of the guide open — 'plex-movie' means close should return to Plex.
   const [guideOrigin, setGuideOrigin] = useState<string | null>(() => {
     try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }
