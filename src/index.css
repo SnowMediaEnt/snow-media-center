@@ -728,3 +728,8 @@ html.no-flex-gap .flex.gap-4:not(.flex-col) > * + * { margin-left: 1rem; }
 html.no-flex-gap .flex.flex-col.gap-1\.5 > * + * { margin-top: 0.375rem; }
 html.no-flex-gap .flex.flex-col.gap-2 > * + * { margin-top: 0.5rem; }
 html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
+
+/* MediaBar poster sizing — height fallback then clamp() for modern WebViews.
+   Never rely on aspect-ratio (Chrome 88+) to establish poster height. */
+.media-poster { height: 120px; height: clamp(96px, 16vh, 180px); }
+[data-media-bar] { max-height: 40vh; overflow: hidden; }

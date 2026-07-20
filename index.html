@@ -63,7 +63,7 @@
         __p.style.cssText='position:absolute;visibility:hidden;width:100px;display:flex;flex-direction:column;gap:1px';
         __p.appendChild(document.createElement('div')); __p.appendChild(document.createElement('div'));
         document.documentElement.appendChild(__p);
-        if(__p.scrollHeight!==1) document.documentElement.className+=' no-flex-gap';
+        if(__p.scrollHeight < 1) document.documentElement.className+=' no-flex-gap';
         document.documentElement.removeChild(__p);
       } catch (e) {}
     </script>

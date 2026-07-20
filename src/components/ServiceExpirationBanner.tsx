@@ -100,12 +100,12 @@ const ServiceExpirationBanner = ({ onOpenDashboard }: Props) => {
     <button
       type="button"
       onClick={handleClick}
-      className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg transition-all hover:scale-105 ${colorClass}`}
+      className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg transition-all hover:scale-105 max-w-full min-w-0 whitespace-nowrap ${colorClass}`}
     >
-      <AlertTriangle className="w-4 h-4" />
-      <span className="hidden sm:inline">{msg}</span>
-      <span className="sm:hidden">Service expiring</span>
-      <span className="underline opacity-90">Manage</span>
+      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+      <span className="hidden sm:inline truncate min-w-0">{msg}</span>
+      <span className="sm:hidden truncate min-w-0">Service expiring</span>
+      <span className="underline opacity-90 flex-shrink-0">Manage</span>
     </button>
   );
 };

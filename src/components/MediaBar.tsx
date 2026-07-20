@@ -415,6 +415,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       ref={containerRef}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      data-media-bar
       className="relative z-10 border-y border-primary/30"
       style={{
         backgroundColor: 'hsl(var(--brand-navy) / 0.95)',
@@ -435,7 +436,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         <div className="flex-1 grid gap-2 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
           {isEmpty
             ? Array.from({ length: PAGE_SIZE }).map((_, i) => (
-                <div key={i} className="h-[140px] rounded-md bg-black/30 animate-pulse" />
+                <div key={i} className="media-poster rounded-md bg-black/30 animate-pulse" />
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
@@ -455,7 +456,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                         : ''
                     }`}
                   >
-                    <div className="relative w-full aspect-[2/3] bg-black/60 flex-shrink-0">
+                    <div className="relative w-full bg-black/60 flex-shrink-0 overflow-hidden media-poster">
                       {item.poster && imagesReady ? (
                         <img
                           src={item.poster}
@@ -464,7 +465,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                           decoding="async"
                           // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           {...({ fetchpriority: 'low' } as any)}
-                          className="w-full h-full object-cover"
+                          className="absolute top-0 left-0 w-full h-full object-cover"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
                       ) : null}

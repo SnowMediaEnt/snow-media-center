@@ -161,7 +161,7 @@ interface HomeHeaderProps {
   onOpenUser: () => void;
   onOpenAuth: () => void;
   onOpenSettings: () => void;
-  onOpenDashboard: () => void;
+  onOpenDashboard?: () => void;
 }
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
@@ -169,7 +169,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     tier, isAdmin, hasUser,
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
-    onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings, onOpenDashboard,
+    onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
   } = props;
 
   const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
@@ -180,7 +180,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
 
   return (
     <div
-      className="absolute z-20 flex flex-wrap items-center justify-end"
+      className="absolute z-20 flex flex-nowrap items-center justify-end whitespace-nowrap"
       data-home-header
       style={{
         top: `max(env(safe-area-inset-top, 0px), ${inset})`,
@@ -189,7 +189,6 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
         maxWidth: 'min(50vw, 32rem)',
       }}
     >
-      <ServiceExpirationBanner onOpenDashboard={onOpenDashboard} />
 
       {isAdmin && (
         <Button
@@ -903,8 +902,20 @@ const Index = () => {
             onOpenUser={onOpenUser}
             onOpenAuth={onOpenAuth}
             onOpenSettings={onOpenSettings}
-            onOpenDashboard={onOpenDashboardFromBanner}
           />
+
+          {/* Expiration banner — top-left, absolute, never displaces the header row */}
+          <div
+            className="absolute z-20 pointer-events-none flex items-center"
+            style={{
+              top: `max(env(safe-area-inset-top, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'})`,
+              left: `calc(max(env(safe-area-inset-left, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'}) + 4.5rem)`,
+              right: 'calc(50vw + 7rem)',
+              maxWidth: 'min(30vw, 22rem)',
+            }}
+          >
+            <ServiceExpirationBanner onOpenDashboard={onOpenDashboardFromBanner} />
+          </div>
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
