@@ -168,7 +168,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, slideIdx, chapterFocus, footerFocus, goPrev, goNext, openChapter, backToChapters, onClose]);
+  }, [view, slideIdx, chapterFocus, footerFocus, hasDeepLink, goPrev, goNext, openChapter, backToChapters, onClose]);
 
 
   // Capacitor back
