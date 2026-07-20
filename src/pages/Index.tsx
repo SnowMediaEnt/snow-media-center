@@ -902,8 +902,20 @@ const Index = () => {
             onOpenUser={onOpenUser}
             onOpenAuth={onOpenAuth}
             onOpenSettings={onOpenSettings}
-            onOpenDashboard={onOpenDashboardFromBanner}
           />
+
+          {/* Expiration banner — top-left, absolute, never displaces the header row */}
+          <div
+            className="absolute z-20 pointer-events-none flex items-center"
+            style={{
+              top: `max(env(safe-area-inset-top, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'})`,
+              left: `calc(max(env(safe-area-inset-left, 0px), ${screenTier === 'xl' ? '2rem' : screenTier === 'lg' ? '1.5rem' : '1rem'}) + 4.5rem)`,
+              right: 'calc(50vw + 7rem)',
+              maxWidth: 'min(30vw, 22rem)',
+            }}
+          >
+            <ServiceExpirationBanner onOpenDashboard={onOpenDashboardFromBanner} />
+          </div>
 
           {/* Spacer for info bar — kept tight so 1080p TVs (FireTV) don't push cards below the safe area */}
           <div className="flex-shrink-0" style={{ height: 'clamp(2.5rem, 5vh, 5rem)' }}></div>
