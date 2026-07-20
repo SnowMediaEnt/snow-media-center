@@ -27,7 +27,6 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   const slidesLen = chapter?.slides.length ?? 0;
   const isLast = slidesLen > 0 && slideIdx === slidesLen - 1;
   const hasDeepLink = !!slide?.deepLink;
-  
 
   // Analytics
   useEffect(() => {
