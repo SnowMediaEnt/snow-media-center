@@ -472,6 +472,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
         />
       )}
+      {showHowTo && (
+        <Suspense fallback={null}>
+          <HowToGuide onClose={() => setShowHowTo(false)} onNavigate={onNavigate} />
+        </Suspense>
+      )}
       {downloadingApp && (
         <DownloadProgress
           app={downloadingApp}
