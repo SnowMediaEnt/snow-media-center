@@ -266,13 +266,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       } catch { /* ignore */ }
       setTab('help'); setHelpView('menu'); setShowGuide(true);
     };
+    const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-buffering-guide', openGuide);
+    window.addEventListener('support:open-howto', openHowTo);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
       window.removeEventListener('support:open-buffering-guide', openGuide);
+      window.removeEventListener('support:open-howto', openHowTo);
     };
 
   }, [scrollSupportToRealTop, supportFocus, tab]);
