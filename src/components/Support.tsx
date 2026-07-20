@@ -30,6 +30,7 @@ const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
 const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
+const HowToGuide = lazy(() => import('@/components/HowToGuide'));
 
 interface SupportProps {
   onBack: () => void;
