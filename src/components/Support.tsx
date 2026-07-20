@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Brain,
   MessageSquare,
+  GraduationCap,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
@@ -29,6 +30,7 @@ const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
 const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
+const HowToGuide = lazy(() => import('@/components/HowToGuide'));
 
 interface SupportProps {
   onBack: () => void;
@@ -51,6 +53,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     try {
       if (sessionStorage.getItem('smc-open-buffering-guide') === '1') {
         sessionStorage.removeItem('smc-open-buffering-guide');
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  });
+  const [showHowTo, setShowHowTo] = useState<boolean>(() => {
+    try {
+      if (sessionStorage.getItem('smc-open-howto') === '1') {
+        sessionStorage.removeItem('smc-open-howto');
         return true;
       }
     } catch { /* ignore */ }
@@ -158,7 +169,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
   const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
     'support-back': { down: `tab-${tab}` },
-    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-speedtest' },
+    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-howto' },
     'tab-ai': {
       up: 'support-back', right: 'tab-community', left: 'tab-help',
       down: () => { focusIntoChild('ai'); return null; },
@@ -167,17 +178,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       up: 'support-back', right: 'tab-help', left: 'tab-ai',
       down: () => { focusIntoChild('community'); return null; },
     },
-    'help-speedtest': { up: 'tab-help', down: 'help-guide' },
+    'help-howto': { up: 'tab-help', down: 'help-speedtest' },
+    'help-speedtest': { up: 'help-howto', down: 'help-guide' },
     'help-guide': { up: 'help-speedtest', down: 'help-videos' },
     'help-videos': { up: 'help-guide', down: 'help-tickets' },
     'help-tickets': { up: 'help-videos' },
   }), [tab, focusIntoChild]);
 
-  // When a sub-view (videos / tickets) or overlay (speedtest / guide) is open,
+  // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
   // the child component owns D-pad + Back. Disabling the parent focus manager
   // here prevents its Back handler from firing first and exiting Support
   // straight to the Home screen.
-  const supportFocusActive = !showSpeedTest && !showGuide && helpView === 'menu' && !childFocusActive;
+  const supportFocusActive = !showSpeedTest && !showGuide && !showHowTo && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
     initialFocusId: 'support-back',
     focusableSelector: '[data-support-tv-focus-id]',
@@ -254,13 +266,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       } catch { /* ignore */ }
       setTab('help'); setHelpView('menu'); setShowGuide(true);
     };
+    const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-buffering-guide', openGuide);
+    window.addEventListener('support:open-howto', openHowTo);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
       window.removeEventListener('support:open-buffering-guide', openGuide);
+      window.removeEventListener('support:open-howto', openHowTo);
     };
 
   }, [scrollSupportToRealTop, supportFocus, tab]);
@@ -340,6 +355,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
           <TabsContent value="help" className="mt-0">
             <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
+              <Button
+                onClick={() => setShowHowTo(true)}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-howto"
+                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+              >
+                <GraduationCap className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">How to use SMC</span>
+                <span className="text-sm text-emerald-100 justify-self-end">
+                  A simple tour of every screen
+                </span>
+              </Button>
               <Button
                 onClick={() => { try { trackEvent('speed_test_launch', 'tools'); } catch { void 0; } setShowSpeedTest(true); }}
                 variant="outline"
@@ -442,6 +471,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           onNavigateToChat={() => { setTab('help'); setHelpView('tickets'); }}
 
         />
+      )}
+      {showHowTo && (
+        <Suspense fallback={null}>
+          <HowToGuide onClose={() => setShowHowTo(false)} onNavigate={onNavigate} />
+        </Suspense>
       )}
       {downloadingApp && (
         <DownloadProgress
