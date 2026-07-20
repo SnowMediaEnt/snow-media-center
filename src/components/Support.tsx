@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Brain,
   MessageSquare,
+  GraduationCap,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
