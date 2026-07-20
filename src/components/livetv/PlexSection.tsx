@@ -43,6 +43,9 @@ import { trackEvent } from '@/lib/analytics';
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 
+const PROVIDER_SERVER_RE = /snow[\s\-_]*media/i;
+const isProviderServer = (name?: string | null) => !!name && PROVIDER_SERVER_RE.test(name);
+
 const COLS = 6;
 const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
 const PAGE_FIRST = 60;
@@ -365,7 +368,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
   }, [isActive, disarmConfirm]);
 
   const accountLine = account?.username || account?.email;
-  const ownedLine = owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
+  const ownedLine = isProviderServer(serverName) ? 'Provider server' : owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
 
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-2">
@@ -477,20 +480,24 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
   }, []);
 
   const accountLine = account?.username || account?.email;
-  const owned = conn?.owned === true;
+  const showOwnedWarning = conn?.owned === true && !isProviderServer(conn?.name);
+  const showProviderReassure = conn?.owned === true && isProviderServer(conn?.name);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
         <h2 className="text-2xl font-quicksand font-bold mb-2">Connected to {conn?.name || 'Plex'}</h2>
         {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">as {accountLine}</p>}
-        {owned && (
+        {showOwnedWarning && (
           <div className="mb-5 rounded-xl bg-red-500/15 ring-1 ring-red-500/40 px-4 py-3 text-left">
             <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">Heads up</p>
             <p className="text-red-100/90 font-nunito text-xs">
               This looks like <span className="font-bold">YOUR OWN</span> Plex server. If you meant to use your provider's service, sign out and send them the code instead.
             </p>
           </div>
+        )}
+        {showProviderReassure && (
+          <p className="text-brand-ice/70 font-nunito text-xs mb-4">You're all set — this is your provider's server.</p>
         )}
         <div className="mt-4 flex items-center justify-center gap-3">
           <button type="button"
