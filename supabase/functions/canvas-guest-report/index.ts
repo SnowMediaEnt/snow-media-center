@@ -154,8 +154,7 @@ Deno.serve(async (req) => {
     if (!tenant || tenant.status !== 'active') return jsonOk({ ok: false, reason: 'invalid_tenant' });
 
     const sentinelId = await resolveSentinelUserId(admin);
-    const customerUserId = sentinelId; // canvas_customers.user_id
-    await resolveGuestCustomerId(admin, tenant.id, customerUserId);
+    await ensureSentinelCustomer(admin, tenant.id, sentinelId);
 
     const { data: ticket, error: ticketErr } = await admin
       .from('canvas_support_tickets')
