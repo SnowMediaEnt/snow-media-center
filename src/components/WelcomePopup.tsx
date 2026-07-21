@@ -11,6 +11,14 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.3': [
+    'Movies & Shows always plays in Original quality — no more surprise "transcoding"',
+    'Stuck loading now fixes itself in seconds (with a working Retry everywhere)',
+    'New: "How to use SMC" tour in Support — a simple guide to every screen',
+    'New: Plex Settings tab — manage categories, see your account, sign out',
+    'New: "Fix audio" button in the Audio menu for silent movies',
+    'Home screen fixes: content bar sizing + alerts no longer cover buttons',
+  ],
   '1.6.2': [
     'Plex: fixed the freeze when opening a movie or show',
     'Faster, lighter Plex image loading',
