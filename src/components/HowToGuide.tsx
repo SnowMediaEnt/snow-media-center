@@ -117,6 +117,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
 
       if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) {
         if (e.key === 'Backspace' && tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
+        (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
         handled();
         if (view === 'slides') {
           if (slideIdx === 0) backToChapters();
@@ -195,6 +196,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
   return (
     <div
       ref={rootRef}
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-[100] bg-black/95 flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150"
     >
       {view === 'chapters' && (
