@@ -18,7 +18,7 @@ const SENTINEL_NAME = 'Guest Reports';
 const HOUSE_TENANTS = new Set(['snowmedia', 'canvas', 'ask']);
 
 let cachedSentinelId: string | null = null;
-const cachedCustomerByTenant = new Map<string, string>();
+let sentinelCustomerEnsured = false;
 
 // Light in-memory IP rate limit (per instance) — 5 req / minute.
 const ipHits = new Map<string, number[]>();
@@ -69,55 +69,41 @@ async function resolveSentinelUserId(admin: ReturnType<typeof createClient>): Pr
   return userId;
 }
 
-async function resolveGuestCustomerId(
+// Ensure a global canvas_customers row exists whose PK id == sentinelUserId,
+// so the reseller panel's id->username map renders "Guest Reports" for guest
+// tickets (ticket.user_id === sentinelUserId). canvas_customers.id is the
+// global PK, so only ONE such row can exist across all tenants — that's fine,
+// the panel only uses this row to resolve the display name.
+async function ensureSentinelCustomer(
   admin: ReturnType<typeof createClient>,
   tenantId: string,
   sentinelUserId: string,
-): Promise<string> {
-  const cached = cachedCustomerByTenant.get(tenantId);
-  if (cached) return cached;
+): Promise<void> {
+  if (sentinelCustomerEnsured) return;
 
-  // Try to find existing (tenant_id, user_id) row.
   const { data: existing } = await admin
     .from('canvas_customers')
     .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('user_id', sentinelUserId)
+    .eq('id', sentinelUserId)
     .maybeSingle();
 
   if (existing?.id) {
-    cachedCustomerByTenant.set(tenantId, existing.id);
-    return existing.id;
+    sentinelCustomerEnsured = true;
+    return;
   }
 
-  const { data: inserted, error } = await admin
-    .from('canvas_customers')
-    .insert({
-      tenant_id: tenantId,
-      user_id: sentinelUserId,
-      email: SENTINEL_EMAIL,
-      username: SENTINEL_NAME,
-    })
-    .select('id')
-    .single();
+  const { error } = await admin.from('canvas_customers').insert({
+    id: sentinelUserId,
+    tenant_id: tenantId,
+    user_id: sentinelUserId,
+    email: SENTINEL_EMAIL,
+    username: SENTINEL_NAME,
+  });
 
-  if (error) {
-    // Race: another request created it — refetch.
-    const { data: retry } = await admin
-      .from('canvas_customers')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('user_id', sentinelUserId)
-      .maybeSingle();
-    if (retry?.id) {
-      cachedCustomerByTenant.set(tenantId, retry.id);
-      return retry.id;
-    }
-    throw error;
+  if (error && !/duplicate|already exists|unique/i.test(error.message)) {
+    console.warn('[canvas-guest-report] ensureSentinelCustomer non-fatal:', error.message);
   }
-
-  cachedCustomerByTenant.set(tenantId, inserted.id);
-  return inserted.id;
+  sentinelCustomerEnsured = true;
 }
 
 function jsonOk(body: Record<string, unknown>, status = 200) {
@@ -168,8 +154,7 @@ Deno.serve(async (req) => {
     if (!tenant || tenant.status !== 'active') return jsonOk({ ok: false, reason: 'invalid_tenant' });
 
     const sentinelId = await resolveSentinelUserId(admin);
-    const customerUserId = sentinelId; // canvas_customers.user_id
-    await resolveGuestCustomerId(admin, tenant.id, customerUserId);
+    await ensureSentinelCustomer(admin, tenant.id, sentinelId);
 
     const { data: ticket, error: ticketErr } = await admin
       .from('canvas_support_tickets')
