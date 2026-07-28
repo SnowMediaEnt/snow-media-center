@@ -59,8 +59,47 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
     fetchTicketMessages,
     sendAdminReply,
     updateTicketStatus,
-    deleteTicket
+    deleteTicket,
+    fetchTickets
   } = useAdminTickets();
+
+  const { toast } = useToast();
+
+  const handleSendBroadcast = async () => {
+    const subject = broadcastSubject.trim();
+    const message = broadcastMessage.trim();
+    if (!subject || !message) return;
+    if (!confirm('Send this message as a ticket to EVERY user? This cannot be undone.')) return;
+
+    try {
+      setBroadcastSending(true);
+      const { data, error } = await supabase.functions.invoke('broadcast-ticket', {
+        body: { subject, message },
+      });
+      if (error) throw error;
+      const res = data as { ok?: boolean; sent?: number; reason?: string } | null;
+      if (!res?.ok) throw new Error(res?.reason || 'Broadcast failed');
+
+      toast({
+        title: 'Broadcast sent',
+        description: `Ticket delivered to ${res.sent ?? 0} user${res.sent === 1 ? '' : 's'}.`,
+      });
+      setBroadcastSubject('');
+      setBroadcastMessage('');
+      setBroadcastOpen(false);
+      await fetchTickets();
+    } catch (err) {
+      console.error('[broadcast-ticket] failed:', err);
+      toast({
+        title: 'Broadcast failed',
+        description: err instanceof Error ? err.message : 'Could not send the broadcast',
+        variant: 'destructive',
+      });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
