@@ -204,7 +204,10 @@ export const useSupportTickets = (user: User | null) => {
           ? { ...ticket, user_has_unread: false }
           : ticket
       ));
+      // Let the Support/home badges refresh immediately.
+      window.dispatchEvent(new Event('support:tickets-read'));
     } catch (error) {
+
       console.error('Error marking ticket as read:', error);
     }
   };
