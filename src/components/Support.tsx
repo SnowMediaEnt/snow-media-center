@@ -25,6 +25,7 @@ import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
+import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
