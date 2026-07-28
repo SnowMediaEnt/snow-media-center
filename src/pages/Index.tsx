@@ -1022,6 +1022,7 @@ const Index = () => {
                     layoutMode={effectiveLayout}
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
+                    badgeCount={button.title === t('home.support.title') ? unreadTicketCount : 0}
                   />
                 );
 
