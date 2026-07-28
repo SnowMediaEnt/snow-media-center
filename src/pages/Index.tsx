@@ -114,6 +114,17 @@ const HomeActionCard = memo(({
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 rounded-3xl pointer-events-none" />
 
+      {badgeCount > 0 && (
+        <span
+          aria-label={`${badgeCount} unread support replies`}
+          className="absolute top-2 right-2 z-20 min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex items-center justify-center shadow-lg ring-2 ring-white/70 pointer-events-none"
+        >
+          {badgeCount > 9 ? '9+' : badgeCount}
+        </span>
+      )}
+
+
+
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
           width: layoutMode === 'grid' ? 'clamp(40px, 5vw, 84px)' : 'clamp(44px, 5.2vw, 84px)',
