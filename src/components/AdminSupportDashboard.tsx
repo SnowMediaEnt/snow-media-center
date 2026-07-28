@@ -417,6 +417,50 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </TabsList>
 
           <TabsContent value="tickets">
+            <div className="mb-3 p-3 rounded-md bg-blue-900/30 border border-blue-700/40">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-blue-100 flex items-center gap-2">
+                  <Megaphone className="w-4 h-4" />
+                  Send a message as a ticket to every user
+                </span>
+                <Button
+                  size="sm"
+                  type="button"
+                  className="bg-blue-600/20 border border-blue-400/50 text-white hover:bg-blue-600/40"
+                  onClick={() => setBroadcastOpen(v => !v)}
+                >
+                  {broadcastOpen ? 'Cancel' : 'New Broadcast'}
+                </Button>
+              </div>
+
+              {broadcastOpen && (
+                <div className="mt-3 space-y-2">
+                  <Input
+                    value={broadcastSubject}
+                    onChange={(e) => setBroadcastSubject(e.target.value)}
+                    placeholder="Subject"
+                    maxLength={200}
+                  />
+                  <Textarea
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Message to all users..."
+                    rows={4}
+                    maxLength={5000}
+                  />
+                  <Button
+                    type="button"
+                    disabled={broadcastSending || !broadcastSubject.trim() || !broadcastMessage.trim()}
+                    onClick={handleSendBroadcast}
+                    className="bg-blue-600/20 border border-blue-400/50 text-white hover:bg-blue-600/40"
+                  >
+                    {broadcastSending ? 'Sending...' : 'Send to all users'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+
             {userFilter && (
               <div className="mb-3 flex items-center justify-between gap-2 p-3 rounded-md bg-purple-900/30 border border-purple-700/40">
                 <span className="text-sm text-purple-100">
