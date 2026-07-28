@@ -75,6 +75,7 @@ const HomeActionCard = memo(({
   layoutMode,
   onActivate,
   boostSize = false,
+  badgeCount = 0,
 }: {
   button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
   index: number;
@@ -82,6 +83,7 @@ const HomeActionCard = memo(({
   layoutMode: 'grid' | 'row';
   onActivate: () => void;
   boostSize?: boolean;
+  badgeCount?: number;
 }) => {
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
