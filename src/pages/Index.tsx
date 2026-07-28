@@ -370,6 +370,7 @@ const Index = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
+  const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { version } = useVersion();
   // Mirrors a locally-stored player account into customer_services once a
   // signed-in session is detected. Fire-and-forget; safe no-op when either
