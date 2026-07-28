@@ -27,6 +27,10 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Megaphone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -45,6 +49,11 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
   const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai'>('tickets');
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastSubject, setBroadcastSubject] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
 
   const {
     tickets,
@@ -54,8 +63,47 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
     fetchTicketMessages,
     sendAdminReply,
     updateTicketStatus,
-    deleteTicket
+    deleteTicket,
+    fetchTickets
   } = useAdminTickets();
+
+  const { toast } = useToast();
+
+  const handleSendBroadcast = async () => {
+    const subject = broadcastSubject.trim();
+    const message = broadcastMessage.trim();
+    if (!subject || !message) return;
+    if (!confirm('Send this message as a ticket to EVERY user? This cannot be undone.')) return;
+
+    try {
+      setBroadcastSending(true);
+      const { data, error } = await supabase.functions.invoke('broadcast-ticket', {
+        body: { subject, message },
+      });
+      if (error) throw error;
+      const res = data as { ok?: boolean; sent?: number; reason?: string } | null;
+      if (!res?.ok) throw new Error(res?.reason || 'Broadcast failed');
+
+      toast({
+        title: 'Broadcast sent',
+        description: `Ticket delivered to ${res.sent ?? 0} user${res.sent === 1 ? '' : 's'}.`,
+      });
+      setBroadcastSubject('');
+      setBroadcastMessage('');
+      setBroadcastOpen(false);
+      await fetchTickets();
+    } catch (err) {
+      console.error('[broadcast-ticket] failed:', err);
+      toast({
+        title: 'Broadcast failed',
+        description: err instanceof Error ? err.message : 'Could not send the broadcast',
+        variant: 'destructive',
+      });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
   const ticketMessages = selectedTicketId ? messages[selectedTicketId] || [] : [];
@@ -369,6 +417,50 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
           </TabsList>
 
           <TabsContent value="tickets">
+            <div className="mb-3 p-3 rounded-md bg-blue-900/30 border border-blue-700/40">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-blue-100 flex items-center gap-2">
+                  <Megaphone className="w-4 h-4" />
+                  Send a message as a ticket to every user
+                </span>
+                <Button
+                  size="sm"
+                  type="button"
+                  className="bg-blue-600/20 border border-blue-400/50 text-white hover:bg-blue-600/40"
+                  onClick={() => setBroadcastOpen(v => !v)}
+                >
+                  {broadcastOpen ? 'Cancel' : 'New Broadcast'}
+                </Button>
+              </div>
+
+              {broadcastOpen && (
+                <div className="mt-3 space-y-2">
+                  <Input
+                    value={broadcastSubject}
+                    onChange={(e) => setBroadcastSubject(e.target.value)}
+                    placeholder="Subject"
+                    maxLength={200}
+                  />
+                  <Textarea
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Message to all users..."
+                    rows={4}
+                    maxLength={5000}
+                  />
+                  <Button
+                    type="button"
+                    disabled={broadcastSending || !broadcastSubject.trim() || !broadcastMessage.trim()}
+                    onClick={handleSendBroadcast}
+                    className="bg-blue-600/20 border border-blue-400/50 text-white hover:bg-blue-600/40"
+                  >
+                    {broadcastSending ? 'Sending...' : 'Send to all users'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+
             {userFilter && (
               <div className="mb-3 flex items-center justify-between gap-2 p-3 rounded-md bg-purple-900/30 border border-purple-700/40">
                 <span className="text-sm text-purple-100">

@@ -22,6 +22,7 @@ import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccountSync } from '@/hooks/usePlayerAccountSync';
 import { useAdminRole } from '@/hooks/useAdminRole';
+import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
@@ -75,6 +76,7 @@ const HomeActionCard = memo(({
   layoutMode,
   onActivate,
   boostSize = false,
+  badgeCount = 0,
 }: {
   button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy' };
   index: number;
@@ -82,6 +84,7 @@ const HomeActionCard = memo(({
   layoutMode: 'grid' | 'row';
   onActivate: () => void;
   boostSize?: boolean;
+  badgeCount?: number;
 }) => {
   const ButtonIcon = button.icon;
   const cardStyle = layoutMode === 'grid'
@@ -111,6 +114,17 @@ const HomeActionCard = memo(({
       }}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 rounded-3xl pointer-events-none" />
+
+      {badgeCount > 0 && (
+        <span
+          aria-label={`${badgeCount} unread support replies`}
+          className="absolute top-2 right-2 z-20 min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex items-center justify-center shadow-lg ring-2 ring-white/70 pointer-events-none"
+        >
+          {badgeCount > 9 ? '9+' : badgeCount}
+        </span>
+      )}
+
+
 
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center p-4">
         <div className="flex-shrink-0 mb-2" style={{
@@ -356,6 +370,7 @@ const Index = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
+  const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { version } = useVersion();
   // Mirrors a locally-stored player account into customer_services once a
   // signed-in session is detected. Fire-and-forget; safe no-op when either
@@ -1007,6 +1022,7 @@ const Index = () => {
                     layoutMode={effectiveLayout}
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
+                    badgeCount={button.title === t('home.support.title') ? unreadTicketCount : 0}
                   />
                 );
 

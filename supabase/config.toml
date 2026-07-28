@@ -64,3 +64,6 @@ verify_jwt = false
 verify_jwt = false
 
 
+
+[functions.broadcast-ticket]
+verify_jwt = false
