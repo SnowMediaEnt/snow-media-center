@@ -22,6 +22,7 @@ import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccountSync } from '@/hooks/usePlayerAccountSync';
 import { useAdminRole } from '@/hooks/useAdminRole';
+import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
