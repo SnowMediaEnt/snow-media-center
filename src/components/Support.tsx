@@ -42,6 +42,7 @@ type Tab = 'help' | 'ai' | 'community';
 type HelpView = 'menu' | 'videos' | 'tickets';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
+  const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
