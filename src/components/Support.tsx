@@ -417,14 +417,22 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-tickets"
-                className="bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
               >
                 <MessageCircle className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">Submit a Ticket</span>
+                <span className="text-xl font-medium truncate flex items-center gap-3">
+                  Submit a Ticket
+                  {unreadTicketCount > 0 && (
+                    <span className="min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold inline-flex items-center justify-center ring-2 ring-white/70">
+                      {unreadTicketCount > 9 ? '9+' : unreadTicketCount}
+                    </span>
+                  )}
+                </span>
                 <span className="text-sm text-orange-100 justify-self-end">
-                  Contact Snow Media Support
+                  {unreadTicketCount > 0 ? 'New reply from Support' : 'Contact Snow Media Support'}
                 </span>
               </Button>
+
             </div>
           </TabsContent>
 
