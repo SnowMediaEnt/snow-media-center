@@ -27,6 +27,10 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAdminTickets, AdminTicket } from '@/hooks/useAdminTickets';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Megaphone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
