@@ -279,20 +279,32 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto overscroll-contain px-6">
-            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center py-10">
-              <div className="w-20 h-20 rounded-3xl bg-brand-gold/20 flex items-center justify-center mb-8">
-                {(() => { const I = slide.icon; return <I className="w-10 h-10 text-brand-gold" />; })()}
-              </div>
-              <h2 className="text-3xl font-quicksand font-bold text-white leading-snug">
+            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center py-6">
+              {slide.art ? (
+                <>
+                  <div className="w-full">
+                    <TutorialArt screen={slide.art.screen} highlight={slide.art.highlight} />
+                  </div>
+                  <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center mt-5 mb-3">
+                    {(() => { const I = slide.icon; return <I className="w-4 h-4 text-brand-gold" />; })()}
+                  </div>
+                </>
+              ) : (
+                <div className="w-20 h-20 rounded-3xl bg-brand-gold/20 flex items-center justify-center mb-8">
+                  {(() => { const I = slide.icon; return <I className="w-10 h-10 text-brand-gold" />; })()}
+                </div>
+              )}
+              <h2 className={`${slide.art ? 'text-2xl' : 'text-3xl'} font-quicksand font-bold text-white leading-snug`}>
                 {slide.title}
               </h2>
               {slide.line2 && (
-                <p className="text-lg text-brand-ice/80 font-nunito mt-4 leading-relaxed">
+                <p className={`text-brand-ice/80 font-nunito leading-relaxed ${slide.art ? 'text-base mt-2' : 'text-lg mt-4'}`}>
                   {slide.line2}
                 </p>
               )}
             </div>
           </div>
+
 
           {/* Footer */}
           <div className="px-6 pb-8 pt-4 tv-safe">
