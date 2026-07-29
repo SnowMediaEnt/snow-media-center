@@ -14,11 +14,20 @@ interface TutorialArtProps {
 // h-[220px] utility class below acts as the plain-px fallback.
 const ART_HEIGHT: React.CSSProperties = { height: 'clamp(180px, 34vh, 300px)' };
 
+const PARENT: Record<string, string> = {
+  'player-card': 'cards',
+  ok: 'dpad',
+  'settings-tab': 'tabs',
+  pin: 'grid',
+};
+
 export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
   // Region wrapper: gold ring + glow when highlighted, dimmed when something else is.
   const R = (name: string, className: string, children?: React.ReactNode, style?: React.CSSProperties) => {
     const isOn = highlight === name;
-    const isOff = !!highlight && !isOn;
+    const isParentOfActive = !!highlight && PARENT[highlight] === name;
+    const isNestedChild = name in PARENT;
+    const isOff = !!highlight && !isOn && !isParentOfActive && !isNestedChild;
     return (
       <div
         key={name}
