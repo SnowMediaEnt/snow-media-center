@@ -23,6 +23,9 @@ const PARENT: Record<string, string> = {
 };
 
 export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
+  const shot = TUTORIAL_SHOTS[screen];
+  const rect = shot && highlight ? SPOT_RECTS[screen]?.[highlight] : undefined;
+
   // Region wrapper: gold ring + glow when highlighted, dimmed when something else is.
   const R = (name: string, className: string, children?: React.ReactNode, style?: React.CSSProperties) => {
     const isOn = highlight === name;
