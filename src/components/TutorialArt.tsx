@@ -10,11 +10,9 @@ interface TutorialArtProps {
  * Chrome 66 floor: no CSS aspect-ratio, no `inset` shorthand, no flex `gap`.
  */
 
-const ART_HEIGHT: React.CSSProperties = {
-  height: '220px',
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ...(({ height: 'clamp(180px, 34vh, 300px)' } as unknown) as React.CSSProperties),
-};
+// Chrome 66 has no clamp(): the inline clamp is dropped as invalid and the
+// h-[220px] utility class below acts as the plain-px fallback.
+const ART_HEIGHT: React.CSSProperties = { height: 'clamp(180px, 34vh, 300px)' };
 
 export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
   // Region wrapper: gold ring + glow when highlighted, dimmed when something else is.
@@ -408,7 +406,7 @@ export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
 
   return (
     <div
-      className="w-full max-w-xl mx-auto rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
+      className="w-full max-w-xl mx-auto h-[220px] rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
       style={ART_HEIGHT}
       aria-hidden="true"
     >
