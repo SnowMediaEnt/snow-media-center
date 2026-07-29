@@ -3,6 +3,8 @@ import { ArrowLeft, ArrowRight, X, ChevronRight, ExternalLink } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { TUTORIAL_CHAPTERS, type TutorialChapter } from '@/data/tutorialContent';
 import { trackEvent } from '@/lib/analytics';
+import TutorialArt from '@/components/TutorialArt';
+
 
 interface HowToGuideProps {
   onClose: () => void;
