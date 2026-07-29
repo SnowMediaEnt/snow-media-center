@@ -37,11 +37,17 @@ export type TutorialDeepLink =
   | { kind: 'view'; view: string; label: string }
   | { kind: 'event'; event: string; label: string };
 
+export interface TutorialArt {
+  screen: string;
+  highlight?: string;
+}
+
 export interface TutorialSlide {
   icon: LucideIcon;
   title: string;
   line2?: string;
   deepLink?: TutorialDeepLink;
+  art?: TutorialArt;
 }
 
 export interface TutorialChapter {
@@ -61,11 +67,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     icon: Compass,
     color: 'bg-cyan-700/60 border-cyan-400/70 text-cyan-100',
     slides: [
-      { icon: Gamepad2, title: 'Move with the arrows. OK picks. Back goes back.', line2: "That's 90% of everything — you can't break anything." },
-      { icon: Home, title: 'This is your Home screen.', line2: 'Four big cards: Main Apps, Support, Snow Media Store, and Player.' },
-      { icon: Film, title: 'The bar up top shows movies & shows.', line2: 'Press OK on a poster to jump straight to it.' },
-      { icon: Newspaper, title: 'The scrolling line at the very top is news from us.', line2: 'Deals, updates and heads-ups show there.' },
-      { icon: Cog, title: 'Sign In and Settings live in the top-right corner.' },
+      { icon: Gamepad2, title: 'Move with the arrows. OK picks. Back goes back.', line2: "That's 90% of everything — you can't break anything.", art: { screen: 'remote', highlight: 'dpad' } },
+      { icon: Home, title: 'This is your Home screen.', line2: 'Four big cards: Main Apps, Support, Snow Media Store, and Player.', art: { screen: 'home' } },
+      { icon: Film, title: 'The bar up top shows movies & shows.', line2: 'Press OK on a poster to jump straight to it.', art: { screen: 'home', highlight: 'contentbar' } },
+      { icon: Newspaper, title: 'The scrolling line at the very top is news from us.', line2: 'Deals, updates and heads-ups show there.', art: { screen: 'home', highlight: 'ticker' } },
+      { icon: Cog, title: 'Sign In and Settings live in the top-right corner.', art: { screen: 'home', highlight: 'header' } },
     ],
   },
   {
@@ -81,11 +87,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         line2: 'Sign in with the details your seller gave you.',
         deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
       },
-      { icon: List, title: 'Pick a category on the left, then press OK on a channel to watch.' },
-      { icon: Play, title: 'While watching, press OK to show the controls.', line2: 'Up and Down change the channel. Back returns to the list.' },
-      { icon: CalendarDays, title: "The Guide shows what's on now and what's next." },
-      { icon: LayoutGrid, title: 'Multi-Screen plays 2 or 4 channels at once.', line2: 'The sound follows the tile you highlight.' },
-      { icon: Flag, title: 'Channel not working? Hold OK on it and choose Report.', line2: 'It comes straight to us so we can fix it.' },
+      { icon: List, title: 'Pick a category on the left, then press OK on a channel to watch.', art: { screen: 'home', highlight: 'player-card' } },
+      { icon: Play, title: 'While watching, press OK to show the controls.', line2: 'Up and Down change the channel. Back returns to the list.', art: { screen: 'livetv', highlight: 'list' } },
+      { icon: CalendarDays, title: "The Guide shows what's on now and what's next.", art: { screen: 'controls', highlight: 'bar' } },
+      { icon: LayoutGrid, title: 'Multi-Screen plays 2 or 4 channels at once.', line2: 'The sound follows the tile you highlight.', art: { screen: 'guide', highlight: 'grid' } },
+      { icon: Flag, title: 'Channel not working? Hold OK on it and choose Report.', line2: 'It comes straight to us so we can fix it.', art: { screen: 'multiscreen', highlight: 'tiles' } },
     ],
   },
   {
@@ -100,11 +106,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'Open Player, then Movies & Shows.',
         deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
       },
-      { icon: KeyRound, title: 'Press Sign in to get a code — then SEND THE CODE TO YOUR PROVIDER.', line2: "They link it for you. You don't need your own Plex account." },
-      { icon: Search, title: 'Browse Home, Search, or any category.', line2: 'OK on a poster shows details — then press Play.' },
-      { icon: Captions, title: "Need subtitles? Open the Subtitles menu and pick 'Get subtitles…'." },
-      { icon: VolumeX, title: "No sound? Open the Audio menu and press 'Fix audio'.", line2: 'It fixes the sound without restarting your movie.' },
-      { icon: Settings, title: 'The gear tab is Settings — hide categories or sign out of Plex there.' },
+      { icon: KeyRound, title: 'Press Sign in to get a code — then SEND THE CODE TO YOUR PROVIDER.', line2: "They link it for you. You don't need your own Plex account.", art: { screen: 'chooser', highlight: 'movies-card' } },
+      { icon: Search, title: 'Browse Home, Search, or any category.', line2: 'OK on a poster shows details — then press Play.', art: { screen: 'plex-code', highlight: 'code' } },
+      { icon: Captions, title: "Need subtitles? Open the Subtitles menu and pick 'Get subtitles…'.", art: { screen: 'plex-grid', highlight: 'grid' } },
+      { icon: VolumeX, title: "No sound? Open the Audio menu and press 'Fix audio'.", line2: 'It fixes the sound without restarting your movie.', art: { screen: 'controls', highlight: 'subs-menu' } },
+      { icon: Settings, title: 'The gear tab is Settings — hide categories or sign out of Plex there.', art: { screen: 'controls', highlight: 'audio-menu' } },
     ],
   },
   {
@@ -119,8 +125,8 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'Main Apps has every extra app you might need — all in one safe place.',
         deepLink: { kind: 'view', view: 'apps', label: 'Take me there' },
       },
-      { icon: Download, title: 'Press OK on an app, then Download to install it.', line2: "Already installed? It says 'Not installed' no more — just Open." },
-      { icon: Pin, title: "Pin your favorites and they'll show right on your Home screen." },
+      { icon: Download, title: 'Press OK on an app, then Download to install it.', line2: "Already installed? It says 'Not installed' no more — just Open.", art: { screen: 'apps', highlight: 'grid' } },
+      { icon: Pin, title: "Pin your favorites and they'll show right on your Home screen.", art: { screen: 'apps', highlight: 'popup' } },
     ],
   },
   {
@@ -130,8 +136,8 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     icon: LifeBuoy,
     color: 'bg-orange-700/60 border-orange-400/70 text-orange-100',
     slides: [
-      { icon: LifeBuoy, title: 'Stuck? Support has your back.' },
-      { icon: Gauge, title: 'Speed Test checks if your internet is fast enough for streaming.' },
+      { icon: LifeBuoy, title: 'Stuck? Support has your back.', art: { screen: 'support' } },
+      { icon: Gauge, title: 'Speed Test checks if your internet is fast enough for streaming.', art: { screen: 'support', highlight: 'speedtest' } },
       {
         icon: CircleDot,
         title: 'TV keeps pausing? Open the Buffering Guide — it walks you through easy fixes.',
@@ -142,7 +148,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'Submit a Ticket to reach a real person.',
         deepLink: { kind: 'event', event: 'support:open-tickets', label: 'Open tickets' },
       },
-      { icon: Bot, title: 'The AI Chat tab answers questions instantly — day or night.' },
+      { icon: Bot, title: 'The AI Chat tab answers questions instantly — day or night.', art: { screen: 'support', highlight: 'guide-card' } },
     ],
   },
   {
@@ -157,7 +163,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'The Store is where you get or renew your service.',
         deepLink: { kind: 'view', view: 'store', label: 'Take me there' },
       },
-      { icon: CreditCard, title: 'Pick a plan and follow the steps — done.', line2: 'Your seller can help you anytime.' },
+      { icon: CreditCard, title: 'Pick a plan and follow the steps — done.', line2: 'Your seller can help you anytime.', art: { screen: 'store', highlight: 'grid' } },
     ],
   },
   {
@@ -172,8 +178,8 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'Change how the app looks in Settings → Appearance.',
         deepLink: { kind: 'view', view: 'settings', label: 'Take me there' },
       },
-      { icon: Users, title: 'Saved Accounts remembers your sign-ins so you never retype them.' },
-      { icon: Bell, title: "Keep an eye on the news line up top — that's how we reach you." },
+      { icon: Users, title: 'Saved Accounts remembers your sign-ins so you never retype them.', art: { screen: 'settings', highlight: 'appearance' } },
+      { icon: Bell, title: "Keep an eye on the news line up top — that's how we reach you.", art: { screen: 'settings', highlight: 'accounts' } },
     ],
   },
 ];
