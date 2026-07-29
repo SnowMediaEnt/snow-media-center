@@ -1,4 +1,5 @@
 import { VolumeX } from 'lucide-react';
+import { TUTORIAL_SHOTS, SPOT_RECTS } from '@/data/tutorialShots';
 
 interface TutorialArtProps {
   screen: string;
@@ -22,6 +23,9 @@ const PARENT: Record<string, string> = {
 };
 
 export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
+  const shot = TUTORIAL_SHOTS[screen];
+  const rect = shot && highlight ? SPOT_RECTS[screen]?.[highlight] : undefined;
+
   // Region wrapper: gold ring + glow when highlighted, dimmed when something else is.
   const R = (name: string, className: string, children?: React.ReactNode, style?: React.CSSProperties) => {
     const isOn = highlight === name;
@@ -413,13 +417,64 @@ export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
     }
   })();
 
+  const photo = shot ? (
+    <div className="relative w-full h-full">
+      <img src={shot} alt="" className="absolute top-0 left-0 w-full h-full object-cover" />
+      {rect ? (
+        <>
+          <div
+            className="absolute bg-black/70"
+            style={{ top: '0%', left: '0%', width: '100%', height: `${rect.top}%` }}
+          />
+          <div
+            className="absolute bg-black/70"
+            style={{
+              top: `${rect.top + rect.height}%`,
+              left: '0%',
+              width: '100%',
+              height: `${100 - rect.top - rect.height}%`,
+            }}
+          />
+          <div
+            className="absolute bg-black/70"
+            style={{
+              top: `${rect.top}%`,
+              left: '0%',
+              width: `${rect.left}%`,
+              height: `${rect.height}%`,
+            }}
+          />
+          <div
+            className="absolute bg-black/70"
+            style={{
+              top: `${rect.top}%`,
+              left: `${rect.left + rect.width}%`,
+              width: `${100 - rect.left - rect.width}%`,
+              height: `${rect.height}%`,
+            }}
+          />
+          <div
+            className="absolute border-2 border-brand-gold rounded-lg shadow-[0_0_18px_4px_hsl(45_93%_58%/0.45)] animate-pulse"
+            style={{
+              top: `${rect.top}%`,
+              left: `${rect.left}%`,
+              width: `${rect.width}%`,
+              height: `${rect.height}%`,
+              backgroundColor: 'transparent',
+            }}
+          />
+        </>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <div
       className="w-full max-w-xl mx-auto h-[220px] rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
       style={ART_HEIGHT}
       aria-hidden="true"
     >
-      {body}
+      {shot ? photo : body}
     </div>
   );
 }
