@@ -1,4 +1,5 @@
 import { VolumeX } from 'lucide-react';
+import { TUTORIAL_SHOTS, SPOT_RECTS } from '@/data/tutorialShots';
 
 interface TutorialArtProps {
   screen: string;
