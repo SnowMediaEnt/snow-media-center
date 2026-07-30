@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { normalizeEmail, findWixMemberByEmail } from '../_shared/wixMember.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,112 +64,6 @@ interface TestResults {
   connected: boolean;
   workingEndpoint: string | null;
   totalMembers: number;
-}
-
-const normalizeEmail = (value?: string | null) => value?.toLowerCase().trim() || '';
-
-function emailFromContact(contact: any): string {
-  return normalizeEmail(
-    contact?.primaryInfo?.email ||
-    contact?.info?.emails?.items?.[0]?.email ||
-    contact?.info?.emails?.[0]?.email ||
-    contact?.emails?.items?.[0]?.email
-  );
-}
-
-async function findWixMemberByEmail(email: string, wixApiKey: string, wixSiteId: string, wixAccountId?: string) {
-  const normalizedEmail = normalizeEmail(email);
-  let totalScanned = 0;
-  const PAGE_SIZE = 100;
-  const MAX_PAGES = 50;
-
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const memberResponse = await fetch('https://www.wixapis.com/members/v1/members/query', {
-      method: 'POST',
-      headers: {
-        'Authorization': wixApiKey,
-        'wix-site-id': wixSiteId,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: {
-          filter: { loginEmail: { $eq: normalizedEmail } },
-          paging: { limit: PAGE_SIZE, offset: page * PAGE_SIZE },
-        },
-        fieldsets: ['FULL'],
-      })
-    });
-
-    if (memberResponse.status === 404) break;
-    if (!memberResponse.ok) {
-      const errorText = await memberResponse.text();
-      console.error('Wix members lookup error:', memberResponse.status, errorText);
-      throw new Error(`Wix members lookup failed: ${memberResponse.status}`);
-    }
-
-    const memberData = await memberResponse.json();
-    const batch = memberData.members || [];
-    totalScanned += batch.length;
-    const matchingMember = batch.find((m: any) => normalizeEmail(m.loginEmail) === normalizedEmail);
-    if (matchingMember) {
-      console.log(`Found Wix member on page ${page}: id=${matchingMember.id}, status=${matchingMember.status}`);
-      return { source: 'members', member: matchingMember, totalScanned };
-    }
-    if (page === 0 && batch.length === PAGE_SIZE) {
-      console.warn('Wix members query returned a full non-matching page; falling back to contacts lookup');
-      break;
-    }
-    if (batch.length < PAGE_SIZE) break;
-  }
-
-  console.log(`Members lookup scanned ${totalScanned} members for ${normalizedEmail}; trying contacts fallback`);
-
-  if (wixAccountId) {
-    for (const filter of [
-      { 'info.emails.email': { $eq: normalizedEmail } },
-      { 'primaryInfo.email': { $eq: normalizedEmail } },
-    ]) {
-      const contactResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts/query', {
-        method: 'POST',
-        headers: {
-          'Authorization': wixApiKey,
-          'wix-account-id': wixAccountId,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: { filter, paging: { limit: 5 } } }),
-      });
-
-      if (!contactResponse.ok) {
-        console.warn('Wix contact lookup non-OK:', contactResponse.status, await contactResponse.text());
-        continue;
-      }
-
-      const contactData = await contactResponse.json();
-      const contacts = contactData.contacts || [];
-      const contact = contacts.find((c: any) => emailFromContact(c) === normalizedEmail);
-      if (contact) {
-        console.log(`Found Wix contact fallback: id=${contact.id}, email=${normalizedEmail}`);
-        return {
-          source: 'contacts',
-          totalScanned,
-          member: {
-            id: contact.id,
-            contactId: contact.id,
-            loginEmail: normalizedEmail,
-            status: 'APPROVED',
-            profile: {
-              firstName: contact.info?.name?.first || '',
-              lastName: contact.info?.name?.last || '',
-              nickname: contact.info?.name?.first || normalizedEmail.split('@')[0],
-            },
-            contact,
-          },
-        };
-      }
-    }
-  }
-
-  return { source: 'none', member: null, totalScanned };
 }
 
 Deno.serve(async (req) => {
@@ -515,19 +410,10 @@ Deno.serve(async (req) => {
 
         console.log(`Scanned ${totalScanned} Wix members for ${email}, source: ${source}, found: ${!!matchingMember}`);
 
+        // Hardened: expose only a boolean. Detailed lookups live behind
+        // authenticated actions; anonymous probes use `check-account-email`.
         return new Response(
-          JSON.stringify({ 
-            exists: !!matchingMember,
-            source,
-            member: matchingMember ? {
-              id: matchingMember.id,
-              email: matchingMember.loginEmail,
-              status: matchingMember.status,
-              profile: matchingMember.profile || {},
-              contact: matchingMember.contact || null,
-              name: matchingMember.profile?.firstName || matchingMember.profile?.nickname || 'Unknown'
-            } : null
-          }),
+          JSON.stringify({ exists: !!matchingMember }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
@@ -702,17 +588,37 @@ Deno.serve(async (req) => {
         );
 
         const fullName = [member.profile?.firstName, member.profile?.lastName].filter(Boolean).join(' ') || member.profile?.nickname || '';
-        const { data: existingUsers, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        if (listErr) {
-          console.error('Supabase user lookup failed:', listErr);
+        const { data: appExists, error: existsErr } = await adminClient.rpc('account_email_exists', { p_email: bridgeEmail });
+        if (existsErr) {
+          console.error('Supabase user lookup failed:', existsErr);
           return new Response(JSON.stringify({ error: 'Could not check app account' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
+        // Resolve the user id by scanning ALL pages (not just the first 1000 users).
+        let existingUser: { id: string; email?: string | null; user_metadata?: Record<string, any> } | null = null;
+        if (appExists === true) {
+          const PER_PAGE = 1000;
+          for (let page = 1; page <= 200; page++) {
+            const { data: pageData, error: pageErr } = await adminClient.auth.admin.listUsers({ page, perPage: PER_PAGE });
+            if (pageErr) {
+              console.error('Supabase user page lookup failed:', pageErr);
+              return new Response(JSON.stringify({ error: 'Could not check app account' }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+            const users = pageData?.users || [];
+            const match = users.find((u) => normalizeEmail(u.email) === bridgeEmail);
+            if (match) { existingUser = match as any; break; }
+            if (users.length < PER_PAGE) break;
+          }
+          if (!existingUser) console.warn('account_email_exists true but user id not found while paginating');
+        }
+
         let linkedUserId: string | null = null;
-        const existingUser = existingUsers?.users?.find((u) => normalizeEmail(u.email) === bridgeEmail);
         if (existingUser) {
           linkedUserId = existingUser.id;
           console.log('App account already exists for Wix email; confirming/linking metadata');
