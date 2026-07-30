@@ -356,7 +356,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await signUp(
+      const { error, data } = await signUp(
         signupForm.email,
         signupForm.password,
         signupForm.fullName
@@ -382,10 +382,18 @@ const Auth = () => {
         }
       } else {
         markPostAuthView();
-        toast({
-          title: "Account created!",
-          description: "Check your email to confirm your account.",
-        });
+        // Auto-confirm / confirmations disabled → session exists immediately.
+        if (data?.session) {
+          toast({
+            title: "Account created!",
+            description: "You're signed in.",
+          });
+        } else {
+          toast({
+            title: "Account created!",
+            description: "Check your email to confirm your account.",
+          });
+        }
       }
     } catch (error) {
       console.error('[Auth] Signup error:', error);
