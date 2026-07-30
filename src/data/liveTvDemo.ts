@@ -19,6 +19,7 @@ import type {
   XtreamVodStream,
   XtreamSeries,
   XtreamEpgEntry,
+  XtreamEpisode,
   XtreamVodInfo,
   XtreamSeriesInfo,
   XtreamCreds,
