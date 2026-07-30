@@ -27,11 +27,14 @@ import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 
 const NATIVE_PLAYBACK = hasNativePlayer();
+// Demo latch (?demo=1) — canned lineup, no provider contact, no <video> mount.
+const DEMO = isDemo();
 
 
 interface Props {
@@ -475,6 +478,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // already excluded because it spawns a hardware decoder slot per <video>.
   const [previewDisabled] = useState(() =>
     isFireTV()
+    || DEMO // demo: no <video> may ever mount — the stream URLs are fake
     || document.documentElement.classList.contains('native-low-memory')
     || document.documentElement.classList.contains('legacy-webview'),
   );
@@ -501,6 +505,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
     // Fire-and-forget analytics — dedupe rapid replays of same channel (<10s).
+    // Demo visitors must never appear in real stats.
+    if (DEMO) return;
     try {
       const now = Date.now();
       const last = lastPlayRef.current;
@@ -957,7 +963,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // the original <VideoPlayer> element rendering into the WebView.
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
-        {!NATIVE_PLAYBACK && (
+        {!NATIVE_PLAYBACK && !DEMO && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
             <VideoPlayer
               src={streamUrl}
@@ -980,6 +986,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               }}
             />
           </Suspense>
+        )}
+        {DEMO && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
+            {playingStream?.stream_icon
+              ? <img src={playingStream.stream_icon} alt="" className="w-20 h-20 rounded-2xl object-contain bg-black/40 border border-white/10 mb-4" />
+              : <Tv className="w-16 h-16 text-brand-gold mb-4" />}
+            <p className="font-quicksand font-bold text-2xl text-white drop-shadow-lg">
+              {playingStream?.num ? `${playingStream.num} · ` : ''}{playingStream?.name ?? ''}
+            </p>
+            {playingNowNext?.now && (
+              <p className="mt-2 text-brand-ice/80 font-nunito text-base drop-shadow">
+                Now: {playingNowNext.now.title}{playingNowNext.next ? ` · Next: ${playingNowNext.next.title}` : ''}
+              </p>
+            )}
+            <p className="mt-5 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
+              Demo mode — playback is disabled
+            </p>
+            <p className="mt-2 text-brand-ice/60 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+          </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
