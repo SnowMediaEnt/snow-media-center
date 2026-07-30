@@ -10,6 +10,10 @@ import { isNativePlatform } from '@/utils/platform';
 
 const DEMO_KEY = 'smc-demo';
 
+// Hosts where the published bundle must ALWAYS serve demo mode, regardless of
+// query string. Add more here as new published hosts come online.
+const FORCED_DEMO_HOSTS: string[] = ['snow-tv-hub-center.lovable.app'];
+
 // Latch at module load so deep navigation (which drops the query string)
 // keeps the demo active.
 try {
@@ -23,7 +27,17 @@ try {
 
 export const isDemo = (): boolean => {
   if (isNativePlatform()) return false;
-  try { return sessionStorage.getItem(DEMO_KEY) === '1'; } catch { return false; }
+  // Query-string / sessionStorage latch (Lovable previews etc.)
+  try {
+    if (sessionStorage.getItem(DEMO_KEY) === '1') return true;
+  } catch { /* private mode */ }
+  // Forced demo on the published marketing host(s) — non-native only.
+  try {
+    if (typeof location !== 'undefined' && FORCED_DEMO_HOSTS.includes(location.hostname)) {
+      return true;
+    }
+  } catch { /* non-browser */ }
+  return false;
 };
 
 export const DEMO_DIALOG_MSG =
