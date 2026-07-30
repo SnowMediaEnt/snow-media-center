@@ -695,6 +695,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // ── Deep-link: ONE effect that opens the detail overlay directly. Works
   //    even when the target library is hidden/reordered or hasn't loaded.
   useEffect(() => {
+    let cancelled = false;
     const dl = deeplinkRef.current;
     if (!dl || status !== 'ready' || !conn) return;
     deeplinkRef.current = null;
@@ -715,16 +716,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       if (!title) { toast({ title: 'This title lives on a different Plex server' }); return; }
       searchPlex(conn.base, conn.token, title)
         .then((results) => {
+          // An orphaned continuation must never touch the key-owner token, the
+          // load gate, or state — the unmount cleanup already ran resumeLoading
+          // (a no-op), so a late pauseLoading() here would silently park every
+          // library pager on the next visit.
+          if (cancelled) return;
           const norm = (s: string) => s.trim().toLowerCase();
           const match = results.find((r) => norm(r.title) === norm(title)) || results[0];
           if (match) openDetail(match);
           else toast({ title: 'This title lives on a different Plex server' });
         })
-        .catch(() => toast({ title: 'This title lives on a different Plex server' }));
-      return;
+        .catch(() => { if (cancelled) return; toast({ title: 'This title lives on a different Plex server' }); });
+      return () => { cancelled = true; };
     }
 
     openDetail({ ratingKey: String(dl.ratingKey), title: dl.title ?? '', type });
+    return () => { cancelled = true; };
   }, [status, conn, toast]);
 
   // ── Library items loader — paged, cached, sequence-guarded, and only
