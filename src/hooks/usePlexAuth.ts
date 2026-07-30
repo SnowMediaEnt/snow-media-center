@@ -121,6 +121,8 @@ export function usePlexAuth() {
   }, []);
 
   useEffect(() => {
+    // Demo mode never touches stored tokens or the Plex account API.
+    if (demo) return;
     cancelledRef.current = false;
     (async () => {
       const token = await loadPlexToken();
@@ -129,7 +131,8 @@ export function usePlexAuth() {
       else { setAccountToken(null); setStatus('signed-out'); }
     })();
     return () => { cancelledRef.current = true; clearPoll(); };
-  }, [discover]);
+  }, [discover, demo]);
+
 
   const startLink = useCallback(async () => {
     if (startingRef.current) return;
