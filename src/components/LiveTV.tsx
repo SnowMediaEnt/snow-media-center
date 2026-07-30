@@ -349,7 +349,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
-      if (modeRef.current !== 'live') return;
+      // Demo: movies mode also runs the three-pane shell, so it needs this nav.
+      if (modeRef.current !== 'live' && !(DEMO && modeRef.current === 'movies')) return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
 
@@ -520,7 +521,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return <PlayerModeChooser onPick={enterMode} onBack={onBack} />;
   }
 
-  if (mode === 'movies') {
+  // Movies & Shows = full-page Plex for real users (unchanged). Demo falls
+  // through to the shared three-pane shell so the canned Movies & Series
+  // sections (liveTvDemo fixtures via xtream.ts) are browsable too.
+  if (mode === 'movies' && !DEMO) {
     return (
       <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
         {plexBlocked ? (
