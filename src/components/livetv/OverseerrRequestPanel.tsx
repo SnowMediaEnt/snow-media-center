@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, Film, Tv } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { isPlexKeyOwner } from '@/components/livetv/plexKeyOwner';
 
 interface ResultItem {
   id: number; mediaType: 'movie' | 'tv'; title: string;
@@ -98,6 +99,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 

@@ -591,9 +591,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [qualityKey, setQualityKey] = useState<string>('original');
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
 
-  // Image focus mode: while a detail page is open, non-priority images (grid,
-  // rails, search results, cast headshots, seasons, episodes, filmography)
-  // park their loads so the detail poster/backdrop own image bandwidth.
+  // Image focus mode: while a detail page is open, the browse grid, rails and
+  // search results park their loads so the detail page's own images own the
+  // image bandwidth — its poster/backdrop load with priority, and its cast,
+  // seasons, episodes and filmography load focus-exempt but viewport-gated.
   useEffect(() => {
     setPlexImageFocus(!!detailItem);
     return () => { setPlexImageFocus(false); };
@@ -908,9 +909,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, []);
   // Safety nets so the key-owner token can never get stuck on 'detail':
   // unmount resets to browse, and layer changes driven by OTHER paths
-  // (fullscreen flips, programmatic detail clears) re-derive the owner.
+  // (fullscreen flips, programmatic detail clears) re-derive the owner —
+  // repairing the load gate alongside it so token and gate can never diverge.
   useEffect(() => () => { setPlexKeyOwner('browse'); resumeLoading(); }, []);
-  useEffect(() => { if (fullscreen) setPlexKeyOwner('player'); else if (!detailItem) setPlexKeyOwner('browse'); }, [fullscreen, detailItem]);
+  useEffect(() => {
+    if (fullscreen) { setPlexKeyOwner('player'); return; }
+    if (!detailItem) { setPlexKeyOwner('browse'); resumeLoading(); }
+  }, [fullscreen, detailItem]);
 
   // Demo mode: playback is the one thing the website embed can't do, so every
   // play/quality/audio action opens a short explainer instead.
