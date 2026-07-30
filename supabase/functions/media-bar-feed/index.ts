@@ -67,8 +67,31 @@ const plexFetch = async (path: string) => {
   return await res.json();
 };
 
-const plexImage = (key?: string) =>
-  key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
+// Posters are served through our own signed proxy so the Plex origin and
+// X-Plex-Token never leave the server.
+const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
+const POSTER_SECRET = Deno.env.get('POSTER_PROXY_SECRET') ?? '';
+
+let posterKeyPromise: Promise<CryptoKey> | null = null;
+const getPosterKey = () => {
+  if (!posterKeyPromise) {
+    posterKeyPromise = crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(POSTER_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+  }
+  return posterKeyPromise;
+};
+
+const plexImage = async (key?: string): Promise<string | undefined> => {
+  if (!key || !SUPABASE_URL || !POSTER_SECRET) return undefined;
+  const sigBuf = await crypto.subtle.sign('HMAC', await getPosterKey(), new TextEncoder().encode(key));
+  const sig = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${SUPABASE_URL}/functions/v1/poster-proxy?p=${encodeURIComponent(key)}&s=${sig}`;
+};
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
 
 // ---- PLAYBACK-FIRST DEEP LINKS ----
