@@ -654,19 +654,23 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Updating…' : 'Update Channels'}
           </Button>
-          <Button
-            variant="gold"
-            size="sm"
-            onClick={() => setSettingsOpen(true)}
-            data-player-header-btn=""
-            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
-            }`}
-          >
-            <SettingsIcon className="w-4 h-4 mr-2" />
-            Settings
-          </Button>
+          {/* Demo: no settings entry point — the demo account is fixed and
+              the hub only exposes credential management. */}
+          {!DEMO && (
+            <Button
+              variant="gold"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              data-player-header-btn=""
+              data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+                pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Settings
+            </Button>
+          )}
         </div>
       </div>
 
