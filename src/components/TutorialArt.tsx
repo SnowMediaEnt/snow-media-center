@@ -12,8 +12,8 @@ interface TutorialArtProps {
  */
 
 // Chrome 66 has no clamp(): the inline clamp is dropped as invalid and the
-// h-[220px] utility class below acts as the plain-px fallback.
-const ART_HEIGHT: React.CSSProperties = { height: 'clamp(180px, 34vh, 300px)' };
+// h-[150px] utility class below acts as the plain-px fallback.
+const ART_HEIGHT: React.CSSProperties = { height: 'clamp(110px, 22vh, 210px)' };
 
 const PARENT: Record<string, string> = {
   'player-card': 'cards',
@@ -470,7 +470,7 @@ export default function TutorialArt({ screen, highlight }: TutorialArtProps) {
 
   return (
     <div
-      className="w-full max-w-xl mx-auto h-[220px] rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
+      className="w-full max-w-xl mx-auto h-[150px] rounded-2xl border border-white/15 bg-[#0b1220] overflow-hidden"
       style={ART_HEIGHT}
       aria-hidden="true"
     >
