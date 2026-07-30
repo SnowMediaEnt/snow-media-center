@@ -353,8 +353,12 @@ export async function getPlexLibraryItems(
 
 export function plexImageUrl(base: string, path: string | undefined, token: string): string | undefined {
   if (!path) return undefined;
+  // Already-absolute URL (e.g. the demo catalog's poster-proxy links) — pass
+  // it through untouched; there is nothing to sign or prefix.
+  if (/^https?:\/\//i.test(path)) return path;
   return `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
 }
+
 
 /** Resolve the direct-play part for a movie (its original file on the server). */
 export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string }> {
@@ -448,12 +452,16 @@ export async function savePlexQuality(key: string): Promise<void> {
 // ── image loading via CapacitorHttp (avoids mixed-content on http PMS) ─────
 
 export function plexPhotoTranscodeUrl(base: string, path: string, token: string, w: number, h: number): string {
+  // Already-absolute URL (demo catalog poster-proxy links) — nothing for the
+  // Plex photo transcoder to do; hand it back unchanged.
+  if (/^https?:\/\//i.test(path)) return path;
   // No upscale — we render posters at a fixed on-screen box; asking Plex to
   // upscale wastes server time and produces bigger payloads that pressure the
   // Fire TV JS heap.
   return `${base}/photo/:/transcode?width=${w}&height=${h}&minSize=1`
     + `&url=${encodeURIComponent(path)}&X-Plex-Token=${encodeURIComponent(token)}`;
 }
+
 
 /** Signed direct image URL (no photo transcode) — used for absolute Plex asset URLs. */
 export function plexTokenizedUrl(url: string, token: string): string {

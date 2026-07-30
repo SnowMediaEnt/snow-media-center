@@ -6,8 +6,11 @@
 // Fire-TV D-pad only. All Plex HTTP via plex.ts.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Play, RotateCw, List } from 'lucide-react';
-import { getPlexMetadata, getPlexSeasons, getPlexEpisodes, getPlexActorItems, resolutionLabel,
+import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
+  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson } from '@/lib/plex';
+import { isDemo } from '@/lib/demoMode';
+import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
 import { isNativePlatform } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
@@ -26,6 +29,14 @@ interface Props {
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
 type DetailZone = 'buttons' | 'cast';
+
+// Demo mode reads everything from the pre-built, scrubbed catalog instead of
+// a live PMS. Always false on native.
+const DEMO = isDemo();
+const getPlexMetadata = DEMO ? demoGetMetadata : _getPlexMetadata;
+const getPlexSeasons = DEMO ? demoGetSeasons : _getPlexSeasons;
+const getPlexEpisodes = DEMO ? demoGetEpisodes : _getPlexEpisodes;
+const getPlexActorItems = DEMO ? demoGetActorItems : _getPlexActorItems;
 
 const COLS = 6;
 const fmtRuntime = (ms?: number): string => {

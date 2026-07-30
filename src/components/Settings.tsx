@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
@@ -40,7 +41,12 @@ type SettingsFocus =
 
 const Settings = ({ onBack }: SettingsProps) => {
   const { t, i18n } = useTranslation();
-  const { isAdmin } = useAdminRole();
+  const { isAdmin: hasAdminRole } = useAdminRole();
+  // Website demo: never surface admin tooling (even to a signed-in admin) and
+  // hide the Updates tab entirely — APK self-updating is a device-only concern.
+  const demo = isDemo();
+  const isAdmin = hasAdminRole && !demo;
+  const showUpdates = !demo;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
@@ -215,9 +221,10 @@ const Settings = ({ onBack }: SettingsProps) => {
         event.stopPropagation();
       }
 
-      const tabs: SettingsFocus[] = isAdmin
+      const tabs: SettingsFocus[] = (isAdmin
         ? ['tab-media', 'tab-ui', 'tab-updates', 'tab-alerts', 'tab-ai']
-        : ['tab-media', 'tab-ui', 'tab-updates'];
+        : ['tab-media', 'tab-ui', 'tab-updates']
+      ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
       const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
 
       const tabValueFor = (f: SettingsFocus): string | null => {
@@ -293,7 +300,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, mediaBarEnabled, playerEnabled, setMediaBarEnabledState]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -343,7 +350,8 @@ const Settings = ({ onBack }: SettingsProps) => {
     setFocusedElement('tab-media');
   };
 
-  const tabColsClass = isAdmin ? 'grid-cols-5' : 'grid-cols-3';
+  const tabCount = (isAdmin ? 5 : 3) - (showUpdates ? 0 : 1);
+  const tabColsClass = tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white" style={{ paddingTop: '2vh' }}>
@@ -389,15 +397,17 @@ const Settings = ({ onBack }: SettingsProps) => {
               <Sliders className="w-4 h-4 mr-2" />
               {t('settings.tabs.ui')}
             </TabsTrigger>
-            <TabsTrigger
-              {...settingsFocusAttrs('tab-updates')}
-              onFocus={() => setFocusedElement('tab-updates')}
-              value="updates"
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              {t('settings.tabs.updates')}
-            </TabsTrigger>
+            {showUpdates && (
+              <TabsTrigger
+                {...settingsFocusAttrs('tab-updates')}
+                onFocus={() => setFocusedElement('tab-updates')}
+                value="updates"
+                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {t('settings.tabs.updates')}
+              </TabsTrigger>
+            )}
             {isAdmin && (
               <TabsTrigger
                 {...settingsFocusAttrs('tab-alerts')}
@@ -538,6 +548,7 @@ const Settings = ({ onBack }: SettingsProps) => {
             )}
           </TabsContent>
 
+          {showUpdates && (
           <TabsContent value="updates" className="mt-6 space-y-4">
             <Card
               {...settingsFocusAttrs('updates-content')}
@@ -548,6 +559,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
             <ApkCacheViewer />
           </TabsContent>
+          )}
 
           {isAdmin && (
             <TabsContent value="alerts" className="mt-6">

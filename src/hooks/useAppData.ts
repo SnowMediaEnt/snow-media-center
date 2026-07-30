@@ -4,6 +4,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { robustFetch, isOnline } from '@/utils/network';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
+import { isDemo } from '@/lib/demoMode';
 
 export interface AppData {
   id: string;
@@ -72,6 +73,14 @@ const fallbackApps: AppData[] = [
 ];
 
 const REMOTE_APPS_URL = 'https://snowmediaapps.com/guesswhat/apps.json.php';
+
+// Demo mode: the only installer feed we have is the keyed `guesswhat` one, so
+// rather than expose the full private catalogue in the website embed we filter
+// the loaded list down to the public SMC / Canvas installers. Downloads still
+// work (the browser just opens the URL).
+const DEMO_APP_NAME_RE = /(snow\s*media|smc|canvas)/i;
+const filterAppsForDemo = (list: AppData[]): AppData[] =>
+  isDemo() ? list.filter((a) => DEMO_APP_NAME_RE.test(a.name)) : list;
 const REMOTE_APPS_KEY = 'tJIso9tAokZ937fFcnpWT6YL0oJQ';
 
 export const useAppData = () => {
@@ -263,7 +272,7 @@ export const useAppData = () => {
     try {
       const supabaseApps = await fetchSupabaseApps();
       if (supabaseApps.length > 0) {
-        setApps(sortApps(supabaseApps));
+        setApps(filterAppsForDemo(sortApps(supabaseApps)));
         setError(null);
         setLoading(false);
         return true;
@@ -282,7 +291,7 @@ export const useAppData = () => {
       if (changed || !shownFromCache) {
         const refreshed = await fetchSupabaseApps();
         if (refreshed.length > 0) {
-          setApps(sortApps(refreshed));
+          setApps(filterAppsForDemo(sortApps(refreshed)));
           setError(null);
           setLoading(false);
           return;
@@ -295,7 +304,7 @@ export const useAppData = () => {
     if (shownFromCache) return;
 
     console.warn('[AppData] All sources failed, using fallback apps');
-    setApps(fallbackApps);
+    setApps(filterAppsForDemo(fallbackApps));
     setError('Unable to fetch apps. Using offline data.');
     setLoading(false);
   };
@@ -329,7 +338,7 @@ export const useAppData = () => {
       setLoading(prev => {
         if (prev) {
           console.warn('[AppData] Safety timeout triggered');
-          setApps(fallbackApps);
+          setApps(filterAppsForDemo(fallbackApps));
           setError('Loading timed out. Using offline data.');
           return false;
         }
