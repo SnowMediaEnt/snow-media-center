@@ -20,7 +20,11 @@ import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { usePlexAuth } from '@/hooks/usePlexAuth';
 import {
-  getPlexLibraries, getPlexLibraryItems, getPlexPart, getPlexHub, searchPlex,
+  getPlexLibraries as _getPlexLibraries,
+  getPlexLibraryItems as _getPlexLibraryItems,
+  getPlexHub as _getPlexHub,
+  searchPlex as _searchPlex,
+  getPlexPart,
   plexDirectUrl, plexTranscodeUrl, loadHiddenPlexLibs, saveHiddenPlexLibs,
   getCachedLibrary, setCachedLibrary, isLibraryCacheFresh,
   getCachedHub, setCachedHub,
@@ -30,6 +34,10 @@ import {
   setPlexImageFocus, preloadImages,
   type PlexLibrary, type PlexItem, type PlexEpisode,
 } from '@/lib/plex';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import {
+  demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
+} from '@/lib/plexDemo';
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
@@ -38,6 +46,17 @@ import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverl
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
+
+// ── data access indirection ────────────────────────────────────────────────
+// In demo mode every Plex read is answered from the pre-built, scrubbed
+// catalog served by the demo-plex-catalog edge function — no PMS is ever
+// contacted. isDemo() is always false on native, so the shipped TV app keeps
+// using the real network functions verbatim.
+const DEMO = isDemo();
+const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
+const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
+const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
+const searchPlex = DEMO ? demoSearchPlex : _searchPlex;
 import { trackEvent } from '@/lib/analytics';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
