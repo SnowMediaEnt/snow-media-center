@@ -82,16 +82,21 @@ const App = () => {
     };
   }, []);
   
-  // ONE static gradient background on every device (Android box, FireTV, preview).
-  const rootBackground =
-    'linear-gradient(45deg, #ffd700 0%, #9370db 20%, #87ceeb 40%, #e5e5e5 60%, #ffa500 80%, #ffd700 100%)';
+  // ONE static brand background on every device (Android box, FireTV, preview).
+  // Split solid fallback + image so legacy engines that drop the gradient still
+  // paint brand navy instead of grey/white.
+  const rootBackgroundStyle = {
+    backgroundColor: '#092145',
+    backgroundImage:
+      'radial-gradient(ellipse at 50% 35%, hsla(39, 31%, 60%, 0.16), rgba(0,0,0,0) 60%), linear-gradient(160deg, #092145 0%, #0d2f55 45%, #1c4e63 78%, #23606f 100%)',
+  } as const;
 
   return (
     <TooltipProvider>
       <div
         data-app-scroll-root
         className="min-h-dvh max-h-dvh overflow-y-auto overscroll-contain relative"
-        style={{ background: rootBackground }}
+        style={rootBackgroundStyle}
       >
         {activeBgUrl && (
           <img

@@ -261,8 +261,8 @@ HomeHeader.displayName = 'HomeHeader';
 const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
   <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
     <div className="text-center home-watermark">
-      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.3 }}>
-        <span className="font-snow-media text-brand-navy">SNOW MEDIA</span>
+      <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.35 }}>
+        <span className="font-snow-media text-brand-ice">SNOW MEDIA</span>
         <span> </span>
         <span className="font-center" style={{ color: '#C9B370' }}>CENTER</span>
       </h1>

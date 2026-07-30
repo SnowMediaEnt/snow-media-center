@@ -354,6 +354,12 @@
 .native-low-memory [data-focused="true"][class*="shadow-["] {
   box-shadow: inset 0 0 0 4px hsl(var(--brand-gold)) !important;
 }
+/* Cheaper two-stop brand gradient on low-memory devices (no radial layer).
+   Declared here, well above the snowplayer-fullscreen block, so fullscreen's
+   `background-image: none !important` still wins. */
+.native-low-memory [data-app-scroll-root] {
+  background-image: linear-gradient(160deg, #092145 0%, #1c4e63 100%) !important;
+}
 
 
 .news-ticker-track {
@@ -644,7 +650,7 @@ html[data-user-theme="1"] {
 html[data-user-theme="1"] body {
   font-family: var(--user-font-family, 'Nunito', sans-serif);
 }
-html[data-user-theme="1"] [data-app-scroll-root] {
+html[data-user-theme="1"][data-user-bg="1"] [data-app-scroll-root] {
   background: hsl(var(--user-bg)) !important;
 }
 
