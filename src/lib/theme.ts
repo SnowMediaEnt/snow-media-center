@@ -16,7 +16,7 @@ export const DEFAULT_THEME: ThemeSettings = {
   fontScale: 1,
   fontFamily: 'nunito',
   textColor: '0 0% 20%',
-  bgColor: '0 0% 100%',
+  bgColor: 'default',
   accentColor: '39 31% 60%',
 };
 
@@ -43,6 +43,7 @@ export const ACCENT_SWATCHES = [
 ];
 
 export const BG_SWATCHES = [
+  { id: 'default', label: 'Snow (Default)', hsl: 'default' },
   { id: 'white', label: 'White', hsl: '0 0% 100%' },
   { id: 'snow', label: 'Snow', hsl: '210 20% 96%' },
   { id: 'charcoal', label: 'Charcoal', hsl: '0 0% 12%' },
@@ -90,9 +91,13 @@ export function applyTheme(t: ThemeSettings): void {
     root.style.setProperty('--user-font-scale', String(t.fontScale));
     root.style.setProperty('--user-font-family', stack);
     root.style.setProperty('--user-text', t.textColor);
-    root.style.setProperty('--user-bg', t.bgColor);
+    const isDefaultBg = t.bgColor === 'default';
+    // Always set --user-bg — --background derives from it.
+    root.style.setProperty('--user-bg', isDefaultBg ? '0 0% 100%' : t.bgColor);
     root.style.setProperty('--brand-gold', t.accentColor);
     root.dataset.userTheme = '1';
+    if (isDefaultBg) delete root.dataset.userBg;
+    else root.dataset.userBg = '1';
   } catch { /* ignore */ }
 }
 
