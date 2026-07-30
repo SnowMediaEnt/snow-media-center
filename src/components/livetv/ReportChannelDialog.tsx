@@ -6,6 +6,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 
 interface Props {
   channelName: string;
@@ -83,6 +84,12 @@ const ReportChannelDialog = memo(({
       submittedRef.current = true;
       setSubmitting(true);
       try {
+        // Demo mode: acknowledge, but never file a real report/ticket.
+        if (isDemo()) {
+          toast({ title: 'Live demo', description: DEMO_DIALOG_MSG });
+          onClose();
+          return;
+        }
         const subject = `Channel issue: ${channelName}`;
         const message = buildMessage(choice, otherNote);
         if (user) {
