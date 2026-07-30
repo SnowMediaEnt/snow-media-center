@@ -125,7 +125,7 @@ const plexWebPlayLink = (ratingKey?: string) => {
 };
 
 // Kept only as a last-ditch fallback for the client to log; not preferred.
-const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean } => {
+const mapPlexItem = async (m: any): Promise<Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean }> => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
   const ratingKey = m.ratingKey;
@@ -160,7 +160,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     kind: isMovie ? 'movie' : (isEpisode ? 'episode' : m.type ?? 'show'),
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
-    poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    poster: await plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
     ratingKey,
     key: m.key,
     guid: m.guid,
@@ -207,20 +207,20 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   ]);
 
   for (const m of recent?.MediaContainer?.Metadata ?? []) {
-    const item = mapPlexItem(m);
+    const item = await mapPlexItem(m);
     if (item.kind === 'movie') movies.push(item);
     else shows.push(item);
   }
   for (const m of deck?.MediaContainer?.Metadata ?? []) {
-    const item = mapPlexItem(m);
+    const item = await mapPlexItem(m);
     item.subtitle = `Continue · ${item.subtitle ?? ''}`.replace(/ · $/, '');
     onDeck.push(item);
   }
   for (const m of popularMovies?.MediaContainer?.Metadata ?? []) {
-    movies.push(mapPlexItem(m));
+    movies.push(await mapPlexItem(m));
   }
   for (const m of popularShows?.MediaContainer?.Metadata ?? []) {
-    shows.push(mapPlexItem(m));
+    shows.push(await mapPlexItem(m));
   }
 
   // Cross-list de-dup: same id never appears twice across movies/shows/onDeck.
