@@ -353,8 +353,12 @@ export async function getPlexLibraryItems(
 
 export function plexImageUrl(base: string, path: string | undefined, token: string): string | undefined {
   if (!path) return undefined;
+  // Already-absolute URL (e.g. the demo catalog's poster-proxy links) — pass
+  // it through untouched; there is nothing to sign or prefix.
+  if (/^https?:\/\//i.test(path)) return path;
   return `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
 }
+
 
 /** Resolve the direct-play part for a movie (its original file on the server). */
 export async function getPlexPart(base: string, token: string, ratingKey: string): Promise<{ partKey?: string; container?: string; audioCodec?: string }> {
