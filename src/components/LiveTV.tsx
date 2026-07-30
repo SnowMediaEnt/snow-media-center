@@ -208,9 +208,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
-      // Demo: Movies/Series stay hidden — those sections would talk to the
-      // real Xtream API, so in demo the movies mode is Plex-only.
-      ...(creds && !DEMO ? [
+      // Demo: Movies/Series render too — xtream.ts serves them from the
+      // canned catalog (liveTvDemo.ts) when isDemo() is latched.
+      ...(creds ? [
         { id: 'movies' as SectionId, label: 'Movies', icon: Film },
         { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
       ] : []),
@@ -320,7 +320,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds, refreshChannels]);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
-  const showSettings = !!creds && settingsOpen && !accountFormOpen;
+  // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
+  // none of which apply to a fixed demo account — never mount it.
+  const showSettings = !DEMO && !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
     if (DEMO) return; // demo account is fixed
@@ -340,13 +342,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 3; // [Back, Update, Settings]
+  // [Back, Update, Settings] — Settings is hidden in demo, so 2 there.
+  const HEADER_COUNT = DEMO ? 2 : 3;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // AccountInfoScreen owns the keyboard while open.
       if (settingsOpen && creds && !accountFormOpen) return;
-      if (modeRef.current !== 'live') return;
+      // Demo: movies mode also runs the three-pane shell, so it needs this nav.
+      if (modeRef.current !== 'live' && !(DEMO && modeRef.current === 'movies')) return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
 
@@ -399,7 +403,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2) setSettingsOpen(true);
+          else if (idx === 2 && !DEMO) setSettingsOpen(true);
         }
         return;
       }
@@ -517,7 +521,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return <PlayerModeChooser onPick={enterMode} onBack={onBack} />;
   }
 
-  if (mode === 'movies') {
+  // Movies & Shows = full-page Plex for real users (unchanged). Demo falls
+  // through to the shared three-pane shell so the canned Movies & Series
+  // sections (liveTvDemo fixtures via xtream.ts) are browsable too.
+  if (mode === 'movies' && !DEMO) {
     return (
       <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
         {plexBlocked ? (
@@ -651,19 +658,23 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Updating…' : 'Update Channels'}
           </Button>
-          <Button
-            variant="gold"
-            size="sm"
-            onClick={() => setSettingsOpen(true)}
-            data-player-header-btn=""
-            data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
-            }`}
-          >
-            <SettingsIcon className="w-4 h-4 mr-2" />
-            Settings
-          </Button>
+          {/* Demo: no settings entry point — the demo account is fixed and
+              the hub only exposes credential management. */}
+          {!DEMO && (
+            <Button
+              variant="gold"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              data-player-header-btn=""
+              data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
+              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+                pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Settings
+            </Button>
+          )}
         </div>
       </div>
 
