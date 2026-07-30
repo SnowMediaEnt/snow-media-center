@@ -5,11 +5,35 @@ import {
   getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
   getPlexIdentity, bumpPlexImageEpoch,
 } from '@/lib/plex';
+import { isDemo } from '@/lib/demoMode';
+import { demoConn } from '@/lib/plexDemo';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
 export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
 
+// Demo mode: a frozen "already connected" state. Stable references so the
+// consumer's effects never re-run, and no-op actions so the PIN link flow can
+// never start. isDemo() is always false on native — this is dead code there.
+const DEMO_CONN: PlexConn = { ...demoConn };
+const noop = () => { /* demo */ };
+const asyncNoop = async () => { /* demo */ };
+const DEMO_AUTH = {
+  status: 'ready' as PlexStatus,
+  conn: DEMO_CONN,
+  pinCode: null,
+  error: null,
+  justLinked: false,
+  accountToken: null,
+  clearJustLinked: noop,
+  startLink: asyncNoop,
+  cancelLink: noop,
+  signOut: asyncNoop,
+  retryConnect: asyncNoop,
+};
+
 export function usePlexAuth() {
+  const demo = isDemo();
+
   const [status, setStatus] = useState<PlexStatus>('loading');
   const [conn, setConn] = useState<PlexConn | null>(null);
   const [pinCode, setPinCode] = useState<string | null>(null);
