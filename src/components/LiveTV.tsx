@@ -208,9 +208,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
-      // Demo: Movies/Series stay hidden — those sections would talk to the
-      // real Xtream API, so in demo the movies mode is Plex-only.
-      ...(creds && !DEMO ? [
+      // Demo: Movies/Series render too — xtream.ts serves them from the
+      // canned catalog (liveTvDemo.ts) when isDemo() is latched.
+      ...(creds ? [
         { id: 'movies' as SectionId, label: 'Movies', icon: Film },
         { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
       ] : []),
@@ -320,7 +320,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [creds, refreshChannels]);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
-  const showSettings = !!creds && settingsOpen && !accountFormOpen;
+  // Demo: the settings hub exposes sign-out / change-credentials / switch-account,
+  // none of which apply to a fixed demo account — never mount it.
+  const showSettings = !DEMO && !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
     if (DEMO) return; // demo account is fixed
@@ -340,7 +342,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => { headerIdxRef.current = headerIdx; }, [headerIdx]);
   useEffect(() => { showCredsFormRef.current = showCredsForm; }, [showCredsForm]);
 
-  const HEADER_COUNT = 3; // [Back, Update, Settings]
+  // [Back, Update, Settings] — Settings is hidden in demo, so 2 there.
+  const HEADER_COUNT = DEMO ? 2 : 3;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -399,7 +402,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           const idx = headerIdxRef.current;
           if (idx === 0) leaveMode();
           else if (idx === 1) refreshChannels();
-          else if (idx === 2) setSettingsOpen(true);
+          else if (idx === 2 && !DEMO) setSettingsOpen(true);
         }
         return;
       }
