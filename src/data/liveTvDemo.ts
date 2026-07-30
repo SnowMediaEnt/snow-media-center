@@ -424,10 +424,10 @@ export async function demoGetSeriesInfo(seriesId: number): Promise<XtreamSeriesI
   const seasonCount = 2 + (hash(s.name) % 2); // 2–3 seasons, deterministic
   const episodesPerSeason = 6;
   const seasons: NonNullable<XtreamSeriesInfo['seasons']> = [];
-  const episodes: Record<string, XtreamSeriesInfo['episodes'] extends Record<string, infer E> ? E[] : never> = {};
+  const episodes: Record<string, XtreamEpisode[]> = {};
   for (let sn = 1; sn <= seasonCount; sn++) {
     seasons.push({ season_number: sn, episode_count: episodesPerSeason });
-    const list = [];
+    const list: XtreamEpisode[] = [];
     for (let en = 1; en <= episodesPerSeason; en++) {
       const title = EPISODE_TITLES[(hash(`${s.name}:${sn}:${en}`) + en - 1) % EPISODE_TITLES.length];
       list.push({
