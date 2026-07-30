@@ -45,7 +45,7 @@ type Props = {
   onOpenPlayer?: () => void;
 };
 
-const STORAGE_KEY = 'snow-media-bar-cache-v4';
+const STORAGE_KEY = 'snow-media-bar-cache-v5';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
