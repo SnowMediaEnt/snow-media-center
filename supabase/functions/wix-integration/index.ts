@@ -41,6 +41,29 @@ async function authenticateUser(req: Request): Promise<{ userId: string | null; 
   return { userId: user.id, error: null };
 }
 
+// Resolves the caller's verified email from the session JWT that supabase-js
+// automatically attaches to functions.invoke. Returns null for anonymous or
+// invalid callers (never throws).
+async function getVerifiedEmail(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) return null;
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) return null;
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user?.email) return null;
+    return normalizeEmail(user.email);
+  } catch (e) {
+    console.warn('getVerifiedEmail failed:', e);
+    return null;
+  }
+}
+
 interface WixMember {
   id: string;
   loginEmail: string;
@@ -151,6 +174,46 @@ Deno.serve(async (req) => {
     console.log('Action requested:', action);
     console.log('Items for cart:', items ? JSON.stringify(items, null, 2) : 'No items');
     console.log('=== END REQUEST DETAILS ===');
+
+    // Caller identity (from the session JWT supabase-js attaches automatically).
+    // Used to decide how much detail member lookups may return.
+    const verifiedEmail = await getVerifiedEmail(req);
+
+    // These actions return personal data (profile, orders, loyalty, referrals).
+    // Every client caller lives in useWixIntegration behind the signed-in
+    // UserDashboard, so they require a valid JWT whose email matches the target.
+    const emailScopedActions = ['get-orders', 'get-loyalty'];
+    const memberScopedActions = ['get-profile', 'get-referral-info'];
+    const unauthorized = () => new Response(
+      JSON.stringify({ error: 'auth required' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+    if (emailScopedActions.includes(action)) {
+      if (!verifiedEmail || verifiedEmail !== normalizeEmail(email)) {
+        console.warn(`Blocked ${action}: caller/email mismatch`);
+        return unauthorized();
+      }
+    }
+
+    if (memberScopedActions.includes(action)) {
+      if (!verifiedEmail || !wixSiteId) {
+        console.warn(`Blocked ${action}: no verified caller`);
+        return unauthorized();
+      }
+      const { member: ownMember } = await findWixMemberByEmail(
+        verifiedEmail,
+        wixApiKey,
+        wixSiteId,
+        wixAccountId || undefined,
+      );
+      const ownIds = [ownMember?.id, ownMember?.contactId].filter(Boolean);
+      if (!ownIds.includes(wixMemberId)) {
+        console.warn(`Blocked ${action}: member id does not belong to caller`);
+        return unauthorized();
+      }
+    }
+
 
     switch (action) {
       case 'get-products':
@@ -410,8 +473,30 @@ Deno.serve(async (req) => {
 
         console.log(`Scanned ${totalScanned} Wix members for ${email}, source: ${source}, found: ${!!matchingMember}`);
 
-        // Hardened: expose only a boolean. Detailed lookups live behind
-        // authenticated actions; anonymous probes use `check-account-email`.
+        // Auth-aware: a signed-in caller querying their OWN email gets the
+        // original detailed shape (UserDashboard needs member.id). Anonymous
+        // or mismatched callers get the hardened boolean only.
+        if (matchingMember && verifiedEmail && verifiedEmail === normalizeEmail(email)) {
+          const mm: any = matchingMember;
+          return new Response(
+            JSON.stringify({
+              exists: true,
+              source,
+              member: {
+                id: mm.id,
+                email: mm.loginEmail || normalizeEmail(email),
+                status: mm.status,
+                profile: mm.profile,
+                contact: mm.contact,
+                name: mm.profile?.nickname
+                  || [mm.profile?.firstName, mm.profile?.lastName].filter(Boolean).join(' ')
+                  || normalizeEmail(email).split('@')[0],
+              },
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ exists: !!matchingMember }),
           { 

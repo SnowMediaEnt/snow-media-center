@@ -640,7 +640,8 @@ textarea:focus:not(:focus-visible) {
    User theming (opt-in via html[data-user-theme="1"]).
    applyTheme() sets: --user-font-scale, --user-font-family,
    --user-text, --user-bg, and overrides --brand-gold (accent).
-   NOTE: kept ABOVE the snowplayer-fullscreen block so fullscreen wins.
+   NOTE: this rule is (0,3,1); the snowplayer-fullscreen transparency block
+   below wins via higher-specificity companion selectors, not source order.
    ────────────────────────────────────────────────────────────────────────── */
 html[data-user-theme="1"] {
   font-size: calc(1rem * var(--user-font-scale, 1));
@@ -683,12 +684,14 @@ html[data-user-theme="1"][data-user-bg="1"] [data-app-scroll-root] {
 html.snowplayer-fullscreen,
 html.snowplayer-fullscreen body,
 html.snowplayer-fullscreen #root,
-html.snowplayer-fullscreen [data-app-scroll-root] {
+html.snowplayer-fullscreen [data-app-scroll-root],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
 }
-html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
+html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
   visibility: hidden !important;
 }
 html.snowplayer-fullscreen .min-h-dvh.bg-black\/30,
