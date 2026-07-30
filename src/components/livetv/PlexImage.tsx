@@ -36,9 +36,11 @@ interface Props {
   /** When true, this image bypasses focus-mode parking and is treated as high
    *  priority in the CapacitorHttp data-URI queue. Set on detail-page assets. */
   priority?: boolean;
-  /** Exempt from focus-mode parking, but still viewport-gated and still queued
-   *  behind priority images. Use for detail-page secondary assets (cast,
-   *  seasons, episodes, filmography) that mount while focus mode is on. */
+  /** Exempt from focus-mode parking (state gate) AND from the network-level
+   *  focus block in acquireImgSlot — admitted in a second tier behind priority
+   *  images, ahead of parked browse images. Still viewport-gated. Use for
+   *  detail-page secondary assets (cast, seasons, episodes, filmography) that
+   *  mount while focus mode is on. */
   focusExempt?: boolean;
 }
 
@@ -127,7 +129,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       if (!inView) return; // wait until in-viewport for non-priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
-      plexFetchImageDataUri(url, priority)
+      plexFetchImageDataUri(url, priority, focusExempt)
         .then((data) => { if (cancelled) return; _srcCache.set(key, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return () => { cancelled = true; };
@@ -153,7 +155,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       if (!priority && !inView) { setErr(true); return; }
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
-      plexFetchImageDataUri(url, priority)
+      plexFetchImageDataUri(url, priority, focusExempt)
         .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); setSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return;
