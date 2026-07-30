@@ -36,6 +36,10 @@ interface Props {
   /** When true, this image bypasses focus-mode parking and is treated as high
    *  priority in the CapacitorHttp data-URI queue. Set on detail-page assets. */
   priority?: boolean;
+  /** Exempt from focus-mode parking, but still viewport-gated and still queued
+   *  behind priority images. Use for detail-page secondary assets (cast,
+   *  seasons, episodes, filmography) that mount while focus mode is on. */
+  focusExempt?: boolean;
 }
 
 // Cache the FINAL resolved src per (base|path). Keyed without token/size so
@@ -49,7 +53,7 @@ const _srcCache = new Map<string, string>();
 // data-URI path when the PMS connection is plain http.
 const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false }: Props) => {
+const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false, focusExempt = false }: Props) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   // Fallback ladder: 0 = raw thumb, 1 = photo-transcode, 2 = data-URI (native).
@@ -63,7 +67,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
 
   // Commit a src, honoring focus-mode parking for non-priority images.
   const commitSrc = (s: string) => {
-    if (!priority && isPlexImageFocusOn()) {
+    if (!priority && !focusExempt && isPlexImageFocusOn()) {
       pendingSrcRef.current = s;
     } else {
       pendingSrcRef.current = null;
@@ -74,16 +78,16 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
   // Release parked src the moment focus mode flips off (or priority is true).
   useEffect(() => {
     const flush = () => {
-      if ((priority || !isPlexImageFocusOn()) && pendingSrcRef.current) {
+      if ((priority || focusExempt || !isPlexImageFocusOn()) && pendingSrcRef.current) {
         const s = pendingSrcRef.current;
         pendingSrcRef.current = null;
         setSrc(s);
       }
     };
-    if (priority) flush();
+    if (priority || focusExempt) flush();
     const off = onPlexImageFocusChange(() => flush());
     return () => { off(); };
-  }, [priority]);
+  }, [priority, focusExempt]);
 
   // IntersectionObserver gate — only applies to non-priority images.
   useEffect(() => {
