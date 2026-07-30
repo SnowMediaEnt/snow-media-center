@@ -1227,6 +1227,24 @@ export type Database = {
         }
         Relationships: []
       }
+      demo_catalog_cache: {
+        Row: {
+          built_at: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          built_at?: string
+          id?: string
+          payload: Json
+        }
+        Update: {
+          built_at?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       email_check_throttle: {
         Row: {
           count: number

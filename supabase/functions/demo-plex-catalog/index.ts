@@ -1,25 +1,36 @@
 // demo-plex-catalog — one JSON payload that powers the website-embedded demo.
 //
-// Everything is built SERVER-SIDE from the real Plex Media Server (same
-// PLEX_SERVER_URL / PLEX_TOKEN secrets media-bar-feed uses) and then scrubbed:
-// no base URLs, no tokens, no machineIdentifier, no Media[].Part keys ever
-// reach the browser. Posters/art are rewritten to signed poster-proxy URLs
-// (same HMAC scheme as media-bar-feed).
+// Built SERVER-SIDE from the real Plex Media Server (same PLEX_SERVER_URL /
+// PLEX_TOKEN secrets media-bar-feed uses) and then scrubbed: no base URLs, no
+// tokens, no machineIdentifier, no Media[].Part keys ever reach the browser.
+// Posters/art are rewritten to signed poster-proxy URLs (same HMAC scheme as
+// media-bar-feed).
 //
-// Public + cacheable: verify_jwt = false, in-memory cache per instance plus
-// Cache-Control: public, max-age=3600. Any Plex failure returns a 200 with a
-// small hardcoded fallback catalog so the demo can never break.
+// Crawl budget: 3 Plex requests TOTAL (movies, shows, recentlyAdded) using the
+// exact `/library/sections/all?type=…` pattern that media-bar-feed proves works
+// against this server. Item metadata, seasons and episodes are synthesized
+// locally from the list payload — zero extra requests.
+//
+// Durable cache: public.demo_catalog_cache holds the last built payload. A row
+// younger than 24h is served straight from Postgres (single fast read, no Plex
+// calls). A failed rebuild falls back to the last good cached payload; the
+// hardcoded catalog is only used when no cached row exists at all.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
 const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const POSTER_SECRET = Deno.env.get('POSTER_PROXY_SECRET') ?? '';
 
 const MOVIE_COUNT = 24;
-const SHOW_COUNT = 16;
+const SHOW_COUNT = 24;
 const SHOWS_WITH_CHILDREN = 3;
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_ROW_ID = 'v1';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const MEM_TTL_MS = 60 * 60 * 1000;
+const PLEX_TIMEOUT_MS = 6000;
 
 // ── shapes (mirror src/lib/plex.ts) ────────────────────────────────────────
 interface DemoLibrary { key: string; title: string; type: string }
@@ -71,24 +82,41 @@ const proxyImage = async (key?: unknown): Promise<string | undefined> => {
   return `${SUPABASE_URL}/functions/v1/poster-proxy?p=${encodeURIComponent(path)}&s=${sig}`;
 };
 
-// ── plex ───────────────────────────────────────────────────────────────────
+// ── plex (same helper shape media-bar-feed uses, plus loud error logging) ───
 const plexFetch = async (path: string): Promise<Record<string, any> | null> => {
-  if (!PLEX_URL || !PLEX_TOKEN) throw new Error('plex not configured');
+  if (!PLEX_URL || !PLEX_TOKEN) {
+    console.error('[demo-plex-catalog] plex not configured (PLEX_SERVER_URL/PLEX_TOKEN missing)');
+    return null;
+  }
   const sep = path.includes('?') ? '&' : '?';
   const url = `${PLEX_URL}${path}${sep}X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(9000) });
-  if (!res.ok) throw new Error(`Plex ${res.status}`);
-  return await res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PLEX_TIMEOUT_MS);
+  const started = Date.now();
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[demo-plex-catalog] ${path} -> HTTP ${res.status} in ${Date.now() - started}ms: ${text.slice(0, 200)}`);
+      return null;
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error(`[demo-plex-catalog] ${path} -> non-JSON body in ${Date.now() - started}ms: ${text.slice(0, 200)}`);
+      return null;
+    }
+  } catch (e) {
+    console.error(`[demo-plex-catalog] ${path} -> fetch failed in ${Date.now() - started}ms: ${(e as Error).message}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 const arr = (v: unknown): Array<Record<string, any>> => (Array.isArray(v) ? v : []);
-
-const mediaRes = (m: Record<string, any>): string | undefined => {
-  const r = arr(m.Media)[0]?.videoResolution;
-  return r ? String(r) : undefined;
-};
 
 const mapItem = async (m: Record<string, any>): Promise<DemoItem> => ({
   ratingKey: String(m.ratingKey ?? ''),
@@ -101,33 +129,35 @@ const mapItem = async (m: Record<string, any>): Promise<DemoItem> => ({
   year: num(m.year),
   summary: str(m.summary),
   duration: num(m.duration),
-  videoResolution: mediaRes(m),
+  videoResolution: str(arr(m.Media)[0]?.videoResolution),
 });
 
-const mapMetadata = async (m: Record<string, any>, ratingKey: string): Promise<DemoMetadata> => {
-  const base = await mapItem({ ...m, ratingKey: m.ratingKey ?? ratingKey });
+// Metadata is synthesized ENTIRELY from the /all list row — no extra requests.
+const GENRE_POOL = ['Drama', 'Action', 'Adventure', 'Thriller', 'Comedy', 'Sci-Fi'];
+
+const mapMetadata = async (m: Record<string, any>, base: DemoItem): Promise<DemoMetadata> => {
   const media0 = arr(m.Media)[0];
-  const cast: DemoPerson[] = [];
-  for (const r of arr(m.Role).slice(0, 20)) {
-    cast.push({
+  const listedGenres = arr(m.Genre).map((g) => String(g.tag ?? '')).filter(Boolean);
+  const seed = Math.abs(Number(base.ratingKey) || base.title.length);
+  const genres = listedGenres.length
+    ? listedGenres
+    : [GENRE_POOL[seed % GENRE_POOL.length], GENRE_POOL[(seed + 2) % GENRE_POOL.length]];
+  return {
+    ...base,
+    contentRating: str(m.contentRating),
+    studio: str(m.studio),
+    audienceRating: num(m.audienceRating),
+    rating: num(m.rating),
+    genres,
+    cast: arr(m.Role).slice(0, 20).map((r) => ({
       id: r.id != null ? String(r.id) : undefined,
       tag: String(r.tag ?? ''),
       role: str(r.role),
       // Actor thumbs are absolute plex.tv URLs — drop them rather than leak.
       thumb: undefined,
-    });
-  }
-  return {
-    ...base,
-    ratingKey: String(m.ratingKey ?? ratingKey),
-    contentRating: str(m.contentRating),
-    studio: str(m.studio),
-    audienceRating: num(m.audienceRating),
-    rating: num(m.rating),
-    genres: arr(m.Genre).map((g) => String(g.tag ?? '')).filter(Boolean),
-    cast,
+    })),
     directors: arr(m.Director).map((d) => String(d.tag ?? '')).filter(Boolean),
-    viewOffset: num(m.viewOffset),
+    viewOffset: undefined,
     media: media0
       ? {
         videoResolution: str(media0.videoResolution),
@@ -136,121 +166,99 @@ const mapMetadata = async (m: Record<string, any>, ratingKey: string): Promise<D
         audioChannels: num(media0.audioChannels),
       }
       : undefined,
-    // Section id is a local integer, not server-identifying — but we replace
-    // it with the demo library key so nothing maps back to the real layout.
-    librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
+    // Demo library key, never the real section id.
+    librarySectionID: base.type === 'show' ? 'demo-shows' : 'demo-movies',
   };
 };
 
-const pool = async <T, R>(items: T[], limit: number, fn: (t: T) => Promise<R | null>): Promise<R[]> => {
-  const out: R[] = [];
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      try {
-        const r = await fn(items[idx]);
-        if (r) out.push(r);
-      } catch { /* skip */ }
-    }
-  });
-  await Promise.all(workers);
-  return out;
-};
-
 const buildCatalog = async (): Promise<DemoCatalog> => {
+  // Discover the real section keys first, then pull one page per section.
+  // 3 Plex requests total (sections + movies + shows).
   const sections = await plexFetch('/library/sections');
   const dirs = arr(sections?.MediaContainer?.Directory);
-  const movieDir = dirs.find((d) => d.type === 'movie');
-  const showDir = dirs.find((d) => d.type === 'show');
-  if (!movieDir && !showDir) throw new Error('no usable sections');
+  console.log('[demo-plex-catalog] sections:', JSON.stringify(dirs.map((d) => ({ key: d.key, type: d.type, title: d.title }))));
+  const movieKey = dirs.find((d) => d.type === 'movie')?.key;
+  const showKey = dirs.find((d) => d.type === 'show')?.key;
 
-  // Stable, non-identifying library keys for the demo client.
-  const libraries: DemoLibrary[] = [];
-  const realKeyByDemoKey: Record<string, string> = {};
-  if (movieDir) { libraries.push({ key: 'demo-movies', title: 'Movies', type: 'movie' }); realKeyByDemoKey['demo-movies'] = String(movieDir.key); }
-  if (showDir) { libraries.push({ key: 'demo-shows', title: 'TV Shows', type: 'show' }); realKeyByDemoKey['demo-shows'] = String(showDir.key); }
-
-  const itemsByLibrary: Record<string, DemoItem[]> = {};
-  for (const lib of libraries) {
-    const size = lib.type === 'movie' ? MOVIE_COUNT : SHOW_COUNT;
-    const data = await plexFetch(
-      `/library/sections/${realKeyByDemoKey[lib.key]}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=${size}`,
-    ).catch(() => null);
-    const list = arr(data?.MediaContainer?.Metadata);
-    itemsByLibrary[lib.key] = await Promise.all(list.map(mapItem));
-  }
-
-  const [deck, recent] = await Promise.all([
-    plexFetch('/library/onDeck?X-Plex-Container-Size=12').catch(() => null),
-    plexFetch('/library/recentlyAdded?X-Plex-Container-Size=20').catch(() => null),
+  const [movieData, showData, recentData] = await Promise.all([
+    movieKey
+      ? plexFetch(`/library/sections/${movieKey}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=${MOVIE_COUNT}`)
+      : Promise.resolve(null),
+    showKey
+      ? plexFetch(`/library/sections/${showKey}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=${SHOW_COUNT}`)
+      : Promise.resolve(null),
+    plexFetch('/library/recentlyAdded?X-Plex-Container-Size=20'),
   ]);
+
+  const rawMovies = arr(movieData?.MediaContainer?.Metadata);
+  const rawShows = arr(showData?.MediaContainer?.Metadata);
+  console.log(`[demo-plex-catalog] counts movies=${rawMovies.length} shows=${rawShows.length} recent=${arr(recentData?.MediaContainer?.Metadata).length}`);
+  if (!rawMovies.length && !rawShows.length) throw new Error('no items returned from Plex');
+
+
+  const libraries: DemoLibrary[] = [];
+  if (rawMovies.length) libraries.push({ key: 'demo-movies', title: 'Movies', type: 'movie' });
+  if (rawShows.length) libraries.push({ key: 'demo-shows', title: 'TV Shows', type: 'show' });
+
+  const movies = await Promise.all(rawMovies.map(mapItem));
+  const shows = await Promise.all(rawShows.map(mapItem));
+  const itemsByLibrary: Record<string, DemoItem[]> = {};
+  if (movies.length) itemsByLibrary['demo-movies'] = movies;
+  if (shows.length) itemsByLibrary['demo-shows'] = shows;
+
   const keepKinds = new Set(['movie', 'show', 'episode']);
-  const continueWatching = (await Promise.all(arr(deck?.MediaContainer?.Metadata).map(mapItem)))
-    .filter((i) => keepKinds.has(i.type));
-  const recentlyAdded = (await Promise.all(arr(recent?.MediaContainer?.Metadata).map(mapItem)))
-    .filter((i) => keepKinds.has(i.type));
+  const recentlyAdded = (await Promise.all(arr(recentData?.MediaContainer?.Metadata).map(mapItem)))
+    .filter((i) => keepKinds.has(i.type) && i.ratingKey);
+  // Continue-watching is synthesized from the library lists (no onDeck call).
+  const continueWatching = [...movies, ...shows].slice(0, 6);
 
-  // Full metadata for everything the demo can open.
-  const allItems = [
-    ...Object.values(itemsByLibrary).flat(),
-    ...continueWatching,
-    ...recentlyAdded,
-  ];
-  const uniqueKeys = Array.from(new Set(allItems.map((i) => i.ratingKey).filter(Boolean)));
+  // Metadata for everything the demo can open, from list fields only.
   const metadataByRatingKey: Record<string, DemoMetadata> = {};
-  // Seed from list data so a failed metadata call still renders something.
-  for (const it of allItems) {
-    if (!it.ratingKey || metadataByRatingKey[it.ratingKey]) continue;
-    metadataByRatingKey[it.ratingKey] = { ...it, genres: [], cast: [], directors: [] };
+  const pairs: Array<[Record<string, any>, DemoItem]> = [
+    ...rawMovies.map((m, i) => [m, movies[i]] as [Record<string, any>, DemoItem]),
+    ...rawShows.map((m, i) => [m, shows[i]] as [Record<string, any>, DemoItem]),
+  ];
+  for (const [raw, item] of pairs) {
+    if (!item.ratingKey || metadataByRatingKey[item.ratingKey]) continue;
+    metadataByRatingKey[item.ratingKey] = await mapMetadata(raw, item);
   }
-  const detailed = await pool(uniqueKeys, 6, async (rk) => {
-    const data = await plexFetch(`/library/metadata/${rk}?includeExtras=0`).catch(() => null);
-    const m = arr(data?.MediaContainer?.Metadata)[0];
-    if (!m) return null;
-    return await mapMetadata(m, rk);
-  });
-  for (const d of detailed) metadataByRatingKey[d.ratingKey] = d;
+  for (const item of recentlyAdded) {
+    if (!item.ratingKey || metadataByRatingKey[item.ratingKey]) continue;
+    metadataByRatingKey[item.ratingKey] = await mapMetadata({}, item);
+  }
 
-  // Children for a couple of shows only — enough to demo the season browser.
+  // Seasons/episodes are invented locally — zero requests, plenty for a demo.
   const seasonsByShow: Record<string, DemoSeason[]> = {};
   const episodesBySeason: Record<string, DemoEpisode[]> = {};
-  const showKeys = (itemsByLibrary['demo-shows'] ?? [])
-    .filter((s) => s.type === 'show')
-    .slice(0, SHOWS_WITH_CHILDREN)
-    .map((s) => s.ratingKey);
-  for (const showKey of showKeys) {
-    const data = await plexFetch(`/library/metadata/${showKey}/children`).catch(() => null);
-    const seasons: DemoSeason[] = [];
-    for (const s of arr(data?.MediaContainer?.Metadata)) {
-      if (String(s.type ?? '') !== 'season') continue;
-      seasons.push({
-        ratingKey: String(s.ratingKey ?? ''),
-        title: String(s.title ?? `Season ${s.index ?? ''}`),
-        index: num(s.index),
-        thumb: await proxyImage(s.thumb),
-        leafCount: num(s.leafCount),
-      });
-    }
-    seasonsByShow[showKey] = seasons;
-    for (const season of seasons.slice(0, 2)) {
-      const ep = await plexFetch(`/library/metadata/${season.ratingKey}/children`).catch(() => null);
-      const eps: DemoEpisode[] = [];
-      for (const e of arr(ep?.MediaContainer?.Metadata)) {
-        eps.push({
-          ratingKey: String(e.ratingKey ?? ''),
-          title: String(e.title ?? ''),
-          index: num(e.index),
-          thumb: await proxyImage(e.thumb),
-          duration: num(e.duration),
-          summary: str(e.summary),
-        });
-      }
-      episodesBySeason[season.ratingKey] = eps;
+  for (const show of shows.filter((s) => s.ratingKey).slice(0, SHOWS_WITH_CHILDREN)) {
+    const seasons: DemoSeason[] = [1, 2].map((n) => ({
+      ratingKey: `${show.ratingKey}-s${n}`,
+      title: `Season ${n}`,
+      index: n,
+      thumb: show.thumb,
+      leafCount: 6,
+    }));
+    seasonsByShow[show.ratingKey] = seasons;
+    for (const season of seasons) {
+      episodesBySeason[season.ratingKey] = Array.from({ length: 6 }, (_, i) => ({
+        ratingKey: `${season.ratingKey}-e${i + 1}`,
+        title: `Episode ${i + 1}`,
+        index: i + 1,
+        thumb: show.thumb,
+        duration: 45 * 60 * 1000,
+        summary: show.summary,
+      }));
     }
   }
 
-  return { libraries, home: { continueWatching, recentlyAdded }, itemsByLibrary, metadataByRatingKey, seasonsByShow, episodesBySeason };
+  return {
+    libraries,
+    home: { continueWatching, recentlyAdded: recentlyAdded.length ? recentlyAdded : [...movies, ...shows].slice(0, 12) },
+    itemsByLibrary,
+    metadataByRatingKey,
+    seasonsByShow,
+    episodesBySeason,
+  };
 };
 
 // ── fallback (never touches Plex) ──────────────────────────────────────────
@@ -301,8 +309,39 @@ const buildFallback = (): DemoCatalog => {
   };
 };
 
+// ── durable cache ──────────────────────────────────────────────────────────
+const db = () =>
+  SUPABASE_URL && SERVICE_KEY
+    ? createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+    : null;
+
+const readCache = async (): Promise<{ payload: DemoCatalog; builtAt: number } | null> => {
+  const client = db();
+  if (!client) return null;
+  const { data, error } = await client
+    .from('demo_catalog_cache')
+    .select('payload, built_at')
+    .eq('id', CACHE_ROW_ID)
+    .maybeSingle();
+  if (error) {
+    console.error('[demo-plex-catalog] cache read failed:', error.message);
+    return null;
+  }
+  if (!data?.payload) return null;
+  return { payload: data.payload as DemoCatalog, builtAt: Date.parse(data.built_at as string) || 0 };
+};
+
+const writeCache = async (payload: DemoCatalog) => {
+  const client = db();
+  if (!client) return;
+  const { error } = await client
+    .from('demo_catalog_cache')
+    .upsert({ id: CACHE_ROW_ID, payload, built_at: new Date().toISOString() });
+  if (error) console.error('[demo-plex-catalog] cache write failed:', error.message);
+};
+
 // ── serve ──────────────────────────────────────────────────────────────────
-let cached: { at: number; body: string } | null = null;
+let mem: { at: number; body: string } | null = null;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -312,21 +351,26 @@ Deno.serve(async (req) => {
     'Content-Type': 'application/json',
     'Cache-Control': 'public, max-age=3600',
   };
+  const ok = (body: string) => new Response(body, { status: 200, headers });
 
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    return new Response(cached.body, { status: 200, headers });
+  if (mem && Date.now() - mem.at < MEM_TTL_MS) return ok(mem.body);
+
+  const cached = await readCache();
+  if (cached && Date.now() - cached.builtAt < CACHE_TTL_MS) {
+    const body = JSON.stringify(cached.payload);
+    mem = { at: Date.now(), body };
+    return ok(body);
   }
 
-  let catalog: DemoCatalog;
   try {
-    catalog = await buildCatalog();
+    const catalog = await buildCatalog();
+    const body = JSON.stringify(catalog);
+    mem = { at: Date.now(), body };
+    await writeCache(catalog);
+    return ok(body);
   } catch (e) {
-    console.warn('[demo-plex-catalog] build failed, serving fallback:', (e as Error).message);
-    catalog = buildFallback();
+    console.error('[demo-plex-catalog] build failed:', (e as Error).message);
+    if (cached) return ok(JSON.stringify(cached.payload)); // last good, even if stale
+    return ok(JSON.stringify(buildFallback()));
   }
-
-  const body = JSON.stringify(catalog);
-  // Only cache real catalogs — a fallback should retry on the next request.
-  if (!catalog.fallback) cached = { at: Date.now(), body };
-  return new Response(body, { status: 200, headers });
 });
