@@ -187,5 +187,7 @@ export function usePlexAuth() {
 
   const clearJustLinked = useCallback(() => { setJustLinked(false); }, []);
 
+  if (demo) return DEMO_AUTH;
+
   return { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
 }
