@@ -67,3 +67,6 @@ verify_jwt = false
 
 [functions.broadcast-ticket]
 verify_jwt = false
+
+[functions.check-account-email]
+verify_jwt = false
