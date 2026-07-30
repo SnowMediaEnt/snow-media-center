@@ -172,17 +172,29 @@ const mapMetadata = async (m: Record<string, any>, base: DemoItem): Promise<Demo
 };
 
 const buildCatalog = async (): Promise<DemoCatalog> => {
-  // Exactly the pattern media-bar-feed proves works: sections/all with a type
-  // filter. type=1 → movies, type=2 → shows. 3 requests total, in parallel.
+  // Discover the real section keys first, then pull one page per section.
+  // 3 Plex requests total (sections + movies + shows).
+  const sections = await plexFetch('/library/sections');
+  const dirs = arr(sections?.MediaContainer?.Directory);
+  console.log('[demo-plex-catalog] sections:', JSON.stringify(dirs.map((d) => ({ key: d.key, type: d.type, title: d.title }))));
+  const movieKey = dirs.find((d) => d.type === 'movie')?.key;
+  const showKey = dirs.find((d) => d.type === 'show')?.key;
+
   const [movieData, showData, recentData] = await Promise.all([
-    plexFetch(`/library/sections/all?type=1&sort=addedAt:desc&X-Plex-Container-Start=0&X-Plex-Container-Size=${MOVIE_COUNT}`),
-    plexFetch(`/library/sections/all?type=2&sort=addedAt:desc&X-Plex-Container-Start=0&X-Plex-Container-Size=${SHOW_COUNT}`),
+    movieKey
+      ? plexFetch(`/library/sections/${movieKey}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=${MOVIE_COUNT}`)
+      : Promise.resolve(null),
+    showKey
+      ? plexFetch(`/library/sections/${showKey}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=${SHOW_COUNT}`)
+      : Promise.resolve(null),
     plexFetch('/library/recentlyAdded?X-Plex-Container-Size=20'),
   ]);
 
   const rawMovies = arr(movieData?.MediaContainer?.Metadata);
   const rawShows = arr(showData?.MediaContainer?.Metadata);
+  console.log(`[demo-plex-catalog] counts movies=${rawMovies.length} shows=${rawShows.length} recent=${arr(recentData?.MediaContainer?.Metadata).length}`);
   if (!rawMovies.length && !rawShows.length) throw new Error('no items returned from Plex');
+
 
   const libraries: DemoLibrary[] = [];
   if (rawMovies.length) libraries.push({ key: 'demo-movies', title: 'Movies', type: 'movie' });
