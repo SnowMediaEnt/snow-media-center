@@ -175,6 +175,46 @@ Deno.serve(async (req) => {
     console.log('Items for cart:', items ? JSON.stringify(items, null, 2) : 'No items');
     console.log('=== END REQUEST DETAILS ===');
 
+    // Caller identity (from the session JWT supabase-js attaches automatically).
+    // Used to decide how much detail member lookups may return.
+    const verifiedEmail = await getVerifiedEmail(req);
+
+    // These actions return personal data (profile, orders, loyalty, referrals).
+    // Every client caller lives in useWixIntegration behind the signed-in
+    // UserDashboard, so they require a valid JWT whose email matches the target.
+    const emailScopedActions = ['get-orders', 'get-loyalty'];
+    const memberScopedActions = ['get-profile', 'get-referral-info'];
+    const unauthorized = () => new Response(
+      JSON.stringify({ error: 'auth required' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+    if (emailScopedActions.includes(action)) {
+      if (!verifiedEmail || verifiedEmail !== normalizeEmail(email)) {
+        console.warn(`Blocked ${action}: caller/email mismatch`);
+        return unauthorized();
+      }
+    }
+
+    if (memberScopedActions.includes(action)) {
+      if (!verifiedEmail || !wixSiteId) {
+        console.warn(`Blocked ${action}: no verified caller`);
+        return unauthorized();
+      }
+      const { member: ownMember } = await findWixMemberByEmail(
+        verifiedEmail,
+        wixApiKey,
+        wixSiteId,
+        wixAccountId || undefined,
+      );
+      const ownIds = [ownMember?.id, ownMember?.contactId].filter(Boolean);
+      if (!ownIds.includes(wixMemberId)) {
+        console.warn(`Blocked ${action}: member id does not belong to caller`);
+        return unauthorized();
+      }
+    }
+
+
     switch (action) {
       case 'get-products':
         if (!wixSiteId) {
