@@ -484,12 +484,15 @@ export function bumpPlexImageEpoch(): void { _imgEpoch += 1; }
 // JS heap with base64 payloads. Chrome-66-safe (plain arrays / promises).
 //
 // Focus mode: when a detail page is open we want it to own ALL image bandwidth.
-// While `imageFocusMode` is true, ONLY entries registered with `priority: true`
-// start; non-priority waiters park in the FIFO queue and resume once focus is
-// released. In-flight requests are never cancelled (CapacitorHttp can't cancel).
+// While `imageFocusMode` is true there are two admission tiers: `priority`
+// entries (detail poster/backdrop) start first, then `exempt` entries (detail
+// secondaries — cast, seasons, episodes, filmography — which MUST load during
+// focus because no priority image may be mounted on steps like 'seasons').
+// Plain browse images park in the queue and resume once focus is released.
+// In-flight requests are never cancelled (CapacitorHttp can't cancel).
 const MAX_IMG_CONCURRENCY = 4;
 let _imgInflight = 0;
-const _imgWaiters: Array<{ resolve: () => void; priority: boolean }> = [];
+const _imgWaiters: Array<{ resolve: () => void; priority: boolean; exempt: boolean }> = [];
 
 let imageFocusMode = false;
 export function isPlexImageFocusOn(): boolean { return imageFocusMode; }
@@ -523,19 +526,19 @@ export function onPlexImageFocusChange(cb: (on: boolean) => void): () => void {
 }
 
 function pickNextWaiterIdx(): number {
-  for (let i = 0; i < _imgWaiters.length; i++) {
-    if (!imageFocusMode || _imgWaiters[i].priority) return i;
-  }
+  for (let i = 0; i < _imgWaiters.length; i++) if (_imgWaiters[i].priority) return i;   // poster/backdrop first
+  for (let i = 0; i < _imgWaiters.length; i++) if (_imgWaiters[i].exempt) return i;     // detail secondaries next
+  if (!imageFocusMode) return _imgWaiters.length > 0 ? 0 : -1;                          // browse only when focus is off
   return -1;
 }
 
-function acquireImgSlot(priority: boolean): Promise<void> {
-  const canStart = _imgInflight < MAX_IMG_CONCURRENCY && (!imageFocusMode || priority);
+function acquireImgSlot(priority: boolean, exempt = false): Promise<void> {
+  const canStart = _imgInflight < MAX_IMG_CONCURRENCY && (!imageFocusMode || priority || exempt);
   if (canStart) {
     _imgInflight += 1;
     return Promise.resolve();
   }
-  return new Promise<void>((resolve) => { _imgWaiters.push({ resolve, priority }); });
+  return new Promise<void>((resolve) => { _imgWaiters.push({ resolve, priority, exempt }); });
 }
 function releaseImgSlot(): void {
   const idx = pickNextWaiterIdx();
@@ -550,7 +553,7 @@ function releaseImgSlot(): void {
 
 /** Fetch a Plex image and return a data URI. On native uses CapacitorHttp
  *  (bypasses WebView mixed-content). On web returns the URL as-is. */
-export async function plexFetchImageDataUri(url: string, priority = false): Promise<string> {
+export async function plexFetchImageDataUri(url: string, priority = false, exempt = false): Promise<string> {
   const cached = _imgCache.get(url);
   if (cached) return cached;
   const pending = _imgPending.get(url);
@@ -568,7 +571,7 @@ export async function plexFetchImageDataUri(url: string, priority = false): Prom
       return url;
     }
     const myEpoch = _imgEpoch;
-    await acquireImgSlot(priority);
+    await acquireImgSlot(priority, exempt);
     if (myEpoch !== _imgEpoch) {
       releaseImgSlot();
       throw new Error('stale-conn');
