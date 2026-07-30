@@ -67,8 +67,31 @@ const plexFetch = async (path: string) => {
   return await res.json();
 };
 
-const plexImage = (key?: string) =>
-  key && PLEX_URL ? `${PLEX_URL}${key}?X-Plex-Token=${PLEX_TOKEN}` : undefined;
+// Posters are served through our own signed proxy so the Plex origin and
+// X-Plex-Token never leave the server.
+const SUPABASE_URL = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '');
+const POSTER_SECRET = Deno.env.get('POSTER_PROXY_SECRET') ?? '';
+
+let posterKeyPromise: Promise<CryptoKey> | null = null;
+const getPosterKey = () => {
+  if (!posterKeyPromise) {
+    posterKeyPromise = crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(POSTER_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+  }
+  return posterKeyPromise;
+};
+
+const plexImage = async (key?: string): Promise<string | undefined> => {
+  if (!key || !SUPABASE_URL || !POSTER_SECRET) return undefined;
+  const sigBuf = await crypto.subtle.sign('HMAC', await getPosterKey(), new TextEncoder().encode(key));
+  const sig = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${SUPABASE_URL}/functions/v1/poster-proxy?p=${encodeURIComponent(key)}&s=${sig}`;
+};
 const PLEX_METADATA_TYPE: Record<string, number> = { movie: 1, show: 2, season: 3, episode: 4 };
 
 // ---- PLAYBACK-FIRST DEEP LINKS ----
@@ -102,7 +125,7 @@ const plexWebPlayLink = (ratingKey?: string) => {
 };
 
 // Kept only as a last-ditch fallback for the client to log; not preferred.
-const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean } => {
+const mapPlexItem = async (m: any): Promise<Item & { _seriesKey?: string; _dedupeKey?: string; _is4k?: boolean }> => {
   const isMovie = m.type === 'movie';
   const isEpisode = m.type === 'episode';
   const ratingKey = m.ratingKey;
@@ -137,7 +160,7 @@ const mapPlexItem = (m: any): Item & { _seriesKey?: string; _dedupeKey?: string;
     kind: isMovie ? 'movie' : (isEpisode ? 'episode' : m.type ?? 'show'),
     title: isEpisode ? (m.title ?? 'Episode') : (m.title ?? 'Untitled'),
     subtitle,
-    poster: plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
+    poster: await plexImage(m.thumb ?? m.parentThumb ?? m.grandparentThumb),
     ratingKey,
     key: m.key,
     guid: m.guid,
@@ -184,20 +207,20 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   ]);
 
   for (const m of recent?.MediaContainer?.Metadata ?? []) {
-    const item = mapPlexItem(m);
+    const item = await mapPlexItem(m);
     if (item.kind === 'movie') movies.push(item);
     else shows.push(item);
   }
   for (const m of deck?.MediaContainer?.Metadata ?? []) {
-    const item = mapPlexItem(m);
+    const item = await mapPlexItem(m);
     item.subtitle = `Continue · ${item.subtitle ?? ''}`.replace(/ · $/, '');
     onDeck.push(item);
   }
   for (const m of popularMovies?.MediaContainer?.Metadata ?? []) {
-    movies.push(mapPlexItem(m));
+    movies.push(await mapPlexItem(m));
   }
   for (const m of popularShows?.MediaContainer?.Metadata ?? []) {
-    shows.push(mapPlexItem(m));
+    shows.push(await mapPlexItem(m));
   }
 
   // Cross-list de-dup: same id never appears twice across movies/shows/onDeck.
@@ -328,19 +351,35 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]
   return out;
 };
 
+// Strip every Plex-navigation field for untrusted/public callers.
+const toPublicItem = (i: Item): Item => ({
+  id: i.id,
+  source: i.source,
+  kind: i.kind,
+  title: i.title,
+  subtitle: i.subtitle,
+  poster: i.poster,
+  isLive: i.isLive,
+  ratingKey: i.ratingKey,
+});
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    const isPublic = new URL(req.url).searchParams.get('public') === '1';
     const [plex, sports] = await Promise.all([
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
     ]);
-    const items = weave(
+    let items = weave(
       plex?.movies ?? [],
       sports ?? [],
       plex?.shows ?? [],
       plex?.onDeck ?? [],
     );
+    // Sports items are already free of Plex data (public CDN logos) — the strip
+    // is a no-op for them beyond dropping undefined fields.
+    if (isPublic) items = items.map(toPublicItem);
     return new Response(
       JSON.stringify({
         items,

@@ -70,3 +70,6 @@ verify_jwt = false
 
 [functions.check-account-email]
 verify_jwt = false
+
+[functions.poster-proxy]
+verify_jwt = false
