@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
     // Every client caller lives in useWixIntegration behind the signed-in
     // UserDashboard, so they require a valid JWT whose email matches the target.
     const emailScopedActions = ['get-orders', 'get-loyalty'];
-    const memberScopedActions = ['get-profile', 'get-referral-info'];
+    const memberScopedActions = ['get-profile', 'get-referral-info', 'get-member'];
     const unauthorized = () => new Response(
       JSON.stringify({ error: 'auth required' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
