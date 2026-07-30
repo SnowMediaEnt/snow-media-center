@@ -473,8 +473,30 @@ Deno.serve(async (req) => {
 
         console.log(`Scanned ${totalScanned} Wix members for ${email}, source: ${source}, found: ${!!matchingMember}`);
 
-        // Hardened: expose only a boolean. Detailed lookups live behind
-        // authenticated actions; anonymous probes use `check-account-email`.
+        // Auth-aware: a signed-in caller querying their OWN email gets the
+        // original detailed shape (UserDashboard needs member.id). Anonymous
+        // or mismatched callers get the hardened boolean only.
+        if (matchingMember && verifiedEmail && verifiedEmail === normalizeEmail(email)) {
+          const mm: any = matchingMember;
+          return new Response(
+            JSON.stringify({
+              exists: true,
+              source,
+              member: {
+                id: mm.id,
+                email: mm.loginEmail || normalizeEmail(email),
+                status: mm.status,
+                profile: mm.profile,
+                contact: mm.contact,
+                name: mm.profile?.nickname
+                  || [mm.profile?.firstName, mm.profile?.lastName].filter(Boolean).join(' ')
+                  || normalizeEmail(email).split('@')[0],
+              },
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ exists: !!matchingMember }),
           { 
