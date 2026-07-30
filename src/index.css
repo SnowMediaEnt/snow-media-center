@@ -684,12 +684,14 @@ html[data-user-theme="1"][data-user-bg="1"] [data-app-scroll-root] {
 html.snowplayer-fullscreen,
 html.snowplayer-fullscreen body,
 html.snowplayer-fullscreen #root,
-html.snowplayer-fullscreen [data-app-scroll-root] {
+html.snowplayer-fullscreen [data-app-scroll-root],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
 }
-html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
+html.snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"],
+html[data-user-theme="1"][data-user-bg="1"].snowplayer-fullscreen [data-app-scroll-root] > img[aria-hidden="true"] {
   visibility: hidden !important;
 }
 html.snowplayer-fullscreen .min-h-dvh.bg-black\/30,
