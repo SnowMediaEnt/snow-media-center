@@ -4,6 +4,25 @@
 // - Login is hardcoded to two servers (SERVERS below); the form only collects
 //   username + password and we probe servers in order to pick the working host.
 
+// Demo mode (website embed): every read is routed to the canned lineup in
+// @/data/liveTvDemo and NO network request is ever made to a provider host.
+// isDemo() is always false on native, so these gates are dead code in the APK.
+import { isDemo } from '@/lib/demoMode';
+import {
+  demoGetLiveCategories,
+  demoGetLiveStreams,
+  demoGetShortEpgWrapped,
+  demoGetVodCategories,
+  demoGetVodStreams,
+  demoGetVodInfo,
+  demoGetSeriesCategories,
+  demoGetSeries,
+  demoGetSeriesInfo,
+  demoLoadFavorites,
+  demoSaveFavorites,
+} from '@/data/liveTvDemo';
+
+
 export interface XtreamServer {
   label: string;
   host: string; // no trailing slash
@@ -404,6 +423,7 @@ export interface FavChannel {
 const FAVS_KEY_V2 = 'snow-livetv-favs-v2';
 
 export function loadFavoritesData(): Map<number, FavChannel> {
+  if (isDemo()) return demoLoadFavorites();
   try {
     const raw = localStorage.getItem(FAVS_KEY_V2);
     if (raw) {
@@ -431,6 +451,7 @@ export function loadFavoritesData(): Map<number, FavChannel> {
 }
 
 export function saveFavoritesData(m: Map<number, FavChannel>): void {
+  if (isDemo()) { demoSaveFavorites(m); return; }
   try {
     localStorage.setItem(FAVS_KEY_V2, JSON.stringify([...m.values()]));
     localStorage.setItem(FAVS_KEY, JSON.stringify([...m.keys()]));
@@ -463,6 +484,9 @@ export function saveVolume(v: number): void {
 // --- HTTP transport ---------------------------------------------------------
 
 async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
+  // Demo mode must NEVER touch a provider host — callers are already routed to
+  // the canned lineup, so reaching this in demo means a missed call site.
+  if (isDemo()) throw new Error('Xtream transport is disabled in demo mode');
   try {
     const { Capacitor, CapacitorHttp } = await import('@capacitor/core');
     if (Capacitor.isNativePlatform?.()) {
@@ -523,6 +547,8 @@ const buildBase = (c: XtreamCreds, params: Record<string, string | number>) => {
 };
 
 export async function authenticate(c: XtreamCreds): Promise<any> {
+  // Demo mode: no credentials are ever probed against a real server.
+  if (isDemo()) return { user_info: { auth: 1, status: 'Active' } };
   return httpGetJson(buildBase(c, {}), 15000);
 }
 
@@ -551,6 +577,9 @@ export async function authenticateRouted(
   const u = username.trim();
   const p = password.trim();
   if (!u || !p) return { ok: false, error: 'Missing username or password' };
+  // Demo mode: credentials are never accepted or probed — the demo sign-in
+  // surface is inert by design, so this is unreachable in practice.
+  if (isDemo()) return { ok: false, error: 'Sign-in is disabled in the demo.' };
 
   const server = pickServerForUsername(u);
   onProgress?.(server);
@@ -597,10 +626,12 @@ export async function authenticateRouted(
 // --- Live -------------------------------------------------------------------
 
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetLiveCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_live_categories' }));
 }
 
 export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamLiveStream[]> {
+  if (isDemo()) return demoGetLiveStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamLiveStream[]>(buildBase(c, params));
@@ -611,6 +642,7 @@ export async function getShortEpg(
   streamId: number,
   limit = 10,
 ): Promise<{ epg_listings: XtreamEpgEntry[] }> {
+  if (isDemo()) return demoGetShortEpgWrapped(streamId, limit);
   return httpGetJson(buildBase(c, { action: 'get_short_epg', stream_id: streamId, limit }));
 }
 
@@ -631,16 +663,19 @@ export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
 // --- Movies (VOD) -----------------------------------------------------------
 
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetVodCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
 }
 
 export async function getVodStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamVodStream[]> {
+  if (isDemo()) return demoGetVodStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_vod_streams' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamVodStream[]>(buildBase(c, params));
 }
 
 export async function getVodInfo(c: XtreamCreds, vodId: number): Promise<XtreamVodInfo> {
+  if (isDemo()) return demoGetVodInfo(vodId);
   return httpGetJson<XtreamVodInfo>(buildBase(c, { action: 'get_vod_info', vod_id: vodId }));
 }
 
@@ -652,16 +687,19 @@ export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): st
 // --- Series -----------------------------------------------------------------
 
 export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetSeriesCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
 }
 
 export async function getSeries(c: XtreamCreds, categoryId?: string): Promise<XtreamSeries[]> {
+  if (isDemo()) return demoGetSeries(categoryId);
   const params: Record<string, string | number> = { action: 'get_series' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamSeries[]>(buildBase(c, params));
 }
 
 export async function getSeriesInfo(c: XtreamCreds, seriesId: number): Promise<XtreamSeriesInfo> {
+  if (isDemo()) return demoGetSeriesInfo(seriesId);
   return httpGetJson<XtreamSeriesInfo>(buildBase(c, { action: 'get_series_info', series_id: seriesId }));
 }
 
