@@ -27,7 +27,11 @@ import {
   type MultiScreenId,
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
+import { isDemo } from '@/lib/demoMode';
 import ChannelRow from './ChannelRow';
+
+// Demo latch (?demo=1) — false on native, so dead code in the APK.
+const DEMO = isDemo();
 
 type Layout = '2h' | '2v' | '4';
 
@@ -327,6 +331,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
 
   const openTileForChannel = useCallback(async (tileIdx: number, ch: XtreamLiveStream) => {
     if (!layout) return;
+    // Demo: never construct a stream URL. Unreachable today (demo is web-only
+    // and this section requires the native player), but keep the explicit
+    // latch so buildNativeLiveUrl can never fire with demo creds.
+    if (DEMO) return;
     const spec = tilesForLayout(layout);
     const sid = spec[tileIdx]?.id;
     if (!sid) return;
@@ -356,7 +364,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       }
       void fetchEpgForTile(tileIdx, ch.stream_id);
       const occupiedCount = tilesRef.current.filter(t => t.channel).length;
-      try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ }
+      if (!DEMO) { try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ } }
     }));
   }, [layout, applyRect, loadSlot, focusAudio, creds, fetchEpgForTile]);
 
