@@ -1227,6 +1227,30 @@ export type Database = {
         }
         Relationships: []
       }
+      email_check_throttle: {
+        Row: {
+          count: number
+          created_at: string
+          ip_hash: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          ip_hash: string
+          updated_at?: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          ip_hash?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           enabled: boolean
@@ -2236,6 +2260,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      account_email_exists: { Args: { p_email: string }; Returns: boolean }
       adjust_customer_coins: {
         Args: { p_customer_id: string; p_delta: number; p_reason: string }
         Returns: number
