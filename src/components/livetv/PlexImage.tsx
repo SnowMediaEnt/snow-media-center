@@ -138,7 +138,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
     commitSrc(raw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, path, token, w, h, priority, inView]);
+  }, [base, path, token, w, h, priority, focusExempt, inView]);
 
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }
@@ -146,7 +146,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     if (step === 0) {
       // Try the server photo transcode with a SMALL box + no upscale.
       stepRef.current = 1;
-      setSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
+      commitSrc(plexPhotoTranscodeUrl(base, path, token, w, h));
       return;
     }
     if (step === 1 && isNativePlatform()) {
@@ -156,7 +156,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); setSrc(data); })
+        .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return;
     }
