@@ -41,6 +41,29 @@ async function authenticateUser(req: Request): Promise<{ userId: string | null; 
   return { userId: user.id, error: null };
 }
 
+// Resolves the caller's verified email from the session JWT that supabase-js
+// automatically attaches to functions.invoke. Returns null for anonymous or
+// invalid callers (never throws).
+async function getVerifiedEmail(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) return null;
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) return null;
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user?.email) return null;
+    return normalizeEmail(user.email);
+  } catch (e) {
+    console.warn('getVerifiedEmail failed:', e);
+    return null;
+  }
+}
+
 interface WixMember {
   id: string;
   loginEmail: string;
