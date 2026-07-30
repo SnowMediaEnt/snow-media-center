@@ -351,19 +351,35 @@ const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]
   return out;
 };
 
+// Strip every Plex-navigation field for untrusted/public callers.
+const toPublicItem = (i: Item): Item => ({
+  id: i.id,
+  source: i.source,
+  kind: i.kind,
+  title: i.title,
+  subtitle: i.subtitle,
+  poster: i.poster,
+  isLive: i.isLive,
+  ratingKey: i.ratingKey,
+});
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    const isPublic = new URL(req.url).searchParams.get('public') === '1';
     const [plex, sports] = await Promise.all([
       safe(fetchPlex(), 'plex'),
       safe(fetchSportsLiveNow(), 'sports-live'),
     ]);
-    const items = weave(
+    let items = weave(
       plex?.movies ?? [],
       sports ?? [],
       plex?.shows ?? [],
       plex?.onDeck ?? [],
     );
+    // Sports items are already free of Plex data (public CDN logos) — the strip
+    // is a no-op for them beyond dropping undefined fields.
+    if (isPublic) items = items.map(toPublicItem);
     return new Response(
       JSON.stringify({
         items,
