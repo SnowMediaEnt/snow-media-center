@@ -881,7 +881,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     setDetailItem(item);
   }, []);
 
+  // Demo mode: playback is the one thing the website embed can't do, so every
+  // play/quality/audio action opens a short explainer instead.
+  const [demoNotice, setDemoNotice] = useState(false);
+
   const playRatingKey = useCallback(async (ratingKey: string, title: string, resumeSec?: number, ctx?: SubtitleSearchContext, resLabel?: string) => {
+    if (DEMO) { setDemoNotice(true); return; }
     if (!conn) return;
     // Reset one-shot rescue guards so replaying the same title after backing
     // out regains its silent auto-revert and zero-audio safety-net.
@@ -942,6 +947,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // exact resume position. Uses the SAME setStreamUrl(null) → restore trick
   // as external-subtitle loading so the native player fully re-inits.
   const changeQuality = useCallback((presetKey: string, resumeSec: number) => {
+    if (DEMO) { setDemoNotice(true); return; }
     void savePlexQuality(presetKey);
     setQualityKey(presetKey);
     if (!conn || !playing) return;
@@ -977,6 +983,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // the currently-playing item as an audio-only transcode (AAC) — video
   // stays direct-streamed. No-op if already transcoding, or nothing playing.
   const fixAudioTranscode = useCallback((resumeSec: number) => {
+    if (DEMO) { setDemoNotice(true); return; }
     if (!conn || !playing || useTranscode) return;
     try { trackEvent('plex_fix_audio', 'player', { ratingKey: playing.ratingKey }); } catch { /* ignore */ }
     setUseTranscode(true);
@@ -1300,6 +1307,34 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // fires (each listener popped one level, exiting Plex on the first press).
   }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
 
+  // Demo notice owns the D-pad while open: swallow every key so focus can't
+  // leak into the grid behind it. OK / Back / Escape dismiss.
+  useEffect(() => {
+    if (!demoNotice) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Delete') {
+        setDemoNotice(false);
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [demoNotice]);
+
+  const demoNoticeOverlay = demoNotice ? (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
+      role="dialog" aria-modal="true">
+      <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
+        <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
+        <button type="button" autoFocus onClick={() => setDemoNotice(false)}
+          className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
+          OK
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
     return <div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>;
@@ -1531,6 +1566,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           onBack={() => setDetailItem(null)}
         />
       )}
+      {demoNoticeOverlay}
     </div>
   );
 });
