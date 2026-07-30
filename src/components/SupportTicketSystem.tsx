@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { trackEvent } from '@/lib/analytics';
+import { isDemo } from '@/lib/demoMode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -273,6 +274,9 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
 
   const handleCreateTicket = async () => {
+    // Demo mode has no ticket creation at all — belt and braces behind the
+    // hidden entry points below.
+    if (isDemo()) return;
     if (!newSubject.trim() || !newMessage.trim()) return;
 
     // Guest path: email optional (anonymous allowed)
@@ -762,14 +766,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
             </Button>
             <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
-          <Button 
-            onClick={() => setView('create')}
-            data-tv-focus-id="new-ticket"
-            className="bg-blue-600 hover:bg-blue-700 "
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Ticket
-          </Button>
+          {!isDemo() && (
+            <Button 
+              onClick={() => setView('create')}
+              data-tv-focus-id="new-ticket"
+              className="bg-blue-600 hover:bg-blue-700 "
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Ticket
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -843,14 +849,16 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                   : "You can send a ticket without an account, but replies require signing in."}
               </p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <Button
-                  onClick={() => setView('create')}
-                  data-tv-focus-id="empty-create-ticket"
-                  className="bg-blue-600 hover:bg-blue-700 "
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {user ? 'Create Your First Ticket' : 'Send a Ticket'}
-                </Button>
+                {!isDemo() && (
+                  <Button
+                    onClick={() => setView('create')}
+                    data-tv-focus-id="empty-create-ticket"
+                    className="bg-blue-600 hover:bg-blue-700 "
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {user ? 'Create Your First Ticket' : 'Send a Ticket'}
+                  </Button>
+                )}
                 {!user && (
                   <Button
                     onClick={() => { try { sessionStorage.setItem('post_auth_view', 'support-tickets'); } catch { void 0; } navigate('/auth'); }}

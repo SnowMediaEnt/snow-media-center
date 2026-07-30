@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -525,6 +526,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   };
 
   const handleCreateTicket = async () => {
+    // Demo mode: no ticket creation (the AI chat above stays fully usable).
+    if (isDemo()) return;
     if (!user) {
       toast({
         title: "Login required",
@@ -1239,6 +1242,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             setActiveTab('ai');
             setFocusIndex(3);
           } else if (currentFocusId === 'create-ticket') {
+            if (isDemo()) return;
             setShowNewTicketForm(true);
             setFocusIndex(4); // Focus on subject input
           } else if (currentFocusId.startsWith('ticket-')) {
@@ -1469,7 +1473,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           <Card className="bg-gradient-to-br from-orange-900/30 to-slate-900 border-orange-700 p-6 min-h-[60vh]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-bold text-white">Support Tickets</h3>
-              {!selectedTicket && !showNewTicketForm && (
+              {!selectedTicket && !showNewTicketForm && !isDemo() && (
                 <Button 
                   onClick={() => {
                     if (!user) {
