@@ -5,6 +5,7 @@ import {
   type PlayerAccount,
 } from '@/lib/xtream';
 import { expiryState, type ExpiryState } from '@/hooks/useUserServices';
+import { isDemo } from '@/lib/demoMode';
 
 interface PlayerAccountHookState {
   account: PlayerAccount | null;
@@ -28,7 +29,9 @@ export const usePlayerAccount = (): PlayerAccountHookState => {
 
   const refresh = useCallback(async () => {
     try {
-      const acc = await loadPlayerAccount();
+      // Demo: never read a stored account — keeps ExpirationNoticeDialog,
+      // exp-notice storage writes and token clearing inert for demo visitors.
+      const acc = isDemo() ? null : await loadPlayerAccount();
       setAccount(acc);
     } finally {
       setLoading(false);
