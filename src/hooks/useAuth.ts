@@ -8,14 +8,11 @@ import { trackEvent } from '@/lib/analytics';
 const APP_CONFIRMATION_REDIRECT_URL = 'snowmedia://sso';
 
 const getEmailConfirmationRedirectUrl = () => {
+  // Native APK: custom scheme deep link (AndroidManifest scheme=snowmedia host=sso).
+  if (Capacitor.isNativePlatform()) return APP_CONFIRMATION_REDIRECT_URL;
+  // Web: a browser cannot open snowmedia:// — always use the in-app /sso route.
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-  // Never send customer confirmation emails back to Lovable preview URLs.
-  if (origin && /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/i.test(origin)) {
-    return `${origin}/sso`;
-  }
-
-  return APP_CONFIRMATION_REDIRECT_URL;
+  return origin ? `${origin}/sso` : APP_CONFIRMATION_REDIRECT_URL;
 };
 
 export const useAuth = () => {
@@ -93,13 +90,13 @@ export const useAuth = () => {
         password,
         options: {
           emailRedirectTo: redirectUrl,
-          data: { full_name: fullName || '' }
+          data: { full_name: fullName || '', tenant_code: 'snowmedia' }
         }
       });
-      
+
       // Detect "user already exists" — Supabase returns success with empty identities for security
       if (!error && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-        return { error: { message: 'User already registered' } as AuthError };
+        return { error: { message: 'User already registered' } as AuthError, data };
       }
 
       // Sync to Wix in background (non-blocking)
@@ -107,11 +104,11 @@ export const useAuth = () => {
         try { trackEvent('sign_up', 'auth', { email }); } catch { void 0; }
         syncUserToWix(email, fullName);
       }
-      
-      return { error };
+
+      return { error, data };
     } catch (error) {
       console.error('[Auth] SignUp error:', error);
-      return { error: { message: 'Failed to create account.' } as AuthError };
+      return { error: { message: 'Failed to create account.' } as AuthError, data: null };
     }
   };
 
