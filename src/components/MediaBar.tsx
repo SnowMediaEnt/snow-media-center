@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { getLiveHints, type LiveHintKind } from '@/lib/liveCategoryHints';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 
 type MediaItem = {
   id: string;
@@ -45,7 +46,10 @@ type Props = {
   onOpenPlayer?: () => void;
 };
 
-const STORAGE_KEY = 'snow-media-bar-cache-v5';
+// Demo mode gets its own cache bucket because it stores the sanitised
+// ?public=1 feed, which is NOT interchangeable with the signed-in payload.
+const DEMO = isDemo();
+const STORAGE_KEY = DEMO ? 'snow-media-bar-cache-demo-v1' : 'snow-media-bar-cache-v5';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
@@ -183,8 +187,12 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [demoNotice, setDemoNotice] = useState(false);
+
   // Sports = live TV. Plex/TMDB items = deep link into Plex.
   const handleClick = (item: MediaItem) => {
+    // Demo: browsing is real, but nothing may navigate or deep-link out.
+    if (DEMO) { setDemoNotice(true); return; }
     if (item.source === 'sports') {
       setLiveDialog(item);
       return;
@@ -230,7 +238,11 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     let cancelIdleFirst: (() => void) | null = null;
     const load = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('media-bar-feed');
+        // Demo clients get the sanitised public feed (no server-identifying
+        // fields, posters pre-signed through poster-proxy).
+        const { data, error } = await supabase.functions.invoke(
+          DEMO ? 'media-bar-feed?public=1' : 'media-bar-feed',
+        );
         if (cancelled) return;
         if (error) throw error;
         const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
@@ -582,6 +594,24 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
               variant="outline"
               className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
               onClick={() => setLiveDialog(null)}
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={demoNotice} onOpenChange={(o) => { if (!o) setDemoNotice(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Live demo</DialogTitle>
+          </DialogHeader>
+          <p className="text-white/80 font-nunito text-sm leading-relaxed">{DEMO_DIALOG_MSG}</p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              onClick={() => setDemoNotice(false)}
             >
               Got it
             </Button>
