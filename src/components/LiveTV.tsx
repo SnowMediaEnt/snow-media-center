@@ -35,6 +35,12 @@ const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
+import { isDemo } from '@/lib/demoMode';
+import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
+
+// Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
+// below lives behind this flag so non-demo sessions stay byte-for-byte equal.
+const DEMO = isDemo();
 
 
 interface Props {
@@ -68,7 +74,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const headerReturnPaneRef = useRef<'sections' | 'content'>('sections');
 
   const serverLabel = creds?.serverLabel ?? SERVERS.find(s => s.host === creds?.host)?.label ?? null;
-  const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(serverLabel);
+  // Demo: never query server-targeted alerts for the canned demo account.
+  const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(DEMO ? null : serverLabel);
   const serverAlertOpenRef = useRef(false);
   useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
 
@@ -144,7 +151,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const c = await loadCreds();
+      // Demo: skip storage entirely and present the canned account so the
+      // visitor lands straight in the lineup — no sign-in form, no creds I/O.
+      const c = DEMO ? DEMO_LIVE_CREDS : await loadCreds();
       if (cancelled) return;
       setCreds(c);
       setCredsLoaded(true);
@@ -157,6 +166,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // latest expDate/status. Also re-syncs to cloud if signed in.
   const refreshedRef = useRef(false);
   useEffect(() => {
+    // Demo: no panel contact, no sign-in capture, no cloud sync.
+    if (DEMO) return;
     if (!creds || refreshedRef.current) return;
     refreshedRef.current = true;
     const cancel = runWhenIdle(() => {
@@ -220,7 +231,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
     setPane('sections');
-    try { trackEvent('mode_enter', 'player', { mode: m }); } catch { /* ignore */ }
+    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m }); } catch { /* ignore */ } }
   }, []);
   const leaveMode = useCallback(() => {
     setMode('choose');
@@ -233,7 +244,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     if (!credsLoaded || playerOpenRef.current) return;
     playerOpenRef.current = true;
-    try { trackEvent('player_open', 'player', { has_creds: !!creds }); } catch { /* ignore */ }
+    if (!DEMO) { try { trackEvent('player_open', 'player', { has_creds: !!creds }); } catch { /* ignore */ } }
   }, [credsLoaded, creds]);
 
   // mode_enter — also fire when the user changes SECTION inside a mode
@@ -243,7 +254,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'choose') { lastSectionRef.current = null; return; }
     if (lastSectionRef.current === section) return;
     lastSectionRef.current = section;
-    try { trackEvent('mode_enter', 'player', { mode: section }); } catch { /* ignore */ }
+    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: section }); } catch { /* ignore */ } }
   }, [section, mode]);
 
 
@@ -256,14 +267,25 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Demo account notice — shown whenever an account-management action is
+  // attempted in demo mode (sign out, change credentials, switch account).
+  const demoAccountNote = useCallback(() => {
+    toast({
+      title: 'Live demo',
+      description: 'The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.',
+    });
+  }, [toast]);
+
   const signOut = useCallback(async () => {
+    // Demo: the demo account is pre-loaded — nothing to sign out of.
+    if (DEMO) { demoAccountNote(); return; }
     await clearCreds();
     await clearPlayerAccount();
     setCreds(null);
     setAccountFormOpen(false);
     setSettingsOpen(false);
     toast({ title: 'Signed out', description: 'Sign in again to use the Player.' });
-  }, [toast]);
+  }, [toast, demoAccountNote]);
 
   // Refresh channel list (categories + currently visible category).
   // Cheap: bumps a nonce that cache-busts player_api.php and tells the
@@ -272,7 +294,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const refreshChannels = useCallback(() => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    try { trackEvent('update_channels', 'player', { server: serverLabel }); } catch { /* ignore */ }
+    if (!DEMO) { try { trackEvent('update_channels', 'player', { server: serverLabel }); } catch { /* ignore */ } }
     const updatingId = toast({
       title: 'Updating channels…',
       description: 'Fetching the latest list from the server.',
@@ -295,10 +317,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     window.setTimeout(() => { refreshChannels(); }, 250);
   }, [creds, refreshChannels]);
 
-  const showCredsForm = mode === 'live' && (!creds || accountFormOpen);
+  const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
   const showSettings = !!creds && settingsOpen && !accountFormOpen;
 
   const onSwitchAccount = useCallback((c: XtreamCreds) => {
+    if (DEMO) return; // demo account is fixed
     setCreds(c);
     setSettingsOpen(false);
     setAccountFormOpen(false);
@@ -564,7 +587,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         <SettingsHub
           onBack={() => setSettingsOpen(false)}
           onSignOut={() => { void signOut(); }}
-          onChangeCredentials={() => setAccountFormOpen(true)}
+          onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
           onSwitchAccount={onSwitchAccount}
         />
       </Suspense>

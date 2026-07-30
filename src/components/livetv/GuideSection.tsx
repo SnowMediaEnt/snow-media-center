@@ -27,9 +27,12 @@ import {
 import { isFireTV } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
+// Demo latch (?demo=1) — canned guide data, no provider contact, no <video>.
+const DEMO = isDemo();
 
 interface Props {
   creds: XtreamCreds;
@@ -384,10 +387,18 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const playingNow = playingChannel ? nowProgramFor(playingChannel.stream_id) : undefined;
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
-        {!NATIVE_PLAYBACK && (
+        {!NATIVE_PLAYBACK && !DEMO && (
           <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
             <VideoPlayer src={streamUrl} volume={volume} muted={false} className="w-full h-full" />
           </Suspense>
+        )}
+        {DEMO && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
+            <p className="px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
+              Demo mode — playback is disabled
+            </p>
+            <p className="mt-2 text-brand-ice/60 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+          </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

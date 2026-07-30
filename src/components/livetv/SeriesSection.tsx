@@ -19,6 +19,7 @@ import {
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
+import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -33,6 +34,8 @@ type Pane = 'categories' | 'grid' | 'detail';
 const ALL_ID = '__all__';
 const GRID_COLS = 5;
 const AUTOPLAY_KEY = 'snow-livetv-autoplay-next';
+// Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
+const DEMO = isDemo();
 
 const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
@@ -71,6 +74,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [detailFocus, setDetailFocus] = useState<'seasons' | 'episodes' | 'play'>('episodes');
 
   const [playing, setPlaying] = useState<{ url: string; title: string; episodeIdx: number } | null>(null);
+  const [demoNotice, setDemoNotice] = useState(false);
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
   const [autoplayNext, setAutoplayNext] = useState<boolean>(() => {
@@ -231,6 +235,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   }, [creds]);
 
   const playEpisode = useCallback((index: number) => {
+    // Demo: never build a stream URL or mount a player — show the demo dialog.
+    if (DEMO) { setDemoNotice(true); return; }
     const ep = episodes[index];
     if (!ep || !selectedSeries) return;
     const url = buildEpisodeUrl(creds, ep.id, ep.container_extension || 'mp4');
@@ -254,7 +260,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const q = searchQuery.trim();
     if (!q) return;
     const t = window.setTimeout(() => {
-      try { trackEvent('player_search', 'player', { scope: 'series', query: q.slice(0, 64) }); } catch { /* ignore */ }
+      if (!DEMO) { try { trackEvent('player_search', 'player', { scope: 'series', query: q.slice(0, 64) }); } catch { /* ignore */ } }
     }, 750);
     return () => window.clearTimeout(t);
   }, [searchOpen, searchQuery]);
@@ -451,6 +457,34 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const focusedEpRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { focusedEpRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [episodeIdx]);
 
+  // Demo notice owns the D-pad while open: swallow every key so focus can't
+  // leak into the grid behind it. OK / Back / Escape dismiss. (Plex pattern.)
+  useEffect(() => {
+    if (!demoNotice) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Delete') {
+        setDemoNotice(false);
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [demoNotice]);
+
+  const demoNoticeOverlay = demoNotice ? (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
+      role="dialog" aria-modal="true">
+      <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
+        <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
+        <button type="button" autoFocus onClick={() => setDemoNotice(false)}
+          className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
+          OK
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   // Fullscreen episode player with autoplay next
   if (playing) {
     return (
@@ -581,6 +615,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             </div>
           </div>
         </div>
+        {demoNoticeOverlay}
       </div>
     );
   }
@@ -707,6 +742,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           </div>
         )}
       </div>
+      {demoNoticeOverlay}
     </div>
   );
 });

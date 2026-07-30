@@ -1,7 +1,12 @@
-import { memo, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2 } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
+import { useToast } from '@/hooks/use-toast';
+import { isDemo } from '@/lib/demoMode';
+
+// Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
+const DEMO = isDemo();
 
 const AccountInfoScreen = lazy(() => import('./AccountInfoScreen'));
 const SwitchAccountScreen = lazy(() => import('./SwitchAccountScreen'));
@@ -36,6 +41,14 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
 
+  const { toast } = useToast();
+  const demoNote = useCallback(() => {
+    toast({
+      title: 'Live demo',
+      description: 'The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.',
+    });
+  }, [toast]);
+
   // Menu-only keyboard handler (each sub-view owns its own).
   useEffect(() => {
     if (view !== 'menu') return;
@@ -60,6 +73,9 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
         const i = menuIdxRef.current;
         if (i === 0) { onBack(); return; }
         const row = i - 1;
+        // Demo: Account Info / Switch Account / Sign Out are inert — the demo
+        // account is pre-loaded. Appearance stays fully functional.
+        if (DEMO && row !== 2) { demoNote(); return; }
         if (row === 0) setView('account');
         else if (row === 1) setView('switch');
         else if (row === 2) setView('appearance');
@@ -68,7 +84,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, onBack, onSignOut]);
+  }, [view, onBack, onSignOut, demoNote]);
 
   if (view === 'account') {
     return (
@@ -133,6 +149,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => {
                   setMenuIdx(i + 1);
+                  if (DEMO && i !== 2) { demoNote(); return; }
                   if (i === 0) setView('account');
                   else if (i === 1) setView('switch');
                   else if (i === 2) setView('appearance');
