@@ -355,6 +355,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (serverAlertOpenRef.current) return;
 
       if (showCredsFormRef.current) {
+        if (e.defaultPrevented) return;
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         const isBack = e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace';
