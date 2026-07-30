@@ -28,11 +28,20 @@ import { isFireTV } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import {
+  demoGetLiveCategories,
+  demoGetLiveStreams,
+  demoGetShortEpg,
+} from '@/lib/xtreamDemo';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned guide data, no provider contact, no <video>.
 const DEMO = isDemo();
+// Demo call-site swap (Plex pattern): fixtures answer every read in demo.
+const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
+const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
+const fetchShortEpg = DEMO ? demoGetShortEpg : getShortEpg;
 
 interface Props {
   creds: XtreamCreds;
@@ -121,7 +130,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     setCategoriesLoading(true);
     (async () => {
       try {
-        const cats = await getLiveCategories(creds).catch(() => [] as XtreamCategory[]);
+        const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
       } finally {
@@ -139,7 +148,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     let cancelled = false;
     setChannelsLoading(true);
     setRowIdx(0);
-    getLiveStreams(creds, String(currentCategory.category_id))
+    fetchLiveStreams(creds, String(currentCategory.category_id))
       .then(list => { if (!cancelled) setChannels(list || []); })
       .catch(() => { if (!cancelled) setChannels([]); })
       .finally(() => { if (!cancelled) setChannelsLoading(false); });
@@ -172,7 +181,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
       const id = epgQueueRef.current.shift()!;
       epgInFlightRef.current++;
-      getShortEpg(creds, id, 16)
+      fetchShortEpg(creds, id, 16)
         .then(res => { epgCacheRef.current.set(id, decodePrograms(res.epg_listings || [])); })
         .catch(() => { epgCacheRef.current.set(id, []); })
         .finally(() => {
@@ -219,7 +228,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
   // Playback wiring — mirror LiveSection's native path exactly
   const streamUrl = useMemo(
-    () => (playingChannelId ? buildLiveStreamUrl(creds, playingChannelId) : null),
+    // Demo: no stream URL may ever be constructed — the host is a sentinel.
+    () => (!DEMO && playingChannelId ? buildLiveStreamUrl(creds, playingChannelId) : null),
     [playingChannelId, creds],
   );
   const nativeActive = NATIVE_PLAYBACK && fullscreen && !!playingChannelId;

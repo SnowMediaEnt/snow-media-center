@@ -28,6 +28,11 @@ import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import {
+  demoGetLiveCategories,
+  demoGetLiveStreams,
+  demoGetShortEpg,
+} from '@/lib/xtreamDemo';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
@@ -35,6 +40,10 @@ const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned lineup, no provider contact, no <video> mount.
 const DEMO = isDemo();
+// Demo call-site swap (Plex pattern): fixtures answer every read in demo.
+const fetchLiveCategories = DEMO ? demoGetLiveCategories : getLiveCategories;
+const fetchLiveStreams = DEMO ? demoGetLiveStreams : getLiveStreams;
+const fetchShortEpg = DEMO ? demoGetShortEpg : getShortEpg;
 
 
 interface Props {
@@ -209,7 +218,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setCategoriesLoading(true);
     (async () => {
       try {
-        const cats = await getLiveCategories(creds).catch(() => [] as XtreamCategory[]);
+        const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
         if (cancelled) return;
         setCategories(cats);
       } finally {
@@ -266,8 +275,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const key = currentCat.id;
     setLoadingCat(key);
     const fetchPromise = key === ALL_ID
-      ? getLiveStreams(creds)
-      : getLiveStreams(creds, key);
+      ? fetchLiveStreams(creds)
+      : fetchLiveStreams(creds, key);
     fetchPromise
       .then((list) => {
         if (cancelled) return;
@@ -301,7 +310,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (allChannels || allChannelsLoading) return;
     setAllChannelsLoading(true);
     let cancelled = false;
-    getLiveStreams(creds)
+    fetchLiveStreams(creds)
       .then(list => { if (!cancelled) setAllChannels(list); })
       .catch(() => { if (!cancelled) setAllChannels([]); })
       .finally(() => { if (!cancelled) setAllChannelsLoading(false); });
@@ -448,7 +457,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
       const id = epgQueueRef.current.shift()!;
       epgInFlightRef.current++;
-      getShortEpg(creds, id, 4)
+      fetchShortEpg(creds, id, 4)
         .then(res => { epgCacheRef.current.set(id, pickNowNext(res.epg_listings || [])); })
         .catch(() => { epgCacheRef.current.set(id, {}); })
         .finally(() => {
@@ -491,12 +500,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [focusedChannel, previewDisabled]);
 
   const previewUrl = useMemo(
-    () => (previewChannelId ? buildLiveStreamUrl(creds, previewChannelId) : null),
+    // Demo: no stream URL may ever be constructed — the host is a sentinel.
+    () => (!DEMO && previewChannelId ? buildLiveStreamUrl(creds, previewChannelId) : null),
     [previewChannelId, creds],
   );
 
   const streamUrl = useMemo(() => {
-    if (!playingChannelId) return null;
+    if (DEMO || !playingChannelId) return null;
     return buildLiveStreamUrl(creds, playingChannelId);
   }, [playingChannelId, creds]);
 
@@ -529,7 +539,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
   // the shared buildNativeLiveUrl helper always swaps .m3u8→.ts. Dreamstreams
   // works on both.
-  const nativeUrl = nativeActive && playingChannelId
+  const nativeUrl = !DEMO && nativeActive && playingChannelId
     ? buildNativeLiveUrl(creds, playingChannelId)
     : null;
   const native = useNativePlayer({

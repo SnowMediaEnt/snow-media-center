@@ -399,6 +399,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const handler = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape' || e.key === 'Backspace' || e.key === 'Delete') {
         setDemoNotice(false);
       }

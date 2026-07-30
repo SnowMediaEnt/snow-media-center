@@ -31,13 +31,16 @@ import type {
  * sentinel — every data read is intercepted before the transport layer, so
  * this host is never contacted and nothing is ever persisted to storage.
  */
-export const DEMO_LIVE_CREDS: XtreamCreds = {
+// Frozen sentinel: in-memory only, NEVER written to storage. The neutral
+// 'DEMO ACCOUNT' serverLabel must not match any real provider name so server
+// outage alerts never surface inside the demo.
+export const DEMO_LIVE_CREDS: XtreamCreds = Object.freeze({
   host: 'demo://livetv',
   username: 'DEMO ACCOUNT',
   password: 'demo',
   output: 'm3u8',
   serverLabel: 'DEMO ACCOUNT',
-};
+});
 
 // ── deterministic helpers ───────────────────────────────────────────────────
 

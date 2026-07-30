@@ -208,7 +208,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
-      ...(creds ? [
+      // Demo: Movies/Series stay hidden — those sections would talk to the
+      // real Xtream API, so in demo the movies mode is Plex-only.
+      ...(creds && !DEMO ? [
         { id: 'movies' as SectionId, label: 'Movies', icon: Film },
         { id: 'series' as SectionId, label: 'Series', icon: ListVideo },
       ] : []),

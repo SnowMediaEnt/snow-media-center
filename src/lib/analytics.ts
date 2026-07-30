@@ -9,6 +9,7 @@
  *  - No PII collection beyond signed-in user_id (when available).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { isDemo } from "@/lib/demoMode";
 
 type EventRow = {
   device_id: string;
@@ -67,6 +68,11 @@ const detectPlatform = (): string => {
 };
 
 const platform = safe(detectPlatform) ?? "unknown";
+
+// Demo latch (?demo=1): analytics is a hard no-op in demo so marketing-site
+// visitors never pollute the production analytics tables. Always false on
+// native, so this is dead code in the APK.
+const DEMO = isDemo();
 
 const loadQueue = () => {
   safe(() => {
@@ -130,6 +136,7 @@ export const trackEvent = (
   category?: string,
   properties?: Record<string, unknown>
 ) => {
+  if (DEMO) return;
   safe(() => {
     if (!deviceId) return;
     queue.push({
@@ -155,6 +162,7 @@ export const trackEvent = (
 
 /** Track a lightweight crash/error. Never loops. */
 export const trackCrash = (message: string, stack?: string, component?: string) => {
+  if (DEMO) return;
   safe(() => {
     if (!deviceId) return;
     try {
@@ -227,6 +235,8 @@ export const initAnalytics = () => {
   // Defer everything to idle/microtask so we never block first paint.
   const boot = () => {
     safe(() => {
+      // Demo: no sessions, no device upserts, no queue flush, no listeners.
+      if (DEMO) return;
       deviceId = getOrCreateDeviceId();
       loadQueue();
 
