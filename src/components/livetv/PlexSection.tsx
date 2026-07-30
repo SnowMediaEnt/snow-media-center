@@ -592,8 +592,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => { void loadPlexQuality().then(setQualityKey); }, []);
 
   // Image focus mode: while a detail page is open, non-priority images (grid,
-  // rails, search results) park their loads so the detail poster/backdrop/
-  // cast/filmography own image bandwidth.
+  // rails, search results, cast headshots, seasons, episodes, filmography)
+  // park their loads so the detail poster/backdrop own image bandwidth.
   useEffect(() => {
     setPlexImageFocus(!!detailItem);
     return () => { setPlexImageFocus(false); };
@@ -701,7 +701,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const kind = dl.kind;
     const type = kind === 'episode' || kind === 'show' ? kind : 'movie';
 
-    const openDetail = (payload: PlexItem) => setDetailItem(payload);
+    // Deep links bypass the normal openDetail callback — claim the D-pad and
+    // pause background paging here too, synchronously with the state update.
+    const openDetail = (payload: PlexItem) => {
+      setPlexKeyOwner('detail');
+      pauseLoading();
+      setDetailItem(payload);
+    };
 
     if (dl.machineIdentifier && conn.clientIdentifier && dl.machineIdentifier !== conn.clientIdentifier) {
       const title = dl.title || '';
@@ -764,6 +770,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const total = first.totalSize;
         let acc = first.items;
         while (!cancelled && mySeq === seqRef.current && loaded < total) {
+          await waitForResume(); // parked while a detail page owns the screen
+          if (cancelled || mySeq !== seqRef.current) return;
           const page = await getPlexLibraryItems(conn.base, conn.token, libKey, loaded, PAGE_MORE);
           if (cancelled || mySeq !== seqRef.current) return;
           if (page.items.length === 0) break;
@@ -817,6 +825,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const total = first.totalSize;
         let acc = first.items;
         while (!cancelled && mySeq === seqRef.current && loaded < total) {
+          await waitForResume(); // parked while a detail page owns the screen
+          if (cancelled || mySeq !== seqRef.current) return;
           const page = await getPlexLibraryItems(conn.base, conn.token, currentTab.libKey!, loaded, PAGE_MORE);
           if (cancelled || mySeq !== seqRef.current) return;
           if (page.items.length === 0) break;
@@ -879,13 +889,28 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Hoisted so openDetail can write to it synchronously (see comment below).
   const detailRef = useRef(detailItem);
   const openDetail = useCallback((item: PlexItem) => {
-    // Set the ref SYNCHRONOUSLY (before the React state update) so the main
-    // keydown effect below can short-circuit on the very next event — otherwise
-    // a fast D-pad press right after OK would race the post-render effect that
-    // syncs detailRef and get handled by the grid twice.
+    // Claim the D-pad SYNCHRONOUSLY (before the React state update): the
+    // key-owner token is the only mechanism correct in the layout→passive-
+    // effect gap, where a browse-side capture listener and PlexDetail's
+    // pre-paint useLayoutEffect listener would otherwise both be live.
+    setPlexKeyOwner('detail');
+    pauseLoading();
+    // Set the ref SYNCHRONOUSLY too, so the main keydown effect below can
+    // short-circuit on the very next event (fast D-pad press right after OK).
     detailRef.current = item;
     setDetailItem(item);
   }, []);
+  const closeDetail = useCallback(() => {
+    setPlexKeyOwner('browse');
+    resumeLoading();
+    detailRef.current = null;
+    setDetailItem(null);
+  }, []);
+  // Safety nets so the key-owner token can never get stuck on 'detail':
+  // unmount resets to browse, and layer changes driven by OTHER paths
+  // (fullscreen flips, programmatic detail clears) re-derive the owner.
+  useEffect(() => () => { setPlexKeyOwner('browse'); resumeLoading(); }, []);
+  useEffect(() => { if (fullscreen) setPlexKeyOwner('player'); else if (!detailItem) setPlexKeyOwner('browse'); }, [fullscreen, detailItem]);
 
   // Demo mode: playback is the one thing the website embed can't do, so every
   // play/quality/audio action opens a short explainer instead.
@@ -1253,6 +1278,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
     if (detailItem || fullscreen) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
+      if (detailRef.current || fullscreenRef.current) return;
       const target = e.target as HTMLElement;
       const inInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
