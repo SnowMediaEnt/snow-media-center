@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ import {
   type XtreamServer,
 } from '@/lib/xtream';
 import { useAuth } from '@/hooks/useAuth';
+import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { syncPlayerAccountToCloud } from '@/lib/playerAccountSync';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { trackEvent } from '@/lib/analytics';
@@ -34,6 +35,25 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
   const [probingServer, setProbingServer] = useState<XtreamServer | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // ── D-pad focus (TV remote) ────────────────────────────────────────────
+  // This form must own its own D-pad navigation. Without it the WebView's
+  // native spatial navigation decides where focus lands on mount, which put
+  // the cursor on a bottom button instead of the Username field.
+  const hasCancel = !!onCancel;
+  const navigation = useMemo<TVFocusNavigationMap>(() => ({
+    'cf-user':   { down: 'cf-pass' },
+    'cf-pass':   { up: 'cf-user', down: 'cf-submit' },
+    'cf-submit': { up: 'cf-pass', right: hasCancel ? 'cf-cancel' : undefined },
+    'cf-cancel': { up: 'cf-pass', left: 'cf-submit' },
+  }), [hasCancel]);
+
+  const { containerRef } = useTVFocus({
+    navigation,
+    initialFocusId: 'cf-user',
+    onBack: () => onCancel?.(),
+    scrollBlock: 'center',
+  });
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -103,7 +123,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-10">
+    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-10">
       <form
         onSubmit={submit}
         className="w-full max-w-xl rounded-3xl p-8 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
@@ -125,6 +145,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
             <Label htmlFor="lt-user" className="text-brand-ice font-nunito">Username</Label>
             <Input
               id="lt-user"
+              data-tv-focus-id="cf-user"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="tv-focusable bg-black/30 text-white border-white/20"
@@ -136,6 +157,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
             <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">Password</Label>
             <Input
               id="lt-pass"
+              data-tv-focus-id="cf-pass"
+              data-tv-allow-enter="true"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -159,6 +182,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
           <Button
             type="submit"
             variant="gold"
+            data-tv-focus-id="cf-submit"
             disabled={testing}
             className="tv-focusable home-focus-surface flex-1"
           >
@@ -170,6 +194,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
               type="button"
               variant="white"
               onClick={onCancel}
+              data-tv-focus-id="cf-cancel"
               disabled={testing}
               className="tv-focusable home-focus-surface"
             >
