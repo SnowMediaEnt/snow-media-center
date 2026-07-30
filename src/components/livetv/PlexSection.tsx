@@ -46,6 +46,8 @@ import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverl
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
+import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
+import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
 // ── data access indirection ────────────────────────────────────────────────
 // In demo mode every Plex read is answered from the pre-built, scrubbed
@@ -148,6 +150,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const keys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
@@ -239,6 +242,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
       const t = e.target as HTMLElement;
       const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
       if (zoneRef.current === 'input') {
@@ -351,6 +355,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
   useEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const keys = ['ArrowUp','ArrowDown','Enter',' '];
@@ -475,6 +480,7 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!isPlexKeyOwner('browse')) return;
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
