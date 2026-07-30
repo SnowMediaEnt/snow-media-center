@@ -626,10 +626,12 @@ export async function authenticateRouted(
 // --- Live -------------------------------------------------------------------
 
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetLiveCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_live_categories' }));
 }
 
 export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamLiveStream[]> {
+  if (isDemo()) return demoGetLiveStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamLiveStream[]>(buildBase(c, params));
@@ -640,6 +642,7 @@ export async function getShortEpg(
   streamId: number,
   limit = 10,
 ): Promise<{ epg_listings: XtreamEpgEntry[] }> {
+  if (isDemo()) return demoGetShortEpgWrapped(streamId, limit);
   return httpGetJson(buildBase(c, { action: 'get_short_epg', stream_id: streamId, limit }));
 }
 
@@ -660,16 +663,19 @@ export function buildNativeLiveUrl(c: XtreamCreds, streamId: number): string {
 // --- Movies (VOD) -----------------------------------------------------------
 
 export async function getVodCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetVodCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_vod_categories' }));
 }
 
 export async function getVodStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamVodStream[]> {
+  if (isDemo()) return demoGetVodStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_vod_streams' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamVodStream[]>(buildBase(c, params));
 }
 
 export async function getVodInfo(c: XtreamCreds, vodId: number): Promise<XtreamVodInfo> {
+  if (isDemo()) return demoGetVodInfo(vodId);
   return httpGetJson<XtreamVodInfo>(buildBase(c, { action: 'get_vod_info', vod_id: vodId }));
 }
 
@@ -681,16 +687,19 @@ export function buildMovieUrl(c: XtreamCreds, streamId: number, ext = 'mp4'): st
 // --- Series -----------------------------------------------------------------
 
 export async function getSeriesCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
+  if (isDemo()) return demoGetSeriesCategories();
   return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_series_categories' }));
 }
 
 export async function getSeries(c: XtreamCreds, categoryId?: string): Promise<XtreamSeries[]> {
+  if (isDemo()) return demoGetSeries(categoryId);
   const params: Record<string, string | number> = { action: 'get_series' };
   if (categoryId) params.category_id = categoryId;
   return httpGetJson<XtreamSeries[]>(buildBase(c, params));
 }
 
 export async function getSeriesInfo(c: XtreamCreds, seriesId: number): Promise<XtreamSeriesInfo> {
+  if (isDemo()) return demoGetSeriesInfo(seriesId);
   return httpGetJson<XtreamSeriesInfo>(buildBase(c, { action: 'get_series_info', series_id: seriesId }));
 }
 
