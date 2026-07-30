@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -808,7 +809,8 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           </div>
         )}
 
-        {/* AI Generation Section */}
+        {/* AI Generation Section — hidden in the website demo (uploads stay). */}
+        {!isDemo() && (
         <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6">
           <h2 className="text-2xl font-bold text-white mb-4">Generate Background with AI</h2>
           <div className="flex flex-col gap-4">
@@ -866,6 +868,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             </div>
           </div>
         </Card>
+        )}
 
         {/* Upload Section */}
         <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8">
