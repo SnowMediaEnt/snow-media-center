@@ -443,7 +443,7 @@ export async function demoGetSeriesInfo(seriesId: number): Promise<XtreamSeriesI
         },
       });
     }
-    episodes[String(sn)] = list as never;
+    episodes[String(sn)] = list;
   }
   return {
     info: {
@@ -457,7 +457,7 @@ export async function demoGetSeriesInfo(seriesId: number): Promise<XtreamSeriesI
       director: 'L. Calloway',
     },
     seasons,
-    episodes: episodes as XtreamSeriesInfo['episodes'],
+    episodes,
   };
 }
 
