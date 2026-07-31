@@ -119,6 +119,12 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
     if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [focus, isActive]);
 
+  // Mirror native error/retry into refs for the stable key handler below.
+  const nativeErrorRef = useRef(native.error);
+  const nativeRetryRef = useRef(native.retry);
+  useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
+  useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
+
   // ── D-pad: capture-phase window listener gated on isActive. Uses refs so
   // the handler identity is stable. NO stopImmediatePropagation on arrows —
   // that caused the Plex detail freeze and starves overlays mounted above. ──
