@@ -1904,6 +1904,32 @@ export type Database = {
           },
         ]
       }
+      tenant_code_history: {
+        Row: {
+          code: string
+          retired_at: string
+          tenant_id: string
+        }
+        Insert: {
+          code: string
+          retired_at?: string
+          tenant_id: string
+        }
+        Update: {
+          code?: string
+          retired_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_code_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_features: {
         Row: {
           enabled: boolean
@@ -2000,8 +2026,10 @@ export type Database = {
           apps_source_urls: Json | null
           community_enabled: boolean
           content_bar_default: boolean
+          custom_rss_url: string | null
           discord_guild_id: string | null
           discord_webhook: string | null
+          news_mode: string
           player_name: string | null
           player_url: string | null
           plex_autoconnect: boolean
@@ -2018,8 +2046,10 @@ export type Database = {
           apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          custom_rss_url?: string | null
           discord_guild_id?: string | null
           discord_webhook?: string | null
+          news_mode?: string
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
@@ -2036,8 +2066,10 @@ export type Database = {
           apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          custom_rss_url?: string | null
           discord_guild_id?: string | null
           discord_webhook?: string | null
+          news_mode?: string
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
@@ -2058,6 +2090,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tenant_settings_rss_backup: {
+        Row: {
+          backed_up: string
+          rss_url: string | null
+          tenant_id: string
+        }
+        Insert: {
+          backed_up?: string
+          rss_url?: string | null
+          tenant_id: string
+        }
+        Update: {
+          backed_up?: string
+          rss_url?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
       }
       tenants: {
         Row: {
