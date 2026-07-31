@@ -200,11 +200,6 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, doRefresh, playItem]);
 
-  const nativeErrorRef = useRef(native.error);
-  const nativeRetryRef = useRef(native.retry);
-  useEffect(() => { nativeErrorRef.current = native.error; }, [native.error]);
-  useEffect(() => { nativeRetryRef.current = native.retry; }, [native.retry]);
-
   // ── Fullscreen player ────────────────────────────────────────────────────
   if (playing) {
     return (
