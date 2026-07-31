@@ -682,6 +682,63 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_streams: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          kind: string
+          notes: string | null
+          poster_url: string | null
+          reseller_id: string | null
+          server_label: string | null
+          sort: number
+          starts_at: string | null
+          subtitle: string | null
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          poster_url?: string | null
+          reseller_id?: string | null
+          server_label?: string | null
+          sort?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          poster_url?: string | null
+          reseller_id?: string | null
+          server_label?: string | null
+          sort?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       canvas_customer_notes: {
         Row: {
           author_id: string | null
@@ -1904,6 +1961,32 @@ export type Database = {
           },
         ]
       }
+      tenant_code_history: {
+        Row: {
+          code: string
+          retired_at: string
+          tenant_id: string
+        }
+        Insert: {
+          code: string
+          retired_at?: string
+          tenant_id: string
+        }
+        Update: {
+          code?: string
+          retired_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_code_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_features: {
         Row: {
           enabled: boolean
@@ -2000,8 +2083,10 @@ export type Database = {
           apps_source_urls: Json | null
           community_enabled: boolean
           content_bar_default: boolean
+          custom_rss_url: string | null
           discord_guild_id: string | null
           discord_webhook: string | null
+          news_mode: string
           player_name: string | null
           player_url: string | null
           plex_autoconnect: boolean
@@ -2018,8 +2103,10 @@ export type Database = {
           apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          custom_rss_url?: string | null
           discord_guild_id?: string | null
           discord_webhook?: string | null
+          news_mode?: string
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
@@ -2036,8 +2123,10 @@ export type Database = {
           apps_source_urls?: Json | null
           community_enabled?: boolean
           content_bar_default?: boolean
+          custom_rss_url?: string | null
           discord_guild_id?: string | null
           discord_webhook?: string | null
+          news_mode?: string
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
@@ -2058,6 +2147,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tenant_settings_rss_backup: {
+        Row: {
+          backed_up: string
+          rss_url: string | null
+          tenant_id: string
+        }
+        Insert: {
+          backed_up?: string
+          rss_url?: string | null
+          tenant_id: string
+        }
+        Update: {
+          backed_up?: string
+          rss_url?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
       }
       tenants: {
         Row: {
