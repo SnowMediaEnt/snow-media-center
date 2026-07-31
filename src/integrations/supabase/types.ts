@@ -682,6 +682,63 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_streams: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          kind: string
+          notes: string | null
+          poster_url: string | null
+          reseller_id: string | null
+          server_label: string | null
+          sort: number
+          starts_at: string | null
+          subtitle: string | null
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          poster_url?: string | null
+          reseller_id?: string | null
+          server_label?: string | null
+          sort?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          poster_url?: string | null
+          reseller_id?: string | null
+          server_label?: string | null
+          sort?: number
+          starts_at?: string | null
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       canvas_customer_notes: {
         Row: {
           author_id: string | null
