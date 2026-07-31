@@ -1,14 +1,15 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Tv, Film } from 'lucide-react';
+import { Tv, Film, LifeBuoy } from 'lucide-react';
 
 interface Props {
-  onPick: (mode: 'live' | 'movies') => void;
+  onPick: (mode: 'live' | 'movies' | 'backups') => void;
   onBack: () => void;
 }
 
 const CARDS = [
   { id: 'live' as const,   label: 'Live TV',        desc: 'Live channels & guide', icon: Tv },
   { id: 'movies' as const, label: 'Movies & Shows', desc: 'Plex + on-demand',       icon: Film },
+  { id: 'backups' as const, label: 'Backups',       desc: 'Live & movie backups',   icon: LifeBuoy },
 ];
 
 const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
@@ -41,7 +42,7 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
         <Tv className="w-8 h-8 text-brand-gold" />
         <h1 className="text-3xl font-quicksand font-bold">Player</h1>
       </div>
-      <div className="grid grid-cols-2 gap-6 w-full max-w-3xl">
+      <div className="grid grid-cols-3 gap-6 w-full max-w-4xl">
         {CARDS.map((c, i) => {
           const Icon = c.icon;
           const focused = idx === i;

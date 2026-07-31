@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadCreds,
@@ -35,6 +35,7 @@ const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
+const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
 import { isDemo } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
 
@@ -48,7 +49,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi';
+type SectionId = 'live' | 'guide' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
 
@@ -205,6 +206,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       { id: 'live',  label: 'Live TV', icon: Tv },
       { id: 'guide', label: 'Guide',   icon: LayoutGrid },
       { id: 'multi', label: 'Multi-Screen', icon: Grid2X2 },
+      { id: 'backups', label: 'Backups', icon: LifeBuoy },
     ];
     if (mode === 'movies') return [
       { id: 'plex', label: 'Plex', icon: Film },
@@ -228,7 +230,24 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (sectionIdx > sections.length - 1) setSectionIdx(sections.length - 1);
   }, [sections, section, sectionIdx, mode]);
 
-  const enterMode = useCallback((m: 'live' | 'movies') => {
+  // Keep the sidebar ring in sync with the rendered section — e.g. when
+  // Backups is entered directly from the mode chooser.
+  useEffect(() => {
+    const i = sections.findIndex((s) => s.id === section);
+    if (i >= 0 && i !== sectionIdx) setSectionIdx(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  const enterMode = useCallback((m: 'live' | 'movies' | 'backups') => {
+    if (m === 'backups') {
+      // Backups lands in the normal Live shell with the Backups section
+      // selected — no new top-level mode.
+      setMode('live');
+      setSection('backups');
+      setPane('content');
+      if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: 'backups' }); } catch { /* ignore */ } }
+      return;
+    }
     setMode(m);
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
@@ -743,6 +762,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={pane === 'content'}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
+            />
+          </Suspense>
+        )}
+
+        {section === 'backups' && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <BackupsSection
+              isActive={pane === 'content'}
+              onExitLeft={onExitLeft}
+              onExitUp={onExitUp}
+              serverLabel={serverLabel}
             />
           </Suspense>
         )}
