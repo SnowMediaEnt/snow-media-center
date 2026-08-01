@@ -7,7 +7,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift } from 'lucide-react';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
@@ -25,6 +27,7 @@ interface UserDashboardProps {
   onCommunityChat: () => void;
   onCreditStore: () => void;
   onGames?: () => void;
+  onGiveaway?: () => void;
 }
 
 interface WixOrderSummary {
@@ -35,7 +38,13 @@ interface WixOrderSummary {
   status?: string;
 }
 
-const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames }: UserDashboardProps) => {
+const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
+  const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
+  const giveawayOn = giveawayEnabled && !isDemo();
+  // Focus indices shift by one when the Giveaway action button is visible.
+  const TAB_BASE = giveawayOn ? 6 : 5;
+  const EDIT_IDX = TAB_BASE + 4;
+  const DELETE_IDX = EDIT_IDX + 1;
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
