@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Gift } from 'lucide-react';
@@ -30,6 +30,17 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
   const giveawayId = giveaway?.id ?? null;
+
+  // Days-only countdown, computed once when the giveaway loads (no interval —
+  // the popup is short-lived and weak boxes don't need the churn).
+  const daysLeft = useMemo(() => {
+    if (!giveaway?.end_at) return null;
+    const end = Date.parse(giveaway.end_at);
+    if (Number.isNaN(end)) return null;
+    const ms = end - Date.now();
+    if (ms <= 0) return 0;
+    return Math.ceil(ms / 86400000);
+  }, [giveaway?.end_at]);
 
   // Decide whether to open. Poll briefly so startup dialogs (Welcome "What's
   // New", MediaBar prompt, pre-event steps, app alerts) always go first.
@@ -151,9 +162,14 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
         <p className="text-sm text-white/90 mb-2">
           {giveaway.description || giveaway.prize_description || 'A new giveaway is live!'}
         </p>
-        <p className="text-sm text-yellow-300/90 mb-5 font-semibold">
+        <p className="text-sm text-yellow-300/90 mb-1 font-semibold">
           You may already be entered — check your entries!
         </p>
+        {daysLeft !== null && (
+          <p className="text-sm text-white/80 mb-4">
+            ⏳ Ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}
+          </p>
+        )}
 
         <div className="flex items-center justify-end gap-3">
           <Button
