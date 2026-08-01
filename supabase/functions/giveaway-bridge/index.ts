@@ -57,9 +57,15 @@ Deno.serve(async (req) => {
     }
 
     // ---------- INTERNAL (secret-gated) ----------
+    // Accept x-internal-secret matching EITHER INTERNAL_FN_SECRET or the
+    // optional SMC_BRIDGE_SECRET (missing env = no match, never crash).
     const secret = Deno.env.get('INTERNAL_FN_SECRET');
+    const bridgeSecret = Deno.env.get('SMC_BRIDGE_SECRET');
     const provided = req.headers.get('x-internal-secret') || '';
-    if (!secret || provided !== secret) return json({ error: 'unauthorized' }, 401);
+    const secretOk =
+      provided.length > 0 &&
+      ((!!secret && provided === secret) || (!!bridgeSecret && provided === bridgeSecret));
+    if (!secretOk) return json({ error: 'unauthorized' }, 401);
 
     const latestGiveaway = async () => {
       const { data } = await admin

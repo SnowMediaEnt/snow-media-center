@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.4': [
+    '🎁 NEW: August SMC Giveaway — check your entries on the home screen',
+    'Enter right from your TV: active accounts are entered automatically',
+    'Facebook bonus entry with easy QR steps',
+    'Bug fixes and performance improvements',
+  ],
   '1.6.3': [
     'Movies & Shows always plays in Original quality — no more surprise "transcoding"',
     'Stuck loading now fixes itself in seconds (with a working Retry everywhere)',
