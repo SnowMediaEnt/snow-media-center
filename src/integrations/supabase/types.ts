@@ -14,6 +14,191 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_tokens: {
+        Row: {
+          created_at: string
+          device_id: string
+          expires_at: string
+          id: string
+          label: string | null
+          last_used_at: string | null
+          last_used_ip_hash: string | null
+          revoked: boolean
+          revoked_at: string | null
+          revoked_reason: string | null
+          scopes: string[]
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+          use_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          expires_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          last_used_ip_hash?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          scopes?: string[]
+          token_hash: string
+          token_prefix: string
+          updated_at?: string
+          use_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          expires_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          last_used_ip_hash?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          scopes?: string[]
+          token_hash?: string
+          token_prefix?: string
+          updated_at?: string
+          use_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_action_tokens_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "admin_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_devices: {
+        Row: {
+          apns_environment: string
+          apns_token: string
+          app_version: string | null
+          bad_token_strikes: number
+          badge_count: number
+          bundle_id: string
+          created_at: string
+          device_model: string | null
+          device_name: string | null
+          id: string
+          last_push_at: string | null
+          last_seen_at: string
+          os_version: string | null
+          platform: string
+          revoke_source: string | null
+          revoked: boolean
+          revoked_at: string | null
+          revoked_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          apns_environment: string
+          apns_token: string
+          app_version?: string | null
+          bad_token_strikes?: number
+          badge_count?: number
+          bundle_id?: string
+          created_at?: string
+          device_model?: string | null
+          device_name?: string | null
+          id?: string
+          last_push_at?: string | null
+          last_seen_at?: string
+          os_version?: string | null
+          platform?: string
+          revoke_source?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          apns_environment?: string
+          apns_token?: string
+          app_version?: string | null
+          bad_token_strikes?: number
+          badge_count?: number
+          bundle_id?: string
+          created_at?: string
+          device_model?: string | null
+          device_name?: string | null
+          id?: string
+          last_push_at?: string | null
+          last_seen_at?: string
+          os_version?: string | null
+          platform?: string
+          revoke_source?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_notify_prefs: {
+        Row: {
+          created_at: string
+          enabled: boolean | null
+          event_type: string
+          id: string
+          quiet_hours_enabled: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_override: boolean
+          quiet_hours_start: string | null
+          quiet_hours_tz: string | null
+          snoozed_until: string | null
+          sound: string | null
+          time_sensitive: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean | null
+          event_type: string
+          id?: string
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_override?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_tz?: string | null
+          snoozed_until?: string | null
+          sound?: string | null
+          time_sensitive?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean | null
+          event_type?: string
+          id?: string
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_override?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_tz?: string | null
+          snoozed_until?: string | null
+          sound?: string | null
+          time_sensitive?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_anon_usage: {
         Row: {
           calls_this_hour: number
@@ -1796,6 +1981,36 @@ export type Database = {
           },
         ]
       }
+      smc_news: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          published: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          published?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          published?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       support_messages: {
         Row: {
           created_at: string
@@ -2402,6 +2617,22 @@ export type Database = {
         }[]
       }
       admin_activity_summary: { Args: never; Returns: Json }
+      admin_list_action_tokens: {
+        Args: never
+        Returns: {
+          created_at: string
+          device_id: string
+          device_name: string
+          expires_at: string
+          id: string
+          label: string
+          last_used_at: string
+          revoked: boolean
+          scopes: string[]
+          token_prefix: string
+          use_count: number
+        }[]
+      }
       ai_tokens_last_hour: { Args: never; Returns: number }
       analytics_active_users: {
         Args: { p_period?: string }
@@ -2498,6 +2729,7 @@ export type Database = {
         Args: { p_code?: string; p_name: string }
         Returns: Json
       }
+      dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
       free_ai_available: { Args: never; Returns: Json }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
       get_qr_session: {
@@ -2523,6 +2755,10 @@ export type Database = {
       is_master: { Args: never; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
+      issue_admin_action_token: {
+        Args: { p_device_id: string; p_label?: string }
+        Returns: Json
+      }
       list_tenant_members: {
         Args: never
         Returns: {
@@ -2535,6 +2771,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      prune_admin_devices: { Args: { p_older_than?: string }; Returns: Json }
       record_free_ai: {
         Args: {
           p_cost_usd: number
@@ -2552,6 +2789,15 @@ export type Database = {
           p_feature: string
           p_ip_hash: string
         }
+        Returns: Json
+      }
+      restore_admin_device: { Args: { p_device_id: string }; Returns: Json }
+      revoke_admin_action_tokens: {
+        Args: { p_device_id: string }
+        Returns: Json
+      }
+      revoke_admin_device: {
+        Args: { p_device_id: string; p_reason?: string }
         Returns: Json
       }
       settle_free_ai: {
