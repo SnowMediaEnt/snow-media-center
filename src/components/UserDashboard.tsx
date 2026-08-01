@@ -90,8 +90,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   // Focus positions:
   // 0: back, 1: signout
-  // 2: purchase credits, 3: community chat, 4: games
-  // 5: overview tab, 6: credits tab, 7: store tab, 8: referrals tab
+  // 2: purchase credits, 3: community chat, 4: games, [5: giveaway when flag on]
+  // TAB_BASE..TAB_BASE+3: overview/credits/store/referrals tabs
+  // EDIT_IDX: edit services, DELETE_IDX: delete account
 
   // Android TV/Firestick navigation
   useEffect(() => {
@@ -108,18 +109,20 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           if (focusedElement === 1) setFocusedElement(0); // signout -> back
           else if (focusedElement === 3) setFocusedElement(2); // community -> purchase
           else if (focusedElement === 4) setFocusedElement(3); // games -> community
-          else if (focusedElement > 5 && focusedElement <= 8) setFocusedElement(focusedElement - 1); // tabs
+          else if (giveawayOn && focusedElement === 5) setFocusedElement(4); // giveaway -> games
+          else if (focusedElement > TAB_BASE && focusedElement <= TAB_BASE + 3) setFocusedElement(focusedElement - 1); // tabs
           break;
         case 'ArrowRight':
           if (focusedElement === 0) setFocusedElement(1); // back -> signout
           else if (focusedElement === 2) setFocusedElement(3); // purchase -> community
           else if (focusedElement === 3) setFocusedElement(4); // community -> games
-          else if (focusedElement >= 5 && focusedElement < 8) setFocusedElement(focusedElement + 1); // tabs
+          else if (giveawayOn && focusedElement === 4) setFocusedElement(5); // games -> giveaway
+          else if (focusedElement >= TAB_BASE && focusedElement < TAB_BASE + 3) setFocusedElement(focusedElement + 1); // tabs
           break;
         case 'ArrowUp':
-          if (focusedElement >= 2 && focusedElement <= 4) {
+          if (focusedElement >= 2 && focusedElement < TAB_BASE) {
             setFocusedElement(0); // action buttons -> back
-          } else if (focusedElement >= 5 && focusedElement <= 8) {
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             const container = dashboardScrollRef.current;
             const currentTop = container?.scrollTop ?? window.scrollY;
             if (currentTop > 10) {
@@ -128,10 +131,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
-          } else if (focusedElement === 9) {
-            setFocusedElement(5); // edit -> overview tab
-          } else if (focusedElement === 10) {
-            setFocusedElement(9); // delete -> edit
+          } else if (focusedElement === EDIT_IDX) {
+            setFocusedElement(TAB_BASE); // edit -> overview tab
+          } else if (focusedElement === DELETE_IDX) {
+            setFocusedElement(EDIT_IDX); // delete -> edit
           }
           break;
         case 'ArrowDown':
