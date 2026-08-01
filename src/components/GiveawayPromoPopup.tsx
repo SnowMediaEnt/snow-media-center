@@ -39,7 +39,7 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
     if (Number.isNaN(end)) return null;
     const ms = end - Date.now();
     if (ms <= 0) return 0;
-    return Math.ceil(ms / 86400000);
+    return Math.max(1, Math.floor(ms / 86400000));
   }, [giveaway?.end_at]);
 
   // Decide whether to open. Poll briefly so startup dialogs (Welcome "What's

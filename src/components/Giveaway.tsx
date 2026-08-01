@@ -469,7 +469,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
         ) : (
           <>
             {/* Prize hero */}
-            <Card className="bg-gradient-to-br from-amber-600/30 to-yellow-900/30 border-amber-500/40 p-6 mb-6">
+            <Card className="bg-slate-900 text-white bg-gradient-to-br from-amber-600/30 to-yellow-900/30 border-amber-500/40 p-6 mb-6">
               <div className="flex flex-col md:flex-row gap-6 items-center">
                 {giveaway.prize_image_url && (
                   <PrizeImage
@@ -600,7 +600,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
 
             {/* Winners */}
             {winners.length > 0 && (
-              <Card className="bg-gradient-to-br from-yellow-600/20 to-amber-900/20 border-yellow-500/40 p-6 mb-6">
+              <Card className="bg-slate-900 text-white bg-gradient-to-br from-yellow-600/20 to-amber-900/20 border-yellow-500/40 p-6 mb-6">
                 <div className="flex items-center gap-3 mb-4">
                   <Trophy className="w-6 h-6 text-yellow-300" />
                   <h2 className="text-2xl font-bold">Winners</h2>
