@@ -162,7 +162,7 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
         <p className="text-sm text-white/90 mb-2">
           {giveaway.description || giveaway.prize_description || 'A new giveaway is live!'}
         </p>
-        <p className="text-sm text-yellow-300/90 mb-1 font-semibold">
+        <p className={`text-sm text-yellow-300/90 font-semibold ${daysLeft !== null ? 'mb-1' : 'mb-5'}`}>
           You may already be entered — check your entries!
         </p>
         {daysLeft !== null && (
