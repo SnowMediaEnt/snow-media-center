@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.5': [
+    '🎁 Giveaway alerts — a gift badge and a one-time popup now let you know when a giveaway is running',
+    '⏳ New countdown timer in the Giveaway section',
+    'Cleaner giveaway rules screen and prize artwork',
+    'Bug fixes and performance improvements',
+  ],
   '1.6.4': [
     '🎁 NEW: August SMC Giveaway — check your entries on the home screen',
     'Enter right from your TV: active accounts are entered automatically',
