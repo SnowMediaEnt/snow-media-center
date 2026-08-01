@@ -1571,6 +1571,264 @@ export type Database = {
         }
         Relationships: []
       }
+      giveaway_audit_log: {
+        Row: {
+          action: string
+          actor: string | null
+          created_at: string
+          details: Json
+          entry_id: string | null
+          giveaway_id: string | null
+          id: string
+          winner_id: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          created_at?: string
+          details?: Json
+          entry_id?: string | null
+          giveaway_id?: string | null
+          id?: string
+          winner_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          created_at?: string
+          details?: Json
+          entry_id?: string | null
+          giveaway_id?: string | null
+          id?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_audit_log_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaway_entries: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          customer_id: string | null
+          entry_count: number
+          entry_type: string
+          giveaway_id: string
+          id: string
+          invalidated_at: string | null
+          invalidation_reason: string | null
+          metadata: Json
+          source_id: string | null
+          source_reference: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          entry_count?: number
+          entry_type: string
+          giveaway_id: string
+          id?: string
+          invalidated_at?: string | null
+          invalidation_reason?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_reference?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          entry_count?: number
+          entry_type?: string
+          giveaway_id?: string
+          id?: string
+          invalidated_at?: string | null
+          invalidation_reason?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_reference?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_entries_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaway_winners: {
+        Row: {
+          announced: boolean
+          customer_id: string | null
+          draw_method: string | null
+          draw_round: number
+          draw_seed: string | null
+          drawn_at: string
+          drawn_by: string | null
+          entry_id: string | null
+          giveaway_id: string
+          id: string
+          position: number
+          prize_delivered_at: string | null
+          public_display_name: string | null
+          replaced_by: string | null
+          status: string
+          user_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          announced?: boolean
+          customer_id?: string | null
+          draw_method?: string | null
+          draw_round?: number
+          draw_seed?: string | null
+          drawn_at?: string
+          drawn_by?: string | null
+          entry_id?: string | null
+          giveaway_id: string
+          id?: string
+          position: number
+          prize_delivered_at?: string | null
+          public_display_name?: string | null
+          replaced_by?: string | null
+          status?: string
+          user_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          announced?: boolean
+          customer_id?: string | null
+          draw_method?: string | null
+          draw_round?: number
+          draw_seed?: string | null
+          drawn_at?: string
+          drawn_by?: string | null
+          entry_id?: string | null
+          giveaway_id?: string
+          id?: string
+          position?: number
+          prize_delivered_at?: string | null
+          public_display_name?: string | null
+          replaced_by?: string | null
+          status?: string
+          user_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_winners_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "giveaway_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_winners_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_winners_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "giveaway_winners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaways: {
+        Row: {
+          announcement_md: string | null
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_at: string | null
+          id: string
+          included_service_description: string | null
+          name: string
+          prize_description: string | null
+          prize_image_url: string | null
+          prize_value_usd: number | null
+          rules_md: string | null
+          slug: string
+          start_at: string | null
+          status: string
+          updated_at: string
+          winner_count: number
+        }
+        Insert: {
+          announcement_md?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_at?: string | null
+          id?: string
+          included_service_description?: string | null
+          name: string
+          prize_description?: string | null
+          prize_image_url?: string | null
+          prize_value_usd?: number | null
+          rules_md?: string | null
+          slug: string
+          start_at?: string | null
+          status?: string
+          updated_at?: string
+          winner_count?: number
+        }
+        Update: {
+          announcement_md?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_at?: string | null
+          id?: string
+          included_service_description?: string | null
+          name?: string
+          prize_description?: string | null
+          prize_image_url?: string | null
+          prize_value_usd?: number | null
+          rules_md?: string | null
+          slug?: string
+          start_at?: string | null
+          status?: string
+          updated_at?: string
+          winner_count?: number
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           category: string | null
@@ -2597,7 +2855,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      giveaway_public_winners: {
+        Row: {
+          drawn_at: string | null
+          giveaway_id: string | null
+          position: number | null
+          public_display_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_winners_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       account_email_exists: { Args: { p_email: string }; Returns: boolean }
@@ -2745,6 +3019,83 @@ export type Database = {
       }
       get_tenant_config: { Args: { p_code: string }; Returns: Json }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      giveaway_admin_overview: {
+        Args: { p_giveaway_id: string }
+        Returns: Json
+      }
+      giveaway_award_entry: {
+        Args: {
+          p_count: number
+          p_customer_id: string
+          p_giveaway_id: string
+          p_metadata?: Json
+          p_source_id: string
+          p_source_ref: string
+          p_status?: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      giveaway_backfill_active: {
+        Args: { p_giveaway_id: string }
+        Returns: number
+      }
+      giveaway_claim_facebook: {
+        Args: {
+          p_fb_name: string
+          p_giveaway_id: string
+          p_review_url: string
+          p_screenshot_url?: string
+        }
+        Returns: Json
+      }
+      giveaway_display_name: {
+        Args: { p_customer: string; p_user: string }
+        Returns: string
+      }
+      giveaway_draw_winners: {
+        Args: { p_count: number; p_giveaway_id: string; p_seed?: string }
+        Returns: {
+          announced: boolean
+          customer_id: string | null
+          draw_method: string | null
+          draw_round: number
+          draw_seed: string | null
+          drawn_at: string
+          drawn_by: string | null
+          entry_id: string | null
+          giveaway_id: string
+          id: string
+          position: number
+          prize_delivered_at: string | null
+          public_display_name: string | null
+          replaced_by: string | null
+          status: string
+          user_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "giveaway_winners"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      giveaway_invalidate_entry: {
+        Args: { p_entry_id: string; p_reason: string }
+        Returns: Json
+      }
+      giveaway_invalidate_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: number
+      }
+      giveaway_my_summary: { Args: never; Returns: Json }
+      giveaway_review_entry: {
+        Args: { p_approve: boolean; p_entry_id: string; p_reason?: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
