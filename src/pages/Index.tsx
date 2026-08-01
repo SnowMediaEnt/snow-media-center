@@ -32,6 +32,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
@@ -64,6 +65,7 @@ const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
+const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -178,6 +180,10 @@ interface HomeHeaderProps {
   onOpenAuth: () => void;
   onOpenSettings: () => void;
   onOpenDashboard?: () => void;
+  showGiveawayBadge?: boolean;
+  isGiveawayFocused?: boolean;
+  giveawayLabel?: string;
+  onOpenGiveaway?: () => void;
 }
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
@@ -186,6 +192,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
+    showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway,
   } = props;
 
   const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
@@ -206,6 +213,19 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
       }}
     >
 
+      {showGiveawayBadge && (
+        <Button
+          onClick={onOpenGiveaway}
+          variant="gold"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isGiveawayFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <Gift className={`mr-2 ${iconClass}`} />
+          {giveawayLabel}
+        </Button>
+      )}
       {isAdmin && (
         <Button
           onClick={onOpenAdmin}
@@ -436,6 +456,16 @@ const Index = () => {
       setFocusedButton(b => (b === (playerEnabled ? 4 : 3) ? 2 : b));
     }
   }, [giveawayOn, playerEnabled]);
+  // Active-giveaway detection for the home gift badge + first-open popup.
+  // Session-cached, idle-deferred, snapshot-backed — no polling.
+  const activeGiveaway = useActiveGiveaway(giveawayOn);
+  const giveawayBadgeOn = giveawayOn && !!activeGiveaway;
+  // If the badge disappears while focused (slot -4), drop back to Dashboard/Sign In.
+  useEffect(() => {
+    if (!giveawayBadgeOn) {
+      setFocusedButton(b => (b === -4 ? -2 : b));
+    }
+  }, [giveawayBadgeOn]);
   const { resolvePackageName, ensureLoaded: ensureInstalledLoaded, refresh: refreshDeviceApps } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
@@ -604,6 +634,7 @@ const Index = () => {
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
   const playerEnabledRef = useRef(playerEnabled);
   const giveawayOnRef = useRef(giveawayOn);
+  const giveawayBadgeOnRef = useRef(giveawayBadgeOn);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
@@ -619,6 +650,7 @@ const Index = () => {
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
   useEffect(() => { giveawayOnRef.current = giveawayOn; }, [giveawayOn]);
+  useEffect(() => { giveawayBadgeOnRef.current = giveawayBadgeOn; }, [giveawayBadgeOn]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
@@ -637,6 +669,13 @@ const Index = () => {
   const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
   const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
+  // Home gift badge → Giveaway section (tracked)
+  const onOpenGiveaway = useCallback(() => {
+    try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
+    navigateToRef.current('giveaway');
+  }, []);
+  // Giveaway promo popup "View Giveaway" → Giveaway section
+  const onOpenGiveawayFromPopup = useCallback(() => navigateToRef.current('giveaway'), []);
 
   // PinnedAppsPopup callbacks — stable so its memo can skip re-renders.
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
@@ -800,7 +839,9 @@ const Index = () => {
           } else if (focusedButton === -1) {
             setFocusedButton(-2); // user/auth
           } else if (focusedButton === -2) {
-            setFocusedButton(-3); // logo (easter egg)
+            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -3); // giveaway badge, else logo
+          } else if (focusedButton === -4) {
+            setFocusedButton(-3); // giveaway badge → logo (easter egg)
           }
           break;
 
@@ -810,7 +851,9 @@ const Index = () => {
           } else if (focusedButton === maxButtons) {
             setFocusedButton(-3); // wrap from last app → logo
           } else if (focusedButton === -3) {
-            setFocusedButton(-2); // logo → dashboard/user
+            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -2); // logo → giveaway badge, else dashboard
+          } else if (focusedButton === -4) {
+            setFocusedButton(-2); // giveaway badge → dashboard/user
           } else if (focusedButton === -2) {
             setFocusedButton(-1); // dashboard → settings
           } else if (focusedButton === -1) {
@@ -870,6 +913,10 @@ const Index = () => {
           } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
           } else if (giveawayOnRef.current && focusedButton === (playerEnabledRef.current ? 4 : 3)) {
+            navigateToRef.current('giveaway');
+          } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
+            // Home gift badge
+            try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
             navigateToRef.current('giveaway');
           }
           break;
@@ -942,6 +989,10 @@ const Index = () => {
             onOpenUser={onOpenUser}
             onOpenAuth={onOpenAuth}
             onOpenSettings={onOpenSettings}
+            showGiveawayBadge={giveawayBadgeOn}
+            isGiveawayFocused={focusedButton === -4}
+            giveawayLabel={t('home.giveaway.title')}
+            onOpenGiveaway={onOpenGiveaway}
           />
 
           {/* Expiration banner — top-left, absolute, never displaces the header row */}
@@ -1122,6 +1173,15 @@ const Index = () => {
       {deferredOverlaysReady && currentView === 'home' && (
         <Suspense fallback={null}>
           <MediaBarPrompt />
+        </Suspense>
+      )}
+
+      {/* First-open giveaway promo — once per device per giveaway. Sequenced
+          behind WelcomePopup / MediaBarPrompt / app alerts via its own
+          modal-presence polling; never in demo mode (giveawayOn gate). */}
+      {deferredOverlaysReady && currentView === 'home' && giveawayOn && (
+        <Suspense fallback={null}>
+          <GiveawayPromoPopup onViewGiveaway={onOpenGiveawayFromPopup} />
         </Suspense>
       )}
 
