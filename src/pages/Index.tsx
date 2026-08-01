@@ -618,6 +618,7 @@ const Index = () => {
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
+  useEffect(() => { giveawayOnRef.current = giveawayOn; }, [giveawayOn]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
@@ -683,12 +684,16 @@ const Index = () => {
   // Stable per-index activation callbacks — referentially constant for the
   // life of the component so HomeActionCard's React.memo can skip re-renders
   // on unfocused cards when only `focusedButton` changes.
-  const activateByIndex = useMemo(() => [
-    () => navigateToRef.current('apps'),
-    () => navigateToRef.current('support'),
-    () => navigateToRef.current('store'),
-    () => navigateToRef.current('livetv'),
-  ], []);
+  const activateByIndex = useMemo(() => {
+    const list = [
+      () => navigateToRef.current('apps'),
+      () => navigateToRef.current('support'),
+      () => navigateToRef.current('store'),
+    ];
+    if (playerEnabled) list.push(() => navigateToRef.current('livetv'));
+    if (giveawayOn) list.push(() => navigateToRef.current('giveaway'));
+    return list;
+  }, [playerEnabled, giveawayOn]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -784,7 +789,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = playerEnabledRef.current ? 3 : 2;
+      const maxButtons = (playerEnabledRef.current ? 3 : 2) + (giveawayOnRef.current ? 1 : 0);
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -829,7 +834,7 @@ const Index = () => {
             } else {
               // No content bar — jump directly to the top row.
               // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton === 3 ? -1 : -2);
+              setFocusedButton(focusedButton >= 3 ? -1 : -2);
             }
           }
           break;
@@ -864,6 +869,8 @@ const Index = () => {
             navigateToRef.current('store');
           } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
+          } else if (giveawayOnRef.current && focusedButton === (playerEnabledRef.current ? 4 : 3)) {
+            navigateToRef.current('giveaway');
           }
           break;
 
@@ -889,8 +896,11 @@ const Index = () => {
     if (playerEnabled) {
       list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
     }
+    if (giveawayOn) {
+      list.push({ icon: Gift, title: t('home.giveaway.title'), description: t('home.giveaway.description'), variant: 'gold' });
+    }
     return list;
-  }, [playerEnabled, t]);
+  }, [playerEnabled, giveawayOn, t]);
 
   const tagline = t('home.tagline');
   const adminLabel = t('common.admin');
