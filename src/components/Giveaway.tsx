@@ -64,7 +64,6 @@ interface PublicWinner {
 }
 
 interface MySummary {
-  giveaway: unknown;
   my_total_valid?: number;
   my_entries?: MyEntry[];
 }
@@ -122,7 +121,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
       if (user) {
         const { data: mine, error: myErr } = await supabase.rpc('giveaway_my_summary');
         if (!myErr && mine) {
-          const summary = mine as MySummary;
+          const summary = mine as unknown as MySummary;
           setMyTotal(Number(summary.my_total_valid) || 0);
           setMyEntries(Array.isArray(summary.my_entries) ? summary.my_entries : []);
         }
