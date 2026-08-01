@@ -32,6 +32,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 import { runWhenIdle } from '@/utils/idle';
@@ -602,6 +603,7 @@ const Index = () => {
   const showEasterEggRef = useRef(showEasterEgg);
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
   const playerEnabledRef = useRef(playerEnabled);
+  const giveawayOnRef = useRef(giveawayOn);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
