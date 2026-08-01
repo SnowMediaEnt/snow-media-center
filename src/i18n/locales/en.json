@@ -25,6 +25,10 @@
     "player": {
       "title": "Player",
       "description": "Live TV, Movies & Series"
+    },
+    "giveaway": {
+      "title": "Giveaway",
+      "description": "Enter to Win Prizes"
     }
   },
   "settings": {

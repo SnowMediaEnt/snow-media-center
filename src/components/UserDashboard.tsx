@@ -7,7 +7,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift } from 'lucide-react';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWixIntegration } from '@/hooks/useWixIntegration';
@@ -25,6 +27,7 @@ interface UserDashboardProps {
   onCommunityChat: () => void;
   onCreditStore: () => void;
   onGames?: () => void;
+  onGiveaway?: () => void;
 }
 
 interface WixOrderSummary {
@@ -35,7 +38,13 @@ interface WixOrderSummary {
   status?: string;
 }
 
-const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames }: UserDashboardProps) => {
+const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
+  const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
+  const giveawayOn = giveawayEnabled && !isDemo();
+  // Focus indices shift by one when the Giveaway action button is visible.
+  const TAB_BASE = giveawayOn ? 6 : 5;
+  const EDIT_IDX = TAB_BASE + 4;
+  const DELETE_IDX = EDIT_IDX + 1;
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
@@ -81,8 +90,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   // Focus positions:
   // 0: back, 1: signout
-  // 2: purchase credits, 3: community chat, 4: games
-  // 5: overview tab, 6: credits tab, 7: store tab, 8: referrals tab
+  // 2: purchase credits, 3: community chat, 4: games, [5: giveaway when flag on]
+  // TAB_BASE..TAB_BASE+3: overview/credits/store/referrals tabs
+  // EDIT_IDX: edit services, DELETE_IDX: delete account
 
   // Android TV/Firestick navigation
   useEffect(() => {
@@ -99,18 +109,20 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           if (focusedElement === 1) setFocusedElement(0); // signout -> back
           else if (focusedElement === 3) setFocusedElement(2); // community -> purchase
           else if (focusedElement === 4) setFocusedElement(3); // games -> community
-          else if (focusedElement > 5 && focusedElement <= 8) setFocusedElement(focusedElement - 1); // tabs
+          else if (giveawayOn && focusedElement === 5) setFocusedElement(4); // giveaway -> games
+          else if (focusedElement > TAB_BASE && focusedElement <= TAB_BASE + 3) setFocusedElement(focusedElement - 1); // tabs
           break;
         case 'ArrowRight':
           if (focusedElement === 0) setFocusedElement(1); // back -> signout
           else if (focusedElement === 2) setFocusedElement(3); // purchase -> community
           else if (focusedElement === 3) setFocusedElement(4); // community -> games
-          else if (focusedElement >= 5 && focusedElement < 8) setFocusedElement(focusedElement + 1); // tabs
+          else if (giveawayOn && focusedElement === 4) setFocusedElement(5); // games -> giveaway
+          else if (focusedElement >= TAB_BASE && focusedElement < TAB_BASE + 3) setFocusedElement(focusedElement + 1); // tabs
           break;
         case 'ArrowUp':
-          if (focusedElement >= 2 && focusedElement <= 4) {
+          if (focusedElement >= 2 && focusedElement < TAB_BASE) {
             setFocusedElement(0); // action buttons -> back
-          } else if (focusedElement >= 5 && focusedElement <= 8) {
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             const container = dashboardScrollRef.current;
             const currentTop = container?.scrollTop ?? window.scrollY;
             if (currentTop > 10) {
@@ -119,28 +131,28 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
-          } else if (focusedElement === 9) {
-            setFocusedElement(5); // edit -> overview tab
-          } else if (focusedElement === 10) {
-            setFocusedElement(9); // delete -> edit
+          } else if (focusedElement === EDIT_IDX) {
+            setFocusedElement(TAB_BASE); // edit -> overview tab
+          } else if (focusedElement === DELETE_IDX) {
+            setFocusedElement(EDIT_IDX); // delete -> edit
           }
           break;
         case 'ArrowDown':
           if (focusedElement === 0 || focusedElement === 1) {
             setFocusedElement(2); // header -> purchase credits
-          } else if (focusedElement >= 2 && focusedElement <= 4) {
-            setFocusedElement(5); // action buttons -> first tab
-          } else if (focusedElement >= 5 && focusedElement <= 8) {
+          } else if (focusedElement >= 2 && focusedElement < TAB_BASE) {
+            setFocusedElement(TAB_BASE); // action buttons -> first tab
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             if (activeTab === 'overview') {
-              setFocusedElement(9); // tabs -> edit button
+              setFocusedElement(EDIT_IDX); // tabs -> edit button
             } else {
               const container = dashboardScrollRef.current;
               if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
               else window.scrollBy({ top: 300, behavior: 'smooth' });
             }
-          } else if (focusedElement === 9) {
-            setFocusedElement(10); // edit -> delete
-          } else if (focusedElement === 10) {
+          } else if (focusedElement === EDIT_IDX) {
+            setFocusedElement(DELETE_IDX); // edit -> delete
+          } else if (focusedElement === DELETE_IDX) {
             const container = dashboardScrollRef.current;
             if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
             else window.scrollBy({ top: 300, behavior: 'smooth' });
@@ -153,12 +165,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 2) onCreditStore();
           else if (focusedElement === 3) onCommunityChat();
           else if (focusedElement === 4) onGames?.();
-          else if (focusedElement === 5) setActiveTab('overview');
-          else if (focusedElement === 6) setActiveTab('credits');
-          else if (focusedElement === 7) setActiveTab('store');
-          else if (focusedElement === 8) setActiveTab('referrals');
-          else if (focusedElement === 9) setShowServicesEditor(true);
-          else if (focusedElement === 10) setShowDeleteConfirm(true);
+          else if (giveawayOn && focusedElement === 5) onGiveaway?.();
+          else if (focusedElement === TAB_BASE) setActiveTab('overview');
+          else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
+          else if (focusedElement === TAB_BASE + 2) setActiveTab('store');
+          else if (focusedElement === TAB_BASE + 3) setActiveTab('referrals');
+          else if (focusedElement === EDIT_IDX) setShowServicesEditor(true);
+          else if (focusedElement === DELETE_IDX) setShowDeleteConfirm(true);
           break;
       }
     };
@@ -166,7 +179,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, EDIT_IDX, DELETE_IDX]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top
@@ -337,6 +350,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             Games
             <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-0.5 rounded-full">Soon</span>
           </Button>
+          {giveawayOn && (
+            <Button 
+              onClick={onGiveaway}
+              size="lg"
+              className={`bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition-all duration-200 ${
+                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+              }`}
+            >
+              <Gift className="w-5 h-5 mr-2" />
+              Giveaway
+            </Button>
+          )}
         </div>
 
         {/* Dashboard Tabs */}

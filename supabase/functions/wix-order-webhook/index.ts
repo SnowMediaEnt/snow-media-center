@@ -9,6 +9,7 @@
 // grant credits via update_user_credits RPC, and dedupe by event id.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { getActiveGiveaway, awardOrderEntries } from '../_shared/giveaway.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +30,17 @@ const ACCEPTED_EVENT_TYPES = new Set([
   'wix.ecom.order_paid',
   'OrderApproved',
   'OrderPaid',
+]);
+
+const REFUND_EVENT_TYPES = new Set([
+  'wix.ecom.v1.order_refunded',
+  'wix.ecom.v1.order_canceled',
+  'wix.ecom.order_refunded',
+  'wix.ecom.order_canceled',
+  'OrderRefunded',
+  'OrderCanceled',
+  'OrderCancelled',
+  'RefundCreated',
 ]);
 
 // ---------- JWT verification helpers ----------
@@ -125,7 +137,14 @@ Deno.serve(async (req) => {
     console.log(`Event id=${eventId} type=${eventType}`);
 
     const etLower = String(eventType).toLowerCase();
-    if (!ACCEPTED_EVENT_TYPES.has(eventType) && !etLower.includes('order_approved') && !etLower.includes('order_paid')) {
+    const isRefundEvent =
+      REFUND_EVENT_TYPES.has(eventType) ||
+      etLower.includes('order_refunded') ||
+      etLower.includes('order_canceled') ||
+      etLower.includes('order_cancelled') ||
+      etLower.includes('refund_created');
+    if (!ACCEPTED_EVENT_TYPES.has(eventType) && !isRefundEvent
+        && !etLower.includes('order_approved') && !etLower.includes('order_paid')) {
       console.log('Ignoring event type:', eventType);
       return new Response(JSON.stringify({ ok: true, ignored: eventType }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -176,6 +195,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Refund/cancel path: invalidate any giveaway entries for this order
+    // (history is preserved — rows are marked invalidated, never deleted).
+    // Credits are intentionally NOT touched here (out of scope).
+    if (isRefundEvent) {
+      try {
+        const { data: inv, error: invErr } = await admin.rpc('giveaway_invalidate_order', {
+          p_order_id: String(orderId),
+          p_reason: 'Wix order refunded/canceled',
+        });
+        console.log(`giveaway_invalidate_order(${orderId}) -> invalidated=${inv}${invErr ? ' err=' + invErr.message : ''}`);
+      } catch (e) {
+        console.error('giveaway invalidate threw (non-fatal):', e instanceof Error ? e.message : String(e));
+      }
+      return new Response(JSON.stringify({ ok: true, refunded: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Compute credits from SKUs
     const lineItems: any[] = order.lineItems || order.line_items || [];
     let credits = 0;
@@ -183,13 +220,6 @@ Deno.serve(async (req) => {
       const sku = String(item.physicalProperties?.sku || item.sku || '').toLowerCase().trim();
       const perUnit = SKU_CREDITS[sku];
       if (perUnit) credits += perUnit * (item.quantity || 1);
-    }
-
-    if (credits === 0) {
-      console.log(`Order ${orderId} has no credit SKUs`);
-      return new Response(JSON.stringify({ ok: true, skipped: 'no_credit_sku' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     // Resolve SMC user
@@ -216,6 +246,43 @@ Deno.serve(async (req) => {
       } else {
         console.log(`Email match inconclusive (${profile?.length ?? 0} matches) for ${buyerEmail}`);
       }
+    }
+
+    // Giveaway: unique customers email match when no profile matched.
+    let customerId: string | null = null;
+    if (!userId && buyerEmail) {
+      const { data: cust } = await admin
+        .from('customers')
+        .select('id')
+        .ilike('email', buyerEmail)
+        .limit(2);
+      if (cust && cust.length === 1) {
+        customerId = cust[0].id;
+        console.log(`Resolved customer via buyer email: ${customerId}`);
+      }
+    }
+
+    // Giveaway awarding — runs for EVERY paid order regardless of AI-credit
+    // SKUs. It is placed before the credit early-returns below so zero-credit
+    // and unmatched orders still earn (pending) entries, and it is wrapped so
+    // an exception can never break the credit path or error back to Wix.
+    try {
+      const giveaway = await getActiveGiveaway(admin);
+      if (giveaway) {
+        const awardRes = await awardOrderEntries(admin, giveaway, order, { userId, customerId, buyerEmail });
+        console.log('[giveaway] award result:', JSON.stringify(awardRes));
+      } else {
+        console.log('[giveaway] no active giveaway, skipping');
+      }
+    } catch (e) {
+      console.error('[giveaway] awarding failed (non-fatal):', e instanceof Error ? e.message : String(e));
+    }
+
+    if (credits === 0) {
+      console.log(`Order ${orderId} has no credit SKUs`);
+      return new Response(JSON.stringify({ ok: true, skipped: 'no_credit_sku' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (!userId) {

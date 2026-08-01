@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { normalizeEmail, findWixMemberByEmail } from '../_shared/wixMember.ts'
+import { getActiveGiveaway, awardOrderEntries } from '../_shared/giveaway.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -920,6 +921,22 @@ Deno.serve(async (req) => {
             }
           }
           if (paymentStatus !== 'PAID') continue;
+
+          // Giveaway: award entries for every paid order (idempotent by
+          // source_id via the unique index), regardless of AI-credit SKUs.
+          // Never breaks the credit sync.
+          try {
+            const giveaway = await getActiveGiveaway(adminClient);
+            if (giveaway) {
+              await awardOrderEntries(adminClient, giveaway, order, {
+                userId,
+                customerId: null,
+                buyerEmail: (order.buyerInfo?.email || '').toLowerCase().trim() || null,
+              });
+            }
+          } catch (e) {
+            console.error('[giveaway] sync award failed (non-fatal):', e instanceof Error ? e.message : String(e));
+          }
 
           // Sum credits from line items by SKU
           let orderCredits = 0;

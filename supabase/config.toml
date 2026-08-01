@@ -78,3 +78,8 @@ verify_jwt = false
 
 [functions.poster-proxy]
 verify_jwt = false
+
+# Public 'summary' action for the marketing website; internal actions are
+# guarded by the x-internal-secret header in code.
+[functions.giveaway-bridge]
+verify_jwt = false

@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -32,6 +32,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
 import { runWhenIdle } from '@/utils/idle';
@@ -62,6 +63,7 @@ const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
+const Giveaway = lazy(() => import('@/components/Giveaway'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -329,8 +331,9 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'community' && <CommunityChat onBack={goBack} />}
     {currentView === 'credits' && <CreditStore onBack={goBack} />}
     {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
-    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} />}
+    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
     {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
+    {currentView === 'giveaway' && <Giveaway onBack={goBack} />}
     {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}
     {currentView === 'game-slots' && <SlotsGame onBack={goBack} />}
     {currentView === 'game-blackjack' && <BlackjackGame onBack={goBack} />}
@@ -422,6 +425,17 @@ const Index = () => {
       setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
+  // Giveaway card: flag-gated like Player, but OFF by default and never shown
+  // in the website-embedded demo (?demo=1).
+  const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
+  const giveawayOn = giveawayEnabled && !isDemo();
+  // If the flag flips off and the user was on the (now-removed) Giveaway card,
+  // drop back to Store (same pattern as Player above).
+  useEffect(() => {
+    if (!giveawayOn) {
+      setFocusedButton(b => (b === (playerEnabled ? 4 : 3) ? 2 : b));
+    }
+  }, [giveawayOn, playerEnabled]);
   const { resolvePackageName, ensureLoaded: ensureInstalledLoaded, refresh: refreshDeviceApps } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
@@ -589,6 +603,7 @@ const Index = () => {
   const showEasterEggRef = useRef(showEasterEgg);
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
   const playerEnabledRef = useRef(playerEnabled);
+  const giveawayOnRef = useRef(giveawayOn);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
@@ -603,6 +618,7 @@ const Index = () => {
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
+  useEffect(() => { giveawayOnRef.current = giveawayOn; }, [giveawayOn]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
@@ -668,12 +684,16 @@ const Index = () => {
   // Stable per-index activation callbacks — referentially constant for the
   // life of the component so HomeActionCard's React.memo can skip re-renders
   // on unfocused cards when only `focusedButton` changes.
-  const activateByIndex = useMemo(() => [
-    () => navigateToRef.current('apps'),
-    () => navigateToRef.current('support'),
-    () => navigateToRef.current('store'),
-    () => navigateToRef.current('livetv'),
-  ], []);
+  const activateByIndex = useMemo(() => {
+    const list = [
+      () => navigateToRef.current('apps'),
+      () => navigateToRef.current('support'),
+      () => navigateToRef.current('store'),
+    ];
+    if (playerEnabled) list.push(() => navigateToRef.current('livetv'));
+    if (giveawayOn) list.push(() => navigateToRef.current('giveaway'));
+    return list;
+  }, [playerEnabled, giveawayOn]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -769,7 +789,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = playerEnabledRef.current ? 3 : 2;
+      const maxButtons = (playerEnabledRef.current ? 3 : 2) + (giveawayOnRef.current ? 1 : 0);
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -814,7 +834,7 @@ const Index = () => {
             } else {
               // No content bar — jump directly to the top row.
               // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton === 3 ? -1 : -2);
+              setFocusedButton(focusedButton >= 3 ? -1 : -2);
             }
           }
           break;
@@ -849,6 +869,8 @@ const Index = () => {
             navigateToRef.current('store');
           } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
+          } else if (giveawayOnRef.current && focusedButton === (playerEnabledRef.current ? 4 : 3)) {
+            navigateToRef.current('giveaway');
           }
           break;
 
@@ -874,8 +896,11 @@ const Index = () => {
     if (playerEnabled) {
       list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
     }
+    if (giveawayOn) {
+      list.push({ icon: Gift, title: t('home.giveaway.title'), description: t('home.giveaway.description'), variant: 'gold' });
+    }
     return list;
-  }, [playerEnabled, t]);
+  }, [playerEnabled, giveawayOn, t]);
 
   const tagline = t('home.tagline');
   const adminLabel = t('common.admin');

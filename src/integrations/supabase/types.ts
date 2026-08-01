@@ -14,6 +14,191 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_tokens: {
+        Row: {
+          created_at: string
+          device_id: string
+          expires_at: string
+          id: string
+          label: string | null
+          last_used_at: string | null
+          last_used_ip_hash: string | null
+          revoked: boolean
+          revoked_at: string | null
+          revoked_reason: string | null
+          scopes: string[]
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+          use_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          expires_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          last_used_ip_hash?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          scopes?: string[]
+          token_hash: string
+          token_prefix: string
+          updated_at?: string
+          use_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          expires_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          last_used_ip_hash?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          scopes?: string[]
+          token_hash?: string
+          token_prefix?: string
+          updated_at?: string
+          use_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_action_tokens_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "admin_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_devices: {
+        Row: {
+          apns_environment: string
+          apns_token: string
+          app_version: string | null
+          bad_token_strikes: number
+          badge_count: number
+          bundle_id: string
+          created_at: string
+          device_model: string | null
+          device_name: string | null
+          id: string
+          last_push_at: string | null
+          last_seen_at: string
+          os_version: string | null
+          platform: string
+          revoke_source: string | null
+          revoked: boolean
+          revoked_at: string | null
+          revoked_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          apns_environment: string
+          apns_token: string
+          app_version?: string | null
+          bad_token_strikes?: number
+          badge_count?: number
+          bundle_id?: string
+          created_at?: string
+          device_model?: string | null
+          device_name?: string | null
+          id?: string
+          last_push_at?: string | null
+          last_seen_at?: string
+          os_version?: string | null
+          platform?: string
+          revoke_source?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          apns_environment?: string
+          apns_token?: string
+          app_version?: string | null
+          bad_token_strikes?: number
+          badge_count?: number
+          bundle_id?: string
+          created_at?: string
+          device_model?: string | null
+          device_name?: string | null
+          id?: string
+          last_push_at?: string | null
+          last_seen_at?: string
+          os_version?: string | null
+          platform?: string
+          revoke_source?: string | null
+          revoked?: boolean
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_notify_prefs: {
+        Row: {
+          created_at: string
+          enabled: boolean | null
+          event_type: string
+          id: string
+          quiet_hours_enabled: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_override: boolean
+          quiet_hours_start: string | null
+          quiet_hours_tz: string | null
+          snoozed_until: string | null
+          sound: string | null
+          time_sensitive: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean | null
+          event_type: string
+          id?: string
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_override?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_tz?: string | null
+          snoozed_until?: string | null
+          sound?: string | null
+          time_sensitive?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean | null
+          event_type?: string
+          id?: string
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_override?: boolean
+          quiet_hours_start?: string | null
+          quiet_hours_tz?: string | null
+          snoozed_until?: string | null
+          sound?: string | null
+          time_sensitive?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_anon_usage: {
         Row: {
           calls_this_hour: number
@@ -1386,6 +1571,264 @@ export type Database = {
         }
         Relationships: []
       }
+      giveaway_audit_log: {
+        Row: {
+          action: string
+          actor: string | null
+          created_at: string
+          details: Json
+          entry_id: string | null
+          giveaway_id: string | null
+          id: string
+          winner_id: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          created_at?: string
+          details?: Json
+          entry_id?: string | null
+          giveaway_id?: string | null
+          id?: string
+          winner_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          created_at?: string
+          details?: Json
+          entry_id?: string | null
+          giveaway_id?: string | null
+          id?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_audit_log_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaway_entries: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          customer_id: string | null
+          entry_count: number
+          entry_type: string
+          giveaway_id: string
+          id: string
+          invalidated_at: string | null
+          invalidation_reason: string | null
+          metadata: Json
+          source_id: string | null
+          source_reference: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          entry_count?: number
+          entry_type: string
+          giveaway_id: string
+          id?: string
+          invalidated_at?: string | null
+          invalidation_reason?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_reference?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          entry_count?: number
+          entry_type?: string
+          giveaway_id?: string
+          id?: string
+          invalidated_at?: string | null
+          invalidation_reason?: string | null
+          metadata?: Json
+          source_id?: string | null
+          source_reference?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_entries_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaway_winners: {
+        Row: {
+          announced: boolean
+          customer_id: string | null
+          draw_method: string | null
+          draw_round: number
+          draw_seed: string | null
+          drawn_at: string
+          drawn_by: string | null
+          entry_id: string | null
+          giveaway_id: string
+          id: string
+          position: number
+          prize_delivered_at: string | null
+          public_display_name: string | null
+          replaced_by: string | null
+          status: string
+          user_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          announced?: boolean
+          customer_id?: string | null
+          draw_method?: string | null
+          draw_round?: number
+          draw_seed?: string | null
+          drawn_at?: string
+          drawn_by?: string | null
+          entry_id?: string | null
+          giveaway_id: string
+          id?: string
+          position: number
+          prize_delivered_at?: string | null
+          public_display_name?: string | null
+          replaced_by?: string | null
+          status?: string
+          user_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          announced?: boolean
+          customer_id?: string | null
+          draw_method?: string | null
+          draw_round?: number
+          draw_seed?: string | null
+          drawn_at?: string
+          drawn_by?: string | null
+          entry_id?: string | null
+          giveaway_id?: string
+          id?: string
+          position?: number
+          prize_delivered_at?: string | null
+          public_display_name?: string | null
+          replaced_by?: string | null
+          status?: string
+          user_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_winners_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "giveaway_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_winners_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_winners_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "giveaway_winners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaways: {
+        Row: {
+          announcement_md: string | null
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_at: string | null
+          id: string
+          included_service_description: string | null
+          name: string
+          prize_description: string | null
+          prize_image_url: string | null
+          prize_value_usd: number | null
+          rules_md: string | null
+          slug: string
+          start_at: string | null
+          status: string
+          updated_at: string
+          winner_count: number
+        }
+        Insert: {
+          announcement_md?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_at?: string | null
+          id?: string
+          included_service_description?: string | null
+          name: string
+          prize_description?: string | null
+          prize_image_url?: string | null
+          prize_value_usd?: number | null
+          rules_md?: string | null
+          slug: string
+          start_at?: string | null
+          status?: string
+          updated_at?: string
+          winner_count?: number
+        }
+        Update: {
+          announcement_md?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_at?: string | null
+          id?: string
+          included_service_description?: string | null
+          name?: string
+          prize_description?: string | null
+          prize_image_url?: string | null
+          prize_value_usd?: number | null
+          rules_md?: string | null
+          slug?: string
+          start_at?: string | null
+          status?: string
+          updated_at?: string
+          winner_count?: number
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           category: string | null
@@ -1795,6 +2238,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      smc_news: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          published: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          published?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          published?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       support_messages: {
         Row: {
@@ -2382,7 +2855,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      giveaway_public_winners: {
+        Row: {
+          drawn_at: string | null
+          giveaway_id: string | null
+          position: number | null
+          public_display_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_winners_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       account_email_exists: { Args: { p_email: string }; Returns: boolean }
@@ -2402,6 +2891,22 @@ export type Database = {
         }[]
       }
       admin_activity_summary: { Args: never; Returns: Json }
+      admin_list_action_tokens: {
+        Args: never
+        Returns: {
+          created_at: string
+          device_id: string
+          device_name: string
+          expires_at: string
+          id: string
+          label: string
+          last_used_at: string
+          revoked: boolean
+          scopes: string[]
+          token_prefix: string
+          use_count: number
+        }[]
+      }
       ai_tokens_last_hour: { Args: never; Returns: number }
       analytics_active_users: {
         Args: { p_period?: string }
@@ -2498,6 +3003,7 @@ export type Database = {
         Args: { p_code?: string; p_name: string }
         Returns: Json
       }
+      dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
       free_ai_available: { Args: never; Returns: Json }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
       get_qr_session: {
@@ -2513,6 +3019,83 @@ export type Database = {
       }
       get_tenant_config: { Args: { p_code: string }; Returns: Json }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      giveaway_admin_overview: {
+        Args: { p_giveaway_id: string }
+        Returns: Json
+      }
+      giveaway_award_entry: {
+        Args: {
+          p_count: number
+          p_customer_id: string
+          p_giveaway_id: string
+          p_metadata?: Json
+          p_source_id: string
+          p_source_ref: string
+          p_status?: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      giveaway_backfill_active: {
+        Args: { p_giveaway_id: string }
+        Returns: number
+      }
+      giveaway_claim_facebook: {
+        Args: {
+          p_fb_name: string
+          p_giveaway_id: string
+          p_review_url: string
+          p_screenshot_url?: string
+        }
+        Returns: Json
+      }
+      giveaway_display_name: {
+        Args: { p_customer: string; p_user: string }
+        Returns: string
+      }
+      giveaway_draw_winners: {
+        Args: { p_count: number; p_giveaway_id: string; p_seed?: string }
+        Returns: {
+          announced: boolean
+          customer_id: string | null
+          draw_method: string | null
+          draw_round: number
+          draw_seed: string | null
+          drawn_at: string
+          drawn_by: string | null
+          entry_id: string | null
+          giveaway_id: string
+          id: string
+          position: number
+          prize_delivered_at: string | null
+          public_display_name: string | null
+          replaced_by: string | null
+          status: string
+          user_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "giveaway_winners"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      giveaway_invalidate_entry: {
+        Args: { p_entry_id: string; p_reason: string }
+        Returns: Json
+      }
+      giveaway_invalidate_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: number
+      }
+      giveaway_my_summary: { Args: never; Returns: Json }
+      giveaway_review_entry: {
+        Args: { p_approve: boolean; p_entry_id: string; p_reason?: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2523,6 +3106,10 @@ export type Database = {
       is_master: { Args: never; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
+      issue_admin_action_token: {
+        Args: { p_device_id: string; p_label?: string }
+        Returns: Json
+      }
       list_tenant_members: {
         Args: never
         Returns: {
@@ -2535,6 +3122,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      prune_admin_devices: { Args: { p_older_than?: string }; Returns: Json }
       record_free_ai: {
         Args: {
           p_cost_usd: number
@@ -2552,6 +3140,15 @@ export type Database = {
           p_feature: string
           p_ip_hash: string
         }
+        Returns: Json
+      }
+      restore_admin_device: { Args: { p_device_id: string }; Returns: Json }
+      revoke_admin_action_tokens: {
+        Args: { p_device_id: string }
+        Returns: Json
+      }
+      revoke_admin_device: {
+        Args: { p_device_id: string; p_reason?: string }
         Returns: Json
       }
       settle_free_ai: {
