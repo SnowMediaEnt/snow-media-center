@@ -212,6 +212,19 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
       }}
     >
 
+      {showGiveawayBadge && (
+        <Button
+          onClick={onOpenGiveaway}
+          variant="gold"
+          size={btnSize}
+          tabIndex={0}
+          data-focused={isGiveawayFocused ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface ${btnClass}`}
+        >
+          <Gift className={`mr-2 ${iconClass}`} />
+          {giveawayLabel}
+        </Button>
+      )}
       {isAdmin && (
         <Button
           onClick={onOpenAdmin}
@@ -442,6 +455,16 @@ const Index = () => {
       setFocusedButton(b => (b === (playerEnabled ? 4 : 3) ? 2 : b));
     }
   }, [giveawayOn, playerEnabled]);
+  // Active-giveaway detection for the home gift badge + first-open popup.
+  // Session-cached, idle-deferred, snapshot-backed — no polling.
+  const activeGiveaway = useActiveGiveaway(giveawayOn);
+  const giveawayBadgeOn = giveawayOn && !!activeGiveaway;
+  // If the badge disappears while focused (slot -4), drop back to Dashboard/Sign In.
+  useEffect(() => {
+    if (!giveawayBadgeOn) {
+      setFocusedButton(b => (b === -4 ? -2 : b));
+    }
+  }, [giveawayBadgeOn]);
   const { resolvePackageName, ensureLoaded: ensureInstalledLoaded, refresh: refreshDeviceApps } = useDeviceInstalledApps();
   const { getAlertForApp } = useAppAlerts();
   const [pendingAlert, setPendingAlert] = useState<{ alert: AppAlert; app: LaunchableApp } | null>(null);
@@ -610,6 +633,7 @@ const Index = () => {
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
   const playerEnabledRef = useRef(playerEnabled);
   const giveawayOnRef = useRef(giveawayOn);
+  const giveawayBadgeOnRef = useRef(giveawayBadgeOn);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
   const navigateRef = useRef(navigate);
