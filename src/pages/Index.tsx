@@ -64,6 +64,7 @@ const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
+const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -178,6 +179,10 @@ interface HomeHeaderProps {
   onOpenAuth: () => void;
   onOpenSettings: () => void;
   onOpenDashboard?: () => void;
+  showGiveawayBadge?: boolean;
+  isGiveawayFocused?: boolean;
+  giveawayLabel?: string;
+  onOpenGiveaway?: () => void;
 }
 
 const HomeHeader = memo((props: HomeHeaderProps) => {
@@ -186,6 +191,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     isAdminFocused, isAuthFocused, isSettingsFocused,
     adminLabel, dashboardLabel, signInLabel, settingsLabel,
     onOpenAdmin, onOpenUser, onOpenAuth, onOpenSettings,
+    showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway,
   } = props;
 
   const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
