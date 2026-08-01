@@ -140,19 +140,19 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         case 'ArrowDown':
           if (focusedElement === 0 || focusedElement === 1) {
             setFocusedElement(2); // header -> purchase credits
-          } else if (focusedElement >= 2 && focusedElement <= 4) {
-            setFocusedElement(5); // action buttons -> first tab
-          } else if (focusedElement >= 5 && focusedElement <= 8) {
+          } else if (focusedElement >= 2 && focusedElement < TAB_BASE) {
+            setFocusedElement(TAB_BASE); // action buttons -> first tab
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             if (activeTab === 'overview') {
-              setFocusedElement(9); // tabs -> edit button
+              setFocusedElement(EDIT_IDX); // tabs -> edit button
             } else {
               const container = dashboardScrollRef.current;
               if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
               else window.scrollBy({ top: 300, behavior: 'smooth' });
             }
-          } else if (focusedElement === 9) {
-            setFocusedElement(10); // edit -> delete
-          } else if (focusedElement === 10) {
+          } else if (focusedElement === EDIT_IDX) {
+            setFocusedElement(DELETE_IDX); // edit -> delete
+          } else if (focusedElement === DELETE_IDX) {
             const container = dashboardScrollRef.current;
             if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
             else window.scrollBy({ top: 300, behavior: 'smooth' });
@@ -165,12 +165,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 2) onCreditStore();
           else if (focusedElement === 3) onCommunityChat();
           else if (focusedElement === 4) onGames?.();
-          else if (focusedElement === 5) setActiveTab('overview');
-          else if (focusedElement === 6) setActiveTab('credits');
-          else if (focusedElement === 7) setActiveTab('store');
-          else if (focusedElement === 8) setActiveTab('referrals');
-          else if (focusedElement === 9) setShowServicesEditor(true);
-          else if (focusedElement === 10) setShowDeleteConfirm(true);
+          else if (giveawayOn && focusedElement === 5) onGiveaway?.();
+          else if (focusedElement === TAB_BASE) setActiveTab('overview');
+          else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
+          else if (focusedElement === TAB_BASE + 2) setActiveTab('store');
+          else if (focusedElement === TAB_BASE + 3) setActiveTab('referrals');
+          else if (focusedElement === EDIT_IDX) setShowServicesEditor(true);
+          else if (focusedElement === DELETE_IDX) setShowDeleteConfirm(true);
           break;
       }
     };
@@ -178,7 +179,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, EDIT_IDX, DELETE_IDX]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top
@@ -349,6 +350,18 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             Games
             <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-0.5 rounded-full">Soon</span>
           </Button>
+          {giveawayOn && (
+            <Button 
+              onClick={onGiveaway}
+              size="lg"
+              className={`bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition-all duration-200 ${
+                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+              }`}
+            >
+              <Gift className="w-5 h-5 mr-2" />
+              Giveaway
+            </Button>
+          )}
         </div>
 
         {/* Dashboard Tabs */}
