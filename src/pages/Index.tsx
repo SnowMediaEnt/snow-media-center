@@ -32,6 +32,7 @@ import { usePinnedApps, PinnedApp } from '@/hooks/usePinnedApps';
 import { useAppData } from '@/hooks/useAppData';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
 import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
@@ -649,6 +650,7 @@ const Index = () => {
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
   useEffect(() => { giveawayOnRef.current = giveawayOn; }, [giveawayOn]);
+  useEffect(() => { giveawayBadgeOnRef.current = giveawayBadgeOn; }, [giveawayBadgeOn]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
   useEffect(() => { navigateRef.current = navigate; }, [navigate]);
