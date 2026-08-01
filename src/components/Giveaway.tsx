@@ -9,7 +9,7 @@
 //
 // Demo mode (?demo=1 / forced demo hosts): renders nothing — the section is
 // unreachable in the embedded website demo.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 interface GiveawayInfo {
   id: string;
@@ -84,6 +85,166 @@ const fmtDate = (iso: string | null | undefined) => {
   } catch {
     return null;
   }
+};
+
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+
+const parseIso = (iso: string | null): number | null => {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+};
+
+/** Big DAYS/HRS/MIN gold tiles counting to the giveaway deadline.
+ *  30s pausable refresh — no per-second churn on weak boxes. */
+const GiveawayCountdown = ({ giveaway }: { giveaway: GiveawayInfo }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => setPausableInterval(() => setNow(Date.now()), 30000), []);
+
+  if (giveaway.status === 'announced') return null;
+
+  const closedLine = (
+    <div className="mt-5 text-center">
+      <p className="text-xl font-bold text-amber-200">Entries closed</p>
+    </div>
+  );
+
+  if (giveaway.status !== 'active') return closedLine;
+
+  const startMs = parseIso(giveaway.start_at);
+  const endMs = parseIso(giveaway.end_at);
+  const preStart = startMs !== null && now < startMs;
+  const target = preStart ? startMs : endMs;
+  if (target === null) return null;
+  const diff = target - now;
+  if (!preStart && diff <= 0) return closedLine;
+
+  const totalMins = Math.max(0, Math.floor(diff / 60000));
+  const tiles = [
+    { v: Math.floor(totalMins / 1440), l: 'DAYS' },
+    { v: Math.floor((totalMins % 1440) / 60), l: 'HRS' },
+    { v: totalMins % 60, l: 'MIN' },
+  ];
+  return (
+    <div className="mt-5 text-center">
+      {/* margin-based spacing (ml-3) instead of flex gap — Chrome 66 safe */}
+      <div className="flex justify-center">
+        {tiles.map((t, i) => (
+          <div
+            key={t.l}
+            className={`min-w-[84px] rounded-xl border-2 border-amber-400/60 bg-gradient-to-b from-amber-500/30 to-yellow-900/40 px-4 py-3${i > 0 ? ' ml-3' : ''}`}
+          >
+            <div className="text-4xl font-bold text-amber-200 leading-none tabular-nums">{pad2(t.v)}</div>
+            <div className="text-xs font-semibold tracking-widest text-amber-300/80 mt-1">{t.l}</div>
+          </div>
+        ))}
+      </div>
+      <p className="text-amber-200/80 text-sm mt-2">{preStart ? 'Starts in' : 'until entries close'}</p>
+    </div>
+  );
+};
+
+/** Prize image that fades in once loaded; gift fallback tile until then,
+ *  and permanently on error. */
+const PrizeImage = ({ url, alt }: { url: string; alt: string }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="w-40 h-40 rounded-xl bg-black/30 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+        <Gift className="w-12 h-12 text-amber-300/70" />
+      </div>
+    );
+  }
+  return (
+    <div className="relative w-40 h-40 flex-shrink-0">
+      {!loaded && (
+        <div className="absolute inset-0 rounded-xl bg-black/30 border border-amber-500/20 flex items-center justify-center">
+          <Gift className="w-12 h-12 text-amber-300/70" />
+        </div>
+      )}
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        className={`w-40 h-40 object-contain rounded-xl bg-black/30 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+      />
+    </div>
+  );
+};
+
+/** Inline markdown-lite: **bold** → <strong>. */
+const inlineMd = (text: string, keyBase: string): ReactNode[] =>
+  text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={`${keyBase}-${i}`} className="font-semibold text-white">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={`${keyBase}-${i}`}>{part}</span>
+    ),
+  );
+
+/** Markdown-lite renderer (regex-based, no dependency):
+ *  blank lines → paragraph breaks, "- " lines → bulleted rows, **bold** → strong. */
+const MarkdownLite = ({ text, className }: { text: string; className?: string }) => {
+  const blocks = text.split(/\n\s*\n/);
+  return (
+    <div className={className}>
+      {blocks.map((block, bi) => {
+        const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+        const nodes: ReactNode[] = [];
+        let para: string[] = [];
+        let bullets: string[] = [];
+        const flushPara = () => {
+          if (!para.length) return;
+          const copy = para;
+          para = [];
+          nodes.push(
+            <p key={`p${nodes.length}`} className={nodes.length ? 'mt-2' : ''}>
+              {copy.map((l, li) => (
+                <span key={li}>
+                  {li > 0 && <br />}
+                  {inlineMd(l, `${bi}-p${nodes.length}-${li}`)}
+                </span>
+              ))}
+            </p>,
+          );
+        };
+        const flushBullets = () => {
+          if (!bullets.length) return;
+          const items = bullets;
+          bullets = [];
+          nodes.push(
+            <ul key={`u${nodes.length}`} className={`list-disc pl-5 space-y-1${nodes.length ? ' mt-2' : ''}`}>
+              {items.map((b, i) => (
+                <li key={i}>{inlineMd(b, `${bi}-u${nodes.length}-${i}`)}</li>
+              ))}
+            </ul>,
+          );
+        };
+        lines.forEach((l) => {
+          if (l.startsWith('- ')) {
+            flushPara();
+            bullets.push(l.slice(2));
+          } else {
+            flushBullets();
+            para.push(l);
+          }
+        });
+        flushPara();
+        flushBullets();
+        return (
+          <div key={bi} className={bi > 0 ? 'mt-3' : ''}>
+            {nodes}
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 const Giveaway = ({ onBack }: { onBack: () => void }) => {
@@ -311,12 +472,10 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             <Card className="bg-gradient-to-br from-amber-600/30 to-yellow-900/30 border-amber-500/40 p-6 mb-6">
               <div className="flex flex-col md:flex-row gap-6 items-center">
                 {giveaway.prize_image_url && (
-                  <img
-                    src={giveaway.prize_image_url}
+                  <PrizeImage
+                    key={giveaway.prize_image_url}
+                    url={giveaway.prize_image_url}
                     alt={giveaway.prize_description || giveaway.name}
-                    loading="lazy"
-                    className="w-40 h-40 object-contain rounded-xl bg-black/30 flex-shrink-0"
-                    draggable={false}
                   />
                 )}
                 <div className="flex-1 text-center md:text-left">
@@ -341,6 +500,8 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                   )}
                 </div>
               </div>
+
+              <GiveawayCountdown giveaway={giveaway} />
             </Card>
 
             {/* My entries (signed in) */}
@@ -453,7 +614,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
                   ))}
                 </ul>
                 {giveaway.announcement_md && (
-                  <p className="mt-4 text-yellow-100/90 whitespace-pre-line">{giveaway.announcement_md}</p>
+                  <MarkdownLite text={giveaway.announcement_md} className="mt-4 text-yellow-100/90" />
                 )}
               </Card>
             )}
@@ -462,7 +623,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             {giveaway.rules_md && (
               <Card className="bg-slate-800/40 border-slate-700 p-6">
                 <h3 className="text-lg font-semibold mb-2 text-slate-200">How to enter</h3>
-                <p className="text-slate-300 text-sm whitespace-pre-line">{giveaway.rules_md}</p>
+                <MarkdownLite text={giveaway.rules_md} className="text-slate-300 text-sm" />
               </Card>
             )}
           </>
