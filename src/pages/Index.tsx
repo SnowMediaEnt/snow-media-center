@@ -449,13 +449,6 @@ const Index = () => {
   // in the website-embedded demo (?demo=1).
   const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
   const giveawayOn = giveawayEnabled && !isDemo();
-  // If the flag flips off and the user was on the (now-removed) Giveaway card,
-  // drop back to Store (same pattern as Player above).
-  useEffect(() => {
-    if (!giveawayOn) {
-      setFocusedButton(b => (b === (playerEnabled ? 4 : 3) ? 2 : b));
-    }
-  }, [giveawayOn, playerEnabled]);
   // Active-giveaway detection for the home gift badge + first-open popup.
   // Session-cached, idle-deferred, snapshot-backed — no polling.
   const activeGiveaway = useActiveGiveaway(giveawayOn);
@@ -633,7 +626,7 @@ const Index = () => {
   const showEasterEggRef = useRef(showEasterEgg);
   const mediaBarEnabledRef = useRef(mediaBarEnabled);
   const playerEnabledRef = useRef(playerEnabled);
-  const giveawayOnRef = useRef(giveawayOn);
+  
   const giveawayBadgeOnRef = useRef(giveawayBadgeOn);
   const navigateToRef = useRef(navigateTo);
   const goBackRef = useRef(goBack);
@@ -649,7 +642,7 @@ const Index = () => {
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);
-  useEffect(() => { giveawayOnRef.current = giveawayOn; }, [giveawayOn]);
+  
   useEffect(() => { giveawayBadgeOnRef.current = giveawayBadgeOn; }, [giveawayBadgeOn]);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
   useEffect(() => { goBackRef.current = goBack; }, [goBack]);
@@ -730,9 +723,8 @@ const Index = () => {
       () => navigateToRef.current('store'),
     ];
     if (playerEnabled) list.push(() => navigateToRef.current('livetv'));
-    if (giveawayOn) list.push(() => navigateToRef.current('giveaway'));
     return list;
-  }, [playerEnabled, giveawayOn]);
+  }, [playerEnabled]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -828,7 +820,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = (playerEnabledRef.current ? 3 : 2) + (giveawayOnRef.current ? 1 : 0);
+      const maxButtons = playerEnabledRef.current ? 3 : 2;
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -912,8 +904,6 @@ const Index = () => {
             navigateToRef.current('store');
           } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
-          } else if (giveawayOnRef.current && focusedButton === (playerEnabledRef.current ? 4 : 3)) {
-            navigateToRef.current('giveaway');
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
             // Home gift badge
             try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
@@ -943,11 +933,8 @@ const Index = () => {
     if (playerEnabled) {
       list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
     }
-    if (giveawayOn) {
-      list.push({ icon: Gift, title: t('home.giveaway.title'), description: t('home.giveaway.description'), variant: 'gold' });
-    }
     return list;
-  }, [playerEnabled, giveawayOn, t]);
+  }, [playerEnabled, t]);
 
   const tagline = t('home.tagline');
   const adminLabel = t('common.admin');
