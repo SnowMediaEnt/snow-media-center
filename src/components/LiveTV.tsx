@@ -175,7 +175,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       (async () => {
         try {
           const res = await authenticateRouted(creds.username, creds.password);
-          if (!res.ok || !res.server || !res.creds) return;
+          // Expired/disabled/banned lines: sign-in stays refused, but the
+          // panel DID authenticate the account — so keep recording the TRUE
+          // state (fresh expDate/status) instead of bailing. This is what lets
+          // a renewal surface the moment the panel flips the line back active.
+          if (!res.ok && !(res.authedButBlocked && res.server && res.creds)) return;
+          if (!res.server || !res.creds) return;
           // Guard: bail if creds changed/cleared during the reconcile so we
           // don't clobber a fresh sign-out or account switch.
           const nowCreds = await loadCreds();

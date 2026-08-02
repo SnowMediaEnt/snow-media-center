@@ -566,6 +566,13 @@ export interface AuthProbeResult {
   info?: any;
   userInfo?: XtreamUserInfo;
   error?: string;
+  /**
+   * The panel authenticated the account but its status is expired/disabled/
+   * banned. Sign-in is still refused (ok:false + error), yet server/creds/
+   * userInfo are attached so background reconcile callers can record the TRUE
+   * account state (expiration/status) even while the line is blocked.
+   */
+  authedButBlocked?: boolean;
 }
 
 /** Authenticate against exactly one server routed by username format. */
@@ -618,7 +625,18 @@ export async function authenticateRouted(
     return { ok: true, server, creds, info, userInfo: ui };
   }
   if (authed && disabled) {
-    return { ok: false, error: 'Your subscription is ' + status + '. Please renew to keep watching.' };
+    // Sign-in stays refused (ok:false, same error message) — but the caller
+    // gets the full server/creds/userInfo so background reconcile can keep
+    // expiration state fresh and detect the moment the line flips back active.
+    return {
+      ok: false,
+      authedButBlocked: true,
+      server,
+      creds,
+      info,
+      userInfo: ui,
+      error: 'Your subscription is ' + status + '. Please renew to keep watching.',
+    };
   }
   return { ok: false, error: 'Invalid username or password.' };
 }
