@@ -1511,6 +1511,33 @@ export type Database = {
         }
         Relationships: []
       }
+      expiration_notices: {
+        Row: {
+          expiration_date: string | null
+          id: string
+          kind: string
+          panel_host: string
+          panel_username: string
+          sent_at: string
+        }
+        Insert: {
+          expiration_date?: string | null
+          id?: string
+          kind: string
+          panel_host: string
+          panel_username: string
+          sent_at?: string
+        }
+        Update: {
+          expiration_date?: string | null
+          id?: string
+          kind?: string
+          panel_host?: string
+          panel_username?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
       feature_flags: {
         Row: {
           enabled: boolean
