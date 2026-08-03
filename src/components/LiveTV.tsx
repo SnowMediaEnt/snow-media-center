@@ -587,6 +587,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <ExpirationNoticeDialog
             open={true}
             serverLabel={acctServerLabel}
+            username={playerAccount?.username ?? null}
             days={playerDays ?? 0}
             onDismiss={dismissExpNotice}
           />
@@ -840,6 +841,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         <ExpirationNoticeDialog
           open={true}
           serverLabel={acctServerLabel}
+          username={playerAccount?.username ?? null}
           days={playerDays ?? 0}
           onDismiss={dismissExpNotice}
         />

@@ -192,13 +192,26 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
           >
             <KeyRound className="w-4 h-4 mr-2" /> Change credentials
           </Button>
+          {showRenew && (
+            <Button
+              variant="white"
+              size="sm"
+              onClick={openRenew}
+              data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+                focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+              }`}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" /> Renew
+            </Button>
+          )}
           <Button
             variant="white"
             size="sm"
             onClick={onSignOut}
-            data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+            data-player-header-btn="" data-focused={focusIdx === signOutIdx ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+              focusIdx === signOutIdx ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
