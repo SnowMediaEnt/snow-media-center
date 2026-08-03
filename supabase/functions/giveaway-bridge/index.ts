@@ -221,6 +221,159 @@ Deno.serve(async (req) => {
       return json({ ok: true, awarded, matched: !!(userId || customerId), status });
     }
 
+    if (action === 'renewal-paid') {
+      // Fire-and-forget from the marketing site — NEVER 500 outward; failures
+      // still post to Discord and return 200 with ok:false + reason.
+      if (body.test === true) {
+        try {
+          const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
+          if (hook) {
+            await fetch(hook, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: '🧪 SMC bridge test OK — renewal channel is connected.' }),
+            });
+          }
+        } catch (err) {
+          console.error('[giveaway-bridge] renewal test discord threw:', err instanceof Error ? err.message : String(err));
+        }
+        return json({ ok: true, test: true });
+      }
+
+      const orderNumber = String(body.order_number || '').trim();
+      const total = Number(body.total) || 0;
+      const username = String(body.username || '').trim().toLowerCase();
+      const server = body.server ? String(body.server).trim() : null;
+      const email = body.email ? String(body.email).trim().toLowerCase() : null;
+      // deno-lint-ignore no-explicit-any
+      const items: any[] = Array.isArray(body.items) ? body.items : [];
+      const itemsDesc = items
+        .map((it) => `${String(it?.name || 'item')} x${Math.max(1, Number(it?.quantity || 1) || 1)}`)
+        .join(', ') || '(no items)';
+
+      // Panel host hints for server-label filtering.
+      const HOST_BY_LABEL: Record<string, string> = { vibez: 'strmz.xyz', dreamstreams: 'dstreams.xyz:8080' };
+      const hostHint = server ? HOST_BY_LABEL[server.toLowerCase()] : undefined;
+      // Escape ilike pattern metacharacters so usernames match literally.
+      const escLike = (s: string) => s.replace(/[\\%_]/g, (m) => '\\' + m);
+
+      let matched = false;
+      let reason = '';
+      let customer: { id: string; name: string | null; email: string | null } | null = null;
+      let serviceId: string | null = null;
+
+      try {
+        if (username) {
+          // (a) player_signins by panel_username (+ panel_host when server given)
+          let sq = admin
+            .from('player_signins')
+            .select('matched_customer_id')
+            .ilike('panel_username', escLike(username))
+            .order('last_seen_at', { ascending: false })
+            .limit(5);
+          if (hostHint) sq = sq.ilike('panel_host', `%${escLike(hostHint)}%`);
+          const { data: signins } = await sq;
+          const cid = (signins || []).map((s) => s.matched_customer_id).find(Boolean);
+          if (cid) {
+            const { data: c } = await admin.from('customers').select('id,name,email').eq('id', cid).maybeSingle();
+            if (c) customer = c;
+          }
+
+          // (b) customer_services by lower(panel_username) — also yields service_id
+          let svcQ = admin
+            .from('customer_services')
+            .select('id,customer_id')
+            .ilike('panel_username', escLike(username))
+            .order('expiration_date', { ascending: false })
+            .limit(5);
+          if (hostHint) svcQ = svcQ.ilike('panel_host', `%${escLike(hostHint)}%`);
+          const { data: svcs } = await svcQ;
+          const svc = (svcs || [])[0];
+          if (svc) {
+            serviceId = svc.id;
+            if (!customer && svc.customer_id) {
+              const { data: c } = await admin.from('customers').select('id,name,email').eq('id', svc.customer_id).maybeSingle();
+              if (c) customer = c;
+            }
+          }
+        }
+
+        // (c) customers by lower(email) when email present
+        if (!customer && email) {
+          const { data: custs } = await admin.from('customers').select('id,name,email').ilike('email', escLike(email)).limit(2);
+          if (custs && custs.length === 1) customer = custs[0];
+        }
+
+        matched = !!customer;
+        if (customer) {
+          const { error: payErr } = await admin.from('customer_payments').insert({
+            customer_id: customer.id,
+            service_id: serviceId,
+            amount: total,
+            method: 'paypal_site',
+            paid_at: new Date().toISOString(),
+            notes: `Site renewal — order ${orderNumber} — ${username}`,
+          });
+          if (payErr) {
+            reason = 'payment_insert_failed';
+            console.error('[giveaway-bridge] renewal-paid insert:', payErr.message);
+          }
+        } else {
+          reason = 'no_crm_match';
+        }
+      } catch (err) {
+        reason = 'resolution_error';
+        console.error('[giveaway-bridge] renewal-paid threw:', err instanceof Error ? err.message : String(err));
+      }
+
+      // ALWAYS post to Discord, matched or not.
+      try {
+        const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
+        if (hook) {
+          const who = customer ? (customer.name || customer.email || customer.id) : '⚠️ no CRM match';
+          await fetch(hook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content:
+                `💰 RENEWAL PAID — ${username} (${server ?? 'unknown server'}) — order ${orderNumber} — $${total}\n` +
+                `Customer: ${who}\n` +
+                `Items: ${itemsDesc}\n` +
+                `→ Extend the line on the panel; tomorrow's digest will confirm the new date.`,
+            }),
+          });
+        }
+      } catch (err) {
+        console.error('[giveaway-bridge] renewal discord threw:', err instanceof Error ? err.message : String(err));
+      }
+
+      // Fire-and-forget admin push (same pattern as admin-notify).
+      try {
+        const internal = Deno.env.get('INTERNAL_FN_SECRET');
+        const supaUrl = Deno.env.get('SUPABASE_URL');
+        if (internal && supaUrl) {
+          await fetch(`${supaUrl}/functions/v1/send-push`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-secret': internal,
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') ?? ''}`,
+            },
+            body: JSON.stringify({
+              title: 'Renewal paid',
+              body: `${username} — $${total} — order ${orderNumber}`,
+              tag: `renewal-${orderNumber}`,
+            }),
+          });
+        }
+      } catch (err) {
+        console.error('[giveaway-bridge] renewal push threw:', err instanceof Error ? err.message : String(err));
+      }
+
+      if (reason) return json({ ok: false, matched, reason });
+      return json({ ok: true, matched: true });
+    }
+
     if (action === 'admin-notify') {
       // Called by the trg_giveaway_pending_notify trigger via pg_net. Never throws.
       const entryId = String(body.entry_id || '');
