@@ -1,40 +1,71 @@
-import { memo, useEffect, useRef } from 'react';
-import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
+import { isDemo } from '@/lib/demoMode';
+import RenewQR from './RenewQR';
 
 interface Props {
   open: boolean;
   serverLabel: string;
   days: number;          // <0 = expired; 0..7 = warning window (0 = today)
+  username?: string | null;
   onDismiss: () => void;
 }
 
-const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Props) => {
+const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDismiss }: Props) => {
+  const DEMO = isDemo();
+  const showRenew = !DEMO && !!username;
+  const BTN_COUNT = showRenew ? 2 : 1; // [Renew now?, OK, got it]
+  const [view, setView] = useState<'notice' | 'qr'>('notice');
+  const [focusIdx, setFocusIdx] = useState(0);
+  const focusIdxRef = useRef(focusIdx);
+  useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
   const okRef = useRef<HTMLButtonElement>(null);
   const expired = days < 0;
+
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'player_expiration', action: 'ok', expired, days }); } catch { void 0; }
     onDismiss();
   };
 
+  const openRenew = () => {
+    if (!DEMO) {
+      try { trackEvent('renew_qr_shown', 'player', { server: serverLabel, days_left: days }); } catch { /* ignore */ }
+    }
+    setView('qr');
+  };
+
   useEffect(() => {
-    if (open) setTimeout(() => okRef.current?.focus(), 50);
-  }, [open]);
+    if (open) {
+      setView('notice');
+      setFocusIdx(0);
+      setTimeout(() => { if (!showRenew) okRef.current?.focus(); }, 50);
+    }
+  }, [open, showRenew]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDismiss();
+      if (view === 'qr') return; // RenewQR owns the keyboard
+      const isNav = ['ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Backspace'].includes(e.key)
+        || e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23;
+      if (!isNav) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
+      else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
+      else if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
+        if (showRenew && focusIdxRef.current === 0) openRenew();
+        else handleDismiss();
+      } else {
+        handleDismiss(); // Back / Escape dismisses from the notice view
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [open, onDismiss]);
+  }, [open, view, BTN_COUNT, showRenew, onDismiss, days, expired, serverLabel, DEMO]);
 
   const title = expired
     ? `Your ${serverLabel} subscription has EXPIRED`
@@ -47,6 +78,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
     : 'Reach out to Snow Media to renew and avoid losing access. You can renew through the store or by contacting support.';
 
   const Icon = expired ? ShieldAlert : AlertTriangle;
+  const focusedCls = 'ring-4 ring-brand-ice scale-105';
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
@@ -56,24 +88,43 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, onDismiss }: Pro
         <div className={`px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 ${expired ? 'bg-gradient-to-r from-red-600/40 via-red-500/25 to-red-600/40' : 'bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30'}`}>
           <Icon className={`w-6 h-6 drop-shadow ${expired ? 'text-red-300' : 'text-brand-gold'}`} />
           <h2 className="text-2xl font-bold text-white leading-tight tracking-tight">
-            {title}
+            {view === 'qr' ? 'Renew your subscription' : title}
           </h2>
         </div>
 
-        <p className="px-6 py-5 text-base font-medium text-slate-100 leading-relaxed">
-          {body}
-        </p>
+        {view === 'qr' && username ? (
+          <div className="px-6 py-6">
+            <RenewQR username={username} serverLabel={serverLabel} onBack={() => setView('notice')} />
+          </div>
+        ) : (
+          <>
+            <p className="px-6 py-5 text-base font-medium text-slate-100 leading-relaxed">
+              {body}
+            </p>
 
-        <div className="px-6 py-4 border-t border-brand-gold/30 bg-slate-950/60 flex justify-center">
-          <Button
-            ref={okRef}
-            variant="gold"
-            onClick={handleDismiss}
-            className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 scale-100 focus:ring-brand-ice focus:scale-105 transition"
-          >
-            OK, got it
-          </Button>
-        </div>
+            <div className="px-6 py-4 border-t border-brand-gold/30 bg-slate-950/60 flex justify-center gap-3">
+              {showRenew && (
+                <Button
+                  variant="gold"
+                  onClick={openRenew}
+                  data-focused={focusIdx === 0 ? 'true' : 'false'}
+                  className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 0 ? focusedCls : ''}`}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" /> Renew now
+                </Button>
+              )}
+              <Button
+                ref={okRef}
+                variant={showRenew ? 'white' : 'gold'}
+                onClick={handleDismiss}
+                data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
+                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
+              >
+                OK, got it
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

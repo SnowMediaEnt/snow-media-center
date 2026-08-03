@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
+import { trackEvent } from '@/lib/analytics';
+import { isDemo } from '@/lib/demoMode';
+import RenewQR from './RenewQR';
 
 interface Props {
   onBack: () => void;
@@ -34,14 +37,25 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
 const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
-  const BTN_COUNT = 4;
+  // Renew QR is available at ANY days-left value (people renew early) but
+  // never in demo mode.
+  const showRenew = !isDemo() && !!account?.username;
+  const BTN_COUNT = showRenew ? 5 : 4; // Back / Show pwd / Change creds / Renew? / Sign out
+  const signOutIdx = BTN_COUNT - 1;
+
+  const openRenew = () => {
+    try { trackEvent('renew_qr_shown', 'player', { server: account?.serverLabel || '', days_left: days }); } catch { /* ignore */ }
+    setShowQR(true);
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (showQR) return; // RenewQR owns the keyboard
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -62,12 +76,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
         if (i === 0) onBack();
         else if (i === 1) setShowPwd(v => !v);
         else if (i === 2) onChangeCredentials();
-        else if (i === 3) onSignOut();
+        else if (showRenew && i === 3) openRenew();
+        else if (i === signOutIdx) onSignOut();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials]);
+  }, [onBack, onSignOut, onChangeCredentials, showQR, BTN_COUNT, showRenew, signOutIdx]);
 
   if (!account) {
     return (
@@ -77,6 +92,16 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
           <Button variant="white" onClick={onBack}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (showQR) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white bg-black/70 p-6">
+        <Card className="bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-8 shadow-xl">
+          <RenewQR username={account.username} serverLabel={account.serverLabel} onBack={() => setShowQR(false)} />
         </Card>
       </div>
     );
@@ -167,13 +192,26 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
           >
             <KeyRound className="w-4 h-4 mr-2" /> Change credentials
           </Button>
+          {showRenew && (
+            <Button
+              variant="white"
+              size="sm"
+              onClick={openRenew}
+              data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+                focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+              }`}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" /> Renew
+            </Button>
+          )}
           <Button
             variant="white"
             size="sm"
             onClick={onSignOut}
-            data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
+            data-player-header-btn="" data-focused={focusIdx === signOutIdx ? "true" : "false"}
             className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
+              focusIdx === signOutIdx ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
             }`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
