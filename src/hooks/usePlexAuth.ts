@@ -3,7 +3,7 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
-  getPlexIdentity, bumpPlexImageEpoch,
+  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches,
 } from '@/lib/plex';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
@@ -172,7 +172,11 @@ export function usePlexAuth() {
   const signOut = useCallback(async () => {
     clearPoll();
     startingRef.current = false;
-    await clearPlexToken();
+    await clearPlexToken(); // also removes the saved server (token + server prefs)
+    // Drop in-memory catalog caches so the next account (even on the same
+    // server base URL) never renders the previous account's rows/posters.
+    clearPlexCaches();
+    bumpPlexImageEpoch(); // invalidate any queued/in-flight poster URLs
     connBaseRef.current = null;
     setAccountToken(null);
     setConn(null); setPinCode(null); setError(null); setJustLinked(false); setStatus('signed-out');
