@@ -430,13 +430,6 @@ Deno.serve(async (req) => {
           });
         }
 
-        await propagateToCustomerServices(
-          admin,
-          row.panel_host,
-          row.panel_username,
-          newExp,
-          xtreamStatus,
-        );
       } else if (result.kind === 'auth_failed') {
         patch = {
           last_refreshed_at: nowIso,
