@@ -454,6 +454,11 @@ Deno.serve(async (req) => {
           `[refresh-player-signins] update failed for ${row.panel_host}/${row.panel_username}:`,
           updErr.message,
         );
+      } else if (result.kind === 'ok') {
+        // Link/merge into CRM + propagate fresh panel state to
+        // customer_services. Runs AFTER the patch lands because the linker
+        // reads player_signins. Single code path shared with capture.
+        await linkSigninToCrm(admin, row);
       }
 
       if (i < batch.length - 1) {
