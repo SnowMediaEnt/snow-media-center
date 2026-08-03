@@ -350,6 +350,15 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
     setConfirmSignOut(false);
   }, []);
 
+  // Confirmed sign-out: reuse the existing usePlexAuth signOut path
+  // (clearPlexToken → clears token + saved server + catalog caches) — no
+  // second token-clearing path. Analytics suppressed centrally in DEMO.
+  const doSignOut = useCallback(() => {
+    disarmConfirm();
+    try { trackEvent('plex_signout', 'player', {}); } catch { /* ignore */ }
+    onSignOutRef.current();
+  }, [disarmConfirm]);
+
   useEffect(() => () => { if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current); }, []);
 
   useEffect(() => {
