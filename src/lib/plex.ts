@@ -288,9 +288,20 @@ export interface PlexLibrary { key: string; title: string; type: string; } // ty
 export async function getPlexLibraries(base: string, token: string): Promise<PlexLibrary[]> {
   const data = await plexReq<{ MediaContainer?: { Directory?: Array<Record<string, unknown>> } }>('GET', `${base}/library/sections`, token);
   const dirs = data?.MediaContainer?.Directory || [];
-  return dirs
-    .filter((d) => d.type === 'movie' || d.type === 'show')
-    .map((d) => ({ key: String(d.key), title: String(d.title || 'Library'), type: String(d.type) }));
+  // Dedupe by section key: shared/provider servers can return the SAME
+  // section more than once in /library/sections (one Directory per share
+  // path), which made the Settings tab list repeat libraries "endlessly"
+  // and duplicated the tab bar. Keep the first occurrence.
+  const seen = new Set<string>();
+  const out: PlexLibrary[] = [];
+  for (const d of dirs) {
+    if (d.type !== 'movie' && d.type !== 'show') continue;
+    const key = String(d.key);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, title: String(d.title || 'Library'), type: String(d.type) });
+  }
+  return out;
 }
 
 export interface PlexItem {
@@ -882,4 +893,12 @@ export function getCachedHub(base: string, path: string): PlexItem[] | null {
 }
 export function setCachedHub(base: string, path: string, items: PlexItem[]): void {
   _hubCache.set(`${base}|${path}`, { items, ts: Date.now() });
+}
+
+/** Wipe ALL in-memory catalog caches (hub rails + library pages). Called on
+ *  sign-out so the next Plex account never sees the previous account's rows
+ *  when both reach the same server base URL. */
+export function clearPlexCaches(): void {
+  _libraryCache.clear();
+  _hubCache.clear();
 }
