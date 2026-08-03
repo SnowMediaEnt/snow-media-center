@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
+import { trackEvent } from '@/lib/analytics';
+import { isDemo } from '@/lib/demoMode';
+import RenewQR from './RenewQR';
 
 interface Props {
   onBack: () => void;
@@ -34,11 +37,21 @@ interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: b
 const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Props) => {
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [focusIdx, setFocusIdx] = useState(1);
   const focusIdxRef = useRef(focusIdx);
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
 
-  const BTN_COUNT = 4;
+  // Renew QR is available at ANY days-left value (people renew early) but
+  // never in demo mode.
+  const showRenew = !isDemo() && !!account?.username;
+  const BTN_COUNT = showRenew ? 5 : 4; // Back / Show pwd / Change creds / Renew? / Sign out
+  const signOutIdx = BTN_COUNT - 1;
+
+  const openRenew = () => {
+    try { trackEvent('renew_qr_shown', 'player', { server: account?.serverLabel || '', days_left: days }); } catch { /* ignore */ }
+    setShowQR(true);
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
