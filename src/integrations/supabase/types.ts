@@ -3399,6 +3399,7 @@ export type Database = {
         Args: { p_device_id: string; p_reason?: string }
         Returns: Json
       }
+      run_refresh_player_signins: { Args: never; Returns: undefined }
       settle_free_ai: {
         Args: {
           p_actual_cost: number
