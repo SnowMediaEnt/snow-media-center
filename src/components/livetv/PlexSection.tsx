@@ -350,6 +350,15 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
     setConfirmSignOut(false);
   }, []);
 
+  // Confirmed sign-out: reuse the existing usePlexAuth signOut path
+  // (clearPlexToken → clears token + saved server + catalog caches) — no
+  // second token-clearing path. Analytics suppressed centrally in DEMO.
+  const doSignOut = useCallback(() => {
+    disarmConfirm();
+    try { trackEvent('plex_signout', 'player', {}); } catch { /* ignore */ }
+    onSignOutRef.current();
+  }, [disarmConfirm]);
+
   useEffect(() => () => { if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current); }, []);
 
   useEffect(() => {
@@ -369,13 +378,13 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
         else setCursor(c - 1);
         if (confirmRef.current) disarmConfirm();
       } else if (e.key === 'ArrowDown') {
-        if (c < total - 1) setCursor(c + 1);
+        // Clamp at the last row — house style is clamped ends, never wrap.
+        setCursor(Math.min(c + 1, total - 1));
         if (confirmRef.current) disarmConfirm();
       } else if (e.key === 'Enter' || e.key === ' ') {
         if (c === signOutIdx) {
           if (confirmRef.current) {
-            disarmConfirm();
-            onSignOutRef.current();
+            doSignOut();
           } else {
             setConfirmSignOut(true);
             if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
@@ -389,7 +398,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, disarmConfirm]);
+  }, [isActive, disarmConfirm, doSignOut]);
 
   const accountLine = account?.username || account?.email;
   const ownedLine = isProviderServer(serverName) ? 'Provider server' : owned === true ? 'You own this server' : owned === false ? 'Shared with you' : '';
@@ -436,7 +445,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
             ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
             onClick={() => {
               setCursor(signOutIdx);
-              if (confirmSignOut) { disarmConfirm(); onSignOut(); }
+              if (confirmSignOut) { doSignOut(); }
               else {
                 setConfirmSignOut(true);
                 if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
