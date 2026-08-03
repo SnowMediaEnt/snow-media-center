@@ -223,38 +223,26 @@ async function fetchPanel(row: Row): Promise<
   }
 }
 
-// Heal public.customer_services for the same line: panel_username matched
-// case-insensitively, and panel_host must match when it is set on the
-// customer_services row (stored there WITH scheme, unlike player_signins).
-async function propagateToCustomerServices(
+// CRM linking + customer_services propagation live in the SECURITY DEFINER
+// public.link_player_signin_to_crm — ONE code path shared with
+// capture-player-signin so the two never disagree. Called after the row's
+// patch lands, since the linker reads fresh state from player_signins.
+async function linkSigninToCrm(
   admin: ReturnType<typeof createClient>,
-  host: string,
-  username: string,
-  expirationDate: string | null,
-  xtreamStatus: string | null,
+  row: Row,
 ): Promise<void> {
   try {
-    const hostFilter = [
-      'panel_host.is.null',
-      `panel_host.eq.http://${host}`,
-      `panel_host.eq.https://${host}`,
-    ].join(',');
-    const { error } = await admin
-      .from('customer_services')
-      .update({
-        expiration_date: expirationDate,
-        renewal_status: renewalFromStatus(xtreamStatus ?? ''),
-      })
-      .ilike('panel_username', escapeIlike(username))
-      .or(hostFilter);
+    const { error } = await admin.rpc('link_player_signin_to_crm', {
+      p_signin_id: row.id,
+    });
     if (error) {
       console.warn(
-        `[refresh-player-signins] customer_services update error for ${host}/${username}:`,
+        `[refresh-player-signins] crm link failed for ${row.panel_host}/${row.panel_username}:`,
         error.message,
       );
     }
   } catch (e) {
-    console.warn('[refresh-player-signins] customer_services update threw:', e);
+    console.warn('[refresh-player-signins] crm link threw:', e);
   }
 }
 
