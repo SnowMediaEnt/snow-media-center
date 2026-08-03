@@ -11,10 +11,11 @@
 //   long-expired line that renews on the panel must still be picked up. Up to
 //   300 rows per invocation, processed in batches of 50, round-robin via
 //   last_refreshed_at ascending.
-// - Propagation: each successfully refreshed row also updates matching
-//   public.customer_services rows (panel_username case-insensitive; panel_host
-//   matched with http/https scheme variants or NULL) so the Hub's Renewal
-//   Center heals automatically.
+// - Propagation + CRM linking: each successfully refreshed row runs through
+//   public.link_player_signin_to_crm (SECURITY DEFINER) — the same single code
+//   path capture-player-signin uses — which matches/creates customers, links
+//   matched_customer_id, and upserts customer_services (case-insensitive
+//   panel_username, panel_host scheme variants, no-regress expiration).
 // - Classification + exactly-once digest: renewed / expiring / expired
 //   transitions are recorded in public.expiration_notices (ON CONFLICT DO
 //   NOTHING); ONLY newly-inserted rows go into a single Discord digest posted
@@ -82,16 +83,6 @@ const truthyAuth = (raw: unknown): boolean => {
   if (typeof raw === 'string') return raw === '1' || raw.toLowerCase() === 'true';
   return false;
 };
-
-// Same renewal_status mapping the app uses (src/lib/playerAccountSync.ts).
-const renewalFromStatus = (status: string): string => {
-  const s = (status || '').toLowerCase();
-  if (s === 'active' || s === 'trial') return 'active';
-  if (!s) return 'active';
-  return 'expired';
-};
-
-const escapeIlike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -232,38 +223,26 @@ async function fetchPanel(row: Row): Promise<
   }
 }
 
-// Heal public.customer_services for the same line: panel_username matched
-// case-insensitively, and panel_host must match when it is set on the
-// customer_services row (stored there WITH scheme, unlike player_signins).
-async function propagateToCustomerServices(
+// CRM linking + customer_services propagation live in the SECURITY DEFINER
+// public.link_player_signin_to_crm — ONE code path shared with
+// capture-player-signin so the two never disagree. Called after the row's
+// patch lands, since the linker reads fresh state from player_signins.
+async function linkSigninToCrm(
   admin: ReturnType<typeof createClient>,
-  host: string,
-  username: string,
-  expirationDate: string | null,
-  xtreamStatus: string | null,
+  row: Row,
 ): Promise<void> {
   try {
-    const hostFilter = [
-      'panel_host.is.null',
-      `panel_host.eq.http://${host}`,
-      `panel_host.eq.https://${host}`,
-    ].join(',');
-    const { error } = await admin
-      .from('customer_services')
-      .update({
-        expiration_date: expirationDate,
-        renewal_status: renewalFromStatus(xtreamStatus ?? ''),
-      })
-      .ilike('panel_username', escapeIlike(username))
-      .or(hostFilter);
+    const { error } = await admin.rpc('link_player_signin_to_crm', {
+      p_signin_id: row.id,
+    });
     if (error) {
       console.warn(
-        `[refresh-player-signins] customer_services update error for ${host}/${username}:`,
+        `[refresh-player-signins] crm link failed for ${row.panel_host}/${row.panel_username}:`,
         error.message,
       );
     }
   } catch (e) {
-    console.warn('[refresh-player-signins] customer_services update threw:', e);
+    console.warn('[refresh-player-signins] crm link threw:', e);
   }
 }
 
@@ -451,13 +430,6 @@ Deno.serve(async (req) => {
           });
         }
 
-        await propagateToCustomerServices(
-          admin,
-          row.panel_host,
-          row.panel_username,
-          newExp,
-          xtreamStatus,
-        );
       } else if (result.kind === 'auth_failed') {
         patch = {
           last_refreshed_at: nowIso,
@@ -482,6 +454,11 @@ Deno.serve(async (req) => {
           `[refresh-player-signins] update failed for ${row.panel_host}/${row.panel_username}:`,
           updErr.message,
         );
+      } else if (result.kind === 'ok') {
+        // Link/merge into CRM + propagate fresh panel state to
+        // customer_services. Runs AFTER the patch lands because the linker
+        // reads player_signins. Single code path shared with capture.
+        await linkSigninToCrm(admin, row);
       }
 
       if (i < batch.length - 1) {

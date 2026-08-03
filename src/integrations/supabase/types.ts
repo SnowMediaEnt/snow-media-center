@@ -3354,6 +3354,10 @@ export type Database = {
         Args: { p_device_id: string; p_label?: string }
         Returns: Json
       }
+      link_player_signin_to_crm: {
+        Args: { p_signin_id: string }
+        Returns: Json
+      }
       list_tenant_members: {
         Args: never
         Returns: {
