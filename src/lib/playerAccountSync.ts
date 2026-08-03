@@ -37,11 +37,14 @@ export async function syncPlayerAccountToCloud(
   try {
     const customerId = await ensureCustomerRow(userId, email);
     const service_name = serviceNameForServer(account.serverLabel);
+    // The DB trigger lower(trims) panel_username; sending it pre-normalized keeps
+    // the race-recovery lookup below an exact match.
+    const normalizedUsername = account.username.trim().toLowerCase();
     const payload = {
       customer_id: customerId,
       service_type: 'IPTV',
       service_name,
-      panel_username: account.username,
+      panel_username: normalizedUsername,
       panel_password: account.password,
       panel_host: account.host,
       expiration_date: expIsoDate(account.expDate),
@@ -49,6 +52,19 @@ export async function syncPlayerAccountToCloud(
       is_trial: account.isTrial,
       renewal_status: renewalFromStatus(account.status),
     };
+
+    // Race-safe against customer_services_customer_panel_key (partial unique
+    // index on (customer_id, panel_username)). PostgREST upsert cannot target a
+    // partial index, so keep select-then-write but convert a unique-violation
+    // (lost race with the concurrent SQL linker) into an update of the winning
+    // row — a race must never produce a second row.
+    const isUniqueViolation = (e: { code?: string } | null) => e?.code === '23505';
+    const updateConflictingRow = () =>
+      supabase
+        .from('customer_services')
+        .update(payload)
+        .eq('customer_id', customerId)
+        .eq('panel_username', normalizedUsername);
 
     const { data: existing } = await supabase
       .from('customer_services')
@@ -58,9 +74,11 @@ export async function syncPlayerAccountToCloud(
       .maybeSingle();
 
     if (existing?.id) {
-      await supabase.from('customer_services').update(payload).eq('id', existing.id);
+      const { error } = await supabase.from('customer_services').update(payload).eq('id', existing.id);
+      if (isUniqueViolation(error)) await updateConflictingRow();
     } else {
-      await supabase.from('customer_services').insert(payload);
+      const { error } = await supabase.from('customer_services').insert(payload);
+      if (isUniqueViolation(error)) await updateConflictingRow();
     }
 
     try { window.dispatchEvent(new CustomEvent('userServicesRefresh')); } catch { /* ignore */ }
