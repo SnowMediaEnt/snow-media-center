@@ -11,10 +11,11 @@
 //   long-expired line that renews on the panel must still be picked up. Up to
 //   300 rows per invocation, processed in batches of 50, round-robin via
 //   last_refreshed_at ascending.
-// - Propagation: each successfully refreshed row also updates matching
-//   public.customer_services rows (panel_username case-insensitive; panel_host
-//   matched with http/https scheme variants or NULL) so the Hub's Renewal
-//   Center heals automatically.
+// - Propagation + CRM linking: each successfully refreshed row runs through
+//   public.link_player_signin_to_crm (SECURITY DEFINER) — the same single code
+//   path capture-player-signin uses — which matches/creates customers, links
+//   matched_customer_id, and upserts customer_services (case-insensitive
+//   panel_username, panel_host scheme variants, no-regress expiration).
 // - Classification + exactly-once digest: renewed / expiring / expired
 //   transitions are recorded in public.expiration_notices (ON CONFLICT DO
 //   NOTHING); ONLY newly-inserted rows go into a single Discord digest posted
@@ -82,16 +83,6 @@ const truthyAuth = (raw: unknown): boolean => {
   if (typeof raw === 'string') return raw === '1' || raw.toLowerCase() === 'true';
   return false;
 };
-
-// Same renewal_status mapping the app uses (src/lib/playerAccountSync.ts).
-const renewalFromStatus = (status: string): string => {
-  const s = (status || '').toLowerCase();
-  if (s === 'active' || s === 'trial') return 'active';
-  if (!s) return 'active';
-  return 'expired';
-};
-
-const escapeIlike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
