@@ -55,6 +55,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (showQR) return; // RenewQR owns the keyboard
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -75,12 +76,13 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
         if (i === 0) onBack();
         else if (i === 1) setShowPwd(v => !v);
         else if (i === 2) onChangeCredentials();
-        else if (i === 3) onSignOut();
+        else if (showRenew && i === 3) openRenew();
+        else if (i === signOutIdx) onSignOut();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials]);
+  }, [onBack, onSignOut, onChangeCredentials, showQR, BTN_COUNT, showRenew, signOutIdx]);
 
   if (!account) {
     return (
@@ -90,6 +92,16 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
           <Button variant="white" onClick={onBack}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (showQR) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white bg-black/70 p-6">
+        <Card className="bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-8 shadow-xl">
+          <RenewQR username={account.username} serverLabel={account.serverLabel} onBack={() => setShowQR(false)} />
         </Card>
       </div>
     );
