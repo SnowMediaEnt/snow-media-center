@@ -11,6 +11,7 @@ import {
   Brain,
   MessageSquare,
   GraduationCap,
+  MonitorSmartphone,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
@@ -32,6 +33,7 @@ const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'
 const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
 const HowToGuide = lazy(() => import('@/components/HowToGuide'));
+const RemoteSupport = lazy(() => import('@/components/RemoteSupport'));
 
 interface SupportProps {
   onBack: () => void;
@@ -40,7 +42,7 @@ interface SupportProps {
 }
 
 type Tab = 'help' | 'ai' | 'community';
-type HelpView = 'menu' | 'videos' | 'tickets';
+type HelpView = 'menu' | 'videos' | 'tickets' | 'remote';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
@@ -184,7 +186,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     'help-speedtest': { up: 'help-howto', down: 'help-guide' },
     'help-guide': { up: 'help-speedtest', down: 'help-videos' },
     'help-videos': { up: 'help-guide', down: 'help-tickets' },
-    'help-tickets': { up: 'help-videos' },
+      'help-tickets': { up: 'help-videos', down: 'help-remote' },
+      'help-remote': { up: 'help-tickets' },
   }), [tab, focusIntoChild]);
 
   // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
@@ -296,6 +299,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return (
       <Suspense fallback={null}>
         <SupportTicketSystem onBack={() => setHelpView('menu')} />
+      </Suspense>
+    );
+  }
+  if (tab === 'help' && helpView === 'remote') {
+    return (
+      <Suspense fallback={null}>
+        <RemoteSupport
+          onBack={() => setHelpView('menu')}
+          onOpenTickets={() => setHelpView('tickets')}
+        />
       </Suspense>
     );
   }
@@ -432,6 +445,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 </span>
                 <span className="text-sm text-orange-100 justify-self-end">
                   {unreadTicketCount > 0 ? 'New reply from Support' : 'Contact Snow Media Support'}
+                </span>
+              </Button>
+              <Button
+                onClick={() => setHelpView('remote')}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-remote"
+                className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+              >
+                <MonitorSmartphone className="w-7 h-7 justify-self-center" />
+                <span className="text-xl font-medium truncate">Remote Access</span>
+                <span className="text-sm text-rose-100 justify-self-end">
+                  A technician fixes your box live — $25
                 </span>
               </Button>
 

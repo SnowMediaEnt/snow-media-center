@@ -11,6 +11,8 @@
 //   my-entries     (internal) {email} -> entries + total for newest giveaway
 //   claim-facebook (internal) {email, fb_name, review_url, screenshot_url}
 //   site-order     (internal) {order_number, email, items:[{kind,name,quantity}]}
+//   renewal-paid   (internal) {order_number, total, username, server, email}
+//   support-session-paid (internal) {ref, order_number, total, email}
 //   admin-notify   (internal) {entry_id} -> Discord + web push to admins
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -372,6 +374,92 @@ Deno.serve(async (req) => {
 
       if (reason) return json({ ok: false, matched, reason });
       return json({ ok: true, matched: true });
+    }
+
+    if (action === 'support-session-paid') {
+      // snowmediaent.com checkout webhook for the $25 Remote Access session.
+      // { ref, order_number, total, email } — ref is the remote_support_requests id.
+      const ref = String(body.ref || '').trim();
+      const orderNumber = String(body.order_number || '').trim();
+      const total = Number(body.total) || 0;
+      const email = body.email ? String(body.email).trim().toLowerCase() : '';
+      if (!ref) return json({ ok: false, error: 'missing_ref' }, 400);
+
+      // Only flip pending_payment -> paid: unknown refs and duplicate webhook
+      // deliveries are ignored quietly (no notify spam on retries).
+      const { data: row, error: upErr } = await admin
+        .from('remote_support_requests')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          order_number: orderNumber || null,
+        })
+        .eq('id', ref)
+        .eq('status', 'pending_payment')
+        .select('id, issue, contact')
+        .maybeSingle();
+      if (upErr) {
+        console.error('[giveaway-bridge] support-session-paid update:', upErr.message);
+        return json({ ok: false, error: 'update_failed' });
+      }
+      if (!row) return json({ ok: true, skipped: 'unknown_ref' });
+
+      // Discord ping (tickets hook first, main hook fallback — same as notify-ticket).
+      let discord_status: number | string = 'skipped';
+      try {
+        const hook = Deno.env.get('DISCORD_WEBHOOK_URL_TICKETS') || Deno.env.get('DISCORD_WEBHOOK_URL');
+        if (!hook) {
+          discord_status = 'no_webhook';
+        } else {
+          const res = await fetch(hook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content:
+                `🛠️ REMOTE SUPPORT PAID — ${email || 'unknown email'} — $${total} — order ${orderNumber || 'n/a'}\n` +
+                `Issue: ${(row.issue || '').slice(0, 300)}\n` +
+                `Contact: ${row.contact || 'n/a'}\n` +
+                `Ref: ${ref}\n` +
+                `→ Open the Hub → Support → Remote Requests, then start the session from the Support app.`,
+            }),
+          });
+          discord_status = res.status;
+        }
+      } catch (err) {
+        discord_status = 'threw';
+        console.error('[giveaway-bridge] support discord threw:', err instanceof Error ? err.message : String(err));
+      }
+
+      // Fire-and-forget admin push (same pattern as admin-notify).
+      let push_status: number | string = 'skipped';
+      try {
+        const internal = Deno.env.get('INTERNAL_FN_SECRET');
+        const supaUrl = Deno.env.get('SUPABASE_URL');
+        if (!internal || !supaUrl) {
+          push_status = 'no_config';
+        } else {
+          const res = await fetch(`${supaUrl}/functions/v1/send-push`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-secret': internal,
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') ?? ''}`,
+            },
+            body: JSON.stringify({
+              title: '🛠️ Remote Support paid',
+              body: `${email || 'A customer'} — $${total} — order ${orderNumber || 'n/a'}`,
+              tag: `remote-support-${ref}`,
+            }),
+          });
+          push_status = res.status;
+        }
+      } catch (err) {
+        push_status = 'threw';
+        console.error('[giveaway-bridge] support push threw:', err instanceof Error ? err.message : String(err));
+      }
+
+      console.log(`[giveaway-bridge] support-session-paid ref=${ref} discord=${discord_status} push=${push_status}`);
+      return json({ ok: true, discord_status, push_status });
     }
 
     if (action === 'admin-notify') {
