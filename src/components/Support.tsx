@@ -184,7 +184,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     'help-speedtest': { up: 'help-howto', down: 'help-guide' },
     'help-guide': { up: 'help-speedtest', down: 'help-videos' },
     'help-videos': { up: 'help-guide', down: 'help-tickets' },
-    'help-tickets': { up: 'help-videos' },
+      'help-tickets': { up: 'help-videos', down: 'help-remote' },
+      'help-remote': { up: 'help-tickets' },
   }), [tab, focusIntoChild]);
 
   // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,

@@ -410,11 +410,15 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
               <Users className="h-4 w-4 mr-2" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="alerts" className="data-[state=active]:bg-yellow-600 data-[state=active]:text-white">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              App Alerts
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="alerts" className="data-[state=active]:bg-yellow-600 data-[state=active]:text-white">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                App Alerts
+              </TabsTrigger>
+              <TabsTrigger value="remote" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white">
+                <MonitorSmartphone className="h-4 w-4 mr-2" />
+                Remote Requests
+              </TabsTrigger>
+            </TabsList>
 
           <TabsContent value="tickets">
             <div className="mb-3 p-3 rounded-md bg-blue-900/30 border border-blue-700/40">
@@ -559,12 +563,16 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
             <FreeAISection />
           </TabsContent>
 
-          <TabsContent value="alerts">
-            <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
-              <AppAlertsManager />
-            </Card>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="alerts">
+              <Card className="bg-gradient-to-br from-yellow-700/40 to-yellow-900/40 border-yellow-600/50 p-6">
+                <AppAlertsManager />
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="remote">
+              <AdminRemoteRequests />
+            </TabsContent>
+          </Tabs>
       </div>
     </div>
   );
