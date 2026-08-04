@@ -2397,6 +2397,57 @@ export type Database = {
         }
         Relationships: []
       }
+      remote_support_requests: {
+        Row: {
+          admin_note: string | null
+          android_version: string | null
+          contact: string | null
+          created_at: string
+          device_model: string | null
+          id: string
+          issue: string
+          needs: string | null
+          order_number: string | null
+          paid_at: string | null
+          session_started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          android_version?: string | null
+          contact?: string | null
+          created_at?: string
+          device_model?: string | null
+          id?: string
+          issue: string
+          needs?: string | null
+          order_number?: string | null
+          paid_at?: string | null
+          session_started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          android_version?: string | null
+          contact?: string | null
+          created_at?: string
+          device_model?: string | null
+          id?: string
+          issue?: string
+          needs?: string | null
+          order_number?: string | null
+          paid_at?: string | null
+          session_started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       renewal_reminders: {
         Row: {
           channel: string
@@ -3417,6 +3468,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      start_remote_support_session: { Args: { p_id: string }; Returns: boolean }
       tenant_analytics_daily: {
         Args: { p_code: string; p_days: number }
         Returns: {
