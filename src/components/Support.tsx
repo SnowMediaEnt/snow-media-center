@@ -316,20 +316,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   return (
     <div ref={supportFocus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div ref={supportTopRef} aria-hidden="true" className="h-0 w-full" />
+      <div className="flex items-center w-full justify-start">
+        <Button
+          onClick={onBack}
+          variant="gold"
+          size="lg"
+          data-support-tv-focus-id="support-back"
+          className="transition-all duration-200"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Home
+        </Button>
+      </div>
       <div className="max-w-6xl mx-auto pb-28" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}>
         <div className="flex flex-col items-center mb-6">
-          <div className="flex items-center w-full justify-start">
-            <Button
-              onClick={onBack}
-              variant="gold"
-              size="lg"
-              data-support-tv-focus-id="support-back"
-              className="transition-all duration-200"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
-          </div>
           <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">Support</h1>
             <p className="text-xl text-blue-200">

@@ -355,22 +355,22 @@ const Settings = ({ onBack }: SettingsProps) => {
 
   return (
     <div ref={containerRef} className="tv-scroll-container tv-safe text-white" style={{ paddingTop: '2vh' }}>
+      <div id="settings-top" className="scroll-mt-4" />
+      <div className="flex items-start w-full">
+        <Button
+          {...settingsFocusAttrs('back')}
+          onFocus={() => setFocusedElement('back')}
+          onClick={onBack}
+          variant="gold"
+          size="lg"
+          className={`transition-all duration-200 ${backFocusRing('back')}`}
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          {t('common.backToHome')}
+        </Button>
+      </div>
       <div className="max-w-4xl mx-auto pb-16">
-        <div id="settings-top" className="scroll-mt-4" />
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-start w-full">
-            <Button
-              {...settingsFocusAttrs('back')}
-              onFocus={() => setFocusedElement('back')}
-              onClick={onBack}
-              variant="gold"
-              size="lg"
-              className={`transition-all duration-200 ${backFocusRing('back')}`}
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              {t('common.backToHome')}
-            </Button>
-          </div>
           <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">{t('settings.title')}</h1>
             <p className="text-xl text-blue-200">{t('settings.subtitle')}</p>

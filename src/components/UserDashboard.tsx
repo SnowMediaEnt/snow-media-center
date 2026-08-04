@@ -251,32 +251,32 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   return (
     <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
+      {/* Header — pinned to the tv-safe corner, content stays centered below */}
+      <div className="flex items-center w-full justify-between">
+        <Button
+          onClick={() => onViewChange('home')}
+          variant="gold"
+          size="lg"
+          className={`transition-all duration-200 ${
+            focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
+          }`}
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Home
+        </Button>
+        <Button
+          onClick={handleSignOut}
+          variant="outline"
+          className={`bg-red-600 border-red-500 text-white hover:bg-red-700 transition-all duration-200 ${
+            focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
+          }`}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>
+      </div>
       <div className="max-w-6xl mx-auto pb-24">
-        {/* Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center w-full justify-between">
-            <Button 
-              onClick={() => onViewChange('home')}
-              variant="gold" 
-              size="lg"
-              className={`transition-all duration-200 ${
-                focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
-            <Button 
-              onClick={handleSignOut}
-              variant="outline" 
-              className={`bg-red-600 border-red-500 text-white hover:bg-red-700 transition-all duration-200 ${
-                focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
           <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">Your Dashboard</h1>
             <p className="text-xl text-blue-200">Welcome back, {profile?.full_name || user?.email}</p>

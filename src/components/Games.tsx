@@ -151,9 +151,8 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
           'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
       }}
     >
-      <div className="max-w-6xl mx-auto pb-16 px-4 pt-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+      {/* Header — pinned to the tv-safe corner, content stays centered below */}
+      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap pt-4">
           <Button
             data-game-focus={0}
             onClick={onBack}
