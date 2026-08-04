@@ -2638,6 +2638,50 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_alerts: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          severity: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          severity?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          severity?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_alerts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_apps: {
         Row: {
           created_at: string
@@ -2858,6 +2902,8 @@ export type Database = {
           player_name: string | null
           player_url: string | null
           plex_autoconnect: boolean
+          renewal_message: string | null
+          renewal_url: string | null
           rss_url: string | null
           sms_phone: string | null
           support_email: string | null
@@ -2878,6 +2924,8 @@ export type Database = {
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
+          renewal_message?: string | null
+          renewal_url?: string | null
           rss_url?: string | null
           sms_phone?: string | null
           support_email?: string | null
@@ -2898,6 +2946,8 @@ export type Database = {
           player_name?: string | null
           player_url?: string | null
           plex_autoconnect?: boolean
+          renewal_message?: string | null
+          renewal_url?: string | null
           rss_url?: string | null
           sms_phone?: string | null
           support_email?: string | null
@@ -3298,6 +3348,7 @@ export type Database = {
         Args: { p_code?: string; p_name: string }
         Returns: Json
       }
+      delete_tenant: { Args: { p_tenant_id: string }; Returns: Json }
       dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
       free_ai_available: { Args: never; Returns: Json }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
@@ -3399,6 +3450,7 @@ export type Database = {
         Returns: boolean
       }
       is_master: { Args: never; Returns: boolean }
+      is_member_of_code: { Args: { p_code: string }; Returns: boolean }
       is_profile_owner: { Args: { profile_user_id: string }; Returns: boolean }
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
       issue_admin_action_token: {
@@ -3407,6 +3459,10 @@ export type Database = {
       }
       link_player_signin_to_crm: {
         Args: { p_signin_id: string }
+        Returns: Json
+      }
+      link_reseller_login: {
+        Args: { p_email: string; p_tenant_code: string }
         Returns: Json
       }
       list_tenant_members: {
@@ -3455,6 +3511,10 @@ export type Database = {
         Returns: Json
       }
       run_refresh_player_signins: { Args: never; Returns: undefined }
+      set_tenant_giveaway: {
+        Args: { p_code: string; p_enabled: boolean }
+        Returns: boolean
+      }
       settle_free_ai: {
         Args: {
           p_actual_cost: number
@@ -3507,6 +3567,22 @@ export type Database = {
       tenant_player_activity: {
         Args: { p_code: string; p_days: number }
         Returns: Json
+      }
+      tenant_player_roster: {
+        Args: { p_code: string }
+        Returns: {
+          expiration_date: string
+          first_seen_at: string
+          is_trial: boolean
+          last_refreshed_at: string
+          last_seen_at: string
+          max_connections: number
+          panel_host: string
+          server_label: string
+          signin_count: number
+          username: string
+          xtream_status: string
+        }[]
       }
       update_user_credits: {
         Args: {
