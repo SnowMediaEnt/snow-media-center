@@ -36,7 +36,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import AdminUserManager from '@/components/AdminUserManager';
 import FreeAISection from '@/components/FreeAISection';
-import { AlertTriangle, Users } from 'lucide-react';
+import { AlertTriangle, Users, MonitorSmartphone } from 'lucide-react';
+import AdminRemoteRequests from '@/components/AdminRemoteRequests';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -48,7 +49,7 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [replyMessage, setReplyMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<{ id: string; email: string } | null>(null);
-  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai'>('tickets');
+  const [activeSection, setActiveSection] = useState<'tickets' | 'users' | 'alerts' | 'ai' | 'remote'>('tickets');
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastSubject, setBroadcastSubject] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
