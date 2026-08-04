@@ -82,6 +82,9 @@ const parseDeviceInfo = (): { model: string | null; android: string | null } => 
   return { model, android };
 };
 
+/** A comped (free) session is treated exactly like a paid one customer-side. */
+const isPaidLike = (s: string | null | undefined): boolean => s === 'paid' || s === 'comped';
+
 interface RemoteSupportProps {
   onBack: () => void;
   onOpenTickets: () => void;
@@ -150,20 +153,26 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
       }
       setContact((c) => c || user.email || '');
 
-      // 3. Returning with a paid request from the last 24h? Skip payment.
+      // 3. Returning with a paid/comped request from the last 24h? Skip payment.
+      //    Scoped to THIS user explicitly — an admin's select-all RLS would
+      //    otherwise resume a random customer's request.
       try {
-        const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const sinceMs = Date.now() - 24 * 3600 * 1000;
         const { data } = await supabase
           .from('remote_support_requests')
           .select('*')
-          .in('status', ['paid', 'in_progress'])
-          .gte('paid_at', since)
-          .order('paid_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .eq('user_id', user.id)
+          .in('status', ['paid', 'comped', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .limit(5);
         if (cancelled) return;
-        if (data) {
-          setRequest(data);
+        // Comped rows have no paid_at — their comp stamp starts the 24h window.
+        const recent = (data ?? []).find((r) => {
+          const stamp = r.paid_at ?? r.comped_at ?? r.created_at;
+          return !!stamp && new Date(stamp).getTime() >= sinceMs;
+        });
+        if (recent) {
+          setRequest(recent);
           setStep('setup-app');
           return;
         }
@@ -234,30 +243,41 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     return `${PAY_BASE_URL}?ref=${encodeURIComponent(request.id)}&email=${encodeURIComponent(email)}`;
   }, [request, contact, user?.email]);
 
-  const checkPaid = useCallback(async (): Promise<boolean> => {
+  // Returns WHICH paid-like status the row landed on, or null while pending.
+  const checkPaid = useCallback(async (): Promise<'paid' | 'comped' | null> => {
     const current = requestRef.current;
-    if (!current) return false;
+    if (!current) return null;
     try {
       const { data } = await supabase
         .from('remote_support_requests')
-        .select('status, paid_at, order_number')
+        .select('status, paid_at, comped_at, order_number')
         .eq('id', current.id)
         .maybeSingle();
-      if (data?.status === 'paid') {
+      if (data?.status === 'paid' || data?.status === 'comped') {
         setRequest((prev) => (prev ? { ...prev, ...data } : prev));
-        return true;
+        return data.status === 'comped' ? 'comped' : 'paid';
       }
     } catch (err) {
       console.error('[RemoteSupport] payment check failed:', err);
     }
-    return false;
+    return null;
   }, []);
 
-  const advanceAfterPayment = useCallback(() => {
+  const advanceAfterPayment = useCallback((kind: 'paid' | 'comped') => {
     setQrOpen(false);
     setStep('setup-app');
     try { trackEvent('remote_support_paid', 'support', {}); } catch { /* ignore */ }
-    toast({ title: 'Payment received', description: "Let's get your box ready for the technician." });
+    toast(
+      kind === 'comped'
+        ? {
+            title: "Payment waived — you're all set",
+            description: "Let's get your box ready for the technician.",
+          }
+        : {
+            title: 'Payment received',
+            description: "Let's get your box ready for the technician.",
+          },
+    );
   }, [toast]);
 
   // Auto-advance the moment the bridge flips the row to paid.
@@ -266,7 +286,8 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     let stopped = false;
     const tick = async () => {
       if (stopped) return;
-      if (await checkPaid()) advanceAfterPayment();
+      const kind = await checkPaid();
+      if (kind) advanceAfterPayment(kind);
     };
     const t = window.setInterval(tick, 4000);
     return () => { stopped = true; window.clearInterval(t); };
@@ -277,13 +298,14 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     if (checkingPayment) return;
     setCheckingPayment(true);
     try {
-      if (!(await checkPaid())) {
+      const kind = await checkPaid();
+      if (!kind) {
         toast({
           title: 'Payment not received yet',
           description: 'It can take a minute after checkout. Keep this screen open.',
         });
       } else {
-        advanceAfterPayment();
+        advanceAfterPayment(kind);
       }
     } finally {
       setCheckingPayment(false);
@@ -419,9 +441,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     if (!current || starting) return;
     setStarting(true);
     try {
-      if (current.status === 'paid') {
-        // Security-definer RPC: flips THEIR OWN row paid -> in_progress and
-        // stamps session_started_at. False just means it was already moved.
+      if (isPaidLike(current.status)) {
+        // Security-definer RPC: flips THEIR OWN row paid/comped -> in_progress
+        // and stamps session_started_at. False just means it was already moved.
         await supabase.rpc('start_remote_support_session', { p_id: current.id });
       }
       await AppManager.launch({ packageName: SUPPORT_PACKAGE });
@@ -530,10 +552,16 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         {title}
       </h1>
       {subtitle && <p className="text-xl text-blue-200 mt-2">{subtitle}</p>}
-      {request?.order_number && (
+      {request?.status === 'comped' ? (
         <p className="text-lg text-green-300 mt-2">
-          Paid ✓ — order #{request.order_number}
+          Payment waived — you're all set ✓
         </p>
+      ) : (
+        request?.order_number && (
+          <p className="text-lg text-green-300 mt-2">
+            Paid ✓ — order #{request.order_number}
+          </p>
+        )
       )}
     </div>
   );
@@ -904,6 +932,10 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         url={payUrl}
         title={`Pay ${PRICE_LABEL} — Remote Support`}
         description="Scan with your phone to pay for the remote support session. This screen continues automatically once payment arrives."
+        checkoutNotice={{
+          title: 'Guest checkout — no account needed',
+          body: 'You can pay as a guest — no account needed. Finish the payment on your phone and this screen will continue on its own.',
+        }}
         onConfirmPaid={handleConfirmPaid}
         confirming={checkingPayment}
         confirmLabel="I've Completed Payment"

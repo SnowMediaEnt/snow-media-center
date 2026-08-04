@@ -11,7 +11,7 @@ interface Payload {
   ticket_id?: string;
   subject?: string;
   message_preview?: string;
-  source?: string; // 'player_report' | 'ticket'
+  source?: string; // 'player_report' | 'ticket' | 'remote_support'
   user_email?: string | null;
   created_at?: string;
 }
@@ -33,7 +33,12 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json().catch(() => ({}))) as Payload;
-    const source = body.source === 'player_report' ? 'player_report' : 'ticket';
+    const source =
+      body.source === 'player_report'
+        ? 'player_report'
+        : body.source === 'remote_support'
+          ? 'remote_support'
+          : 'ticket';
     const subject = (body.subject || '(no subject)').slice(0, 200);
     const preview = (body.message_preview || '').slice(0, 300);
     const who = body.user_email || 'guest';
@@ -52,7 +57,12 @@ Deno.serve(async (req) => {
         console.log('[notify-ticket] discord status: skipped (no webhook configured)');
         discord_status = 'no_webhook';
       } else {
-        const title = source === 'player_report' ? '📺 New Player Report' : '🎫 New Ticket';
+        const title =
+          source === 'player_report'
+            ? '📺 New Player Report'
+            : source === 'remote_support'
+              ? '🖥️ New Remote Access Request'
+              : '🎫 New Ticket';
         const content =
           `${title}\n**${subject}**\n` +
           `From: ${who} · ${when}\n` +
@@ -87,7 +97,12 @@ Deno.serve(async (req) => {
         console.log('[notify-ticket] resend status: skipped (TICKET_NOTIFY_EMAIL missing)');
         resend_status = 'no_recipient';
       } else {
-        const kindLabel = source === 'player_report' ? 'Player Report' : 'Ticket';
+        const kindLabel =
+          source === 'player_report'
+            ? 'Player Report'
+            : source === 'remote_support'
+              ? 'Remote Access Request'
+              : 'Ticket';
         const emailSubject = `New ${kindLabel.toLowerCase()}: ${subject}`;
         const html = `
           <h2>${esc(kindLabel)}: ${esc(subject)}</h2>
@@ -134,7 +149,12 @@ Deno.serve(async (req) => {
       if (!internal || !supaUrl) {
         push_status = 'no_config';
       } else {
-        const title = source === 'player_report' ? '📺 New Player Report' : '🎫 New Ticket';
+        const title =
+          source === 'player_report'
+            ? '📺 New Player Report'
+            : source === 'remote_support'
+              ? '🖥️ New Remote Access Request'
+              : '🎫 New Ticket';
         const shortPreview = preview.slice(0, 140);
         const msgBody = `${subject}${shortPreview ? ` — ${shortPreview}` : ''}`;
         const res = await fetch(`${supaUrl}/functions/v1/send-push`, {
