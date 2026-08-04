@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import QRCode from 'qrcode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,11 @@ interface QRCheckoutDialogProps {
   onConfirmPaid?: () => void | Promise<void>;
   confirming?: boolean;
   confirmLabel?: string;
+  /**
+   * Override for the notice shown under the QR code. Defaults to the store
+   * sign-in notice (CreditStore / MediaStore). Pass null to hide it entirely.
+   */
+  checkoutNotice?: { title: ReactNode; body: ReactNode } | null;
 }
 
 export const QRCheckoutDialog = ({
@@ -25,6 +30,7 @@ export const QRCheckoutDialog = ({
   onConfirmPaid,
   confirming = false,
   confirmLabel = "I've Completed Payment",
+  checkoutNotice,
 }: QRCheckoutDialogProps) => {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -34,6 +40,20 @@ export const QRCheckoutDialog = ({
       .then(setQrDataUrl)
       .catch((e) => console.error('QR generation failed', e));
   }, [open, url]);
+
+  const notice =
+    checkoutNotice === undefined
+      ? {
+          title: 'Heads up — sign-in required at checkout',
+          body: (
+            <>
+              You'll be asked to sign in on the website to complete your purchase. Use the{' '}
+              <span className="font-semibold">same email & password</span> you use here in the app,
+              or create a new account on the site.
+            </>
+          ),
+        }
+      : checkoutNotice;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,10 +83,12 @@ export const QRCheckoutDialog = ({
             <p className="text-sm text-white/70">
               Open your phone camera and point it at the QR code.
             </p>
-            <div className="bg-blue-600/15 border border-blue-400/40 rounded-md p-3 text-left text-xs text-blue-100 space-y-1">
-              <p className="font-semibold text-blue-200">Heads up — sign-in required at checkout</p>
-              <p>You'll be asked to sign in on the website to complete your purchase. Use the <span className="font-semibold">same email & password</span> you use here in the app, or create a new account on the site.</p>
-            </div>
+            {notice && (
+              <div className="bg-blue-600/15 border border-blue-400/40 rounded-md p-3 text-left text-xs text-blue-100 space-y-1">
+                <p className="font-semibold text-blue-200">{notice.title}</p>
+                <p>{notice.body}</p>
+              </div>
+            )}
             {url && (
               <a
                 href={url}

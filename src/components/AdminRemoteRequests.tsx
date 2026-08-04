@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MonitorSmartphone, Loader2, Save, User, Mail, Smartphone } from 'lucide-react';
+import { MonitorSmartphone, Loader2, Save, User, Mail, Smartphone, Gift } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import type { Tables } from '@/integrations/supabase/types';
@@ -17,7 +18,7 @@ interface RequestWithUser extends RemoteRequest {
   user_name?: string;
 }
 
-const STATUS_OPTIONS = ['pending_payment', 'paid', 'in_progress', 'done', 'cancelled'] as const;
+const STATUS_OPTIONS = ['pending_payment', 'paid', 'comped', 'in_progress', 'done', 'cancelled'] as const;
 
 const statusBadgeClass = (status: string): string => {
   switch (status) {
@@ -25,6 +26,8 @@ const statusBadgeClass = (status: string): string => {
       return 'bg-yellow-100 text-yellow-800';
     case 'paid':
       return 'bg-green-100 text-green-800';
+    case 'comped':
+      return 'bg-purple-100 text-purple-800';
     case 'in_progress':
       return 'bg-blue-100 text-blue-800';
     case 'done':
@@ -42,6 +45,18 @@ const AdminRemoteRequests = () => {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [savingNote, setSavingNote] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [compConfirmId, setCompConfirmId] = useState<string | null>(null);
+  const [comping, setComping] = useState<string | null>(null);
+  const compTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Disarm a stale confirm if the component unmounts mid-countdown.
+  useEffect(
+    () => () => {
+      if (compTimer.current) clearTimeout(compTimer.current);
+    },
+    [],
+  );
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -86,8 +101,52 @@ const AdminRemoteRequests = () => {
     fetchRequests();
   }, [fetchRequests]);
 
+  const armCompConfirm = useCallback((id: string) => {
+    setCompConfirmId(id);
+    if (compTimer.current) clearTimeout(compTimer.current);
+    compTimer.current = setTimeout(() => setCompConfirmId(null), 5000);
+  }, []);
+
+  // 'comped' is ONLY ever set through this confirm-armed path so the audit
+  // columns (comped_at / comped_by) are always stamped with the admin's id.
+  const compRequest = useCallback(
+    async (id: string) => {
+      if (!user || comping) return;
+      try {
+        setComping(id);
+        const compedAt = new Date().toISOString();
+        const { error } = await supabase
+          .from('remote_support_requests')
+          .update({ status: 'comped', comped_at: compedAt, comped_by: user.id })
+          .eq('id', id);
+        if (error) throw error;
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === id ? { ...r, status: 'comped', comped_at: compedAt, comped_by: user.id } : r,
+          ),
+        );
+        setCompConfirmId(null);
+        toast({
+          title: 'Session made free',
+          description: "Payment waived — the customer's screen continues on its own.",
+        });
+      } catch (err) {
+        console.error('Error comping request:', err);
+        toast({ title: 'Error', description: 'Failed to make the session free', variant: 'destructive' });
+      } finally {
+        setComping(null);
+      }
+    },
+    [user, comping, toast],
+  );
+
   const updateStatus = useCallback(
     async (id: string, status: string) => {
+      // Route comp selections through the confirm-armed comp path.
+      if (status === 'comped') {
+        armCompConfirm(id);
+        return;
+      }
       try {
         const { error } = await supabase
           .from('remote_support_requests')
@@ -101,7 +160,7 @@ const AdminRemoteRequests = () => {
         toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
       }
     },
-    [toast],
+    [toast, armCompConfirm],
   );
 
   const saveNote = useCallback(
@@ -156,6 +215,11 @@ const AdminRemoteRequests = () => {
                       Paid {formatDistanceToNow(new Date(r.paid_at), { addSuffix: true })}
                     </span>
                   )}
+                  {r.comped_at && (
+                    <span className="text-purple-400">
+                      Made free {formatDistanceToNow(new Date(r.comped_at), { addSuffix: true })}
+                    </span>
+                  )}
                   {r.session_started_at && (
                     <span className="text-blue-400">
                       Session started {formatDistanceToNow(new Date(r.session_started_at), { addSuffix: true })}
@@ -163,18 +227,41 @@ const AdminRemoteRequests = () => {
                   )}
                 </div>
               </div>
-              <Select value={r.status} onValueChange={(v) => updateStatus(r.id, v)}>
-                <SelectTrigger className="w-44 bg-slate-700 border-slate-600 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize">
-                      {s.replace('_', ' ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2 shrink-0">
+                {r.status === 'pending_payment' && (
+                  <Button
+                    onClick={() =>
+                      compConfirmId === r.id ? void compRequest(r.id) : armCompConfirm(r.id)
+                    }
+                    disabled={comping === r.id}
+                    variant="outline"
+                    className={
+                      compConfirmId === r.id
+                        ? 'bg-green-600/30 border-green-400/60 text-white hover:bg-green-600/40'
+                        : 'bg-purple-600/20 border-purple-400/50 text-white hover:bg-purple-500/30'
+                    }
+                  >
+                    {comping === r.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Gift className="h-4 w-4 mr-1" />
+                    )}
+                    {compConfirmId === r.id ? 'Confirm — make it free?' : 'Make it free'}
+                  </Button>
+                )}
+                <Select value={r.status} onValueChange={(v) => updateStatus(r.id, v)}>
+                  <SelectTrigger className="w-44 bg-slate-700 border-slate-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">
+                        {s.replace('_', ' ')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
