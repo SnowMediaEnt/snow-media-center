@@ -151,9 +151,8 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
           'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
       }}
     >
-      <div className="max-w-6xl mx-auto pb-16 px-4 pt-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+      {/* Header — pinned to the tv-safe corner, content stays centered below */}
+      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap pt-4">
           <Button
             data-game-focus={0}
             onClick={onBack}
@@ -164,9 +163,10 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
             <ArrowLeft className="w-5 h-5 mr-2" />
             {t('games.hub.back')}
           </Button>
-          {renderChipBadge()}
-        </div>
+        {renderChipBadge()}
+      </div>
 
+      <div className="max-w-6xl mx-auto pb-16 px-4">
         {/* Hero */}
         <Card className="relative overflow-hidden border-emerald-400/20 bg-gradient-to-br from-slate-900/80 to-emerald-950/70 p-8 mb-10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
           <div className="absolute inset-0 pointer-events-none opacity-30"
