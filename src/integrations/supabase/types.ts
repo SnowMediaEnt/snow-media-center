@@ -2401,6 +2401,8 @@ export type Database = {
         Row: {
           admin_note: string | null
           android_version: string | null
+          comped_at: string | null
+          comped_by: string | null
           contact: string | null
           created_at: string
           device_model: string | null
@@ -2417,6 +2419,8 @@ export type Database = {
         Insert: {
           admin_note?: string | null
           android_version?: string | null
+          comped_at?: string | null
+          comped_by?: string | null
           contact?: string | null
           created_at?: string
           device_model?: string | null
@@ -2433,6 +2437,8 @@ export type Database = {
         Update: {
           admin_note?: string | null
           android_version?: string | null
+          comped_at?: string | null
+          comped_by?: string | null
           contact?: string | null
           created_at?: string
           device_model?: string | null
