@@ -88,6 +88,23 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Building the Android APK
+
+You MUST run the following before opening the project in Android Studio or running `gradlew`:
+
+```sh
+npm install
+npm run build:android
+```
+
+The web bundle under `android/app/src/main/assets/` is **generated, never committed**. `npm run build:android` builds the web app with Vite and then runs `npx cap sync android` to copy the fresh bundle (plus `capacitor.config.json` / `capacitor.plugins.json`) into the Android project. Building the APK without doing this produces a **blank-screen APK** (or, worse, silently packages an old stale bundle).
+
+To verify the synced bundle is fresh after a successful `build:android`, this should print a non-zero count:
+
+```sh
+grep -c "Backups" android/app/src/main/assets/public/assets/*.js
+```
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/f4432411-0df8-40ae-a0a1-fb97cafa76e7) and click on Share -> Publish.
