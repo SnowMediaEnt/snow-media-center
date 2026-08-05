@@ -202,6 +202,11 @@ const AdminRemoteRequests = () => {
                       Order #{r.order_number}
                     </Badge>
                   )}
+                  {r.reseller_id && (
+                    <Badge variant="outline" className="text-slate-400 border-slate-500/50">
+                      via {r.reseller_id}
+                    </Badge>
+                  )}
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">{r.issue}</h3>
                 <div className="flex items-center gap-4 text-sm text-slate-400 flex-wrap">
