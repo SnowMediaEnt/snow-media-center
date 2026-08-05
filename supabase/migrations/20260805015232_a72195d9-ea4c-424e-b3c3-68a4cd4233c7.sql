@@ -1,0 +1,1 @@
+ALTER TABLE public.remote_support_requests ADD COLUMN IF NOT EXISTS reseller_id text;

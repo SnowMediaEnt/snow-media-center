@@ -2411,6 +2411,7 @@ export type Database = {
           needs: string | null
           order_number: string | null
           paid_at: string | null
+          reseller_id: string | null
           session_started_at: string | null
           status: string
           updated_at: string
@@ -2429,6 +2430,7 @@ export type Database = {
           needs?: string | null
           order_number?: string | null
           paid_at?: string | null
+          reseller_id?: string | null
           session_started_at?: string | null
           status?: string
           updated_at?: string
@@ -2447,6 +2449,7 @@ export type Database = {
           needs?: string | null
           order_number?: string | null
           paid_at?: string | null
+          reseller_id?: string | null
           session_started_at?: string | null
           status?: string
           updated_at?: string
