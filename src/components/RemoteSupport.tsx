@@ -581,17 +581,21 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     actions: React.ReactNode,
     extra?: React.ReactNode,
   ) => (
-    <div className="max-w-2xl mx-auto px-6 pb-24">
-      {backButton}
-      <Header title="Remote Access" subtitle={stepLabel} />
-      <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
-        <h2 className="text-3xl font-bold text-white">{title}</h2>
-        <div className="text-xl text-slate-200 space-y-3">{reason}</div>
-        <div>{status}</div>
-        <div className="flex flex-col gap-4 pt-2">{actions}</div>
-        {extra}
+    <>
+      <div className="flex items-center w-full justify-start">
+        {backButton}
       </div>
-    </div>
+      <div className="max-w-2xl mx-auto px-6 pb-24">
+        <Header title="Remote Access" subtitle={stepLabel} />
+        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
+          <h2 className="text-3xl font-bold text-white">{title}</h2>
+          <div className="text-xl text-slate-200 space-y-3">{reason}</div>
+          <div>{status}</div>
+          <div className="flex flex-col gap-4 pt-2">{actions}</div>
+          {extra}
+        </div>
+      </div>
+    </>
   );
 
   const bigAction =
@@ -608,144 +612,164 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     );
   } else if (step === 'blocked-firetv') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="Remote Access" />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
-          <div className="flex items-start gap-4">
-            <ShieldAlert className="w-10 h-10 text-amber-400 shrink-0 mt-1" />
-            <p className="text-2xl text-white font-medium">
-              Remote Access isn't available on Fire TV devices
-            </p>
-          </div>
-          <p className="text-xl text-slate-300">
-            Fire OS blocks the accessibility features a technician needs to control
-            your device. We can still help you through a support ticket instead.
-          </p>
-          <Button
-            onClick={onOpenTickets}
-            size="lg"
-            data-tv-focus-id="rs-tickets"
-            className={`${bigAction} bg-orange-700/60 border border-orange-400/70 text-white hover:bg-orange-600/70 w-full`}
-          >
-            <MessageCircle className="w-6 h-6 mr-3" />
-            Open Support Tickets
-          </Button>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="Remote Access" />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
+            <div className="flex items-start gap-4">
+              <ShieldAlert className="w-10 h-10 text-amber-400 shrink-0 mt-1" />
+              <p className="text-2xl text-white font-medium">
+                Remote Access isn't available on Fire TV devices
+              </p>
+            </div>
+            <p className="text-xl text-slate-300">
+              Fire OS blocks the accessibility features a technician needs to control
+              your device. We can still help you through a support ticket instead.
+            </p>
+            <Button
+              onClick={onOpenTickets}
+              size="lg"
+              data-tv-focus-id="rs-tickets"
+              className={`${bigAction} bg-orange-700/60 border border-orange-400/70 text-white hover:bg-orange-600/70 w-full`}
+            >
+              <MessageCircle className="w-6 h-6 mr-3" />
+              Open Support Tickets
+            </Button>
+          </div>
+        </div>
+      </>
     );
   } else if (step === 'not-native') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="Remote Access" />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
-          <p className="text-xl text-slate-200">
-            Remote Access runs on your Android TV box or Android device. Open Snow
-            Media Center on the box you need help with and come back to this page.
-          </p>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="Remote Access" />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
+            <p className="text-xl text-slate-200">
+              Remote Access runs on your Android TV box or Android device. Open Snow
+              Media Center on the box you need help with and come back to this page.
+            </p>
+          </div>
+        </div>
+      </>
     );
   } else if (step === 'noauth') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="Remote Access" />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
-          <p className="text-xl text-slate-200">
-            Sign in to your Snow Media account to request a Remote Access session.
-            Use the Sign In button on the Home screen, then come back here.
-          </p>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="Remote Access" />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
+            <p className="text-xl text-slate-200">
+              Sign in to your Snow Media account to request a Remote Access session.
+              Use the Sign In button on the Home screen, then come back here.
+            </p>
+          </div>
+        </div>
+      </>
     );
   } else if (step === 'form') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header
-          title="Remote Access"
-          subtitle={`Tell us what's wrong — a technician takes control of your box and fixes it with you. ${PRICE_LABEL} per session.`}
-        />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
-          <div>
-            <label className="text-xl font-semibold text-white block mb-2">
-              What's going wrong? <span className="text-rose-400">*</span>
-            </label>
-            <Textarea
-              value={issue}
-              onChange={(e) => setIssue(e.target.value)}
-              placeholder="e.g. Live TV buffers every few minutes on all channels"
-              rows={4}
-              data-tv-focus-id="rs-issue"
-              className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
-            />
-          </div>
-          <div>
-            <label className="text-xl font-semibold text-white block mb-2">
-              What do you need me to do? <span className="text-slate-400 text-lg">(optional)</span>
-            </label>
-            <Textarea
-              value={needs}
-              onChange={(e) => setNeeds(e.target.value)}
-              placeholder="e.g. Check my settings and get the streams playing smoothly"
-              rows={3}
-              data-tv-focus-id="rs-needs"
-              className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
-            />
-          </div>
-          <div>
-            <label className="text-xl font-semibold text-white block mb-2">
-              Best way to reach you
-            </label>
-            <Input
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Email or phone number"
-              data-tv-focus-id="rs-contact"
-              className="bg-slate-700 border-slate-500 text-white text-xl h-14 placeholder:text-slate-400"
-            />
-          </div>
-          <Button
-            onClick={submitForm}
-            disabled={!issue.trim() || saving}
-            size="lg"
-            data-tv-focus-id="rs-submit"
-            className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
-          >
-            {saving ? (
-              <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Saving...</>
-            ) : (
-              <>Continue to Payment — {PRICE_LABEL}</>
-            )}
-          </Button>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header
+            title="Remote Access"
+            subtitle={`Tell us what's wrong — a technician takes control of your box and fixes it with you. ${PRICE_LABEL} per session.`}
+          />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
+            <div>
+              <label className="text-xl font-semibold text-white block mb-2">
+                What's going wrong? <span className="text-rose-400">*</span>
+              </label>
+              <Textarea
+                value={issue}
+                onChange={(e) => setIssue(e.target.value)}
+                placeholder="e.g. Live TV buffers every few minutes on all channels"
+                rows={4}
+                data-tv-focus-id="rs-issue"
+                className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
+              />
+            </div>
+            <div>
+              <label className="text-xl font-semibold text-white block mb-2">
+                What do you need me to do? <span className="text-slate-400 text-lg">(optional)</span>
+              </label>
+              <Textarea
+                value={needs}
+                onChange={(e) => setNeeds(e.target.value)}
+                placeholder="e.g. Check my settings and get the streams playing smoothly"
+                rows={3}
+                data-tv-focus-id="rs-needs"
+                className="bg-slate-700 border-slate-500 text-white text-xl placeholder:text-slate-400"
+              />
+            </div>
+            <div>
+              <label className="text-xl font-semibold text-white block mb-2">
+                Best way to reach you
+              </label>
+              <Input
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                placeholder="Email or phone number"
+                data-tv-focus-id="rs-contact"
+                className="bg-slate-700 border-slate-500 text-white text-xl h-14 placeholder:text-slate-400"
+              />
+            </div>
+            <Button
+              onClick={submitForm}
+              disabled={!issue.trim() || saving}
+              size="lg"
+              data-tv-focus-id="rs-submit"
+              className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
+            >
+              {saving ? (
+                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Saving...</>
+              ) : (
+                <>Continue to Payment — {PRICE_LABEL}</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </>
     );
   } else if (step === 'pay') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="Pay for your session" subtitle="Request saved. Pay on your phone — no typing card numbers with the remote." />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
-          <div className="flex items-start gap-4">
-            <Smartphone className="w-10 h-10 text-rose-400 shrink-0 mt-1" />
-            <p className="text-xl text-slate-200">
-              Scan the QR code with your phone to pay {PRICE_LABEL}. This screen
-              moves on by itself the moment your payment arrives.
-            </p>
-          </div>
-          <Button
-            onClick={() => setQrOpen(true)}
-            size="lg"
-            data-tv-focus-id="rs-show-qr"
-            className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
-          >
-            Show Payment QR Code
-          </Button>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="Pay for your session" subtitle="Request saved. Pay on your phone — no typing card numbers with the remote." />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
+            <div className="flex items-start gap-4">
+              <Smartphone className="w-10 h-10 text-rose-400 shrink-0 mt-1" />
+              <p className="text-xl text-slate-200">
+                Scan the QR code with your phone to pay {PRICE_LABEL}. This screen
+                moves on by itself the moment your payment arrives.
+              </p>
+            </div>
+            <Button
+              onClick={() => setQrOpen(true)}
+              size="lg"
+              data-tv-focus-id="rs-show-qr"
+              className={`${bigAction} bg-rose-600 hover:bg-rose-700 text-white w-full justify-center`}
+            >
+              Show Payment QR Code
+            </Button>
+          </div>
+        </div>
+      </>
     );
   } else if (step === 'setup-app') {
     content = wizardShell(
@@ -865,57 +889,65 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
     );
   } else if (step === 'ready') {
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="You're all set" subtitle="What happens next" />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
-          <ul className="text-xl text-slate-200 space-y-4">
-            <li className="flex gap-3">
-              <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-              The technician can see your screen and control your box.
-            </li>
-            <li className="flex gap-3">
-              <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-              A red border stays on screen the whole time so you always know it's active.
-            </li>
-            <li className="flex gap-3">
-              <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
-              You can end the session whenever you want.
-            </li>
-          </ul>
-          <Button
-            onClick={startSession}
-            disabled={starting}
-            size="lg"
-            data-tv-focus-id="rs-start"
-            className={`${bigAction} bg-green-600 hover:bg-green-700 text-white w-full justify-center`}
-          >
-            {starting ? (
-              <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Starting...</>
-            ) : (
-              <><Play className="w-6 h-6 mr-3" /> Start Remote Support</>
-            )}
-          </Button>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="You're all set" subtitle="What happens next" />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-6">
+            <ul className="text-xl text-slate-200 space-y-4">
+              <li className="flex gap-3">
+                <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
+                The technician can see your screen and control your box.
+              </li>
+              <li className="flex gap-3">
+                <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
+                A red border stays on screen the whole time so you always know it's active.
+              </li>
+              <li className="flex gap-3">
+                <CheckCircle2 className="w-6 h-6 text-green-400 shrink-0 mt-1" />
+                You can end the session whenever you want.
+              </li>
+            </ul>
+            <Button
+              onClick={startSession}
+              disabled={starting}
+              size="lg"
+              data-tv-focus-id="rs-start"
+              className={`${bigAction} bg-green-600 hover:bg-green-700 text-white w-full justify-center`}
+            >
+              {starting ? (
+                <><Loader2 className="w-6 h-6 mr-3 animate-spin" /> Starting...</>
+              ) : (
+                <><Play className="w-6 h-6 mr-3" /> Start Remote Support</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </>
     );
   } else {
     // started
     content = (
-      <div className="max-w-2xl mx-auto px-6 pb-24">
-        {backButton}
-        <Header title="Session started" />
-        <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-4">
-          <p className="text-xl text-slate-200">
-            The Snow Support app is open and takes it from here — it shows a
-            6-digit code and asks you to confirm screen sharing.
-          </p>
-          <p className="text-xl text-slate-200">
-            Give the code to your technician and accept the prompt. Remember: the
-            red border means the session is live, and you can end it anytime.
-          </p>
+      <>
+        <div className="flex items-center w-full justify-start">
+          {backButton}
         </div>
-      </div>
+        <div className="max-w-2xl mx-auto px-6 pb-24">
+          <Header title="Session started" />
+          <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6 space-y-4">
+            <p className="text-xl text-slate-200">
+              The Snow Support app is open and takes it from here — it shows a
+              6-digit code and asks you to confirm screen sharing.
+            </p>
+            <p className="text-xl text-slate-200">
+              Give the code to your technician and accept the prompt. Remember: the
+              red border means the session is live, and you can end it anytime.
+            </p>
+          </div>
+        </div>
+      </>
     );
   }
 
