@@ -2786,17 +2786,17 @@ export type Database = {
         Row: {
           code: string
           retired_at: string
-          tenant_id: string
+          tenant_id: string | null
         }
         Insert: {
           code: string
           retired_at?: string
-          tenant_id: string
+          tenant_id?: string | null
         }
         Update: {
           code?: string
           retired_at?: string
-          tenant_id?: string
+          tenant_id?: string | null
         }
         Relationships: [
           {
@@ -2996,6 +2996,7 @@ export type Database = {
       tenants: {
         Row: {
           code: string
+          code_changed_at: string | null
           created_at: string
           id: string
           name: string
@@ -3004,6 +3005,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          code_changed_at?: string | null
           created_at?: string
           id?: string
           name: string
@@ -3012,6 +3014,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          code_changed_at?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -3486,6 +3489,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_tenant_old_codes: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          code: string
+          retired_at: string
+        }[]
+      }
       plex_spend_credits: {
         Args: { p_amount: number; p_reseller_id: string }
         Returns: number
@@ -3592,6 +3602,10 @@ export type Database = {
           username: string
           xtream_status: string
         }[]
+      }
+      update_own_tenant_identity: {
+        Args: { p_code?: string; p_name?: string; p_tenant_id: string }
+        Returns: Json
       }
       update_user_credits: {
         Args: {

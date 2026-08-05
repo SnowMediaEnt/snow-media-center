@@ -157,6 +157,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [volMenuOpen, setVolMenuOpen] = useState(false);
   const [subMenuFocus, setSubMenuFocus] = useState(-1); // -1 = Off
   const [audioMenuFocus, setAudioMenuFocus] = useState(0);
+  // Slow-connection hint: set after ~25s of CONTINUOUS native buffering.
+  const [slowConn, setSlowConn] = useState(false);
   const [tracksTick, setTracksTick] = useState(0);
   const barHideTimerRef = useRef<number | null>(null);
   const pokeBar = useCallback(() => {
@@ -549,6 +551,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     onTracksChanged: () => setTracksTick((t) => t + 1),
     onPlayStateChange: (p) => setIsPaused(p),
   });
+
+  // Slow-connection hint — arms a 25s timer while the native player is
+  // CONTINUOUSLY buffering; "ready"/playing clears buffering and the hint.
+  useEffect(() => {
+    if (!native.buffering) { setSlowConn(false); return; }
+    const t = window.setTimeout(() => setSlowConn(true), 25000);
+    return () => window.clearTimeout(t);
+  }, [native.buffering]);
 
   // While native fullscreen owns the screen, expose its controller through
   // the existing videoControllerRef so PlayerControlBar's audio/subtitle
@@ -1017,8 +1027,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
             <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+            {slowConn && (
+              <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80 drop-shadow">
+                Still loading — your connection looks slow. If channels keep buffering, a VPN often helps.
+              </p>
+            )}
           </div>
         )}
         {NATIVE_PLAYBACK && native.error && (
