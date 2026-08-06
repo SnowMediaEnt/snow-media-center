@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_claim_sessions: {
+        Row: {
+          claimed_email: string | null
+          claimed_user_id: string | null
+          completed_at: string | null
+          created_at: string
+          expiration_date: string | null
+          expires_at: string
+          id: string
+          is_trial: boolean | null
+          max_connections: number | null
+          panel_host: string
+          panel_username: string
+          server_label: string | null
+          token: string
+        }
+        Insert: {
+          claimed_email?: string | null
+          claimed_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expiration_date?: string | null
+          expires_at?: string
+          id?: string
+          is_trial?: boolean | null
+          max_connections?: number | null
+          panel_host: string
+          panel_username: string
+          server_label?: string | null
+          token: string
+        }
+        Update: {
+          claimed_email?: string | null
+          claimed_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expiration_date?: string | null
+          expires_at?: string
+          id?: string
+          is_trial?: boolean | null
+          max_connections?: number | null
+          panel_host?: string
+          panel_username?: string
+          server_label?: string | null
+          token?: string
+        }
+        Relationships: []
+      }
       admin_action_tokens: {
         Row: {
           created_at: string
@@ -3351,9 +3399,36 @@ export type Database = {
         Args: { p_device_id: string; p_feature: string }
         Returns: Json
       }
+      claim_account_manual: {
+        Args: {
+          p_email: string
+          p_expiration_date: string
+          p_is_trial: boolean
+          p_max_connections: number
+          p_panel_host: string
+          p_panel_username: string
+          p_server_label: string
+        }
+        Returns: Json
+      }
       claim_qr_session: { Args: { p_token: string }; Returns: boolean }
+      complete_account_claim: {
+        Args: { p_device_type?: string; p_name?: string; p_token: string }
+        Returns: Json
+      }
       create_canvas_ticket: {
         Args: { p_code: string; p_message: string; p_subject: string }
+        Returns: string
+      }
+      create_claim_session: {
+        Args: {
+          p_expiration_date?: string
+          p_is_trial?: boolean
+          p_max_connections?: number
+          p_panel_host: string
+          p_panel_username: string
+          p_server_label?: string
+        }
         Returns: string
       }
       create_tenant: {
@@ -3363,6 +3438,18 @@ export type Database = {
       delete_tenant: { Args: { p_tenant_id: string }; Returns: Json }
       dispatch_accounts_expiring_digest: { Args: never; Returns: undefined }
       free_ai_available: { Args: never; Returns: Json }
+      get_claim_session: {
+        Args: { p_token: string }
+        Returns: {
+          claimed_email: string
+          completed_at: string
+          expiration_date: string
+          expires_at: string
+          panel_username: string
+          server_label: string
+          token: string
+        }[]
+      }
       get_customer_balance: { Args: { p_customer_id: string }; Returns: number }
       get_qr_session: {
         Args: { p_token: string }
@@ -3467,6 +3554,19 @@ export type Database = {
       is_tenant_member: { Args: { p_tenant_id: string }; Returns: boolean }
       issue_admin_action_token: {
         Args: { p_device_id: string; p_label?: string }
+        Returns: Json
+      }
+      link_claimed_panel_line: {
+        Args: {
+          p_customer_id: string
+          p_expiration_date: string
+          p_is_trial: boolean
+          p_max_connections: number
+          p_panel_host: string
+          p_panel_username: string
+          p_server_label: string
+          p_supabase_user_id: string
+        }
         Returns: Json
       }
       link_player_signin_to_crm: {
