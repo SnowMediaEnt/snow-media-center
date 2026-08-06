@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import QRLogin from "./pages/QRLogin";
 import SsoConsume from "./pages/SsoConsume";
+import ClaimAccount from "./pages/ClaimAccount";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
@@ -116,6 +117,7 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/qr-login" element={<QRLogin />} />
               <Route path="/sso" element={<SsoConsume />} />
+              <Route path="/claim" element={<ClaimAccount />} />
               <Route path="/admin/knowledge" element={<AdminKnowledge />} />
               <Route path="/welcome" element={<Welcome />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
