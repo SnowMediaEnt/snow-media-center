@@ -26,28 +26,29 @@ interface Props {
 
 type View = 'menu' | 'account' | 'switch' | 'appearance';
 type MenuId = 'account' | 'switch' | 'reminders' | 'appearance' | 'signout';
+
 interface MenuItem { id: MenuId; label: string; icon: typeof Tv; }
 
 const fallback = (
-  <div className="flex-1 flex items-center justify-center">
-    <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+  <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
+    <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
   </div>
 );
 
 const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAccount, onOpenReminders, showReminders }: Props) => {
   const [view, setView] = useState<View>('menu');
-  const [menuIdx, setMenuIdx] = useState(1);
+  const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
 
   const MENU: MenuItem[] = useMemo(() => [
-    { id: 'account', label: 'Account Info', icon: KeyRound },
-    { id: 'switch', label: 'Switch Account', icon: Users },
+    { id: 'account',    label: 'Account Info',      icon: KeyRound },
+    { id: 'switch',     label: 'Switch Account',    icon: Users },
     ...(showReminders && onOpenReminders
       ? [{ id: 'reminders' as MenuId, label: 'Renewal Reminders', icon: BellRing }]
       : []),
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'signout', label: 'Sign Out', icon: LogOut },
+    { id: 'appearance', label: 'Appearance',        icon: Palette },
+    { id: 'signout',    label: 'Sign Out',          icon: LogOut },
   ], [showReminders, onOpenReminders]);
 
   const { toast } = useToast();
@@ -59,7 +60,8 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
   }, [toast]);
 
   const activate = useCallback((id: MenuId) => {
-    // Demo: only Appearance is functional; the demo account is pre-loaded.
+    // Demo: Account Info / Switch Account / Renewal Reminders / Sign Out are
+    // inert — the demo account is pre-loaded. Appearance stays fully functional.
     if (DEMO && id !== 'appearance') { demoNote(); return; }
     if (id === 'account') setView('account');
     else if (id === 'switch') setView('switch');
@@ -86,8 +88,6 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
       const arrows = ['ArrowUp', 'ArrowDown', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      // Blur whatever held DOM focus (e.g. a button from the previous screen)
-      // so it can't double-fire on OK.
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
       if (e.key === 'ArrowDown') setMenuIdx(i => (i + 1) % COUNT);
@@ -105,7 +105,11 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
   if (view === 'account') {
     return (
       <Suspense fallback={fallback}>
-        <AccountInfoScreen onBack={() => setView('menu')} />
+        <AccountInfoScreen
+          onBack={() => setView('menu')}
+          onChangeCredentials={onChangeCredentials}
+          onSignOut={onSignOut}
+        />
       </Suspense>
     );
   }
@@ -114,8 +118,8 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
       <Suspense fallback={fallback}>
         <SwitchAccountScreen
           onBack={() => setView('menu')}
-          onSwitch={(c) => { onSwitchAccount(c); }}
-          onAddNew={() => { onChangeCredentials(); }}
+          onPicked={onSwitchAccount}
+          onAddAccount={() => { onChangeCredentials(); }}
         />
       </Suspense>
     );
@@ -129,38 +133,47 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col px-4 pb-4 overflow-y-auto">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="min-h-screen flex flex-col text-white bg-black/70">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <Button
-          variant="ghost"
-          size="icon"
+          variant="white"
+          size="sm"
           onClick={onBack}
-          className={`text-white/70 hover:text-white hover:bg-white/10 ${menuIdx === 0 ? 'ring-2 ring-brand-ice bg-white/10' : ''}`}
-          aria-label="Back to player"
+          data-player-header-btn=""
+          data-focused={menuIdx === 0 ? 'true' : 'false'}
+          className={`tv-focusable home-focus-surface transition-transform duration-150 ${
+            menuIdx === 0 ? 'scale-105' : ''
+          }`}
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
-        <h2 className="text-xl font-bold text-white">Settings</h2>
+        <div className="flex items-center gap-2">
+          <Tv className="w-7 h-7 text-brand-gold" />
+          <h1 className="text-2xl font-quicksand font-bold text-white">Settings</h1>
+        </div>
       </div>
 
-      <div className="max-w-md space-y-2">
-        {MENU.map((m, i) => {
-          const Icon = m.icon;
-          const focused = menuIdx === i + 1;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                focused ? 'bg-brand-ice/20 ring-2 ring-brand-ice' : 'bg-white/5 hover:bg-white/10'
-              }`}
-            >
-              <Icon className="w-5 h-5 text-white/70" />
-              <span className="text-white font-medium">{m.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
+        <div className="w-full max-w-xl space-y-3">
+          {MENU.map((m, i) => {
+            const Icon = m.icon;
+            const focused = menuIdx === i + 1;
+            return (
+              <div
+                key={m.id}
+                data-player-header-btn=""
+                data-focused={focused ? 'true' : 'false'}
+                onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
+                className={`tv-focusable home-focus-surface flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer transition-transform duration-150 ${
+                  focused ? 'scale-[1.02]' : ''
+                }`}
+              >
+                <Icon className="w-6 h-6 text-brand-gold shrink-0" />
+                <span className="text-lg font-quicksand font-semibold">{m.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
