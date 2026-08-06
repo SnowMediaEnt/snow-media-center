@@ -1,6 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2 } from 'lucide-react';
+import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, BellRing } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
@@ -17,17 +17,17 @@ interface Props {
   onSignOut: () => void;
   onChangeCredentials: () => void;
   onSwitchAccount: (c: XtreamCreds) => void;
+  /** Player-only users (no SMC account) get a "Renewal Reminders" entry that
+   *  opens the account-claim card — reachable any time so a dismissal is never
+   *  permanent. */
+  onOpenReminders?: () => void;
+  showReminders?: boolean;
 }
 
 type View = 'menu' | 'account' | 'switch' | 'appearance';
+type MenuId = 'account' | 'switch' | 'reminders' | 'appearance' | 'signout';
 
-interface MenuItem { label: string; icon: typeof Tv; }
-const MENU: MenuItem[] = [
-  { label: 'Account Info',   icon: KeyRound },
-  { label: 'Switch Account', icon: Users },
-  { label: 'Appearance',     icon: Palette },
-  { label: 'Sign Out',       icon: LogOut },
-];
+interface MenuItem { id: MenuId; label: string; icon: typeof Tv; }
 
 const fallback = (
   <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
@@ -35,11 +35,21 @@ const fallback = (
   </div>
 );
 
-const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAccount }: Props) => {
+const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAccount, onOpenReminders, showReminders }: Props) => {
   const [view, setView] = useState<View>('menu');
   const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
+
+  const MENU: MenuItem[] = useMemo(() => [
+    { id: 'account',    label: 'Account Info',      icon: KeyRound },
+    { id: 'switch',     label: 'Switch Account',    icon: Users },
+    ...(showReminders && onOpenReminders
+      ? [{ id: 'reminders' as MenuId, label: 'Renewal Reminders', icon: BellRing }]
+      : []),
+    { id: 'appearance', label: 'Appearance',        icon: Palette },
+    { id: 'signout',    label: 'Sign Out',          icon: LogOut },
+  ], [showReminders, onOpenReminders]);
 
   const { toast } = useToast();
   const demoNote = useCallback(() => {
@@ -49,11 +59,24 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
     });
   }, [toast]);
 
+  const activate = useCallback((id: MenuId) => {
+    // Demo: Account Info / Switch Account / Renewal Reminders / Sign Out are
+    // inert — the demo account is pre-loaded. Appearance stays fully functional.
+    if (DEMO && id !== 'appearance') { demoNote(); return; }
+    if (id === 'account') setView('account');
+    else if (id === 'switch') setView('switch');
+    else if (id === 'reminders') onOpenReminders?.();
+    else if (id === 'appearance') setView('appearance');
+    else if (id === 'signout') onSignOut();
+  }, [demoNote, onOpenReminders, onSignOut]);
+
   // Menu-only keyboard handler (each sub-view owns its own).
   useEffect(() => {
     if (view !== 'menu') return;
     const COUNT = MENU.length + 1; // + Back at idx 0
     const handler = (e: KeyboardEvent) => {
+      // The account-claim card owns the keyboard while open.
+      if ((window as unknown as { __claimCardOpen?: boolean }).__claimCardOpen) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       if (typing) return;
@@ -72,19 +95,12 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
       else if (e.key === 'Enter' || e.key === ' ') {
         const i = menuIdxRef.current;
         if (i === 0) { onBack(); return; }
-        const row = i - 1;
-        // Demo: Account Info / Switch Account / Sign Out are inert — the demo
-        // account is pre-loaded. Appearance stays fully functional.
-        if (DEMO && row !== 2) { demoNote(); return; }
-        if (row === 0) setView('account');
-        else if (row === 1) setView('switch');
-        else if (row === 2) setView('appearance');
-        else if (row === 3) onSignOut();
+        activate(MENU[i - 1].id);
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [view, onBack, onSignOut, demoNote]);
+  }, [view, MENU, onBack, activate]);
 
   if (view === 'account') {
     return (
@@ -144,17 +160,10 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
             const focused = menuIdx === i + 1;
             return (
               <div
-                key={m.label}
+                key={m.id}
                 data-player-header-btn=""
                 data-focused={focused ? 'true' : 'false'}
-                onClick={() => {
-                  setMenuIdx(i + 1);
-                  if (DEMO && i !== 2) { demoNote(); return; }
-                  if (i === 0) setView('account');
-                  else if (i === 1) setView('switch');
-                  else if (i === 2) setView('appearance');
-                  else if (i === 3) onSignOut();
-                }}
+                onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
                 className={`tv-focusable home-focus-surface flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer transition-transform duration-150 ${
                   focused ? 'scale-[1.02]' : ''
                 }`}
