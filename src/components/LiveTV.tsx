@@ -705,16 +705,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       {/* Header */}
       <div data-player-chrome="" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Button
-            variant="white"
-            size="sm"
+          <BackButton
             onClick={leaveMode}
+            label="Back"
             data-player-header-btn=""
-            data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
-            className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
+            focused={pane === 'header' && headerIdx === 0}
+          />
           <div className="flex items-center gap-2">
             <Tv className="w-7 h-7 text-brand-gold" />
             <h1 className="text-2xl font-quicksand font-bold text-white">Player</h1>

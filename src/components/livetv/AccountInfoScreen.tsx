@@ -90,9 +90,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
       <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
         <Card className="p-6 bg-slate-900/80 border-slate-700 text-center">
           <p className="text-white/80 mb-4">No player account on this device.</p>
-          <Button variant="white" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
+          <BackButton onClick={onBack} label="Back" />
         </Card>
       </div>
     );
@@ -153,15 +151,12 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     <div className="min-h-screen flex flex-col text-white bg-black/70">
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Button
-            variant="white"
-            size="sm"
+          <BackButton
             onClick={onBack}
-            data-player-header-btn="" data-focused={focusIdx === 0 ? "true" : "false"}
-            className={`tv-focusable transition-all duration-150 ${focusIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
-          </Button>
+            label="Back"
+            data-player-header-btn=""
+            focused={focusIdx === 0}
+          />
           <div className="flex items-center gap-2">
             <Tv className="w-7 h-7 text-brand-gold" />
             <h1 className="text-2xl font-quicksand font-bold text-white">Account</h1>
