@@ -141,9 +141,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
           onClick={onBack}
           data-player-header-btn=""
           data-focused={menuIdx === 0 ? 'true' : 'false'}
-          className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-            menuIdx === 0 ? 'scale-105' : ''
-          }`}
+          className={`tv-focusable transition-all duration-150 ${menuIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
@@ -164,9 +162,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
                 data-player-header-btn=""
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
-                className={`tv-focusable home-focus-surface flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer transition-transform duration-150 ${
-                  focused ? 'scale-[1.02]' : ''
-                }`}
+                className={`tv-focusable flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer transition-all duration-150 ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
               >
                 <Icon className="w-6 h-6 text-brand-gold shrink-0" />
                 <span className="text-lg font-quicksand font-semibold">{m.label}</span>

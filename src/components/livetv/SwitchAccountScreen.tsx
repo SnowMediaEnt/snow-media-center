@@ -147,9 +147,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
           onClick={onBack}
           data-player-header-btn=""
           data-focused={focusIdx === 0 ? 'true' : 'false'}
-          className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-            focusIdx === 0 ? 'scale-105' : ''
-          }`}
+          className={`tv-focusable transition-all duration-150 ${focusIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
@@ -177,9 +175,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
                 data-player-header-btn=""
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setFocusIdx(rowIdx); void pickAccount(a); }}
-                className={`tv-focusable home-focus-surface flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/70 border border-white/10 cursor-pointer transition-transform duration-150 ${
-                  focused ? 'scale-[1.02]' : ''
-                }`}
+                className={`tv-focusable flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/70 border border-white/10 cursor-pointer transition-all duration-150 ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
               >
                 <Badge className="bg-brand-gold/25 text-brand-gold border border-brand-gold/40">
                   {a.serverLabel}
@@ -198,9 +194,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
             data-player-header-btn=""
             data-focused={focusIdx === addIdx ? 'true' : 'false'}
             onClick={() => { setFocusIdx(addIdx); onAddAccount(); }}
-            className={`tv-focusable home-focus-surface flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/40 border border-dashed border-white/20 cursor-pointer transition-transform duration-150 ${
-              focusIdx === addIdx ? 'scale-[1.02]' : ''
-            }`}
+            className={`tv-focusable flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/40 border border-dashed border-white/20 cursor-pointer transition-all duration-150 ${focusIdx === addIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <Plus className="w-5 h-5 text-brand-ice" />
             <span className="font-nunito">Add another account</span>

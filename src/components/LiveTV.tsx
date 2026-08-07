@@ -710,9 +710,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={leaveMode}
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 0 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 0 ? 'scale-105' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
@@ -735,9 +733,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             aria-label="Update Channels"
             data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              pane === 'header' && headerIdx === 1 ? 'scale-105' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 1 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Updating…' : 'Update Channels'}
@@ -751,9 +747,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onClick={() => setSettingsOpen(true)}
               data-player-header-btn=""
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-                pane === 'header' && headerIdx === 2 ? 'scale-105' : ''
-              }`}
+              className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 2 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
             >
               <SettingsIcon className="w-4 h-4 mr-2" />
               Settings

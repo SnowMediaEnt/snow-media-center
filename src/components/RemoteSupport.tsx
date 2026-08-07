@@ -20,7 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
-import { isFireTV, isNativePlatform } from '@/utils/platform';
+import { isFireTV, getPlatform } from '@/utils/platform';
 import { AppManager } from '@/capacitor/AppManager';
 import { downloadApkToCache } from '@/utils/downloadApk';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
@@ -129,7 +129,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         if (!cancelled) setStep('blocked-firetv');
         return;
       }
-      if (isNativePlatform()) {
+      if (getPlatform() !== 'web') {
         try {
           const { installed } = await AppManager.isInstalled({
             packageName: 'com.amazon.device.controllermanager',
@@ -654,6 +654,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             <p className="text-xl text-slate-200">
               Remote Access runs on your Android TV box or Android device. Open Snow
               Media Center on the box you need help with and come back to this page.
+            </p>
+            <p className="mt-4 text-xs font-mono text-slate-500 break-all">
+              {`platform=${getPlatform()} cap=${typeof (window as any).Capacitor} fn=${typeof (window as any).Capacitor?.isNativePlatform} bridge=${!!(window as any).androidBridge} ua=${(navigator.userAgent || '').slice(0, 80)}`}
             </p>
           </div>
         </div>
