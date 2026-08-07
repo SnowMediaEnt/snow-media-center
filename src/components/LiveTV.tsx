@@ -142,9 +142,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     try { (window as unknown as { __claimCardOpen?: boolean }).__claimCardOpen = claimOpen; } catch { /* ignore */ }
   }, [claimOpen]);
 
+  // Only offer the reminders card right after a real credential sign-in —
+  // never when saved creds are simply rehydrated on app open.
+  const justSignedInRef = useRef(false);
+
   useEffect(() => {
     if (DEMO) return;
     if (claimPromptShownThisSession) return;                    // at most once per app session
+    if (!justSignedInRef.current) return;                       // never on app open — sign-in only
     if (!credsLoaded || !creds) return;                         // only after a panel sign-in
     if (authLoading || user) return;                            // player-only users only
     if (!playerAccount || daysUntilExp(playerAccount) === null) return; // needs an expiration date
@@ -152,6 +157,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'choose') return;                              // wait until inside a mode
     if (expNoticeKind || serverAlert || settingsOpen || accountFormOpen || claimOpen) return;
     claimPromptShownThisSession = true;
+    justSignedInRef.current = false;
     setClaimOpen(true);
     try { trackEvent('claim_prompt_shown', 'player', { server: playerAccount.serverLabel }); } catch { /* ignore */ }
   }, [credsLoaded, creds, authLoading, user, playerAccount, mode, expNoticeKind, serverAlert, settingsOpen, accountFormOpen, claimOpen]);
@@ -660,6 +666,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             initial={creds}
             onSaved={(c) => {
               setCreds(c);
+              justSignedInRef.current = true;
               setAccountFormOpen(false);
             }}
             onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
