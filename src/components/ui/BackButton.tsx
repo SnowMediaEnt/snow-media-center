@@ -19,7 +19,7 @@ interface BackButtonProps
  *  make sure the screen root carries `tv-scroll-container tv-safe` so it sits
  *  inside the TV overscan-safe area. Never position it fixed or absolute. */
 export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
-  ({ onClick, label = 'Back to Home', focused = false, className, focusId = 'back', id, disabled }, ref) => (
+  ({ onClick, label = 'Back to Home', focused = false, className, focusId = 'back', id, disabled, ...rest }, ref) => (
     <Button
       ref={ref}
       id={id}
@@ -29,6 +29,7 @@ export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
       size="lg"
       data-focus-id={focusId}
       data-focused={focused ? 'true' : 'false'}
+      {...rest}
       className={cn(
         'tv-focusable transition-all duration-150',
         focused && 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110',
