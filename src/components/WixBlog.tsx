@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { ArrowLeft, Loader2, Calendar, RefreshCw } from 'lucide-react';
 import { invokeEdgeFunction } from '@/utils/edgeFunctions';
 import DOMPurify from 'dompurify';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface BlogPost {
   id: string;

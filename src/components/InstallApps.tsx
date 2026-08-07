@@ -22,6 +22,7 @@ import { usePinnedApps } from '@/hooks/usePinnedApps';
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { trackAppLaunch, trackAlertShown } from '@/lib/analytics';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface InstallAppsProps {
   onBack: () => void;

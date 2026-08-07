@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface GiveawayInfo {
   id: string;
@@ -441,7 +442,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
             onClick={onBack}
             label="Back to Home"
             data-giveaway-focus={0}
-            focused={focusIdx === 0}
+            focused={focusIndex === 0}
           />
         </div>
 

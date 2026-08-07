@@ -15,6 +15,7 @@ import {
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from 'react-i18next';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface GamesProps {
   onBack: () => void;

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { formatDistanceToNow } from 'date-fns';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface AIConversationSystemProps {
   onBack: () => void;
