@@ -618,6 +618,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             </div>
           </div>
         </div>
+        </div>
         {demoNoticeOverlay}
       </div>
     );

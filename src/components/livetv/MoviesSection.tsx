@@ -485,6 +485,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             </Button>
           </div>
         </div>
+        </div>
         {demoNoticeOverlay}
       </div>
     );
