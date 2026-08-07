@@ -17,6 +17,7 @@ import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SettingsProps {
   onBack: () => void;

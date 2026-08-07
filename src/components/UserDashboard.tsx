@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
 import UserServicesEditor from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 
 interface UserDashboardProps {

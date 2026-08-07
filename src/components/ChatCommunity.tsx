@@ -19,6 +19,7 @@ import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 
 interface ChatCommunityProps {

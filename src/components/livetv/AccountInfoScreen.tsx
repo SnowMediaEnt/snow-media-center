@@ -10,6 +10,7 @@ import { expDateToMs } from '@/lib/xtream';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface Props {
   onBack: () => void;

@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SupportTicketSystemProps {
   onBack: () => void;

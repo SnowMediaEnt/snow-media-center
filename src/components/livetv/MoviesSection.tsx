@@ -19,6 +19,7 @@ import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 

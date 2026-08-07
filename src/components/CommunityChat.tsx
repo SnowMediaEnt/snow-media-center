@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface CommunityMessage {
   id: string;

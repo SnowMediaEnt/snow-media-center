@@ -19,6 +19,7 @@ import {
 } from '@/lib/xtream';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { trackEvent } from '@/lib/analytics';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface Props {
   onBack: () => void;

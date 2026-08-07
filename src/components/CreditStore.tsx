@@ -8,6 +8,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface CreditPackage {
   id: string;

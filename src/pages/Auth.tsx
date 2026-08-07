@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 type Step = 'email' | 'password' | 'create';
 type AccountKind = 'app' | 'wix' | null;

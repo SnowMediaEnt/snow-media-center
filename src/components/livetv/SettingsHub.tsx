@@ -4,6 +4,7 @@ import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, BellRing } fr
 import type { XtreamCreds } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 // Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
 const DEMO = isDemo();

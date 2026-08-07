@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getDeviceId } from '@/lib/analytics';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface MediaManagerProps {
   onBack: () => void;

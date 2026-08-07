@@ -41,6 +41,7 @@ const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
 import { isDemo } from '@/lib/demoMode';
 import { DEMO_LIVE_CREDS } from '@/data/liveTvDemo';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Gauge, Play, RotateCw, Wifi, Loader2 } from 'lucide-react';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SpeedTestProps {
   onClose: () => void;

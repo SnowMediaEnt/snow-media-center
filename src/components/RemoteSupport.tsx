@@ -26,6 +26,7 @@ import { downloadApkToCache } from '@/utils/downloadApk';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
 import { trackEvent } from '@/lib/analytics';
 import type { Tables } from '@/integrations/supabase/types';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const SUPPORT_PACKAGE = 'com.snowmedia.support';
 const SUPPORT_APK_URL = 'https://smcdreamstreams.store/support/snow-support.apk';

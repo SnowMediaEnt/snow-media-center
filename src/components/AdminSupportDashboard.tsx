@@ -38,6 +38,7 @@ import AdminUserManager from '@/components/AdminUserManager';
 import FreeAISection from '@/components/FreeAISection';
 import { AlertTriangle, Users, MonitorSmartphone } from 'lucide-react';
 import AdminRemoteRequests from '@/components/AdminRemoteRequests';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;

@@ -10,6 +10,7 @@ import { ArrowLeft, Upload, Trash2, FileText, Loader2, Plus, Eye, EyeOff } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 
 interface KnowledgeManagerProps {
