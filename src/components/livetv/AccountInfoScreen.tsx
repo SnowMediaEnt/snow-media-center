@@ -157,9 +157,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             size="sm"
             onClick={onBack}
             data-player-header-btn="" data-focused={focusIdx === 0 ? "true" : "false"}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === 0 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${focusIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
@@ -174,9 +172,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             size="sm"
             onClick={() => setShowPwd(v => !v)}
             data-player-header-btn="" data-focused={focusIdx === 1 ? "true" : "false"}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === 1 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${focusIdx === 1 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             {showPwd ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
             {showPwd ? 'Hide' : 'Show'} password
@@ -186,9 +182,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             size="sm"
             onClick={onChangeCredentials}
             data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === 2 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${focusIdx === 2 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <KeyRound className="w-4 h-4 mr-2" /> Change credentials
           </Button>
@@ -198,9 +192,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
               size="sm"
               onClick={openRenew}
               data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
-              className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-                focusIdx === 3 ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
-              }`}
+              className={`tv-focusable transition-all duration-150 ${focusIdx === 3 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Renew
             </Button>
@@ -210,9 +202,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             size="sm"
             onClick={onSignOut}
             data-player-header-btn="" data-focused={focusIdx === signOutIdx ? "true" : "false"}
-            className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-              focusIdx === signOutIdx ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.45)]' : ''
-            }`}
+            className={`tv-focusable transition-all duration-150 ${focusIdx === signOutIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
           </Button>

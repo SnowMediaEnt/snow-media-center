@@ -143,9 +143,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
         data-focused={focused ? 'true' : 'false'}
         data-selected={selected ? 'true' : 'false'}
         onClick={() => { setFocusIdx(flatIdx); applyChip(chip); }}
-        className={`tv-focusable home-focus-surface inline-flex items-center gap-2 rounded-full px-4 py-2 border cursor-pointer transition-transform duration-150 ${
-          selected ? 'bg-brand-gold/25 border-brand-gold/60' : 'bg-slate-900/60 border-white/10'
-        } ${focused ? 'scale-105' : ''}`}
+        className={`tv-focusable inline-flex items-center gap-2 rounded-full px-4 py-2 border cursor-pointer transition-all duration-150 ${selected ? 'bg-brand-gold/25 border-brand-gold/60' : 'bg-slate-900/60 border-white/10' } ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
       >
         {showDot && chip.hsl && (
           <span
@@ -170,9 +168,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
           onClick={onBack}
           data-player-header-btn=""
           data-focused={focusIdx === 0 ? 'true' : 'false'}
-          className={`tv-focusable home-focus-surface transition-transform duration-150 ${
-            focusIdx === 0 ? 'scale-105' : ''
-          }`}
+          className={`tv-focusable transition-all duration-150 ${focusIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
@@ -198,9 +194,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
               data-player-header-btn=""
               data-focused={focusIdx === groupStarts.resetIdx ? 'true' : 'false'}
               onClick={() => { setFocusIdx(groupStarts.resetIdx); resetTheme(); }}
-              className={`tv-focusable home-focus-surface inline-flex items-center gap-2 rounded-xl px-4 py-2 border border-white/15 bg-slate-900/60 cursor-pointer transition-transform duration-150 ${
-                focusIdx === groupStarts.resetIdx ? 'scale-105' : ''
-              }`}
+              className={`tv-focusable inline-flex items-center gap-2 rounded-xl px-4 py-2 border border-white/15 bg-slate-900/60 cursor-pointer transition-all duration-150 ${focusIdx === groupStarts.resetIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
             >
               <RotateCcw className="w-4 h-4 text-brand-ice" />
               <span className="text-sm font-nunito">Reset to default</span>
