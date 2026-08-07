@@ -410,26 +410,28 @@ const Auth = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto"
+      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-[5vw] py-[4vh] overflow-y-auto"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
     >
+      {/* Back Button — normal flow at the top-left of the page content */}
+      <div className={BACK_ROW}>
+        <BackButton
+          id="auth-back"
+          onClick={() => {
+            if (step === 'password' || step === 'create') {
+              setStep('email');
+              setFocusedElement('email');
+            } else {
+              navigate('/');
+            }
+          }}
+          label="Back to Home"
+          focused={focusedElement === 'back'}
+        />
+      </div>
+
       <div className="max-w-md mx-auto">
-        {/* Back Button — normal flow at the top-left of the page content */}
-        <div className={BACK_ROW}>
-          <BackButton
-            id="auth-back"
-            onClick={() => {
-              if (step === 'password' || step === 'create') {
-                setStep('email');
-                setFocusedElement('email');
-              } else {
-                navigate('/');
-              }
-            }}
-            label="Back to Home"
-            focused={focusedElement === 'back'}
-          />
-        </div>
+
 
 
         <div className="text-center mb-8">
