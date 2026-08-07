@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 interface MediaStoreProps {
   onBack: () => void;
 }

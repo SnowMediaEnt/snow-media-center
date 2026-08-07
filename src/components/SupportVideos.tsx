@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, ArrowLeft, Clock, Loader2, AlertCircle } from 'lucide-react';
 import { useVimeoVideos } from '@/hooks/useVimeoVideos';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SupportVideosProps {
   onBack: () => void;
