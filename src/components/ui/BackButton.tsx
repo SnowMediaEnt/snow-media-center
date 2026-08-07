@@ -3,7 +3,8 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-interface BackButtonProps {
+interface BackButtonProps
+  extends Omit<React.ComponentPropsWithoutRef<typeof Button>, 'onClick' | 'variant' | 'size'> {
   onClick: () => void;
   label?: string;
   focused?: boolean;
