@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.7': [
+    '🔗 New: Link your email to your Player account so we can remind you before it expires',
+    'Scan a QR with your phone or enter your email right on your TV',
+    'Manage your subscription and renewals from your phone after linking',
+    'Bug fixes and performance improvements',
+  ],
   '1.6.6': [
     '🔊 Fixed audio on Dolby (AC-3) channels across all devices',
     'Clearer message when your connection is slow',
