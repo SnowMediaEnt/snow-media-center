@@ -153,16 +153,12 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
     >
       {/* Header — pinned to the tv-safe corner, content stays centered below */}
       <div className="flex items-center justify-between mb-8 gap-4 flex-wrap pt-4">
-          <Button
+          <BackButton
             data-game-focus={0}
             onClick={onBack}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusIndex === 0 ? 'ring-4 ring-amber-300/70 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : ''}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.hub.back')}
-          </Button>
+            label={t('games.hub.back')}
+            focused={focusIndex === 0}
+          />
         {renderChipBadge()}
       </div>
 

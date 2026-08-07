@@ -91,14 +91,9 @@ const WixBlog = ({ onBack }: WixBlogProps) => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-950/40 to-slate-900 p-6">
         <div className="max-w-4xl mx-auto">
-          <Button
-            onClick={() => setSelected(null)}
-            variant="outline"
-            className="mb-6 border-green-500/60 text-green-200 hover:bg-green-600 hover:text-white transition-transform duration-200 focus:scale-110 focus:shadow-[0_0_28px_rgba(74,222,128,0.6)]"
-            autoFocus
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" /> Back to Blog
-          </Button>
+          <div className={BACK_ROW}>
+            <BackButton onClick={() => setSelected(null)} label="Back to Blog" autoFocus />
+          </div>
           <Card className="bg-slate-900/80 border-green-700 p-6 md:p-8">
             {cover && <img src={cover} alt="" className="w-full max-h-72 object-cover rounded-lg mb-6" />}
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">{selected.title}</h1>
@@ -123,14 +118,7 @@ const WixBlog = ({ onBack }: WixBlogProps) => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-950/40 to-slate-900 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <Button
-            onClick={onBack}
-            variant="outline"
-            className="border-green-500/60 text-green-200 hover:bg-green-600 hover:text-white transition-transform duration-200 focus:scale-110 focus:shadow-[0_0_28px_rgba(74,222,128,0.6)]"
-            autoFocus
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" /> Back
-          </Button>
+          <BackButton onClick={onBack} label="Back" autoFocus />
           <Button
             onClick={loadPosts}
             variant="outline"

@@ -49,10 +49,7 @@ const InstallApps = ({ onBack, onNavigateToChat }: InstallAppsProps) => {
       <div className="tv-scroll-container tv-safe flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Error loading apps: {error}</p>
-          <Button onClick={onBack} variant="gold" className="">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
+          <BackButton onClick={onBack} label="Back to Home" />
         </div>
       </div>
     );
@@ -976,17 +973,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
         <div className="max-w-2xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
-          <Button 
-            data-focus-id="back"
-            data-focused={isFocused('back') ? 'true' : 'false'}
+          <BackButton
             onClick={onBack}
-            variant="gold" 
-            size="lg"
-            className={`transition-all duration-200 ${focusRing('back')}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
+            label="Back to Home"
+            focused={isFocused('back')}
+          />
             <Button
               data-focus-id="refresh"
               data-focused={isFocused('refresh') ? 'true' : 'false'}
