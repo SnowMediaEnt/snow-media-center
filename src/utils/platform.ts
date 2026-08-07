@@ -1,7 +1,10 @@
 // Platform detection utilities - safe for both web and native
 // This module handles platform detection without breaking web builds
 
-let _isNative: boolean | null = null;
+// Latch: only ever flips false -> true. NEVER cache a negative — a cached
+// `false` from any early call (main.tsx calls this at module scope) would
+// permanently disable every native code path for the whole session.
+let _isNative = false;
 
 /**
  * True when running on an Amazon Fire TV / Firestick / Fire TV Cube.
@@ -15,16 +18,20 @@ export const isFireTV = (): boolean =>
   /\bAFT[A-Z0-9]+\b|Fire ?TV|FireOS/i.test(navigator.userAgent || '');
 
 export const isNativePlatform = (): boolean => {
-  if (_isNative !== null) return _isNative;
-  
+  if (_isNative) return true;
   try {
-    // Check if Capacitor is available and we're on a native platform
     const win = window as any;
-    _isNative = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
+    const cap = win.Capacitor;
+    _isNative = !!(
+      (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) ||
+      (cap && cap.isNative === true) ||
+      (cap && typeof cap.getPlatform === 'function' && cap.getPlatform() !== 'web') ||
+      win.androidBridge ||
+      (win.webkit && win.webkit.messageHandlers && win.webkit.messageHandlers.bridge)
+    );
   } catch {
     _isNative = false;
   }
-  
   return _isNative;
 };
 
