@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Gauge, Play, RotateCw, Wifi, Loader2 } from 'lucide-react';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SpeedTestProps {
   onClose: () => void;
@@ -246,21 +247,16 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   };
 
   return (
-    <div ref={scrollRef} role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
-      <div className="max-w-4xl mx-auto px-6 py-10 pb-24">
+    <div ref={scrollRef} role="dialog" aria-modal="true" className="fixed inset-0 z-50 tv-scroll-container tv-safe bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+      <div className="max-w-4xl mx-auto pb-24">
         <div className="flex items-center justify-between mb-8">
-          <Button
+          <BackButton
             ref={backBtnRef}
-            data-focus-id="speedtest-back"
-            data-focused={focused === 'back' ? 'true' : undefined}
+            focusId="speedtest-back"
             onClick={closeNow}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing('back')}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
-          </Button>
+            label="Back"
+            focused={focused === 'back'}
+          />
           <div className="flex items-center gap-3 text-white">
             <Gauge className="w-7 h-7 text-brand-ice" />
             <h1 className="text-3xl font-bold">Internet Speed Test</h1>

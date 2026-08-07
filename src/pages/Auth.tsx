@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 type Step = 'email' | 'password' | 'create';
 type AccountKind = 'app' | 'wix' | null;
@@ -409,34 +410,29 @@ const Auth = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-4 md:p-8 overflow-y-auto"
+      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-[5vw] py-[4vh] overflow-y-auto"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
     >
-      <div className="max-w-md mx-auto">
-        {/* Back Button - Fixed to top left corner like other pages */}
-        <div className="fixed top-4 left-4 z-50">
-          <Button
-            id="auth-back"
-            onClick={() => {
-              if (step === 'password' || step === 'create') {
-                setStep('email');
-                setFocusedElement('email');
-              } else {
-                navigate('/');
-              }
-            }}
-            variant="outline"
-            size="lg"
-            className={`bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
-              focusedElement === 'back' ? 'ring-4 ring-white/60 scale-105' : ''
-            }`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
-        </div>
+      {/* Back Button — normal flow at the top-left of the page content */}
+      <div className={BACK_ROW}>
+        <BackButton
+          id="auth-back"
+          onClick={() => {
+            if (step === 'password' || step === 'create') {
+              setStep('email');
+              setFocusedElement('email');
+            } else {
+              navigate('/');
+            }
+          }}
+          label="Back to Home"
+          focused={focusedElement === 'back'}
+        />
+      </div>
 
-        <div className="pt-16"></div>
+      <div className="max-w-md mx-auto">
+
+
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">

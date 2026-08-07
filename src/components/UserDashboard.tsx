@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
 import UserServicesEditor from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 
 interface UserDashboardProps {
@@ -252,18 +253,12 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   return (
     <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
       {/* Header — pinned to the tv-safe corner, content stays centered below */}
-      <div className="flex items-center w-full justify-between">
-        <Button
+      <div className="flex items-center w-full justify-between mb-6">
+        <BackButton
           onClick={() => onViewChange('home')}
-          variant="gold"
-          size="lg"
-          className={`transition-all duration-200 ${
-            focusedElement === 0 ? 'ring-4 ring-white/60 scale-105' : ''
-          }`}
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          Back to Home
-        </Button>
+          label="Back to Home"
+          focused={focusedElement === 0}
+        />
         <Button
           onClick={handleSignOut}
           variant="outline"

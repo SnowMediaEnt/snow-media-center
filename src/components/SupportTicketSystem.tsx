@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useTVFocus, TVFocusNavigationMap } from '@/hooks/useTVFocus';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SupportTicketSystemProps {
   onBack: () => void;
@@ -443,19 +444,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'create') {
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              onClick={() => setView('list')} 
-              variant="outline" 
-              size="sm"
-              data-tv-focus-id="create-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Tickets
-            </Button>
+            <BackButton onClick={() => setView('list')} label="Back to Tickets" data-tv-focus-id="create-back" />
             <h1 className="text-3xl font-bold">Create Support Ticket</h1>
           </div>
 
@@ -558,20 +550,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   if (view === 'ticket' && selectedTicket) {
     const ticketActive = isTicketActive(selectedTicket);
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
-              <Button 
-                onClick={() => setView('list')} 
-                variant="outline" 
-                size="sm"
-                data-tv-focus-id="ticket-back"
-                className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Tickets
-              </Button>
+              <BackButton onClick={() => setView('list')} label="Back to Tickets" data-tv-focus-id="ticket-back" />
               <h1 className="text-3xl font-bold">{selectedTicket.subject}</h1>
               <Badge className={getStatusColor(selectedTicket.status, ticketActive)}>
                 {getStatusIcon(selectedTicket.status, ticketActive)}
@@ -672,19 +655,10 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
   if (view === 'ai-chat' && selectedAIConversation) {
     return (
-      <div ref={tvFocus.containerRef} className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button
-              onClick={() => { setView('list'); setSelectedAIConversationId(null); }}
-              variant="outline"
-              size="sm"
-              data-tv-focus-id="ai-chat-back"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white "
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+            <BackButton onClick={() => { setView('list'); setSelectedAIConversationId(null); }} label="Back" data-tv-focus-id="ai-chat-back" />
             <h1 className="text-3xl font-bold line-clamp-1">{selectedAIConversation.title}</h1>
           </div>
 
@@ -750,20 +724,11 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   }
 
   return (
-    <div ref={tvFocus.containerRef} className="min-h-screen bg-neutral-900 text-white p-6">
+    <div ref={tvFocus.containerRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Button 
-              onClick={onBack} 
-              variant="outline" 
-              size="sm"
-              data-tv-focus-id="list-back"
-              className="bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white "
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+            <BackButton onClick={onBack} label="Back" data-tv-focus-id="list-back" />
             <h1 className="text-3xl font-bold">Tickets</h1>
           </div>
           {!isDemo() && (

@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Palette, RotateCcw, Check } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import {
   ACCENT_SWATCHES,
   BG_SWATCHES,
@@ -162,16 +163,12 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
-        <Button
-          variant="white"
-          size="sm"
+        <BackButton
           onClick={onBack}
+          label="Back"
           data-player-header-btn=""
-          data-focused={focusIdx === 0 ? 'true' : 'false'}
-          className={`tv-focusable transition-all duration-150 ${focusIdx === 0 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
+          focused={focusIdx === 0}
+        />
         <div className="flex items-center gap-2">
           <Palette className="w-7 h-7 text-brand-gold" />
           <h1 className="text-2xl font-quicksand font-bold text-white">Appearance</h1>

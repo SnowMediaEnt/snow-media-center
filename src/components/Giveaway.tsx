@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { setPausableInterval } from '@/utils/pausableInterval';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface GiveawayInfo {
   id: string;
@@ -436,17 +437,13 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
     <div className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
       <div className="max-w-4xl mx-auto pb-24">
         {/* Header */}
-        <div className="flex items-center mb-6">
-          <Button
+        <div className={BACK_ROW}>
+          <BackButton
             onClick={onBack}
-            variant="gold"
-            size="lg"
+            label="Back to Home"
             data-giveaway-focus={0}
-            className={`transition-all duration-200 ${focusCls(0)}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
+            focused={focusIndex === 0}
+          />
         </div>
 
         {loading ? (

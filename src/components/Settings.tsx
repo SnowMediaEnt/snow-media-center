@@ -17,6 +17,7 @@ import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface SettingsProps {
   onBack: () => void;
@@ -354,20 +355,16 @@ const Settings = ({ onBack }: SettingsProps) => {
   const tabColsClass = tabCount === 5 ? 'grid-cols-5' : tabCount === 4 ? 'grid-cols-4' : tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe text-white" style={{ paddingTop: '2vh' }}>
+    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
       <div id="settings-top" className="scroll-mt-4" />
-      <div className="flex items-start w-full">
-        <Button
+      <div className={BACK_ROW}>
+        <BackButton
           {...settingsFocusAttrs('back')}
           onFocus={() => setFocusedElement('back')}
           onClick={onBack}
-          variant="gold"
-          size="lg"
-          className={`transition-all duration-200 ${backFocusRing('back')}`}
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          {t('common.backToHome')}
-        </Button>
+          label={t('common.backToHome')}
+          focused={focusedElement === 'back'}
+        />
       </div>
       <div className="max-w-4xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">

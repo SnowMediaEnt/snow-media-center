@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import QRCheckoutDialog from '@/components/QRCheckoutDialog';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 interface MediaStoreProps {
   onBack: () => void;
 }
@@ -408,16 +409,14 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       <div ref={detailContainerRef} className="tv-scroll-container tv-safe text-white">
         <div ref={detailTopAnchorRef} aria-hidden="true" className="h-0 w-full" />
         <div className="max-w-6xl mx-auto pb-16">
-          <Button 
-            onClick={() => setSelectedProduct(null)}
-            variant="outline" 
-            size="lg"
-            data-focus-id="detail-back"
-            className={`mb-6 bg-brand-gold text-white hover:bg-brand-gold/80 ${detailFocusedElement === 'detail-back' ? 'ring-4 ring-brand-gold shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-offset-2 ring-offset-slate-900' : ''}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Products
-          </Button>
+          <div className={BACK_ROW}>
+            <BackButton
+              onClick={() => setSelectedProduct(null)}
+              label="Back to Products"
+              focusId="detail-back"
+              focused={detailFocusedElement === 'detail-back'}
+            />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Product Images */}
@@ -544,20 +543,11 @@ const MediaStore = ({ onBack }: MediaStoreProps) => {
       <div className="max-w-7xl mx-auto pb-16">
         {/* Header — Back on left, Sign-in + Cart on right */}
         <div className="flex items-center justify-between gap-4 mb-4">
-          <Button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onBack();
-            }}
-            variant="gold"
-            size="lg"
-            data-focus-id="back"
-            data-focused={focusedElement === 'back' ? 'true' : 'false'}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
+          <BackButton
+            onClick={() => onBack()}
+            label="Back to Home"
+            focused={focusedElement === 'back'}
+          />
 
           <div className="flex items-center space-x-3">
             {user ? (

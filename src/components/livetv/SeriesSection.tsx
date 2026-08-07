@@ -20,6 +20,7 @@ import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -518,10 +519,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     const info = seriesInfo?.info;
     const cover = info?.cover || selectedSeries.cover;
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 text-white bg-black/40">
-        <Button variant="white" size="sm" onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} className="tv-focusable home-focus-surface mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
+      <div className="flex-1 min-h-0 flex flex-col text-white bg-black/40">
+        <div className={`${BACK_ROW} flex-shrink-0 px-6 pt-6 mb-4`}>
+          <BackButton onClick={() => { setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }} label="Back" />
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
         <div className="flex gap-6 mb-6">
           <div className="w-48 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
             {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
@@ -615,6 +617,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               })}
             </div>
           </div>
+        </div>
         </div>
         {demoNoticeOverlay}
       </div>

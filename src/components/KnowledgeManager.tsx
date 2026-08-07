@@ -10,6 +10,7 @@ import { ArrowLeft, Upload, Trash2, FileText, Loader2, Plus, Eye, EyeOff } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 
 interface KnowledgeManagerProps {
@@ -245,18 +246,14 @@ const KnowledgeManager = ({ onBack }: KnowledgeManagerProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-8">
+    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center mb-8">
-          <Button 
+          <BackButton
             onClick={onBack}
-            variant="outline" 
-            size="lg"
-            className="mr-6 bg-purple-600 border-purple-500 text-white hover:bg-purple-700"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Settings
-          </Button>
+            label="Back to Settings"
+            className="mr-6"
+          />
           <div>
             <h1 className="text-4xl font-bold text-white mb-2">Knowledge Manager</h1>
             <p className="text-xl text-purple-200">Upload documents to train Snow Media AI</p>

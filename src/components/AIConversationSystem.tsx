@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { formatDistanceToNow } from 'date-fns';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface AIConversationSystemProps {
   onBack: () => void;
@@ -133,10 +134,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button onClick={() => setView('list')} variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Conversations
-            </Button>
+            <BackButton onClick={() => setView('list')} label="Back to Conversations" />
             <h1 className="text-3xl font-bold">New AI Conversation</h1>
           </div>
 
@@ -188,10 +186,7 @@ const AIConversationSystem = ({ onBack }: AIConversationSystemProps) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button onClick={() => setView('list')} variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Conversations
-            </Button>
+            <BackButton onClick={() => setView('list')} label="Back to Conversations" />
             <h1 className="text-3xl font-bold line-clamp-1">{selectedConversation.title}</h1>
           </div>
 

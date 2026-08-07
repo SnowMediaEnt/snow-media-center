@@ -38,6 +38,7 @@ import AdminUserManager from '@/components/AdminUserManager';
 import FreeAISection from '@/components/FreeAISection';
 import { AlertTriangle, Users, MonitorSmartphone } from 'lucide-react';
 import AdminRemoteRequests from '@/components/AdminRemoteRequests';
+import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -201,18 +202,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
 
   if (view === 'ticket' && selectedTicket) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              onClick={() => setView('list')} 
-              variant="outline" 
-              size="sm"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Tickets
-            </Button>
+            <BackButton onClick={() => setView('list')} label="Back to Tickets" />
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{selectedTicket.subject}</h1>
               <div className="flex items-center gap-2 mt-1 text-sm text-slate-400">
@@ -357,19 +350,11 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Button 
-              onClick={onBack} 
-              variant="outline" 
-              size="sm"
-              className="bg-purple-600/20 hover:bg-purple-500/30 border-purple-400/50 text-white"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+            <BackButton onClick={onBack} label="Back" />
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-2">
                 <Shield className="h-8 w-8 text-purple-400" />

@@ -387,7 +387,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 data-focused={focusIdx === 2 ? 'true' : 'false'}
                 onClick={backToPrompt}
                 disabled={manualBusy}
-                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
               >
                 Back
               </Button>
