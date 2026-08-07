@@ -167,20 +167,14 @@ const CommunityChat = ({ onBack, embedded = false }: CommunityChatProps) => {
   return (
     <div ref={tvFocus.containerRef} className={embedded ? "w-full" : "tv-scroll-container tv-safe bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white h-dvh overflow-y-auto overscroll-contain"}>
       <div className={embedded ? "w-full" : "max-w-6xl mx-auto pb-16"}>
-        {/* Header — hidden when embedded inside Support */}
+        {/* Back always renders — including embedded inside Support */}
+        <div className={BACK_ROW}>
+          <BackButton onClick={onBack} label="Back to Home" data-tv-focus-id="back" />
+        </div>
+        {/* Rest of the header — hidden when embedded inside Support */}
         {!embedded && (
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
-            <Button 
-              data-tv-focus-id="back"
-              onClick={onBack}
-              variant="gold" 
-              size="lg"
-              className="mr-6 transition-all duration-200"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">In-App Community Chat</h1>
               <p className="text-xl text-blue-200">
