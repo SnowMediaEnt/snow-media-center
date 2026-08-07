@@ -274,10 +274,7 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <p className="text-xl text-red-400 mb-4">Error loading videos: {error}</p>
-          <Button onClick={onBack} variant="gold" className="">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
+          <BackButton onClick={onBack} label="Back to Home" />
         </div>
       </div>
     );
@@ -289,16 +286,11 @@ const SupportVideos = ({ onBack }: SupportVideosProps) => {
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
-            <Button
+            <BackButton
               onClick={onBack}
-              variant="gold"
-              size="lg"
-              data-focus-id="back"
-              className={focusedElement === 'back' ? 'ring-2 ring-brand-ice' : ''}
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Home
-            </Button>
+              label="Back to Home"
+              focused={focusedElement === 'back'}
+            />
 
             <div className="invisible">
               <Button variant="gold" size="lg">Placeholder</Button>
