@@ -414,9 +414,9 @@ const Auth = () => {
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
     >
       <div className="max-w-md mx-auto">
-        {/* Back Button - Fixed to top left corner like other pages */}
-        <div className="fixed top-4 left-4 z-50">
-          <Button
+        {/* Back Button — normal flow at the top-left of the page content */}
+        <div className={BACK_ROW}>
+          <BackButton
             id="auth-back"
             onClick={() => {
               if (step === 'password' || step === 'create') {
@@ -426,18 +426,11 @@ const Auth = () => {
                 navigate('/');
               }
             }}
-            variant="outline"
-            size="lg"
-            className={`bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
-              focusedElement === 'back' ? 'ring-4 ring-white/60 scale-105' : ''
-            }`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Home
-          </Button>
+            label="Back to Home"
+            focused={focusedElement === 'back'}
+          />
         </div>
 
-        <div className="pt-16"></div>
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">

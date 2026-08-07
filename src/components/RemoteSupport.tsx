@@ -568,10 +568,7 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
   );
 
   const backButton = (
-    <Button onClick={handleBack} variant="gold" size="lg" data-tv-focus-id="rs-back" className="transition-all duration-200">
-      <ArrowLeft className="w-5 h-5 mr-2" />
-      Back
-    </Button>
+    <BackButton onClick={handleBack} label="Back" data-tv-focus-id="rs-back" />
   );
 
   const wizardShell = (
