@@ -7,7 +7,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift, BellRing, Check } from 'lucide-react';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,10 @@ import QRCode from 'qrcode';
 import UserServicesEditor from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+import PlayerAccountCard from '@/components/PlayerAccountCard';
+import ClaimAccountCard, { type ClaimCloseOutcome } from '@/components/livetv/ClaimAccountCard';
+import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 
 
 interface UserDashboardProps {
@@ -44,7 +48,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const giveawayOn = giveawayEnabled && !isDemo();
   // Focus indices shift by one when the Giveaway action button is visible.
   const TAB_BASE = giveawayOn ? 6 : 5;
-  const EDIT_IDX = TAB_BASE + 4;
+  const CLAIM_IDX = TAB_BASE + 4;
+  const EDIT_IDX = CLAIM_IDX + 1;
   const DELETE_IDX = EDIT_IDX + 1;
   const { user, signOut } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
@@ -59,6 +64,15 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [showServicesEditor, setShowServicesEditor] = useState(false);
   const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
+  const { account: playerAccount } = usePlayerAccount();
+  const [claimOpen, setClaimOpen] = useState(false);
+  const claimDone = !!playerAccount && isClaimDone(playerAccount);
+  const claimedEmail = (() => {
+    if (!playerAccount || !claimDone) return '';
+    try { return localStorage.getItem(claimDoneKey(playerAccount.host, playerAccount.username)) || ''; } catch { return ''; }
+  })();
+  // The claim button only occupies a focus slot when it is actually rendered.
+  const claimAvailable = !!playerAccount && !claimDone;
 
 
   useEffect(() => {
@@ -98,6 +112,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   // Android TV/Firestick navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // The claim card owns the D-pad while it is open.
+      if (claimOpen) return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
@@ -132,8 +148,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             } else {
               setFocusedElement(2); // tabs -> purchase credits
             }
+          } else if (focusedElement === CLAIM_IDX) {
+            setFocusedElement(TAB_BASE); // player account -> overview tab
           } else if (focusedElement === EDIT_IDX) {
-            setFocusedElement(TAB_BASE); // edit -> overview tab
+            setFocusedElement(claimAvailable ? CLAIM_IDX : TAB_BASE); // edit -> claim / overview tab
           } else if (focusedElement === DELETE_IDX) {
             setFocusedElement(EDIT_IDX); // delete -> edit
           }
@@ -145,12 +163,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(TAB_BASE); // action buttons -> first tab
           } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             if (activeTab === 'overview') {
-              setFocusedElement(EDIT_IDX); // tabs -> edit button
+              setFocusedElement(claimAvailable ? CLAIM_IDX : EDIT_IDX); // tabs -> claim / edit button
             } else {
               const container = dashboardScrollRef.current;
               if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
               else window.scrollBy({ top: 300, behavior: 'smooth' });
             }
+          } else if (focusedElement === CLAIM_IDX) {
+            setFocusedElement(EDIT_IDX); // player account -> edit
           } else if (focusedElement === EDIT_IDX) {
             setFocusedElement(DELETE_IDX); // edit -> delete
           } else if (focusedElement === DELETE_IDX) {
@@ -171,6 +191,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
           else if (focusedElement === TAB_BASE + 2) setActiveTab('store');
           else if (focusedElement === TAB_BASE + 3) setActiveTab('referrals');
+          else if (focusedElement === CLAIM_IDX) { if (claimAvailable) setClaimOpen(true); }
           else if (focusedElement === EDIT_IDX) setShowServicesEditor(true);
           else if (focusedElement === DELETE_IDX) setShowDeleteConfirm(true);
           break;
@@ -180,7 +201,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, EDIT_IDX, DELETE_IDX]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top
@@ -203,13 +224,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   // Scroll focused Edit/Delete buttons into view
   useEffect(() => {
-    if (focusedElement !== 9 && focusedElement !== 10) return;
+    if (focusedElement !== CLAIM_IDX && focusedElement !== EDIT_IDX && focusedElement !== DELETE_IDX) return;
     const id = setTimeout(() => {
       const el = document.querySelector(`[data-dash-focus="true"]`) as HTMLElement | null;
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
     return () => clearTimeout(id);
-  }, [focusedElement]);
+  }, [focusedElement, CLAIM_IDX, EDIT_IDX, DELETE_IDX]);
 
 
   // Fetch Wix data once per email change. Do NOT depend on wixLoading —
@@ -417,14 +438,46 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 </div>
               </div>
 
+              {/* Player Account */}
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
+                <h3 className="text-lg font-semibold text-white mb-3">Player Account</h3>
+                {!playerAccount ? (
+                  <p className="text-slate-400 text-sm">
+                    Sign in to the Player with your Dreamstreams or Vibez login to see your streaming account here.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    <PlayerAccountCard />
+                    {claimDone ? (
+                      <p className="text-sm text-emerald-400 flex items-center gap-2">
+                        <Check className="w-4 h-4" />
+                        Reminders are linked to {claimedEmail || 'your email'}
+                      </p>
+                    ) : (
+                      <Button
+                        variant="gold"
+                        size="lg"
+                        onClick={() => setClaimOpen(true)}
+                        className={`tv-focusable transition-all duration-200 ${
+                          focusedElement === CLAIM_IDX ? 'ring-4 ring-brand-gold scale-105' : ''
+                        }`}
+                      >
+                        <BellRing className="w-5 h-5 mr-2" />
+                        Link email for renewal reminders
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* My Devices & Services */}
-              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 9 ? 'true' : 'false'}>
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
                     className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${
-                      focusedElement === 9 ? 'ring-4 ring-white/60 scale-105' : ''
+                      focusedElement === EDIT_IDX ? 'ring-4 ring-white/60 scale-105' : ''
                     }`}
                     size="sm"
                   >
@@ -474,7 +527,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === 10 ? 'true' : 'false'}>
+              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
                 <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
@@ -484,7 +537,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
                   className={`bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-all duration-200 ${
-                    focusedElement === 10 ? 'ring-4 ring-white/60 scale-105' : ''
+                    focusedElement === DELETE_IDX ? 'ring-4 ring-white/60 scale-105' : ''
                   }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
