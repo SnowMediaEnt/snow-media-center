@@ -750,6 +750,24 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         />
       )}
 
+      {claimOpen && playerAccount && (
+        <ClaimAccountCard
+          open={true}
+          account={playerAccount}
+          onClose={(outcome: ClaimCloseOutcome, email?: string) => {
+            setClaimOpen(false);
+            if (outcome === 'done') {
+              toast({
+                title: "You're all set",
+                description: `Reminders will go to ${email || 'your email'}.`,
+              });
+            }
+          }}
+        />
+      )}
+
+
+
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
 
         <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
