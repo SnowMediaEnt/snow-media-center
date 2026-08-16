@@ -1394,6 +1394,7 @@ export type Database = {
       }
       customer_services: {
         Row: {
+          connections: number | null
           created_at: string
           customer_id: string
           expiration_date: string | null
@@ -1412,6 +1413,7 @@ export type Database = {
           tied_apps: string[]
         }
         Insert: {
+          connections?: number | null
           created_at?: string
           customer_id: string
           expiration_date?: string | null
@@ -1430,6 +1432,7 @@ export type Database = {
           tied_apps?: string[]
         }
         Update: {
+          connections?: number | null
           created_at?: string
           customer_id?: string
           expiration_date?: string | null
@@ -1459,13 +1462,15 @@ export type Database = {
       }
       customers: {
         Row: {
+          contact_method: string | null
           created_at: string
-          email: string
+          email: string | null
           id: string
           name: string | null
           notes: string | null
           payment_handle: string | null
           phone: string | null
+          shares_account: boolean
           updated_at: string
           user_id: string | null
           wix_contact_id: string | null
@@ -1473,13 +1478,15 @@ export type Database = {
           wix_synced_at: string | null
         }
         Insert: {
+          contact_method?: string | null
           created_at?: string
-          email: string
+          email?: string | null
           id?: string
           name?: string | null
           notes?: string | null
           payment_handle?: string | null
           phone?: string | null
+          shares_account?: boolean
           updated_at?: string
           user_id?: string | null
           wix_contact_id?: string | null
@@ -1487,13 +1494,15 @@ export type Database = {
           wix_synced_at?: string | null
         }
         Update: {
+          contact_method?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           id?: string
           name?: string | null
           notes?: string | null
           payment_handle?: string | null
           phone?: string | null
+          shares_account?: boolean
           updated_at?: string
           user_id?: string | null
           wix_contact_id?: string | null
@@ -2158,10 +2167,36 @@ export type Database = {
           },
         ]
       }
+      plex_ip_geo: {
+        Row: {
+          city: string | null
+          country: string | null
+          ip: string
+          looked_up_at: string
+          region: string | null
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          ip: string
+          looked_up_at?: string
+          region?: string | null
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          ip?: string
+          looked_up_at?: string
+          region?: string | null
+        }
+        Relationships: []
+      }
       plex_members: {
         Row: {
           access_type: string
           created_at: string
+          customer_id: string | null
+          customer_name: string | null
           device_client_ids: string[]
           device_ids: string[]
           device_names: string[]
@@ -2173,6 +2208,7 @@ export type Database = {
           last_seen_at: string | null
           library_ids: string[]
           link_account: string
+          max_devices: number | null
           notes: string | null
           plex_user_id: string | null
           plex_username: string | null
@@ -2180,11 +2216,14 @@ export type Database = {
           shared_server_id: string | null
           starts_at: string
           status: string
+          sync_service_id: string | null
           updated_at: string
         }
         Insert: {
           access_type: string
           created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
           device_client_ids?: string[]
           device_ids?: string[]
           device_names?: string[]
@@ -2196,6 +2235,7 @@ export type Database = {
           last_seen_at?: string | null
           library_ids?: string[]
           link_account?: string
+          max_devices?: number | null
           notes?: string | null
           plex_user_id?: string | null
           plex_username?: string | null
@@ -2203,11 +2243,14 @@ export type Database = {
           shared_server_id?: string | null
           starts_at?: string
           status?: string
+          sync_service_id?: string | null
           updated_at?: string
         }
         Update: {
           access_type?: string
           created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
           device_client_ids?: string[]
           device_ids?: string[]
           device_names?: string[]
@@ -2219,6 +2262,7 @@ export type Database = {
           last_seen_at?: string | null
           library_ids?: string[]
           link_account?: string
+          max_devices?: number | null
           notes?: string | null
           plex_user_id?: string | null
           plex_username?: string | null
@@ -2226,9 +2270,17 @@ export type Database = {
           shared_server_id?: string | null
           starts_at?: string
           status?: string
+          sync_service_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "plex_members_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plex_members_reseller_id_fkey"
             columns: ["reseller_id"]
@@ -2236,47 +2288,72 @@ export type Database = {
             referencedRelation: "plex_resellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "plex_members_sync_service_id_fkey"
+            columns: ["sync_service_id"]
+            isOneToOne: false
+            referencedRelation: "customer_services"
+            referencedColumns: ["id"]
+          },
         ]
       }
       plex_resellers: {
         Row: {
           auth_token: string | null
+          billing_mode: string
           created_at: string
           credits: number
           id: string
+          login_email: string | null
           name: string
           notes: string | null
           plex_email: string | null
           plex_username: string | null
           portal_code: string
+          server_machine_identifier: string | null
+          server_name: string | null
+          server_url: string | null
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           auth_token?: string | null
+          billing_mode?: string
           created_at?: string
           credits?: number
           id?: string
+          login_email?: string | null
           name: string
           notes?: string | null
           plex_email?: string | null
           plex_username?: string | null
           portal_code: string
+          server_machine_identifier?: string | null
+          server_name?: string | null
+          server_url?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           auth_token?: string | null
+          billing_mode?: string
           created_at?: string
           credits?: number
           id?: string
+          login_email?: string | null
           name?: string
           notes?: string | null
           plex_email?: string | null
           plex_username?: string | null
           portal_code?: string
+          server_machine_identifier?: string | null
+          server_name?: string | null
+          server_url?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }

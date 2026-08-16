@@ -19,8 +19,6 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // The account-claim card owns the keyboard while open.
-      if ((window as unknown as { __claimCardOpen?: boolean }).__claimCardOpen) return;
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
       const isBack = e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace';

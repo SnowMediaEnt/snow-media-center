@@ -27,8 +27,6 @@ import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
 import ExpirationNoticeDialog from './livetv/ExpirationNoticeDialog';
 import PlexBlockedScreen from './livetv/PlexBlockedScreen';
-import ClaimAccountCard, { type ClaimCloseOutcome } from './livetv/ClaimAccountCard';
-import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
 
 import LiveSection from './livetv/LiveSection';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
@@ -46,10 +44,6 @@ import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
 const DEMO = isDemo();
-
-// Claim-card auto-prompt: at most once per app session. Module scope so it
-// survives in-app navigation but resets on a real reload.
-let claimPromptShownThisSession = false;
 
 
 interface Props {
@@ -131,49 +125,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     try { localStorage.setItem(`snow-player-exp-notice-${kind}-${ymd}`, '1'); } catch { /* ignore */ }
   }, [expNoticeKind]);
-
-  // ── Claim-your-account prompt (player-only users) ─────────────────────
-  // Shown once per session after a panel sign-in when there is no SMC account;
-  // "Not now" suppresses for 7 days; always re-openable from Settings.
-  const [claimOpen, setClaimOpen] = useState(false);
-  const claimOpenRef = useRef(false);
-  useEffect(() => {
-    claimOpenRef.current = claimOpen;
-    try { (window as unknown as { __claimCardOpen?: boolean }).__claimCardOpen = claimOpen; } catch { /* ignore */ }
-  }, [claimOpen]);
-
-  // Only offer the reminders card right after a real credential sign-in —
-  // never when saved creds are simply rehydrated on app open.
-  const justSignedInRef = useRef(false);
-
-  useEffect(() => {
-    if (DEMO) return;
-    if (claimPromptShownThisSession) return;                    // at most once per app session
-    if (!justSignedInRef.current) return;                       // never on app open — sign-in only
-    if (!credsLoaded || !creds) return;                         // only after a panel sign-in
-    if (authLoading || user) return;                            // player-only users only
-    if (!playerAccount || daysUntilExp(playerAccount) === null) return; // needs an expiration date
-    if (isClaimDone(playerAccount) || isClaimDismissed()) return;
-    if (mode === 'choose') return;                              // wait until inside a mode
-    if (expNoticeKind || serverAlert || settingsOpen || accountFormOpen || claimOpen) return;
-    claimPromptShownThisSession = true;
-    justSignedInRef.current = false;
-    setClaimOpen(true);
-    try { trackEvent('claim_prompt_shown', 'player', { server: playerAccount.serverLabel }); } catch { /* ignore */ }
-  }, [credsLoaded, creds, authLoading, user, playerAccount, mode, expNoticeKind, serverAlert, settingsOpen, accountFormOpen, claimOpen]);
-
-  const handleClaimClose = useCallback((outcome: ClaimCloseOutcome, email?: string) => {
-    setClaimOpen(false);
-    if (outcome === 'notnow') {
-      markClaimDismissed();
-      try { trackEvent('claim_dismissed', 'player', {}); } catch { /* ignore */ }
-    } else if (outcome === 'done') {
-      toast({
-        title: "You're all set",
-        description: `Reminders will go to ${email || 'your email'}.`,
-      });
-    }
-  }, [toast]);
 
   // On becoming blocked → sign out of Plex once per (expDate) so future
   // renewals aren't punished. Flag stored in localStorage.
@@ -428,9 +379,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (modeRef.current !== 'live' && !(DEMO && modeRef.current === 'movies')) return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
-      // Account-claim card owns the keyboard while open.
-      if (claimOpenRef.current) return;
-
       if (showCredsFormRef.current) {
         if (e.defaultPrevented) return;
         const target = e.target as HTMLElement;
@@ -599,9 +547,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return (
       <>
         <PlayerModeChooser onPick={enterMode} onBack={onBack} />
-        {!DEMO && claimOpen && playerAccount && (
-          <ClaimAccountCard open={true} account={playerAccount} onClose={handleClaimClose} />
-        )}
       </>
     );
   }
@@ -666,7 +611,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             initial={creds}
             onSaved={(c) => {
               setCreds(c);
-              justSignedInRef.current = true;
               setAccountFormOpen(false);
             }}
             onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
@@ -685,12 +629,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onSignOut={() => { void signOut(); }}
           onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
           onSwitchAccount={onSwitchAccount}
-          showReminders={!DEMO && !user && !!playerAccount && daysUntilExp(playerAccount) !== null}
-          onOpenReminders={() => setClaimOpen(true)}
         />
-        {!DEMO && claimOpen && playerAccount && (
-          <ClaimAccountCard open={true} account={playerAccount} onClose={handleClaimClose} />
-        )}
       </Suspense>
     );
   }
@@ -901,9 +840,6 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           days={playerDays ?? 0}
           onDismiss={dismissExpNotice}
         />
-      )}
-      {!DEMO && claimOpen && playerAccount && (
-        <ClaimAccountCard open={true} account={playerAccount} onClose={handleClaimClose} />
       )}
     </div>
   );
