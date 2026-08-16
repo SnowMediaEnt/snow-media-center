@@ -21,6 +21,8 @@ import DownloadProgress from '@/components/DownloadProgress';
 import type { AppData } from '@/hooks/useAppData';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccountSync } from '@/hooks/usePlayerAccountSync';
+import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useVersion } from '@/hooks/useVersion';
@@ -66,6 +68,8 @@ const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
 const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
+const AccountChooser = lazy(() => import('@/components/AccountChooser'));
+
 
 const RouteFallback = () => (
   <div className="min-h-screen flex items-center justify-center text-white/80 font-nunito">
@@ -366,6 +370,20 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
     {currentView === 'admin-support' && <AdminSupportDashboard onBack={goBack} />}
     {currentView === 'livetv' && <LiveTV onBack={goBack} onNavigate={(view) => navigateTo(view)} />}
+    {currentView === 'account-signin' && (
+      <AccountChooser
+        onBack={goBack}
+        onPlayerSignedIn={() => {
+          // Replace the chooser with the dashboard so Back from the dashboard
+          // returns to where the chooser was opened from (both are functional
+          // setState updaters → pop, then push; navigateTo dedupes when the
+          // chooser was opened from the dashboard itself).
+          goBack();
+          navigateTo('user');
+        }}
+      />
+    )}
+
   </Suspense>
 ));
 RouteSwitch.displayName = 'RouteSwitch';
@@ -399,7 +417,12 @@ const Index = () => {
   // signed-in session is detected. Fire-and-forget; safe no-op when either
   // piece is missing.
   usePlayerAccountSync();
+  // Local Player (Dreamstreams / Vibez) sign-in state — decides whether the top
+  // "My Account" button opens the dashboard (player-only mode) or the Account
+  // Chooser. Same store PlayerAccountCard / ServiceExpirationBanner read.
+  const { account: playerAccount } = usePlayerAccount();
   const navigate = useNavigate();
+
   const { toast } = useToast();
   const handleRootBack = useCallback(() => {
     if (showEasterEgg) {
@@ -621,6 +644,8 @@ const Index = () => {
   const focusedButtonRef = useRef(focusedButton);
   const currentViewRef = useRef(currentView);
   const userRef = useRef(user);
+  const playerAccountRef = useRef(playerAccount);
+
   const isInPopupRef = useRef(isInPopup);
   const isInMediaBarRef = useRef(isInMediaBar);
   const showEasterEggRef = useRef(showEasterEgg);
@@ -637,6 +662,8 @@ const Index = () => {
   useEffect(() => { focusedButtonRef.current = focusedButton; }, [focusedButton]);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
   useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { playerAccountRef.current = playerAccount; }, [playerAccount]);
+
   useEffect(() => { isInPopupRef.current = isInPopup; }, [isInPopup]);
   useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
@@ -658,7 +685,15 @@ const Index = () => {
   const stableNavigateTo = useCallback((view: string) => navigateToRef.current(view), []);
   const onOpenAdmin = useCallback(() => navigateToRef.current('admin-support'), []);
   const onOpenUser = useCallback(() => navigateToRef.current('user'), []);
-  const onOpenAuth = useCallback(() => navigateRef.current('/auth'), []);
+  // "My Account" with no website user: already signed in to the Player →
+  // dashboard (player-only mode); otherwise → Account Chooser (Dreamstreams /
+  // Vibez sign-in OR website account). Web demo (?demo=1) keeps going straight
+  // to /auth exactly as before (the Player sign-in is disabled in the demo).
+  const onOpenAuth = useCallback(() => {
+    if (isDemo()) { navigateRef.current('/auth'); return; }
+    navigateToRef.current(playerAccountRef.current ? 'user' : 'account-signin');
+  }, []);
+
   const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
   const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
@@ -887,12 +922,16 @@ const Index = () => {
             // Easter egg is click/tap-only on the logo — never Enter/D-pad.
             if (isAdminRef.current) navigateToRef.current('admin-support');
           } else if (focusedButton === -2) {
-            // Navigate to auth or user dashboard
-            if (user) {
+            // Website user OR Player-signed-in → dashboard; web demo → /auth
+            // (unchanged); otherwise → Account Chooser.
+            if (user || playerAccountRef.current) {
               navigateToRef.current('user');
-            } else {
+            } else if (isDemo()) {
               navigateRef.current('/auth');
+            } else {
+              navigateToRef.current('account-signin');
             }
+
           } else if (focusedButton === -1) {
             // Navigate to settings
             navigateToRef.current('settings');

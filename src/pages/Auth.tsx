@@ -448,6 +448,10 @@ const Auth = () => {
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
                 This is your Snow Media WEBSITE account — for purchases, support tickets, messages, and your profile. It is NOT your TV/streaming login (Dreamstreams, VibezTV). Your streaming service keeps working either way.
               </p>
+              <p className="text-xs text-blue-200/70 px-1">
+                Looking for your streaming (Dreamstreams / Vibez) login? Press Back, then open My Account and choose "Sign in with Dreamstreams / Vibez".
+              </p>
+
 
               <div>
                 <Label htmlFor="auth-email" className="text-white">Email</Label>

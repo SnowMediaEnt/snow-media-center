@@ -7,7 +7,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift, BellRing, Check } from 'lucide-react';
+import { ArrowLeft, Wallet, CreditCard, History, User, LogOut, Plus, MessageCircle, ShoppingCart, MapPin, Users, Sparkles, Gamepad2, Trash2, Pencil, Gift, BellRing, Check, Tv, LogIn, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,7 +27,7 @@ import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 
 
 interface UserDashboardProps {
-  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games') => void;
+  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games' | 'account-signin') => void;
   onManageMedia: () => void;
   onViewSettings: () => void;
   onCommunityChat: () => void;
@@ -51,7 +52,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const CLAIM_IDX = TAB_BASE + 4;
   const EDIT_IDX = CLAIM_IDX + 1;
   const DELETE_IDX = EDIT_IDX + 1;
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
   const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
   const { toast } = useToast();
@@ -64,7 +65,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [showServicesEditor, setShowServicesEditor] = useState(false);
   const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
-  const { account: playerAccount } = usePlayerAccount();
+  const { account: playerAccount, loading: playerLoading } = usePlayerAccount();
   const [claimOpen, setClaimOpen] = useState(false);
   const claimDone = !!playerAccount && isClaimDone(playerAccount);
   const claimedEmail = (() => {
@@ -73,6 +74,20 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   })();
   // The claim button only occupies a focus slot when it is actually rendered.
   const claimAvailable = !!playerAccount && !claimDone;
+  // Website-user dashboard: the Player Account slot (CLAIM_IDX) is live when
+  // there is no Player account yet ("Sign in with Dreamstreams / Vibez" →
+  // Account Chooser) OR when a claim is available. Never in the web demo
+  // (usePlayerAccount is always null there and Player sign-in is disabled).
+  const playerActionAvailable = (!playerAccount && !isDemo()) || claimAvailable;
+  // Guest (player-only) mode: no website (Supabase) user. Renders only the
+  // Player Account section + a "Website account" card; every website-only
+  // section (gems, tabs, services editor, Danger Zone, Sign Out) is hidden.
+  // Guest focus slots: 0 back, 1 player action (Sign in with DS/Vibez when no
+  // player account, else Link email while a claim is available), 2 website
+  // "Sign in", 3 website "Create free account".
+  const guestMode = !user;
+  const guestPlayerSlot = !playerAccount || claimAvailable;
+  const navigate = useNavigate();
 
 
   useEffect(() => {
@@ -114,6 +129,38 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     const handleKeyDown = (event: KeyboardEvent) => {
       // The claim card owns the D-pad while it is open.
       if (claimOpen) return;
+      if (guestMode) {
+        // A modal (auto-update prompt, welcome popup, dialogs) owns the keyboard.
+        if (document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) return;
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+        event.preventDefault();
+        switch (event.key) {
+          case 'ArrowDown':
+            if (focusedElement === 0) setFocusedElement(guestPlayerSlot ? 1 : 2);
+            else if (focusedElement === 1) setFocusedElement(2);
+            break;
+          case 'ArrowUp':
+            if (focusedElement === 1) setFocusedElement(0);
+            else if (focusedElement === 2 || focusedElement === 3) setFocusedElement(guestPlayerSlot ? 1 : 0);
+            break;
+          case 'ArrowRight':
+            if (focusedElement === 2) setFocusedElement(3);
+            break;
+          case 'ArrowLeft':
+            if (focusedElement === 3) setFocusedElement(2);
+            break;
+          case 'Enter':
+          case ' ':
+            if (focusedElement === 0) onViewChange('home');
+            else if (focusedElement === 1) {
+              if (!playerAccount) onViewChange('account-signin');
+              else if (claimAvailable) setClaimOpen(true);
+            }
+            else if (focusedElement === 2 || focusedElement === 3) navigate('/auth');
+            break;
+        }
+        return;
+      }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
@@ -151,7 +198,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           } else if (focusedElement === CLAIM_IDX) {
             setFocusedElement(TAB_BASE); // player account -> overview tab
           } else if (focusedElement === EDIT_IDX) {
-            setFocusedElement(claimAvailable ? CLAIM_IDX : TAB_BASE); // edit -> claim / overview tab
+            setFocusedElement(playerActionAvailable ? CLAIM_IDX : TAB_BASE); // edit -> player action / overview tab
           } else if (focusedElement === DELETE_IDX) {
             setFocusedElement(EDIT_IDX); // delete -> edit
           }
@@ -163,7 +210,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(TAB_BASE); // action buttons -> first tab
           } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
             if (activeTab === 'overview') {
-              setFocusedElement(claimAvailable ? CLAIM_IDX : EDIT_IDX); // tabs -> claim / edit button
+              setFocusedElement(playerActionAvailable ? CLAIM_IDX : EDIT_IDX); // tabs -> player action / edit button
             } else {
               const container = dashboardScrollRef.current;
               if (container) container.scrollBy({ top: 300, behavior: 'smooth' });
@@ -191,7 +238,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
           else if (focusedElement === TAB_BASE + 2) setActiveTab('store');
           else if (focusedElement === TAB_BASE + 3) setActiveTab('referrals');
-          else if (focusedElement === CLAIM_IDX) { if (claimAvailable) setClaimOpen(true); }
+          else if (focusedElement === CLAIM_IDX) {
+            if (!playerAccount && !isDemo()) onViewChange('account-signin');
+            else if (claimAvailable) setClaimOpen(true);
+          }
           else if (focusedElement === EDIT_IDX) setShowServicesEditor(true);
           else if (focusedElement === DELETE_IDX) setShowDeleteConfirm(true);
           break;
@@ -201,7 +251,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen]);
+  }, [focusedElement, activeTab, onViewChange, onCreditStore, onCommunityChat, onGames, onGiveaway, giveawayOn, TAB_BASE, CLAIM_IDX, EDIT_IDX, DELETE_IDX, claimAvailable, claimOpen, playerActionAvailable, guestMode, guestPlayerSlot, playerAccount, navigate]);
 
   // When the active tab changes (after initial mount), scroll the tab strip
   // into view. Skipping the first run keeps the dashboard scrolled to the top
@@ -232,6 +282,24 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     return () => clearTimeout(id);
   }, [focusedElement, CLAIM_IDX, EDIT_IDX, DELETE_IDX]);
 
+  // Guest (player-only) layout: keep the focused control visible. The effect
+  // above only handles CLAIM/EDIT/DELETE; guest slots are 0-3 inside the same
+  // h-dvh overflow-y-auto container, and the "Link email" / website buttons
+  // sit below the fold on 720p-class WebViews.
+  useEffect(() => {
+    if (!guestMode) return;
+    const id = setTimeout(() => {
+      if (focusedElement === 0) {
+        dashboardScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const el = document.querySelector('[data-dash-focus="true"]') as HTMLElement | null;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [focusedElement, guestMode]);
+
+
 
   // Fetch Wix data once per email change. Do NOT depend on wixLoading —
   // fetchWixData itself flips wixLoading, which would otherwise cause a
@@ -260,7 +328,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     }
   };
 
-  if (loading) {
+  if (loading || authLoading || playerLoading) {
     return (
       <div className="tv-safe min-h-dvh bg-neutral-900 text-white flex items-center justify-center">
         <div className="text-center">
@@ -271,8 +339,129 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     );
   }
 
+  if (guestMode) {
+    const guestRing = (idx: number) =>
+      focusedElement === idx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : '';
+    return (
+      <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
+        <div className={BACK_ROW}>
+          <BackButton
+            onClick={() => onViewChange('home')}
+            label="Back to Home"
+            focused={focusedElement === 0}
+          />
+        </div>
+        <div className="max-w-4xl mx-auto pb-24">
+          <div className="text-center mt-4 mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">My Account</h1>
+            <p className="text-xl text-blue-200">
+              {playerAccount
+                ? `Signed in to ${playerAccount.serverLabel} as ${playerAccount.username}`
+                : 'You are not signed in yet.'}
+            </p>
+          </div>
+
+          {/* Player Account — Dreamstreams / Vibez streaming login (local, same store the Player uses) */}
+          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6 mb-6">
+            <h2 className="text-2xl font-bold text-white mb-1">Player Account</h2>
+            <p className="text-slate-400 text-sm mb-4">
+              Your Dreamstreams / Vibez streaming login — the same one the Player uses.
+            </p>
+            {!playerAccount ? (
+              <Button
+                variant="gold"
+                size="lg"
+                data-focused={focusedElement === 1 ? 'true' : 'false'}
+                data-dash-focus={focusedElement === 1 ? 'true' : 'false'}
+                onClick={() => onViewChange('account-signin')}
+                className={`tv-focusable transition-all duration-200 ${guestRing(1)}`}
+              >
+                <Tv className="w-5 h-5 mr-2" />
+                Sign in with Dreamstreams / Vibez
+              </Button>
+            ) : (
+              <div className="space-y-4">
+                <PlayerAccountCard />
+                {claimDone ? (
+                  <p className="text-sm text-emerald-400 flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    Reminders are linked to {claimedEmail || 'your email'}
+                  </p>
+                ) : (
+                  <Button
+                    variant="gold"
+                    size="lg"
+                    data-focused={focusedElement === 1 ? 'true' : 'false'}
+                    data-dash-focus={focusedElement === 1 ? 'true' : 'false'}
+                    onClick={() => setClaimOpen(true)}
+                    className={`tv-focusable transition-all duration-200 ${guestRing(1)}`}
+                  >
+                    <BellRing className="w-5 h-5 mr-2" />
+                    Link email for renewal reminders
+                  </Button>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Website account — optional Snow Media WEBSITE account (Supabase) */}
+          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+            <h2 className="text-2xl font-bold text-white mb-1">Website account</h2>
+            <p className="text-slate-400 text-sm mb-4">
+              Optional Snow Media WEBSITE account (email &amp; password) for purchases, support
+              tickets, messages and Snow Gems. This is not your streaming login.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Button
+                variant="gold"
+                size="lg"
+                data-focused={focusedElement === 2 ? 'true' : 'false'}
+                data-dash-focus={focusedElement === 2 ? 'true' : 'false'}
+                onClick={() => navigate('/auth')}
+                className={`tv-focusable transition-all duration-200 ${guestRing(2)}`}
+              >
+                <LogIn className="w-5 h-5 mr-2" />
+                Sign in
+              </Button>
+              <Button
+                variant="white"
+                size="lg"
+                data-focused={focusedElement === 3 ? 'true' : 'false'}
+                data-dash-focus={focusedElement === 3 ? 'true' : 'false'}
+                onClick={() => navigate('/auth')}
+                className={`tv-focusable transition-all duration-200 ${guestRing(3)}`}
+              >
+                <UserPlus className="w-5 h-5 mr-2" />
+                Create free account
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {claimOpen && playerAccount && (
+          <ClaimAccountCard
+            open={true}
+            account={playerAccount}
+            onClose={(outcome: ClaimCloseOutcome, email?: string) => {
+              setClaimOpen(false);
+              if (outcome === 'done') {
+                // Slot 1 disappears once the claim is done — park focus on Back.
+                setFocusedElement(0);
+                toast({
+                  title: "You're all set",
+                  description: `Reminders will go to ${email || 'your email'}.`,
+                });
+              }
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
+
       {/* Header — pinned to the tv-safe corner, content stays centered below */}
       <div className="flex items-center w-full justify-between mb-6">
         <BackButton
@@ -442,10 +631,26 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
                 <h3 className="text-lg font-semibold text-white mb-3">Player Account</h3>
                 {!playerAccount ? (
-                  <p className="text-slate-400 text-sm">
-                    Sign in to the Player with your Dreamstreams or Vibez login to see your streaming account here.
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-slate-400 text-sm">
+                      Sign in with your Dreamstreams or Vibez login to see your streaming account here. This also signs you in to the Player.
+                    </p>
+                    {!isDemo() && (
+                      <Button
+                        variant="gold"
+                        size="lg"
+                        onClick={() => onViewChange('account-signin')}
+                        className={`tv-focusable transition-all duration-200 ${
+                          focusedElement === CLAIM_IDX ? 'ring-4 ring-brand-gold scale-105' : ''
+                        }`}
+                      >
+                        <Tv className="w-5 h-5 mr-2" />
+                        Sign in with Dreamstreams / Vibez
+                      </Button>
+                    )}
+                  </div>
                 ) : (
+
                   <div className="space-y-4">
                     <PlayerAccountCard />
                     {claimDone ? (
