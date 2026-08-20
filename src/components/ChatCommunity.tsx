@@ -793,7 +793,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Define all focusable elements by index
   // 0: back, 1: tab-admin, 2: tab-community, 3: tab-ai
   // Admin tab (4+): depends on view state (list, new ticket form, or viewing ticket)
-  // Community tab (4+): visit-forum, join-groups
+  // Community tab (4+): visit-forum
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
     const header = embedded ? [] : [
@@ -1136,8 +1136,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
           } else if (currentFocusId === 'tab-community') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-ai'));
-          } else if (currentFocusId === 'visit-forum') {
-            setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
           } else if (currentFocusId === 'ai-voice') {
@@ -1157,8 +1155,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             setFocusIndex(elements.findIndex(e => e.id === 'tab-admin'));
           } else if (currentFocusId === 'tab-ai') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
-          } else if (currentFocusId === 'join-groups') {
-            setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
           } else if (currentFocusId === 'ai-voice') {
@@ -1214,8 +1210,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             handleSendReply();
           } else if (currentFocusId === 'visit-forum') {
             onNavigate?.('community');
-          } else if (currentFocusId === 'join-groups') {
-            window.open('https://snowmediaent.com/groups', '_blank');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
           } else if (currentFocusId === 'ai-voice') {
