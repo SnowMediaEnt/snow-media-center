@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CreditCard, Zap, Star, Gift, RefreshCw } from 'lucide-react';
+import { CreditCard, Zap, Star, Gift } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import QRCheckoutDialog from '@/components/QRCheckoutDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 interface CreditPackage {
@@ -29,12 +28,6 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   const { toast } = useToast();
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
 
   // Keyboard back button handling
   useEffect(() => {
@@ -89,142 +82,6 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
     return Math.round(savings);
   };
 
-  // Wix SMC AI Credits product (single product, "Amount" option chooses pack)
-  const WIX_CREDITS_PRODUCT_ID = 'fb3a3ae1-5231-4a4e-6757-c11269ae3dd2';
-
-  const handlePurchase = async (packageData: CreditPackage) => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to purchase Snow Gems",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setPurchasing(packageData.id);
-
-    try {
-      // Create a Wix checkout for the SMC AI Credits product with the matching Amount variant
-      const { data, error } = await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'create-cart',
-          appUserId: user.id,
-          items: [{
-            productId: WIX_CREDITS_PRODUCT_ID,
-            quantity: 1,
-            options: { Amount: String(packageData.credits) },
-          }],
-        },
-      });
-
-      if (error || !data?.checkoutUrl) {
-        throw new Error(error?.message || 'Could not start Wix checkout');
-      }
-
-      setQrUrl(data.checkoutUrl);
-      setPendingOrderId(packageData.id);
-      setQrOpen(true);
-    } catch (error: any) {
-      console.error('Wix checkout error:', error);
-      toast({
-        title: 'Checkout Failed',
-        description: error?.message || 'Unable to start checkout. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setPurchasing(null);
-    }
-  };
-
-  const [altWixEmail, setAltWixEmail] = useState<string | null>(null);
-
-  const runSync = async (wixEmailOverride?: string) => {
-    const { data, error } = await supabase.functions.invoke('wix-integration', {
-      body: {
-        action: 'sync-credit-orders',
-        email: user!.email,
-        wixEmail: wixEmailOverride || altWixEmail || user!.email,
-      },
-    });
-    if (error) throw error;
-    return data;
-  };
-
-  const promptForWixEmail = (): string | null => {
-    const entered = window.prompt(
-      "Payment not found under " + (user?.email || "your email") +
-      ".\n\nIf you paid on the website with a different account, enter that email here:"
-    );
-    const trimmed = entered?.trim().toLowerCase() || '';
-    if (!trimmed || !trimmed.includes('@')) return null;
-    setAltWixEmail(trimmed);
-    return trimmed;
-  };
-
-  const handleVerifyPayment = async () => {
-    if (!user?.email) return;
-    setVerifying(true);
-    try {
-      let data = await runSync();
-      if (!data?.newOrders) {
-        const alt = promptForWixEmail();
-        if (alt) data = await runSync(alt);
-      }
-
-      if (data?.newOrders > 0) {
-        setQrOpen(false);
-        setPendingOrderId(null);
-        setQrUrl(null);
-        setAltWixEmail(null);
-        toast({
-          title: 'Purchase Successful!',
-          description: `Added ${data.totalCreditsAdded} Snow Gems from your Wix purchase.`,
-        });
-        setTimeout(() => window.location.reload(), 1200);
-      } else {
-        toast({
-          title: 'Payment not found yet',
-          description: 'Finish checkout on your phone, then tap again. If you paid with a different email, you can enter it next time.',
-          variant: 'destructive',
-        });
-      }
-    } catch (e: any) {
-      toast({ title: 'Verification Failed', description: e?.message || 'Try again.', variant: 'destructive' });
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleSyncWix = async () => {
-    if (!user?.email) {
-      toast({ title: 'Sign in required', description: 'Sign in to sync Wix purchases.', variant: 'destructive' });
-      return;
-    }
-    setSyncing(true);
-    try {
-      let data = await runSync();
-      if (!data?.newOrders) {
-        const alt = promptForWixEmail();
-        if (alt) data = await runSync(alt);
-      }
-      if (data?.newOrders > 0) {
-        toast({
-          title: 'Wix Purchases Synced',
-          description: `Added ${data.totalCreditsAdded} Snow Gems from ${data.newOrders} order${data.newOrders === 1 ? '' : 's'}.`,
-        });
-        setTimeout(() => window.location.reload(), 1200);
-      } else {
-        toast({ title: 'All Synced', description: 'No new Wix Snow Gem purchases found.' });
-      }
-    } catch (e: any) {
-      console.error('Wix sync error:', e);
-      toast({ title: 'Sync Failed', description: e?.message || 'Unable to sync.', variant: 'destructive' });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const getPackageIcon = (index: number) => {
     switch (index) {
       case 0: return Zap;
@@ -252,15 +109,6 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              onClick={handleSyncWix}
-              disabled={syncing || !user}
-              variant="outline"
-              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/30"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync Wix Purchases'}
-            </Button>
             {profile && (
               <div className="bg-green-600/20 border border-green-500/50 rounded-lg px-4 py-2">
                 <div className="text-green-400 font-medium">Your Balance</div>
@@ -353,17 +201,9 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
                       </div>
                     </div>
                     
-                    <Button
-                      onClick={() => handlePurchase(pkg)}
-                      disabled={purchasing === pkg.id || !user}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      {purchasing === pkg.id ? 'Processing...' : 'Checkout'}
-                    </Button>
-                    
-                    {!user && (
-                      <p className="text-xs text-white/60 mt-2">Sign in required</p>
-                    )}
+                    <p className="text-xs text-white/60">
+                      Contact support to add this pack to your account.
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -374,29 +214,19 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
         {/* Payment Info */}
         <Card className="bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 mt-8">
           <CardContent className="p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-3">Secure Payment</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">Need more Snow Gems?</h3>
             <p className="text-white/70 text-sm mb-4">
-              All transactions are secure and processed through trusted payment providers. 
-              Snow Gems are added to your account instantly after purchase.
+              Snow Gems are added to your account by the Snow Media team. Open a support
+              ticket and we'll top you up.
             </p>
             <div className="flex justify-center space-x-4 text-xs text-white/60">
-              <span>• Secure SSL encryption</span>
-              <span>• Instant Snow Gem delivery</span>
+              <span>• Snow Gems never expire</span>
               <span>• No monthly fees</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <QRCheckoutDialog
-        open={qrOpen}
-        onOpenChange={(o) => { setQrOpen(o); if (!o) { setPendingOrderId(null); setQrUrl(null); } }}
-        url={qrUrl}
-        title="Scan to Checkout on Snow Media"
-        description="Scan with your phone, complete checkout on snowmediaent.com (PayPal available there), then tap the button below to add your Snow Gems."
-        onConfirmPaid={handleVerifyPayment}
-        confirming={verifying}
-      />
     </div>
   );
 };
