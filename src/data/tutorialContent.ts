@@ -26,7 +26,6 @@ import {
   CircleDot,
   MessageCircle,
   Bot,
-  Store,
   CreditCard,
   Palette,
   Users,
@@ -68,7 +67,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-cyan-700/60 border-cyan-400/70 text-cyan-100',
     slides: [
       { icon: Gamepad2, title: 'Move with the arrows. OK picks. Back goes back.', line2: "That's 90% of everything — you can't break anything.", art: { screen: 'remote', highlight: 'dpad' } },
-      { icon: Home, title: 'This is your Home screen.', line2: 'Four big cards: Main Apps, Support, Snow Media Store, and Player.', art: { screen: 'home' } },
+      { icon: Home, title: 'This is your Home screen.', line2: 'Big cards: Main Apps, Support, and Player.', art: { screen: 'home' } },
       { icon: Film, title: 'The bar up top shows movies & shows.', line2: 'Press OK on a poster to jump straight to it.', art: { screen: 'home', highlight: 'contentbar' } },
       { icon: Newspaper, title: 'The scrolling line at the very top is news from us.', line2: 'Deals, updates and heads-ups show there.', art: { screen: 'home', highlight: 'ticker' } },
       { icon: Cog, title: 'Sign In and Settings live in the top-right corner.', art: { screen: 'home', highlight: 'header' } },
@@ -154,22 +153,6 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         art: { screen: 'support', highlight: 'tickets' },
       },
       { icon: Bot, title: 'The AI Chat tab answers questions instantly — day or night.', art: { screen: 'support', highlight: 'ai-tab' } },
-    ],
-  },
-  {
-    id: 'store',
-    title: 'Snow Media Store',
-    subtitle: 'Plans & renewals',
-    icon: Store,
-    color: 'bg-pink-700/60 border-pink-400/70 text-pink-100',
-    slides: [
-      {
-        icon: Store,
-        title: 'The Store is where you get or renew your service.',
-        deepLink: { kind: 'view', view: 'store', label: 'Take me there' },
-        art: { screen: 'store', highlight: 'grid' },
-      },
-      { icon: CreditCard, title: 'Pick a plan and follow the steps — done.', line2: 'Your seller can help you anytime.', art: { screen: 'store', highlight: 'grid' } },
     ],
   },
   {
