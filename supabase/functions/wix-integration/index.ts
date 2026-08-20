@@ -708,9 +708,14 @@ Deno.serve(async (req) => {
         if (existingUser) {
           linkedUserId = existingUser.id;
           console.log('App account already exists for Wix email; confirming/linking metadata');
+          // SECURITY (account-takeover fix): never reset an existing account's
+          // password from this unauthenticated bridge. Previously, passing a
+          // Wix member's email + any password here overwrote that user's
+          // password, letting anyone log in as them. We now only confirm the
+          // email and link Wix metadata; existing users sign in with their own
+          // password (or the standard email-based password-reset flow).
           const { error: updateErr } = await adminClient.auth.admin.updateUserById(existingUser.id, {
             email_confirm: true,
-            ...(existingUser.user_metadata?.wix_member_id ? { password: String(payload.password) } : {}),
             user_metadata: { ...(existingUser.user_metadata || {}), full_name: fullName, wix_member_id: member.id, wix_source: source },
           });
           if (updateErr) {
@@ -851,9 +856,14 @@ Deno.serve(async (req) => {
           'ai600': 600,
         };
 
-        // Allow caller to pass an alternate Wix email (e.g. user paid on Wix
-        // with a different account than the one signed in to the app).
-        const wixEmail: string = (payload?.wixEmail || email || '').toLowerCase().trim();
+        // SECURITY (credit-theft fix): match orders only against the caller's
+        // OWN verified email (from their session JWT), never an email/wixEmail
+        // taken from the request body — that let a signed-in user harvest
+        // another buyer's paid credits by passing the victim's Wix email. The
+        // app_user_id/smc_user_id custom-field match below still covers the
+        // "paid on Wix with a different email" case, since that field is tied
+        // to the caller's own userId.
+        const wixEmail: string = (verifiedEmail || '').toLowerCase().trim();
 
         // Fetch orders for this email (we'll also accept orders tagged with
         // this user's app_user_id custom field, even if email doesn't match).
