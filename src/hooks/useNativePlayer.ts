@@ -145,6 +145,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     return () => {
       try { stateH?.remove?.(); } catch { /* ignore */ }
       try { errH?.remove?.(); } catch { /* ignore */ }
+      try { audioH?.remove?.(); } catch { /* ignore */ }
     };
   }, [active, maxRetries]);
 
@@ -153,6 +154,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // error panel eventually surfaces on permanently hung streams.
   useEffect(() => {
     retriesRef.current = 0;
+    // Codec support is per-stream — don't carry a warning to the next channel.
+    setAudioWarning(null);
   }, [active, url]);
 
   // Main load pipeline — runs on (active, url, retryNonce) changes.
@@ -260,5 +263,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     try { return await SnowPlayer.getPosition(); } catch { return { position: 0, duration: 0, playing: false }; }
   }, []);
 
-  return useMemo(() => ({ controller, buffering, error, retry, seekTo, getPosition }), [controller, buffering, error, retry, seekTo, getPosition]);
+  return useMemo(
+    () => ({ controller, buffering, error, audioWarning, retry, seekTo, getPosition }),
+    [controller, buffering, error, audioWarning, retry, seekTo, getPosition],
+  );
 }
