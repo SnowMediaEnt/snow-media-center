@@ -1,6 +1,77 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNativePlatform } from "@/utils/platform";
-import type { PluginListenerHandle } from "@capacitor/core";
+import { CapacitorHttp, type PluginListenerHandle } from "@capacitor/core";
+
+const MB = (bytes: number) => `${(bytes / 1048576).toFixed(1)}MB`;
+
+/**
+ * Ask the server what it intends to send before we pull tens of megabytes
+ * onto a TV box. A non-2xx here names the real cause (403/404/5xx) instead of
+ * letting it surface as the plugin's generic "Error downloading file".
+ * Returns the advertised Content-Length when the server is willing to serve.
+ */
+async function preflightApk(url: string): Promise<number | null> {
+  try {
+    const res = await CapacitorHttp.request({
+      url,
+      method: 'HEAD',
+      connectTimeout: 15000,
+      readTimeout: 15000,
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Update server returned HTTP ${res.status}`);
+    }
+    const headers = (res.headers || {}) as Record<string, string>;
+    const raw = headers['content-length'] ?? headers['Content-Length'];
+    const len = raw ? Number(raw) : NaN;
+    const expected = Number.isFinite(len) && len > 0 ? len : null;
+    console.log('[APK] Preflight OK, expected size:', expected);
+    return expected;
+  } catch (e) {
+    // A thrown HTTP status is a real answer — propagate it.
+    if (e instanceof Error && e.message.startsWith('Update server returned')) throw e;
+    // Anything else (no HEAD support, transient DNS) shouldn't block the
+    // download; the GET below is the real test.
+    console.warn('[APK] Preflight inconclusive:', e);
+    return null;
+  }
+}
+
+/**
+ * Turn the Filesystem plugin's opaque failure into something actionable.
+ * The bytes actually written are the key signal: 0 means the transfer never
+ * started (blocked/refused), while a partial file means the connection died
+ * mid-stream — usually origin throttling or weak device wifi.
+ */
+async function describeDownloadFailure(
+  path: string,
+  expectedBytes: number | null,
+  error: unknown,
+): Promise<string> {
+  const base = error instanceof Error ? error.message : 'Native download error';
+
+  let written: number | null = null;
+  try {
+    const stat = await Filesystem.stat({ path, directory: Directory.Cache });
+    written = typeof stat.size === 'number' ? stat.size : null;
+  } catch {
+    // No partial file at all — nothing was ever written.
+    written = 0;
+  }
+
+  if (written !== null && expectedBytes) {
+    if (written === 0) {
+      return `Download failed: no data received (expected ${MB(expectedBytes)}). ${base}`;
+    }
+    const pct = Math.round((written / expectedBytes) * 100);
+    return `Download failed: connection dropped at ${MB(written)} of ${MB(expectedBytes)} (${pct}%). ${base}`;
+  }
+  if (written) {
+    return `Download failed after ${MB(written)}. ${base}`;
+  }
+  return `Download failed: ${base}`;
+}
+
 
 // Clean up old APK files from cache to prevent storage bloat
 export async function cleanupOldApks(keepFilename?: string): Promise<void> {
