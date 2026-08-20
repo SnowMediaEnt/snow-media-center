@@ -9,6 +9,21 @@ export interface SnowTrack {
   language?: string;
   codec?: string;
   selected: boolean;
+  /** False when this device has no decoder for the track. An unsupported audio
+   *  track is silently deselected by ExoPlayer — video plays with no sound. */
+  supported?: boolean;
+  mimeType?: string;
+  channels?: number;
+}
+
+/** Device audio-decode capability, for support diagnostics. */
+export interface SnowDecoderInfo {
+  /** FFmpeg software decoding (AC-3/E-AC-3/DTS/TrueHD) actually loaded here. */
+  ffmpegAvailable: boolean;
+  ffmpegVersion: string;
+  abis: string[];
+  device: string;
+  sdk: number;
 }
 
 /** Sidecar subtitle track passed at load time (Plex external subs, etc.). */
@@ -52,9 +67,15 @@ export interface SnowPlayerPlugin {
   setAudioTrack(opts: { id: string; screenId?: string }): Promise<void>;
   getSubtitleTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
   setSubtitleTrack(opts: { id: string; screenId?: string }): Promise<void>;
+  /** Whether this device can software-decode Dolby/DTS. Use for diagnostics. */
+  getDecoderInfo(): Promise<SnowDecoderInfo>;
   addListener(
-    event: 'playerState' | 'playerError' | 'tracksChanged',
-    cb: (data: { screenId?: string; state?: string; playing?: boolean; code?: string; message?: string }) => void,
+    event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported',
+    cb: (data: {
+      screenId?: string; state?: string; playing?: boolean; code?: string; message?: string;
+      /** audioUnsupported: the codecs present that this device cannot decode. */
+      codecs?: string; ffmpegAvailable?: boolean;
+    }) => void,
   ): Promise<PluginListenerHandle>;
 }
 
@@ -73,6 +94,9 @@ const webFallback: SnowPlayerPlugin = {
   async setAudioTrack() {},
   async getSubtitleTracks() { return { tracks: [] }; },
   async setSubtitleTrack() {},
+  async getDecoderInfo() {
+    return { ffmpegAvailable: false, ffmpegVersion: '', abis: [], device: 'web', sdk: 0 };
+  },
   async addListener() { return { remove: async () => {} } as PluginListenerHandle; },
 };
 

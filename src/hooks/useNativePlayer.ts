@@ -32,6 +32,9 @@ export interface NativePlayerState {
   controller: VideoController | null;
   buffering: boolean;
   error: { code?: string; message: string } | null;
+  /** Set when the stream carries audio this device can't decode. NOT an error —
+   *  video keeps playing, there is simply no sound. */
+  audioWarning: { codecs: string; ffmpegAvailable: boolean } | null;
   retry: () => void;
   seekTo: (seconds: number) => Promise<void>;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
@@ -42,6 +45,7 @@ const MAX_RETRIES_DEFAULT = 5;
 export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload }: UseNativePlayerArgs): NativePlayerState {
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
+  const [audioWarning, setAudioWarning] = useState<{ codecs: string; ffmpegAvailable: boolean } | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
   const handleRef = useRef<NativeControllerHandle | null>(null);
@@ -100,8 +104,16 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (!active) return;
     let stateH: { remove?: () => void } | null = null;
     let errH: { remove?: () => void } | null = null;
+    let audioH: { remove?: () => void } | null = null;
     (async () => {
       try {
+        audioH = await SnowPlayer.addListener('audioUnsupported', (data) => {
+          if (data.screenId && data.screenId !== 'main') return;
+          setAudioWarning({
+            codecs: data.codecs || 'unknown',
+            ffmpegAvailable: data.ffmpegAvailable === true,
+          });
+        });
         stateH = await SnowPlayer.addListener('playerState', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           if (data.state === 'buffering') setBuffering(true);
