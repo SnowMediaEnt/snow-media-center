@@ -607,6 +607,27 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     }
   }, [native.error, visibleChannels, playingChannelId, creds.serverLabel]);
 
+  // Report undecodable audio per channel so the codec shows up in telemetry
+  // instead of only arriving as a customer phone call.
+  const lastAudioWarnRef = useRef<string | null>(null);
+  useEffect(() => {
+    const w = native.audioWarning;
+    if (!w) { lastAudioWarnRef.current = null; return; }
+    const key = `${playingChannelId}:${w.codecs}`;
+    if (key === lastAudioWarnRef.current) return;
+    lastAudioWarnRef.current = key;
+    try {
+      const ch = visibleChannels.find(s => s.stream_id === playingChannelId);
+      trackEvent('audio_unsupported', 'player', {
+        kind: 'live_native',
+        channel_or_title: ch?.name ?? '',
+        server: creds.serverLabel,
+        codecs: w.codecs,
+        ffmpeg_available: w.ffmpegAvailable,
+      });
+    } catch { /* ignore */ }
+  }, [native.audioWarning, visibleChannels, playingChannelId, creds.serverLabel]);
+
   // (player_search intentionally NOT fired for Live TV — spec scopes it to movies/series/plex.)
 
 
@@ -1034,6 +1055,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 Still loading — your connection looks slow. If channels keep buffering, a VPN often helps.
               </p>
             )}
+          </div>
+        )}
+        {/* Audio present but undecodable on this device: video is fine, so don't
+            block it — just say why there's no sound, and name the codec so
+            support can act on it instead of guessing. */}
+        {NATIVE_PLAYBACK && native.audioWarning && !native.error && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-lg bg-black/85 px-4 py-3 text-center">
+            <p className="font-quicksand font-semibold text-brand-gold text-sm">
+              No sound on this channel
+            </p>
+            <p className="mt-1 font-nunito text-xs text-brand-ice/80">
+              This channel's audio ({native.audioWarning.codecs}) can't be decoded on this device.
+              Report the channel in Support and we'll re-encode it.
+            </p>
+            <p className="mt-1 font-nunito text-[10px] text-brand-ice/40">
+              audio-decode: {native.audioWarning.codecs} · ffmpeg:{' '}
+              {native.audioWarning.ffmpegAvailable ? 'yes' : 'no'}
+            </p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.error && (

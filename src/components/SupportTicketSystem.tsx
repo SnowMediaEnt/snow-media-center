@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { Button } from '@/components/ui/button';
@@ -135,6 +135,37 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
   }, [aiConversationMessages.length, selectedAIConversationId, view, aiLoading]);
 
+  const ticketScrollAreaRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Page a message thread up or down with the D-pad. Returns true when the
+   * viewport actually moved; false when it's already at the end (or there's
+   * nothing to scroll), which lets the caller pass focus on to the next
+   * control instead of trapping the user inside the thread.
+   */
+  const scrollThread = useCallback(
+    (ref: React.RefObject<HTMLDivElement>, direction: -1 | 1): boolean => {
+      const viewport = ref.current?.querySelector(
+        '[data-radix-scroll-area-viewport]',
+      ) as HTMLDivElement | null;
+      if (!viewport) return false;
+
+      const max = viewport.scrollHeight - viewport.clientHeight;
+      if (max <= 1) return false; // thread fits on screen — nothing to scroll
+      const current = viewport.scrollTop;
+      // 1px slack: browsers report fractional scrollTop at the extremes.
+      if (direction < 0 ? current <= 0 : current >= max - 1) return false;
+
+      const step = viewport.clientHeight * 0.8; // keep a little overlap for context
+      viewport.scrollTo({
+        top: Math.max(0, Math.min(max, current + direction * step)),
+        behavior: 'smooth',
+      });
+      return true;
+    },
+    [],
+  );
+
   const emptyActionId = user ? 'empty-create-ticket' : 'empty-sign-in';
   const firstTicketId = tickets.length > 0 ? 'ticket-0' : emptyActionId;
   const firstAIHistoryId = aiConversations.length > 0 ? 'ai-history-0' : null;
@@ -200,18 +231,28 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
     }
     if (view === 'ticket') {
       return {
-        'ticket-back': { right: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-delete', down: 'ticket-reply' },
-        'ticket-close': { left: 'ticket-back', right: 'ticket-delete', down: 'ticket-reply' },
-        'ticket-delete': { left: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-back', down: 'ticket-reply' },
-        'ticket-reply': { up: 'ticket-back', down: 'ticket-send' },
+        'ticket-back': { right: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-delete', down: 'ticket-messages' },
+        'ticket-close': { left: 'ticket-back', right: 'ticket-delete', down: 'ticket-messages' },
+        'ticket-delete': { left: selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' ? 'ticket-close' : 'ticket-back', down: 'ticket-messages' },
+        // Up/Down page through the history; once the thread hits an end,
+        // focus continues on to the surrounding controls.
+        'ticket-messages': {
+          up: () => (scrollThread(ticketScrollAreaRef, -1) ? null : 'ticket-back'),
+          down: () => (scrollThread(ticketScrollAreaRef, 1) ? null : 'ticket-reply'),
+        },
+        'ticket-reply': { up: 'ticket-messages', down: 'ticket-send' },
         'ticket-send': { up: 'ticket-reply' },
       };
     }
     if (view === 'ai-chat') {
       return {
-        'ai-chat-back': { down: 'ai-chat-input' },
-        'ai-chat-input': { up: 'ai-chat-back', right: 'ai-chat-send' },
-        'ai-chat-send': { up: 'ai-chat-back', left: 'ai-chat-input' },
+        'ai-chat-back': { down: 'ai-chat-messages' },
+        'ai-chat-messages': {
+          up: () => (scrollThread(aiScrollAreaRef, -1) ? null : 'ai-chat-back'),
+          down: () => (scrollThread(aiScrollAreaRef, 1) ? null : 'ai-chat-input'),
+        },
+        'ai-chat-input': { up: 'ai-chat-messages', right: 'ai-chat-send' },
+        'ai-chat-send': { up: 'ai-chat-messages', left: 'ai-chat-input' },
       };
     }
     const map: TVFocusNavigationMap = {
@@ -236,7 +277,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
       };
     });
     return map;
-  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, tickets, user, view]);
+  }, [aiConversations, firstAIHistoryId, firstTicketId, lastTicketId, selectedTicket?.status, scrollThread, tickets, user, view]);
 
   const tvFocus = useTVFocus({
     initialFocusId: view === 'create' ? 'create-back' : view === 'ticket' ? 'ticket-back' : view === 'ai-chat' ? 'ai-chat-back' : 'list-back',
@@ -602,7 +643,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-96 pr-4">
+                <ScrollArea
+                  ref={ticketScrollAreaRef}
+                  data-tv-focus-id="ticket-messages"
+                  aria-label="Ticket conversation history"
+                  className="h-96 pr-4"
+                >
                   <div className="space-y-4">
                     {ticketMessages.map((message) => (
                       <div key={message.id} className={`p-4 rounded-lg ${
@@ -670,7 +716,12 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea ref={aiScrollAreaRef} className="h-96 pr-4">
+              <ScrollArea
+                ref={aiScrollAreaRef}
+                data-tv-focus-id="ai-chat-messages"
+                aria-label="AI conversation history"
+                className="h-96 pr-4"
+              >
                 <div className="space-y-4">
                   {aiConversationMessages.map((m) => (
                     <div

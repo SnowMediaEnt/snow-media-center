@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.8': [
+    '💬 Closed captions now work on many more Live TV channels',
+    '🔊 Channels with no sound now tell you why instead of playing silently',
+    '💬 Scroll back through your whole Support ticket conversation with the remote',
+    'Clearer message if an update download fails',
+    'Bug fixes and performance improvements',
+  ],
   '1.6.7': [
     '🔗 New: Link your email to your Player account so we can remind you before it expires',
     'Scan a QR with your phone or enter your email right on your TV',
