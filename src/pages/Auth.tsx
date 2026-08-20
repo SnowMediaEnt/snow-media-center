@@ -12,7 +12,6 @@ import { trackEvent } from '@/lib/analytics';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 type Step = 'email' | 'password' | 'create';
-type AccountKind = 'app' | 'wix' | null;
 type FocusEl =
   | 'back'
   | 'email'
@@ -40,7 +39,6 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [step, setStep] = useState<Step>('email');
-  const [accountKind, setAccountKind] = useState<AccountKind>(null);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -81,16 +79,13 @@ const Auth = () => {
       });
       if (error) throw error;
       const exists = (data as { exists?: string } | null)?.exists;
-      if (exists === 'app' || exists === 'wix') {
-        setAccountKind(exists);
+      if (exists === 'app') {
         setStep('password');
       } else {
-        setAccountKind(null);
         setStep('create');
       }
     } catch (err) {
       console.warn('[Auth Page] Email check failed, defaulting to create:', err);
-      setAccountKind(null);
       setStep('create');
     } finally {
       setChecking(false);
@@ -230,67 +225,10 @@ const Auth = () => {
     try {
       console.log('[Auth Page] Attempting login for:', loginForm.email);
 
-      // Direct Supabase login - no Wix verification to avoid timeouts
       const { error } = await signIn(loginForm.email, loginForm.password);
 
       if (error) {
         console.error('[Auth Page] Login error:', error.message);
-
-        // Wix bridge: if invalid credentials, confirm the email exists in Wix,
-        // create/confirm the matching Supabase app account server-side, then retry login.
-        const isInvalidCreds = /invalid login credentials/i.test(error.message || '');
-        if (isInvalidCreds) {
-          try {
-            console.log('[Auth Page] Bridging Wix account:', loginForm.email);
-            const { data: wixData, error: wixBridgeError } = await supabase.functions.invoke('wix-integration', {
-              body: {
-                action: 'bridge-wix-login',
-                email: loginForm.email,
-                password: loginForm.password,
-              },
-            });
-
-            if (wixBridgeError || wixData?.error) {
-              console.warn('[Auth Page] Wix bridge returned no login:', wixBridgeError || wixData?.error);
-              if (accountKind === 'wix') {
-                setSignupForm((prev) => ({ ...prev, email: loginForm.email, password: loginForm.password }));
-                setStep('create');
-                setLoading(false);
-                return;
-              }
-            } else if (wixData?.success) {
-              console.log('[Auth Page] Wix account linked — retrying Supabase login');
-              toast({
-                title: "Linking your Wix account…",
-                description: "Setting up your app login. One moment.",
-              });
-
-              const { error: retryError } = await signIn(loginForm.email, loginForm.password);
-              if (!retryError) {
-                toast({ title: "Welcome!", description: "Signed in with your Wix account." });
-                markPostAuthView();
-                navigate('/');
-                setLoading(false);
-                return;
-              }
-
-              toast({
-                title: "Could not finish sign in",
-                description: retryError.message || "Your Wix account was found, but app sign-in could not complete.",
-                variant: "destructive",
-              });
-              setLoading(false);
-              return;
-            } else if (accountKind === 'wix') {
-              setSignupForm((prev) => ({ ...prev, email: loginForm.email, password: loginForm.password }));
-              setStep('create');
-              setLoading(false);
-              return;
-            }
-          } catch (wixErr) {
-            console.warn('[Auth Page] Wix bridge check failed:', wixErr);
-          }
-        }
 
         toast({
           title: "Login failed",
@@ -506,9 +444,7 @@ const Auth = () => {
           {step === 'password' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                {accountKind === 'wix'
-                  ? "We found your Snow Media website account. Choose a password for the app — we'll link your website account and purchases automatically."
-                  : 'Welcome back! Enter your password to sign in.'}
+                Welcome back! Enter your password to sign in.
               </p>
 
               <div>
