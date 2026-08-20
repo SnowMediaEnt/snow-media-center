@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -23,12 +24,17 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.CueGroup
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+// Direct reference so the build FAILS if the FFmpeg decoder dependency ever
+// drops out, instead of silently regressing to "video plays, no sound".
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.SubtitleView
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -261,10 +267,29 @@ class SnowPlayerPlugin : Plugin() {
             .setConnectTimeoutMs(8000)
             .setReadTimeoutMs(8000)
         val dataSourceFactory = DefaultDataSource.Factory(act, httpFactory)
+        // Closed captions on raw MPEG-TS live streams.
+        //
+        // By default Media3 only creates a caption track when the PMT carries an
+        // ATSC caption_service_descriptor (tag 0x86). IPTV re-encoders routinely
+        // pass the CEA-608 bytes through in the video SEI but drop that
+        // descriptor — and with no descriptor the default closedCaptionFormats
+        // list is empty, so SeiReader allocates ZERO track outputs and the
+        // captions become permanently invisible (they exist in the stream, but
+        // nothing ever surfaces them). FLAG_OVERRIDE_CAPTION_DESCRIPTORS plus an
+        // explicit CEA-608 format makes the 608 track appear regardless.
+        //
+        // Trade-off: channels carrying no captions at all now also expose a CC
+        // entry that renders nothing. That is the accepted cost of not losing
+        // captions on every channel whose descriptor was stripped.
+        val extractorsFactory = DefaultExtractorsFactory()
+            .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_OVERRIDE_CAPTION_DESCRIPTORS)
+            .setTsSubtitleFormats(
+                listOf(Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build()),
+            )
         val builder = ExoPlayer.Builder(act, renderersFactory)
             .setTrackSelector(ts)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(dataSourceFactory)
+                DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory)
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6)),
             )
         // Trimmed buffers for non-main slots so up to 4 concurrent players fit
@@ -331,6 +356,27 @@ class SnowPlayerPlugin : Plugin() {
             }
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 notifyListeners("tracksChanged", JSObject().put("screenId", screenId))
+
+                // Silent-audio detection: the stream carries audio, but this
+                // device can decode none of it. ExoPlayer raises no error here —
+                // it just plays video with no sound — so surface it ourselves.
+                val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+                if (audioGroups.isEmpty()) return
+                val anySupported = audioGroups.any { g -> (0 until g.length).any { g.isTrackSupported(it) } }
+                if (anySupported) return
+
+                val codecs = audioGroups
+                    .flatMap { g -> (0 until g.length).map { g.getTrackFormat(it) } }
+                    .mapNotNull { it.sampleMimeType ?: it.codecs }
+                    .distinct()
+                    .joinToString(", ")
+                notifyListeners(
+                    "audioUnsupported",
+                    JSObject()
+                        .put("screenId", screenId)
+                        .put("codecs", codecs)
+                        .put("ffmpegAvailable", try { FfmpegLibrary.isAvailable() } catch (t: Throwable) { false }),
+                )
             }
             override fun onCues(cueGroup: CueGroup) {
                 s.subtitleView?.setCues(cueGroup.cues)
@@ -586,10 +632,23 @@ class SnowPlayerPlugin : Plugin() {
                             val fmt = group.getTrackFormat(i)
                             val o = JSObject()
                             o.put("id", "$groupIndex:$i")
-                            o.put("label", fmt.label ?: fmt.language ?: codecLabel(fmt.codecs) ?: "Track ${i + 1}")
+                            // Embedded broadcast captions carry no label or language,
+                            // so name them properly instead of "Track 1".
+                            val ccLabel = when (fmt.sampleMimeType) {
+                                MimeTypes.APPLICATION_CEA608 -> "Closed Captions (CC1)"
+                                MimeTypes.APPLICATION_CEA708 -> "Closed Captions (708)"
+                                else -> null
+                            }
+                            o.put("label", fmt.label ?: ccLabel ?: fmt.language ?: codecLabel(fmt.codecs) ?: "Track ${i + 1}")
                             o.put("language", fmt.language ?: "")
                             o.put("codec", fmt.codecs ?: "")
                             o.put("selected", group.isTrackSelected(i))
+                            // A track can be present, unsupported and unselected — that is
+                            // exactly the silent-audio case. Report it so the UI can explain
+                            // itself instead of just playing video with no sound.
+                            o.put("supported", group.isTrackSupported(i))
+                            o.put("mimeType", fmt.sampleMimeType ?: "")
+                            o.put("channels", fmt.channelCount)
                             out.put(o)
                         }
                     }
@@ -630,6 +689,28 @@ class SnowPlayerPlugin : Plugin() {
             p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(type, false).setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, ti)).build()
             call.resolve()
         }
+    }
+
+    /**
+     * Reports whether the FFmpeg software-decode extension actually loaded on
+     * THIS device. `EXTENSION_RENDERER_MODE_PREFER` is set unconditionally, but
+     * it is a no-op unless libffmpegJNI.so is packaged for the device's ABI —
+     * and when it is a no-op, Dolby (AC-3/E-AC-3) tracks are silently
+     * deselected and playback continues with no sound. This turns that
+     * invisible state into something a customer can read out.
+     */
+    @PluginMethod
+    fun getDecoderInfo(call: PluginCall) {
+        val available = try { FfmpegLibrary.isAvailable() } catch (t: Throwable) { false }
+        val version = try { FfmpegLibrary.getVersion() } catch (t: Throwable) { null }
+        call.resolve(
+            JSObject()
+                .put("ffmpegAvailable", available)
+                .put("ffmpegVersion", version ?: "")
+                .put("abis", JSArray().also { arr -> android.os.Build.SUPPORTED_ABIS.forEach { arr.put(it) } })
+                .put("device", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+                .put("sdk", android.os.Build.VERSION.SDK_INT),
+        )
     }
 
     @PluginMethod fun getAudioTracks(call: PluginCall) = listTracks(call, C.TRACK_TYPE_AUDIO)
