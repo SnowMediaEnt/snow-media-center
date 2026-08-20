@@ -26,7 +26,7 @@ import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 
 
 interface UserDashboardProps {
-  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games' | 'account-signin') => void;
+  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'community' | 'credits' | 'games' | 'account-signin') => void;
   onManageMedia: () => void;
   onViewSettings: () => void;
   onCommunityChat: () => void;
@@ -51,7 +51,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [referralQr, setReferralQr] = useState<string | null>(null);
   const [showServicesEditor, setShowServicesEditor] = useState(false);
   const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
@@ -547,7 +546,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="overview" 
               className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === TAB_BASE ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Overview
@@ -555,7 +554,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === TAB_BASE + 1 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Snow Gems

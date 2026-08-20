@@ -1,4 +1,4 @@
-// Shared giveaway helpers — used by wix-order-webhook, wix-integration
+// Shared giveaway helpers
 // (sync-credit-orders) and giveaway-bridge.
 //
 // Awarding is ALWAYS idempotent: it goes through the service-role-only
@@ -141,7 +141,7 @@ export async function awardOrderEntries(
         p_type: type,
         p_count: entryCount,
         p_source_id: orderId,
-        p_source_ref: `Wix order #${orderNumber}`,
+        p_source_ref: `Order #${orderNumber}`,
         p_status: status,
         p_metadata: { buyer_email: buyer || null },
       });
