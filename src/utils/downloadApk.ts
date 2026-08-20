@@ -136,6 +136,10 @@ export async function downloadApkToCache(
   // Report initial progress
   onProgress?.(0);
 
+  // Confirm the server will serve this before committing to the transfer, and
+  // remember the advertised size so a truncated download can be identified.
+  const expectedBytes = await preflightApk(downloadUrl);
+
   // Ensure apk directory exists
   const path = `apk/${filename}`;
   try {
@@ -185,7 +189,20 @@ export async function downloadApkToCache(
 
     console.log('[APK] Download complete, path:', result.path);
     console.log('[APK] Download blob size:', result.blob?.size);
-    
+
+    // A stream that dies cleanly can still land here with a short file, which
+    // would otherwise fail much later as an opaque "parse error" in the
+    // Android installer. Catch it while we still know what went wrong.
+    if (expectedBytes) {
+      const stat = await Filesystem.stat({ path, directory: Directory.Cache });
+      if (typeof stat.size === 'number' && stat.size < expectedBytes) {
+        try { await Filesystem.deleteFile({ path, directory: Directory.Cache }); } catch { /* ignore */ }
+        throw new Error(
+          `Download incomplete: got ${MB(stat.size)} of ${MB(expectedBytes)}. Check your connection and try again.`,
+        );
+      }
+    }
+
     onProgress?.(95);
 
     // Get the file URI
@@ -200,7 +217,9 @@ export async function downloadApkToCache(
     return uri.uri;
   } catch (error) {
     console.error('[APK] Native download failed:', error);
-    throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Native download error'}`);
+    // Already a specific, actionable message — don't bury it in a second wrapper.
+    if (error instanceof Error && error.message.startsWith('Download incomplete')) throw error;
+    throw new Error(await describeDownloadFailure(path, expectedBytes, error));
   } finally {
     try { await progressListener?.remove(); } catch {}
   }
