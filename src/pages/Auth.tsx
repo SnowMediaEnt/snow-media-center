@@ -310,7 +310,7 @@ const Auth = () => {
             variant: "destructive",
           });
           setLoginForm((prev) => ({ ...prev, email: signupForm.email }));
-          setAccountKind('app');
+          
           setStep('password');
         } else {
           toast({
