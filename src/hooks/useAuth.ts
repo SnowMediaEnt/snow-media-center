@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { waitForStorageReady } from '@/utils/storage';
@@ -99,10 +99,8 @@ export const useAuth = () => {
         return { error: { message: 'User already registered' } as AuthError, data };
       }
 
-      // Sync to Wix in background (non-blocking)
       if (!error && data.user) {
         try { trackEvent('sign_up', 'auth', { email }); } catch { void 0; }
-        syncUserToWix(email, fullName);
       }
 
       return { error, data };
@@ -138,17 +136,6 @@ export const useAuth = () => {
       console.log('[Auth] SignIn success:', data.user?.email);
       try { trackEvent('sign_in', 'auth', { method: 'password', email: data.user?.email }); } catch { void 0; }
 
-      // Fire-and-forget Wix credit sync
-      if (data.user?.email) {
-        supabase.functions.invoke('wix-integration', {
-          body: { action: 'sync-credit-orders', email: data.user.email },
-        }).then(({ data: sd }: { data: { newOrders?: number; totalCreditsAdded?: number } | null }) => {
-          if (sd?.newOrders > 0) {
-            console.log('[Auth] Wix credit sync added', sd.totalCreditsAdded, 'credits');
-          }
-        }).catch((e) => console.warn('[Auth] Wix credit sync failed:', e));
-      }
-
       return { error: null };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -164,26 +151,6 @@ export const useAuth = () => {
     const { error } = await supabase.auth.signOut();
     return { error };
   };
-
-  // Background Wix sync (fire-and-forget)
-  const syncUserToWix = useCallback(async (email: string, fullName?: string) => {
-    try {
-      const nameParts = fullName?.split(' ') || [];
-      await supabase.functions.invoke('wix-integration', {
-        body: {
-          action: 'create-member',
-          memberData: {
-            email,
-            firstName: nameParts[0] || '',
-            lastName: nameParts.slice(1).join(' ') || '',
-            nickname: email.split('@')[0]
-          }
-        }
-      });
-    } catch (e) {
-      console.warn('[Auth] Wix sync failed:', e);
-    }
-  }, []);
 
   return { user, session, loading, signUp, signIn, signOut };
 };

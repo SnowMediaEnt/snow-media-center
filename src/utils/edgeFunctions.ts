@@ -119,33 +119,11 @@ export const invokeEdgeFunction = async <T = unknown>(
 };
 
 /**
- * Fetch Wix products with robust error handling
- */
-export const fetchWixProducts = async () => {
-  return invokeEdgeFunction('wix-integration', {
-    body: { action: 'get-products' },
-    timeout: 15000,
-    retries: 2,
-  });
-};
-
-/**
  * Fetch Vimeo videos with robust error handling
  */
 export const fetchVimeoVideos = async () => {
   return invokeEdgeFunction('vimeo-videos', {
     timeout: 15000,
     retries: 2,
-  });
-};
-
-/**
- * Verify Wix member with robust error handling
- */
-export const verifyWixMember = async (email: string) => {
-  return invokeEdgeFunction('wix-integration', {
-    body: { action: 'verify-member', email },
-    timeout: 20000,
-    retries: 3,
   });
 };

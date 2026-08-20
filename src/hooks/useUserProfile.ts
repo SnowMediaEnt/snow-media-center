@@ -8,7 +8,6 @@ export interface UserProfile {
   email?: string;
   username?: string;
   full_name?: string;
-  wix_account_id?: string;
   credits: number;
   total_spent: number;
   created_at: string;
