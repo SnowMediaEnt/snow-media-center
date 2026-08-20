@@ -13,10 +13,8 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import QRCode from 'qrcode';
 import UserServicesEditor from '@/components/UserServicesEditor';
 import { useMyUserServices, daysUntil } from '@/hooks/useUserServices';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -27,7 +25,7 @@ import { claimDoneKey, isClaimDone } from '@/lib/accountClaim';
 
 
 interface UserDashboardProps {
-  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'store' | 'community' | 'credits' | 'games' | 'account-signin') => void;
+  onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'community' | 'credits' | 'games' | 'account-signin') => void;
   onManageMedia: () => void;
   onViewSettings: () => void;
   onCommunityChat: () => void;
@@ -36,32 +34,22 @@ interface UserDashboardProps {
   onGiveaway?: () => void;
 }
 
-interface WixOrderSummary {
-  id: string;
-  number?: string | number;
-  created_at: string;
-  total: string | number;
-  status?: string;
-}
-
 const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
   const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
   const giveawayOn = giveawayEnabled && !isDemo();
   // Focus indices shift by one when the Giveaway action button is visible.
   const TAB_BASE = giveawayOn ? 6 : 5;
-  const CLAIM_IDX = TAB_BASE + 4;
+  const CLAIM_IDX = TAB_BASE + 2;
   const EDIT_IDX = CLAIM_IDX + 1;
   const DELETE_IDX = EDIT_IDX + 1;
   const { user, signOut, loading: authLoading } = useAuth();
   const { profile, transactions, loading } = useUserProfile();
-  const { wixProfile, wixOrders, wixReferrals, loading: wixLoading, fetchWixData } = useWixIntegration();
   const { toast } = useToast();
   const [showPurchase, setShowPurchase] = useState(false);
   const [focusedElement, setFocusedElement] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [referralQr, setReferralQr] = useState<string | null>(null);
   const [showServicesEditor, setShowServicesEditor] = useState(false);
   const { devices: myDevices, services: myServices, refetch: refetchUserServices } = useMyUserServices();
   const dashboardScrollRef = useRef<HTMLDivElement>(null);
@@ -90,13 +78,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   const navigate = useNavigate();
 
 
-  useEffect(() => {
-    const url = wixReferrals?.referralUrl;
-    if (!url) { setReferralQr(null); return; }
-    QRCode.toDataURL(url, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } })
-      .then(setReferralQr)
-      .catch(() => setReferralQr(null));
-  }, [wixReferrals?.referralUrl]);
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
@@ -121,7 +102,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   // Focus positions:
   // 0: back, 1: signout
   // 2: purchase credits, 3: community chat, 4: games, [5: giveaway when flag on]
-  // TAB_BASE..TAB_BASE+3: overview/credits/store/referrals tabs
+  // TAB_BASE..TAB_BASE+1: overview/credits tabs
   // EDIT_IDX: edit services, DELETE_IDX: delete account
 
   // Android TV/Firestick navigation
@@ -174,19 +155,19 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (focusedElement === 3) setFocusedElement(2); // community -> purchase
           else if (focusedElement === 4) setFocusedElement(3); // games -> community
           else if (giveawayOn && focusedElement === 5) setFocusedElement(4); // giveaway -> games
-          else if (focusedElement > TAB_BASE && focusedElement <= TAB_BASE + 3) setFocusedElement(focusedElement - 1); // tabs
+          else if (focusedElement > TAB_BASE && focusedElement <= TAB_BASE + 1) setFocusedElement(focusedElement - 1); // tabs
           break;
         case 'ArrowRight':
           if (focusedElement === 0) setFocusedElement(1); // back -> signout
           else if (focusedElement === 2) setFocusedElement(3); // purchase -> community
           else if (focusedElement === 3) setFocusedElement(4); // community -> games
           else if (giveawayOn && focusedElement === 4) setFocusedElement(5); // games -> giveaway
-          else if (focusedElement >= TAB_BASE && focusedElement < TAB_BASE + 3) setFocusedElement(focusedElement + 1); // tabs
+          else if (focusedElement >= TAB_BASE && focusedElement < TAB_BASE + 1) setFocusedElement(focusedElement + 1); // tabs
           break;
         case 'ArrowUp':
           if (focusedElement >= 2 && focusedElement < TAB_BASE) {
             setFocusedElement(0); // action buttons -> back
-          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 1) {
             const container = dashboardScrollRef.current;
             const currentTop = container?.scrollTop ?? window.scrollY;
             if (currentTop > 10) {
@@ -208,7 +189,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             setFocusedElement(2); // header -> purchase credits
           } else if (focusedElement >= 2 && focusedElement < TAB_BASE) {
             setFocusedElement(TAB_BASE); // action buttons -> first tab
-          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 3) {
+          } else if (focusedElement >= TAB_BASE && focusedElement <= TAB_BASE + 1) {
             if (activeTab === 'overview') {
               setFocusedElement(playerActionAvailable ? CLAIM_IDX : EDIT_IDX); // tabs -> player action / edit button
             } else {
@@ -236,8 +217,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           else if (giveawayOn && focusedElement === 5) onGiveaway?.();
           else if (focusedElement === TAB_BASE) setActiveTab('overview');
           else if (focusedElement === TAB_BASE + 1) setActiveTab('credits');
-          else if (focusedElement === TAB_BASE + 2) setActiveTab('store');
-          else if (focusedElement === TAB_BASE + 3) setActiveTab('referrals');
           else if (focusedElement === CLAIM_IDX) {
             if (!playerAccount && !isDemo()) onViewChange('account-signin');
             else if (claimAvailable) setClaimOpen(true);
@@ -301,15 +280,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
 
 
-  // Fetch Wix data once per email change. Do NOT depend on wixLoading —
-  // fetchWixData itself flips wixLoading, which would otherwise cause a
-  // refetch loop (twice per email change).
-  useEffect(() => {
-    if (user?.email) {
-      fetchWixData(user.email);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email]);
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -571,11 +541,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto gap-2 mb-8 bg-slate-800/50 border-slate-600 p-2">
+          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 bg-slate-800/50 border-slate-600 p-2">
             <TabsTrigger 
               value="overview" 
               className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === TAB_BASE ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Overview
@@ -583,26 +553,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 6 ? 'ring-4 ring-white/60 scale-105' : ''
+                focusedElement === TAB_BASE + 1 ? 'ring-4 ring-white/60 scale-105' : ''
               }`}
             >
               Snow Gems
-            </TabsTrigger>
-            <TabsTrigger 
-              value="store" 
-              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 7 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
-            >
-              Store Account
-            </TabsTrigger>
-            <TabsTrigger 
-              value="referrals" 
-              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === 8 ? 'ring-4 ring-white/60 scale-105' : ''
-              }`}
-            >
-              Referrals
             </TabsTrigger>
           </TabsList>
 
@@ -736,7 +690,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
-                  This does not affect your Snow Media website (Wix) account.
+                  
                 </p>
                 <Button
                   variant="outline"
@@ -808,140 +762,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </Card>
           </TabsContent>
 
-          <TabsContent value="store" className="mt-0">
-            <div className="space-y-6">
-              <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-                  <ShoppingCart className="w-6 h-6 mr-2" />
-                  Store Purchase History
-                </h2>
-                
-                {wixLoading ? (
-                  <p className="text-slate-400 text-center py-8">Loading store data...</p>
-                ) : wixOrders && wixOrders.length > 0 ? (
-                  <div className="space-y-3">
-                    {(wixOrders as WixOrderSummary[]).map((order) => (
-                      <div 
-                        key={order.id}
-                        className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-3 h-3 rounded-full bg-blue-400" />
-                          <div>
-                            <p className="text-white font-medium">Order #{order.number}</p>
-                            <p className="text-slate-400 text-sm">
-                              {new Date(order.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-400">{String(order.total).startsWith('$') ? order.total : `$${order.total}`}</p>
-                          <Badge variant="secondary" className="bg-blue-600 text-white">
-                            {order.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-400 text-center py-8">No store purchases yet</p>
-                )}
-              </Card>
-
-              <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
-                <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-                  <MapPin className="w-6 h-6 mr-2" />
-                  Shipping & Billing Info
-                </h2>
-                
-                {wixProfile ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
-                      <div className="space-y-2 text-slate-300">
-                        <p>{wixProfile.shipping?.address || 'Not set'}</p>
-                        <p>{wixProfile.shipping?.city}, {wixProfile.shipping?.state} {wixProfile.shipping?.zip}</p>
-                        <p>{wixProfile.shipping?.country}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-white">Billing Address</h3>
-                      <div className="space-y-2 text-slate-300">
-                        <p>{wixProfile.billing?.address || 'Not set'}</p>
-                        <p>{wixProfile.billing?.city}, {wixProfile.billing?.state} {wixProfile.billing?.zip}</p>
-                        <p>{wixProfile.billing?.country}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-400 text-center py-8">No address information available</p>
-                )}
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="referrals" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
-              <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-                <Users className="w-6 h-6 mr-2" />
-                Referral Program
-              </h2>
-              
-              {wixReferrals ? (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-800/50 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">Total Referrals</h3>
-                      <p className="text-3xl font-bold text-blue-400">{wixReferrals.totalReferrals || 0}</p>
-                    </div>
-                    <div className="bg-slate-800/50 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">Earnings</h3>
-                      <p className="text-3xl font-bold text-green-400">{String(wixReferrals.totalEarnings || '').startsWith('$') ? wixReferrals.totalEarnings : `$${wixReferrals.totalEarnings || '0.00'}`}</p>
-                    </div>
-                    <div className="bg-slate-800/50 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">Pending</h3>
-                      <p className="text-3xl font-bold text-yellow-400">{String(wixReferrals.pendingEarnings || '').startsWith('$') ? wixReferrals.pendingEarnings : `$${wixReferrals.pendingEarnings || '0.00'}`}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
-                    <div className="flex flex-col md:flex-row gap-4 items-start">
-                      {referralQr && (
-                        <div className="bg-white p-2 rounded-lg shrink-0">
-                          <img src={referralQr} alt="Referral QR code" className="w-40 h-40" />
-                        </div>
-                      )}
-                      <div className="flex-1 w-full space-y-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={wixReferrals.referralUrl || 'Loading...'}
-                            readOnly
-                            className="flex-1 bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white text-sm"
-                          />
-                          <Button
-                            onClick={() => {
-                              navigator.clipboard.writeText(wixReferrals.referralUrl || '');
-                              toast({ title: 'Copied!', description: 'Referral link copied to clipboard.' });
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            Copy
-                          </Button>
-                        </div>
-                        <p className="text-slate-400 text-sm">
-                          Scan the QR code or share your link. Friends who sign up on snowmedia.com count toward your referrals.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-slate-400 text-center py-8">Loading referral information...</p>
-              )}
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
 
@@ -981,7 +801,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <AlertDialogDescription className="text-slate-300">
               This permanently removes your Snow Media app account, profile, Snow Gems,
               chats, support tickets and media. This cannot be undone. Your separate
-              Snow Media website (Wix) account is not affected.
+              Streaming player account is not affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -2701,6 +2701,7 @@ export type Database = {
       support_messages: {
         Row: {
           created_at: string
+          edited_at: string | null
           id: string
           message: string
           sender_type: string
@@ -2709,6 +2710,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          edited_at?: string | null
           id?: string
           message: string
           sender_type: string
@@ -2717,6 +2719,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          edited_at?: string | null
           id?: string
           message?: string
           sender_type?: string

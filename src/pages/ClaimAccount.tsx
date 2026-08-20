@@ -119,21 +119,6 @@ const ClaimAccount = () => {
           setError('That email already has an account — sign in instead.');
           return;
         }
-        // Background Wix member sync (mirrors the in-app sign-up).
-        try {
-          const nameParts = fullName.trim().split(' ').filter(Boolean);
-          void supabase.functions.invoke('wix-integration', {
-            body: {
-              action: 'create-member',
-              memberData: {
-                email: em,
-                firstName: nameParts[0] || '',
-                lastName: nameParts.slice(1).join(' ') || '',
-                nickname: em.split('@')[0],
-              },
-            },
-          });
-        } catch { /* ignore */ }
         if (data.session) {
           // Auto-confirm / confirmations disabled → session exists immediately.
           await finishClaim();

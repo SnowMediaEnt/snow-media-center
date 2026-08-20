@@ -1,10 +1,9 @@
 // Email-first sign-in probe.
-// POST { email } -> 200 { exists: 'app' | 'wix' | 'none' }
-// NEVER returns names, member ids, profiles, or any Wix payload — the enum only.
+// POST { email } -> 200 { exists: 'app' | 'none' }
+// NEVER returns names, ids, or profiles — the enum only.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { hashClientIp } from '../_shared/ai-guard.ts';
-import { findWixMemberByEmail } from '../_shared/wixMember.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const THROTTLE_MAX = 20;
 
-type Exists = 'app' | 'wix' | 'none';
+type Exists = 'app' | 'none';
 
 function ok(body: { exists: Exists; throttled?: boolean }) {
   return new Response(JSON.stringify(body), {
@@ -98,19 +97,6 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.error('[check-account-email] account_email_exists threw:', e);
-    }
-
-    // 2) Wix check (fail-open)
-    const wixApiKey = Deno.env.get('WIX_API_KEY');
-    const wixSiteId = Deno.env.get('WIX_SITE_ID');
-    const wixAccountId = Deno.env.get('WIX_ACCOUNT_ID');
-    if (!wixApiKey || !wixSiteId) return ok({ exists: 'none' });
-
-    try {
-      const { member } = await findWixMemberByEmail(email, wixApiKey, wixSiteId, wixAccountId || undefined);
-      if (member) return ok({ exists: 'wix' });
-    } catch (e) {
-      console.error('[check-account-email] Wix lookup failed:', e);
     }
 
     return ok({ exists: 'none' });

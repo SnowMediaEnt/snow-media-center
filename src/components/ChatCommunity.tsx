@@ -10,7 +10,6 @@ import type { VoiceLifecycleControls } from '@/components/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
-import { useWixIntegration } from '@/hooks/useWixIntegration';
 import { useSupportTickets, SupportTicket } from '@/hooks/useSupportTickets';
 import { useAIConversations } from '@/hooks/useAIConversations';
 import { supabase } from '@/integrations/supabase/client';
@@ -436,7 +435,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const { user } = useAuth();
   const { profile, checkCredits, deductCredits } = useUserProfile();
   // toast hoisted earlier (see useToast() near voiceRepliesEnabled).
-  const { sendMessage } = useWixIntegration();
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
     conversations: aiConversations,
@@ -581,7 +579,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           const sectionMap: Record<string, string> = {
             'install-apps': 'apps',
             'support': 'videos',
-            'media': 'store',
+            'media': 'credits',
             'user': 'user'
           };
           const requestedSection = args.section || '';
@@ -626,10 +624,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       case 'open_store_section':
         if (onNavigate) {
           stopVoicePlayback();
-          if (args.section === 'credits') {
+          if (args.section === 'credits' || args.section === 'media') {
             onNavigate('credits');
-          } else if (args.section === 'media') {
-            onNavigate('store');
           } else {
             onNavigate('apps');
           }
@@ -670,57 +666,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         console.log('Unknown function:', name, args);
     }
   }, [onNavigate, profile, stopVoicePlayback, toast]);
-
-  const sendAdminMessage = async () => {
-    if (!adminMessage.trim() || !adminSubject.trim()) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in both subject and message.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!user) {
-      toast({
-        title: "Login required",
-        description: "Please sign in to send messages to admin.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setAdminLoading(true);
-
-    try {
-      const result = await sendMessage(
-        adminSubject,
-        adminMessage,
-        user.email || '',
-        profile?.full_name || 'Snow Media User'
-      );
-
-      if (result.success) {
-        toast({
-          title: "Message sent!",
-          description: "Your message has been sent to Snow Media admin.",
-        });
-        setAdminMessage('');
-        setAdminSubject('');
-      } else {
-        throw new Error('Failed to send message');
-      }
-    } catch (error) {
-      console.error('Admin message error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setAdminLoading(false);
-    }
-  };
 
   const sendAiMessage = async (messageOverride?: string) => {
     const messageToSend = typeof messageOverride === 'string' ? messageOverride : aiMessage;
@@ -848,7 +793,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   // Define all focusable elements by index
   // 0: back, 1: tab-admin, 2: tab-community, 3: tab-ai
   // Admin tab (4+): depends on view state (list, new ticket form, or viewing ticket)
-  // Community tab (4+): visit-forum, join-groups
+  // Community tab (4+): visit-forum
   // AI tab (4+): ai-input, ai-send
   const getFocusableElements = useCallback(() => {
     const header = embedded ? [] : [
@@ -1191,8 +1136,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
           } else if (currentFocusId === 'tab-community') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-ai'));
-          } else if (currentFocusId === 'visit-forum') {
-            setFocusIndex(elements.findIndex(e => e.id === 'join-groups'));
           } else if (currentFocusId === 'ai-input') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
           } else if (currentFocusId === 'ai-voice') {
@@ -1212,8 +1155,6 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             setFocusIndex(elements.findIndex(e => e.id === 'tab-admin'));
           } else if (currentFocusId === 'tab-ai') {
             setFocusIndex(elements.findIndex(e => e.id === 'tab-community'));
-          } else if (currentFocusId === 'join-groups') {
-            setFocusIndex(elements.findIndex(e => e.id === 'visit-forum'));
           } else if (currentFocusId === 'ai-send') {
             setFocusIndex(elements.findIndex(e => e.id === 'ai-voice'));
           } else if (currentFocusId === 'ai-voice') {
@@ -1268,9 +1209,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           } else if (currentFocusId === 'reply-send') {
             handleSendReply();
           } else if (currentFocusId === 'visit-forum') {
-            onNavigate?.('wix-forum');
-          } else if (currentFocusId === 'join-groups') {
-            window.open('https://snowmediaent.com/groups', '_blank');
+            onNavigate?.('community');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
           } else if (currentFocusId === 'ai-voice') {
@@ -1785,38 +1724,29 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         {/* Community Tab Content */}
         {activeTab === 'community' && (
           <Card className="bg-gradient-to-br from-green-900/30 to-slate-900 border-green-700 p-6">
-            <h3 className="text-2xl font-bold text-white mb-2">Website Blog & Forum</h3>
+            <h3 className="text-2xl font-bold text-white mb-2">Community Chat</h3>
             <p className="text-sm text-green-300/80 mb-4">
-              These open posts from the Snow Media <span className="font-semibold">website</span>.
-              They are separate from the in-app Community Chat rooms (those live only inside this app).
+              Chat with other Snow Media users right inside the app.
             </p>
 
             <div className="bg-slate-800 rounded-lg p-6 mb-6">
               <div className="text-center py-8">
                 <MessageSquare className="w-16 h-16 mx-auto text-green-400/50 mb-4" />
-                <h4 className="text-xl font-semibold text-white mb-2">Snow Media Blog & Forum</h4>
+                <h4 className="text-xl font-semibold text-white mb-2">Snow Media Community</h4>
                 <p className="text-slate-400 mb-4">
-                  Tips, updates, and discussions pulled live from snowmediaapps.com.
+                  Tips, updates, and discussions from the community — all in-app.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
               <Button
-                onClick={() => onNavigate?.('wix-blog')}
+                onClick={() => onNavigate?.('community')}
                 data-focus-id="visit-forum"
                 className={`bg-green-600 hover:bg-green-700 text-white text-lg px-8 py-3 flex-1 transition-all duration-200 ${focusRing('visit-forum')}`}
               >
                 <MessageSquare className="w-5 h-5 mr-2" />
-                Open Website Blog
-              </Button>
-              <Button
-                onClick={() => onNavigate?.('wix-forum')}
-                data-focus-id="visit-forum-2"
-                className={`bg-emerald-700 hover:bg-emerald-800 text-white text-lg px-8 py-3 flex-1 transition-all duration-200 ${focusRing('visit-forum-2')}`}
-              >
-                <MessageSquare className="w-5 h-5 mr-2" />
-                Open Website Forum
+                Open Community Chat
               </Button>
             </div>
           </Card>

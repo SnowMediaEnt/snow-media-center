@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Smartphone, Store, Video, MessageCircle, Sparkles } from 'lucide-react';
+import { Smartphone, Video, MessageCircle, Sparkles } from 'lucide-react';
 import { useVersion } from '@/hooks/useVersion';
 
 /**
@@ -272,13 +272,6 @@ const WelcomePopup = () => {
                 <div>
                   <p className="font-semibold">Main Apps</p>
                   <p className="text-white/75">Download all apps pertaining to Snow Media.</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <Store className="w-5 h-5 mt-0.5 text-yellow-300 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold">Store</p>
-                  <p className="text-white/75">Takes you to the Snow Media store.</p>
                 </div>
               </li>
               <li className="flex gap-3">
