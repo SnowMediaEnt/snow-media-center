@@ -487,9 +487,17 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
   // Demo mode must NEVER touch a provider host — callers are already routed to
   // the canned lineup, so reaching this in demo means a missed call site.
   if (isDemo()) throw new Error('Xtream transport is disabled in demo mode');
+  // On a real device CapacitorHttp is the ONLY viable transport: provider hosts
+  // send no CORS headers, so the WebView `fetch` fallback below can never
+  // succeed there. Falling through to it turns a plain "HTTP 429" into a
+  // CORS failure, which the caller then reports as "Couldn't reach <server> -
+  // this is expected in a web browser" ON THE DEVICE. So on native we surface
+  // the real status and never fall through.
+  let nativeChecked = false;
   try {
     const { Capacitor, CapacitorHttp } = await import('@capacitor/core');
-    if (Capacitor.isNativePlatform?.()) {
+    nativeChecked = Capacitor.isNativePlatform?.() === true;
+    if (nativeChecked) {
       const res = await CapacitorHttp.get({
         url,
         headers: { Accept: 'application/json' },
@@ -502,9 +510,9 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
       throw new Error(`HTTP ${res.status}`);
     }
   } catch (e) {
-    if (!(e instanceof Error) || !/Capacitor/i.test(e.message)) {
-      // real error — surface below via fetch fallback
-    }
+    // Only a failure to LOAD the Capacitor module is a reason to try fetch;
+    // once we know we're native, the error is the real answer.
+    if (nativeChecked) throw e;
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
