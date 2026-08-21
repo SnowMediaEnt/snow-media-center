@@ -510,9 +510,9 @@ async function httpGetJson<T>(url: string, timeoutMs = 20000): Promise<T> {
       throw new Error(`HTTP ${res.status}`);
     }
   } catch (e) {
-    if (!(e instanceof Error) || !/Capacitor/i.test(e.message)) {
-      // real error — surface below via fetch fallback
-    }
+    // Only a failure to LOAD the Capacitor module is a reason to try fetch;
+    // once we know we're native, the error is the real answer.
+    if (nativeChecked) throw e;
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
