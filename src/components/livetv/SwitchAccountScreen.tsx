@@ -59,6 +59,14 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
 
   const pickAccount = async (acc: SavedAccount) => {
     if (busyRef.current) return;
+    // Picking the account you are ALREADY on used to re-authenticate and then
+    // hand the parent identical creds, which it correctly treated as "nothing
+    // changed" - so the screen just sat there and the tap looked dead. Close
+    // straight away instead; there is nothing to switch to.
+    if (acc.id === currentId) {
+      const cur = await loadCreds();
+      if (cur) { onPicked(cur); return; }
+    }
     setBusy(true);
     try {
       const res = await authenticateRouted(acc.username, acc.password);
