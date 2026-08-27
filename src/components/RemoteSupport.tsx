@@ -174,7 +174,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         });
         if (recent) {
           setRequest(recent);
-          setStep('setup-app');
+          // The install/launch wizard is native-only; in a browser, hand the
+          // user to the app on their box (their paid request resumes there).
+          setStep(getPlatform() === 'web' ? 'not-native' : 'setup-app');
           return;
         }
       } catch (err) {
