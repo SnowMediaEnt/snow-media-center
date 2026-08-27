@@ -170,4 +170,54 @@ class SmcNewsWidget : AppWidgetProvider() {
         }
         return out
     }
+    private data class AccountStatus(val text: String, val color: Int)
+
+    /**
+     * Read the signed-in line straight out of Capacitor's SharedPreferences and
+     * turn it into a one-line status.
+     *
+     * Deliberately renders ONLY the server label and days remaining — the stored
+     * JSON also holds the account password, which must never reach a view that
+     * is rendered on the launcher.
+     */
+    private fun readAccountStatus(context: Context): AccountStatus {
+        val raw = try {
+            context.getSharedPreferences(CAP_STORE, Context.MODE_PRIVATE)
+                .getString(KEY_ACCOUNT, null)
+        } catch (t: Throwable) {
+            null
+        } ?: return AccountStatus("Not signed in — open to add your line", COLOR_MUTED)
+
+        return try {
+            val o = JSONObject(raw)
+            val label = o.optString("serverLabel").ifBlank { "Your line" }
+            val trial = o.optBoolean("isTrial", false)
+            val prefix = if (trial) "Trial · $label" else label
+
+            // expDate is unix SECONDS, and null/absent when the panel omits it.
+            val expSeconds = if (o.isNull("expDate")) 0L else o.optLong("expDate", 0L)
+            if (expSeconds <= 0L) return AccountStatus("$prefix · active", COLOR_GOLD)
+
+            // Compare against local midnight so "1 day left" flips at the date
+            // boundary rather than on a rolling 24h window.
+            val midnight = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val days = Math.round((expSeconds * 1000.0 - midnight) / 86400000.0).toInt()
+
+            when {
+                days < 0 -> AccountStatus("$prefix · expired — renew to keep watching", COLOR_RED)
+                days == 0 -> AccountStatus("$prefix · expires today", COLOR_RED)
+                days == 1 -> AccountStatus("$prefix · 1 day left", COLOR_RED)
+                days <= EXPIRY_WARN_DAYS -> AccountStatus("$prefix · $days days left", COLOR_RED)
+                else -> AccountStatus("$prefix · $days days left", COLOR_GOLD)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "account parse failed: ${t.message}")
+            AccountStatus("", COLOR_MUTED)
+        }
+    }
 }
