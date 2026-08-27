@@ -1146,6 +1146,25 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     })();
   }, [native.error, nativeActive, useTranscode, playing, conn, native]);
 
+  // Same fallback for SILENT audio: a Dolby/DTS-only file on a device with no
+  // matching decoder raises no error at all — ExoPlayer just deselects the
+  // audio track and the movie plays mute. The native layer now reports that
+  // as audioWarning, so treat it exactly like AUDIO_DECODE: hand decoding to
+  // the Plex server (transcode outputs AAC every device can play).
+  useEffect(() => {
+    if (!(nativeActive && native.audioWarning && !native.error && !useTranscode && playing && conn)) return;
+    void (async () => {
+      let resume: number | undefined;
+      try {
+        const p = await native.getPosition();
+        if (p.position > 0) resume = p.position;
+      } catch { /* ignore */ }
+      setStartPos(resume);
+      setUseTranscode(true);
+      setStreamUrl(plexTranscodeUrl(conn.base, playing.ratingKey, conn.token));
+    })();
+  }, [native.audioWarning, native.error, nativeActive, useTranscode, playing, conn, native]);
+
   // Slow-load watchdog: if the native player hasn't emitted 'ready' within
   // 8s of the fullscreen flipping on, expose a Retry button so the user can
   // kick the pipeline instead of staring at a stalled spinner.
