@@ -268,7 +268,10 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
 
   const advanceAfterPayment = useCallback((kind: 'paid' | 'comped') => {
     setQrOpen(false);
-    setStep('setup-app');
+    // Payment worked wherever we are; the install/launch wizard needs the
+    // native app. In a browser, show the "finish on your box" screen — the
+    // paid request auto-resumes when they open Remote Access in the app.
+    setStep(getPlatform() === 'web' ? 'not-native' : 'setup-app');
     try { trackEvent('remote_support_paid', 'support', {}); } catch { /* ignore */ }
     toast(
       kind === 'comped'
