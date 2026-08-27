@@ -140,12 +140,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             return;
           }
         } catch { /* probe failed — fall through */ }
-      } else {
-        // Remote sessions happen on the box; the web build can't install or
-        // launch the Support app, so don't take requests (or payment) here.
-        if (!cancelled) setStep('not-native');
-        return;
       }
+      // NOTE: no mount-time dead-end for the web build any more. Requesting a
+      // session and paying use only Supabase + a QR code, so they work in any
+      // browser (including TV-box browsers that spoof desktop user agents).
+      // Only the install/launch wizard is native — gated where it starts.
+
 
       // 2. Auth required — requests are tied to the signed-in user.
       if (!user) {
