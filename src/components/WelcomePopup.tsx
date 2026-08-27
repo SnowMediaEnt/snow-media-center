@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.6.8': [
+    '📰 New: add a Snow Media news widget to your box\'s home screen',
     '💬 Closed captions now work on many more Live TV channels',
     '🔊 Channels with no sound now tell you why instead of playing silently',
     '💬 Scroll back through your whole Support ticket conversation with the remote',

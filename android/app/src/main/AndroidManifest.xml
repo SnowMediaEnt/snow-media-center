@@ -105,6 +105,20 @@
                 android:resource="@xml/cache_clear_accessibility_service" />
         </service>
 
+        <!-- Home-screen news widget. Only launchers that expose a widget picker
+             will ever bind this (generic Android boxes); the stock Android TV /
+             Google TV and Fire TV launchers ignore it entirely. -->
+        <receiver
+            android:name="com.snowmedia.widget.SmcNewsWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/smc_news_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>
