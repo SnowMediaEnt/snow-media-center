@@ -8,6 +8,7 @@ import android.content.Intent
 import android.util.Log
 import android.widget.RemoteViews
 import com.snowmedia.R
+import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -36,6 +37,19 @@ class SmcNewsWidget : AppWidgetProvider() {
         private const val KEY_ITEMS = "cached_items"
         private const val KEY_UPDATED = "cached_updated"
         private const val MAX_ITEMS = 3
+
+        /** Capacitor Preferences writes to this SharedPreferences file on Android
+         *  (PreferencesConfiguration.DEFAULTS.group), so the widget can read what
+         *  the app already persists — no bridge plugin, no duplicated state. */
+        private const val CAP_STORE = "CapacitorStorage"
+        private const val KEY_ACCOUNT = "snow-player-account-v1"
+
+        /** Below this many days remaining, the status line turns red. */
+        private const val EXPIRY_WARN_DAYS = 7
+
+        private const val COLOR_GOLD = 0xFFB9A279.toInt()
+        private const val COLOR_RED = 0xFFFF6B6B.toInt()
+        private const val COLOR_MUTED = 0x99E8F1FA.toInt()
 
         /** Single background thread — widget refreshes are infrequent and serial. */
         private val executor = Executors.newSingleThreadExecutor()
@@ -78,6 +92,10 @@ class SmcNewsWidget : AppWidgetProvider() {
     ) {
         val views = RemoteViews(context.packageName, R.layout.smc_news_widget)
         views.setTextViewText(R.id.widget_updated, updatedAt)
+
+        val status = readAccountStatus(context)
+        views.setTextViewText(R.id.widget_status, status.text)
+        views.setTextColor(R.id.widget_status, status.color)
         views.setTextViewText(
             R.id.widget_headline_1,
             items.getOrNull(0) ?: "Open Snow Media Center for the latest.",
@@ -151,5 +169,55 @@ class SmcNewsWidget : AppWidgetProvider() {
             event = parser.next()
         }
         return out
+    }
+    private data class AccountStatus(val text: String, val color: Int)
+
+    /**
+     * Read the signed-in line straight out of Capacitor's SharedPreferences and
+     * turn it into a one-line status.
+     *
+     * Deliberately renders ONLY the server label and days remaining — the stored
+     * JSON also holds the account password, which must never reach a view that
+     * is rendered on the launcher.
+     */
+    private fun readAccountStatus(context: Context): AccountStatus {
+        val raw = try {
+            context.getSharedPreferences(CAP_STORE, Context.MODE_PRIVATE)
+                .getString(KEY_ACCOUNT, null)
+        } catch (t: Throwable) {
+            null
+        } ?: return AccountStatus("Not signed in — open to add your line", COLOR_MUTED)
+
+        return try {
+            val o = JSONObject(raw)
+            val label = o.optString("serverLabel").ifBlank { "Your line" }
+            val trial = o.optBoolean("isTrial", false)
+            val prefix = if (trial) "Trial · $label" else label
+
+            // expDate is unix SECONDS, and null/absent when the panel omits it.
+            val expSeconds = if (o.isNull("expDate")) 0L else o.optLong("expDate", 0L)
+            if (expSeconds <= 0L) return AccountStatus("$prefix · active", COLOR_GOLD)
+
+            // Compare against local midnight so "1 day left" flips at the date
+            // boundary rather than on a rolling 24h window.
+            val midnight = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val days = Math.round((expSeconds * 1000.0 - midnight) / 86400000.0).toInt()
+
+            when {
+                days < 0 -> AccountStatus("$prefix · expired — renew to keep watching", COLOR_RED)
+                days == 0 -> AccountStatus("$prefix · expires today", COLOR_RED)
+                days == 1 -> AccountStatus("$prefix · 1 day left", COLOR_RED)
+                days <= EXPIRY_WARN_DAYS -> AccountStatus("$prefix · $days days left", COLOR_RED)
+                else -> AccountStatus("$prefix · $days days left", COLOR_GOLD)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "account parse failed: ${t.message}")
+            AccountStatus("", COLOR_MUTED)
+        }
     }
 }

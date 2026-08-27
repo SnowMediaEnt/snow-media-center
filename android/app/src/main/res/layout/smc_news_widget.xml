@@ -43,11 +43,23 @@
             android:maxLines="1" />
     </LinearLayout>
 
+    <!-- Subscription status. Colour is set at runtime (gold / red / muted). -->
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="#B9A279"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
     <TextView
         android:id="@+id/widget_headline_1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:textColor="#FFFFFFFF"
         android:textSize="14sp"
         android:maxLines="2"
