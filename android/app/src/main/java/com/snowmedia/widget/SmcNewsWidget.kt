@@ -38,6 +38,19 @@ class SmcNewsWidget : AppWidgetProvider() {
         private const val KEY_UPDATED = "cached_updated"
         private const val MAX_ITEMS = 3
 
+        /** Capacitor Preferences writes to this SharedPreferences file on Android
+         *  (PreferencesConfiguration.DEFAULTS.group), so the widget can read what
+         *  the app already persists — no bridge plugin, no duplicated state. */
+        private const val CAP_STORE = "CapacitorStorage"
+        private const val KEY_ACCOUNT = "snow-player-account-v1"
+
+        /** Below this many days remaining, the status line turns red. */
+        private const val EXPIRY_WARN_DAYS = 7
+
+        private const val COLOR_GOLD = 0xFFB9A279.toInt()
+        private const val COLOR_RED = 0xFFFF6B6B.toInt()
+        private const val COLOR_MUTED = 0x99E8F1FA.toInt()
+
         /** Single background thread — widget refreshes are infrequent and serial. */
         private val executor = Executors.newSingleThreadExecutor()
     }
