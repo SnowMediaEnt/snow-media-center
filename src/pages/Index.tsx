@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift } from 'lucide-react';
+import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Gift } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -42,6 +42,7 @@ import { runWhenIdle } from '@/utils/idle';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
 const InstallApps = lazy(() => import('@/components/InstallApps'));
+const StoreScreen = lazy(() => import('@/components/StoreScreen'));
 const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const CreditStore = lazy(() => import('@/components/CreditStore'));
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
@@ -346,6 +347,7 @@ interface RouteSwitchProps {
 const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayoutChange }: RouteSwitchProps) => (
   <Suspense fallback={<RouteFallback />}>
     {currentView === 'apps' && <InstallApps onBack={goBack} onNavigateToChat={() => navigateTo('support')} />}
+    {currentView === 'store' && <StoreScreen onBack={goBack} />}
     {currentView === 'support' && <Support onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
     {currentView === 'support-videos' && <SupportVideos onBack={goBack} />}
     {currentView === 'chat' && <ChatCommunity onBack={goBack} onNavigate={(section) => navigateTo(section)} />}
@@ -458,10 +460,10 @@ const Index = () => {
   const { apps } = useAppData();
   const [mediaBarEnabled] = useMediaBarEnabled();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
-  // If the flag flips off and the user was on the (now-removed) Player card, drop back to Support.
+  // If the flag flips off and the user was on the (now-removed) Player card, drop back to Store.
   useEffect(() => {
     if (!playerEnabled) {
-      setFocusedButton(b => (b === 2 ? 1 : b));
+      setFocusedButton(b => (b === 3 ? 2 : b));
     }
   }, [playerEnabled]);
   // Giveaway card: flag-gated like Player, but OFF by default and never shown
@@ -586,6 +588,7 @@ const Index = () => {
     try { trackScreenView(currentView || 'home'); } catch { void 0; }
     try {
       const map: Record<string, string> = {
+        store: 'store_open',
         support: 'support_open',
         community: 'community_open',
         chat: 'ai_chatbot_open',
@@ -750,6 +753,7 @@ const Index = () => {
     const list = [
       () => navigateToRef.current('apps'),
       () => navigateToRef.current('support'),
+      () => navigateToRef.current('store'),
     ];
     if (playerEnabled) list.push(() => navigateToRef.current('livetv'));
     return list;
@@ -849,7 +853,7 @@ const Index = () => {
       }
 
       // Home screen navigation
-      const maxButtons = playerEnabledRef.current ? 2 : 1;
+      const maxButtons = playerEnabledRef.current ? 3 : 2;
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -933,7 +937,9 @@ const Index = () => {
             navigateToRef.current('apps');
           } else if (focusedButton === 1) {
             navigateToRef.current('support');
-          } else if (focusedButton === 2 && playerEnabledRef.current) {
+          } else if (focusedButton === 2) {
+            navigateToRef.current('store');
+          } else if (focusedButton === 3 && playerEnabledRef.current) {
             navigateToRef.current('livetv');
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
             // Home gift badge
@@ -959,6 +965,7 @@ const Index = () => {
     const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
       { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
       { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
+      { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
     ];
     if (playerEnabled) {
       list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
