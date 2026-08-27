@@ -2051,6 +2051,24 @@ export type Database = {
         }
         Relationships: []
       }
+      player_login_throttle: {
+        Row: {
+          count: number
+          ip_hash: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          ip_hash: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          ip_hash?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       player_signin_throttle: {
         Row: {
           count: number
