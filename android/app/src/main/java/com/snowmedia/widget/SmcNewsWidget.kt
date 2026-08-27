@@ -92,6 +92,10 @@ class SmcNewsWidget : AppWidgetProvider() {
     ) {
         val views = RemoteViews(context.packageName, R.layout.smc_news_widget)
         views.setTextViewText(R.id.widget_updated, updatedAt)
+
+        val status = readAccountStatus(context)
+        views.setTextViewText(R.id.widget_status, status.text)
+        views.setTextColor(R.id.widget_status, status.color)
         views.setTextViewText(
             R.id.widget_headline_1,
             items.getOrNull(0) ?: "Open Snow Media Center for the latest.",
