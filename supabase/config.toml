@@ -46,6 +46,9 @@ verify_jwt = false
 [functions.opensubtitles]
 verify_jwt = false
 
+[functions.player-login]
+verify_jwt = false
+
 [functions.capture-player-signin]
 verify_jwt = false
 

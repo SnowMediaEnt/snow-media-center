@@ -11,6 +11,12 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.6.9': [
+    '🛍️ The Snow Media Store is back — browse items on your TV, scan a QR to check out on your phone',
+    '🔑 Sign into My Account with your streaming login — your linked account loads automatically',
+    '🖥️ Remote Access now works from a browser too: request and pay anywhere, finish in the app',
+    'Bug fixes and performance improvements',
+  ],
   '1.6.8': [
     '📰 New: add a Snow Media news widget to your box\'s home screen',
     '💬 Closed captions now work on many more Live TV channels',
