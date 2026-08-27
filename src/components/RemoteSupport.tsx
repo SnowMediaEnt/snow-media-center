@@ -140,12 +140,12 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
             return;
           }
         } catch { /* probe failed — fall through */ }
-      } else {
-        // Remote sessions happen on the box; the web build can't install or
-        // launch the Support app, so don't take requests (or payment) here.
-        if (!cancelled) setStep('not-native');
-        return;
       }
+      // NOTE: no mount-time dead-end for the web build any more. Requesting a
+      // session and paying use only Supabase + a QR code, so they work in any
+      // browser (including TV-box browsers that spoof desktop user agents).
+      // Only the install/launch wizard is native — gated where it starts.
+
 
       // 2. Auth required — requests are tied to the signed-in user.
       if (!user) {
@@ -174,7 +174,9 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         });
         if (recent) {
           setRequest(recent);
-          setStep('setup-app');
+          // The install/launch wizard is native-only; in a browser, hand the
+          // user to the app on their box (their paid request resumes there).
+          setStep(getPlatform() === 'web' ? 'not-native' : 'setup-app');
           return;
         }
       } catch (err) {
@@ -266,7 +268,10 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
 
   const advanceAfterPayment = useCallback((kind: 'paid' | 'comped') => {
     setQrOpen(false);
-    setStep('setup-app');
+    // Payment worked wherever we are; the install/launch wizard needs the
+    // native app. In a browser, show the "finish on your box" screen — the
+    // paid request auto-resumes when they open Remote Access in the app.
+    setStep(getPlatform() === 'web' ? 'not-native' : 'setup-app');
     try { trackEvent('remote_support_paid', 'support', {}); } catch { /* ignore */ }
     toast(
       kind === 'comped'
@@ -649,10 +654,25 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         <div className="max-w-2xl mx-auto px-6 pb-24">
           <Header title="Remote Access" />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
-            <p className="text-xl text-slate-200">
-              Remote Access runs on your Android TV box or Android device. Open Snow
-              Media Center on the box you need help with and come back to this page.
-            </p>
+            {request ? (
+              <>
+                <p className="text-xl text-slate-200">
+                  ✅ Your remote session is paid and ready. You're viewing this in a
+                  web browser — the technician setup runs inside the app.
+                </p>
+                <p className="mt-3 text-slate-300">
+                  On the box that needs help, open the <b>Snow Media Center app</b>{' '}
+                  (not a browser) and go to Support → Remote Access. Your paid
+                  request will pick up automatically — nothing to re-enter.
+                </p>
+              </>
+            ) : (
+              <p className="text-xl text-slate-200">
+                You're viewing this in a web browser. The technician setup runs
+                inside the Snow Media Center <b>app</b> — on the box that needs
+                help, open the app itself and go to Support → Remote Access.
+              </p>
+            )}
             <p className="mt-4 text-xs font-mono text-slate-500 break-all">
               {`platform=${getPlatform()} cap=${typeof (window as any).Capacitor} fn=${typeof (window as any).Capacitor?.isNativePlatform} bridge=${!!(window as any).androidBridge} ua=${(navigator.userAgent || '').slice(0, 80)}`}
             </p>

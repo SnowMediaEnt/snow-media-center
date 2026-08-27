@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { trackEvent } from '@/lib/analytics';
+import { signInWithPlayerCredentials, looksLikeEmail } from '@/lib/playerLogin';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 type Step = 'email' | 'password' | 'create';
@@ -72,6 +73,13 @@ const Auth = () => {
   const handleContinue = async () => {
     const email = loginForm.email.trim();
     if (!email) return;
+    // Streaming usernames aren't emails (and Vibez ones merely contain '@').
+    // Anything that can't be an email goes straight to the password step,
+    // where handleLogin will try the player-login bridge — never to "create".
+    if (!looksLikeEmail(email)) {
+      setStep('password');
+      return;
+    }
     setChecking(true);
     try {
       const { data, error } = await supabase.functions.invoke('check-account-email', {
@@ -229,6 +237,33 @@ const Auth = () => {
 
       if (error) {
         console.error('[Auth Page] Login error:', error.message);
+
+        // Not a website login? These may be STREAMING credentials. If the
+        // line is linked to an app account, the bridge verifies against the
+        // panel server-side and signs that account in.
+        const bridged = await signInWithPlayerCredentials(loginForm.email, loginForm.password);
+        if (bridged.ok) {
+          toast({
+            title: 'Welcome back!',
+            description: bridged.emailMasked
+              ? `Signed in with your streaming login (${bridged.emailMasked}).`
+              : 'Signed in with your streaming login.',
+          });
+          markPostAuthView();
+          navigate('/');
+          setLoading(false);
+          return;
+        }
+        if (bridged.reason === 'not_linked') {
+          toast({
+            title: 'Login failed',
+            description:
+              'That streaming login works, but it isn’t linked to a website account yet. Sign into the Player once and follow “Link your account”, or use your email here.',
+            variant: 'destructive',
+          });
+          setLoading(false);
+          return;
+        }
 
         toast({
           title: "Login failed",
