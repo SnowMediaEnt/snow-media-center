@@ -654,10 +654,25 @@ const RemoteSupport = ({ onBack, onOpenTickets }: RemoteSupportProps) => {
         <div className="max-w-2xl mx-auto px-6 pb-24">
           <Header title="Remote Access" />
           <div className="bg-slate-800/50 border border-slate-600 rounded-xl p-6">
-            <p className="text-xl text-slate-200">
-              Remote Access runs on your Android TV box or Android device. Open Snow
-              Media Center on the box you need help with and come back to this page.
-            </p>
+            {request ? (
+              <>
+                <p className="text-xl text-slate-200">
+                  ✅ Your remote session is paid and ready. You're viewing this in a
+                  web browser — the technician setup runs inside the app.
+                </p>
+                <p className="mt-3 text-slate-300">
+                  On the box that needs help, open the <b>Snow Media Center app</b>{' '}
+                  (not a browser) and go to Support → Remote Access. Your paid
+                  request will pick up automatically — nothing to re-enter.
+                </p>
+              </>
+            ) : (
+              <p className="text-xl text-slate-200">
+                You're viewing this in a web browser. The technician setup runs
+                inside the Snow Media Center <b>app</b> — on the box that needs
+                help, open the app itself and go to Support → Remote Access.
+              </p>
+            )}
             <p className="mt-4 text-xs font-mono text-slate-500 break-all">
               {`platform=${getPlatform()} cap=${typeof (window as any).Capacitor} fn=${typeof (window as any).Capacitor?.isNativePlatform} bridge=${!!(window as any).androidBridge} ua=${(navigator.userAgent || '').slice(0, 80)}`}
             </p>
