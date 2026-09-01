@@ -61,6 +61,7 @@ const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
 const ROW_HEIGHT = 84;
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
+const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
 const PREVIEW_DEBOUNCE_MS = 700;
 
@@ -360,6 +361,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Virtualizer
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const categoriesScrollRef = useRef<HTMLDivElement | null>(null);
+  // Wrapper around the virtualized rows — sits BELOW the Search button inside
+  // the same scroll container, so we must measure its offset to scroll correctly.
+  const categoriesListRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: visibleChannels.length,
     getScrollElement: () => scrollParentRef.current,
@@ -427,23 +431,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible. The categories scroll container also
-  // holds the Search button (+ optional input) ABOVE the virtualizer, so raw
-  // `idx * ROW_HEIGHT` math would ignore that header offset and let the
-  // focused row slip below the fold. Ask the virtualizer to handle it — its
-  // scrollToIndex measures the list's actual offset within the scroll parent.
+  // Keep the focused category visible.
+  //
+  // The categories scroll container also holds the Search button (+ optional
+  // input) and its own `p-3` padding ABOVE the virtualizer. TanStack Virtual
+  // reports every row's `start` relative to the LIST, not to the scroll
+  // container, and it is not told about that header — so `scrollToIndex` and
+  // raw `idx * CAT_ROW_HEIGHT` are both short by the header's height (~56px).
+  // Moving down, the focused row therefore parked ~56px lower than intended
+  // and slid under the bottom edge of the pane: the user could not see which
+  // category was highlighted without clicking it.
+  //
+  // Fix: measure the list wrapper's real offset inside the scroll parent and
+  // do the same vertical-only scrollTop math the channel list uses. Same
+  // reason as the block above — never scrollIntoView for focus tracking.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
     const apply = () => {
       const node = categoriesScrollRef.current;
       if (!node) return;
       if (categoryIdx === 0) { node.scrollTop = 0; return; }
-      try { categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' }); } catch { /* ignore */ }
+      const listEl = categoriesListRef.current;
+      // Header height = distance from the scroll container's content origin
+      // down to the first virtualized row.
+      const listOffset = listEl
+        ? listEl.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop
+        : 0;
+      const rowTop = listOffset + categoryIdx * CAT_ROW_HEIGHT;
+      const rowBottom = rowTop + CAT_ROW_HEIGHT;
+      // Keep a little air so the gold focus ring never sits flush against the
+      // pane edge — on a TV that reads as "cut off".
+      if (rowTop - CAT_FOCUS_PAD < node.scrollTop) {
+        node.scrollTop = Math.max(0, rowTop - CAT_FOCUS_PAD);
+      } else if (rowBottom + CAT_FOCUS_PAD > node.scrollTop + node.clientHeight) {
+        node.scrollTop = rowBottom + CAT_FOCUS_PAD - node.clientHeight;
+      }
     };
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
@@ -1159,6 +1185,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             )}
             {visibleCategories.length > 0 && (
               <div
+                ref={categoriesListRef}
                 style={{
                   height: categoryVirtualizer.getTotalSize(),
                   position: 'relative',
