@@ -420,6 +420,31 @@
 .native-low-memory .tv-ring-danger[data-focused="true"] {
   box-shadow: inset 0 0 0 4px hsl(0 84% 60%) !important;
 }
+/* Gold-on-gold: a gold ring on a solid gold fill (Play / Retry CTAs,
+   Button variant=gold) is invisible, so those focusables also carry
+   `tv-ring-contrast` and get a WHITE inset ring. Declared after .tv-ring so
+   equal specificity resolves in favour of white. */
+.tv-ring-contrast {
+  outline: none;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+.tv-ring-contrast[data-focused="true"],
+.tv-ring[data-focused="true"][class*="--gradient-gold"] {
+  box-shadow:
+    inset 0 0 0 3px hsl(0 0% 100% / 0.98),
+    0 0 22px 2px hsl(0 0% 100% / 0.55);
+}
+.native-low-memory .tv-ring-contrast[data-focused="true"],
+.native-low-memory .tv-ring[data-focused="true"][class*="--gradient-gold"] {
+  box-shadow: inset 0 0 0 4px hsl(0 0% 100%) !important;
+}
+/* Natively-focused tv-ring buttons must not also paint the generic
+   `button:focus-visible` ice outline (index.css, components layer). */
+.tv-ring:focus-visible,
+.tv-ring-danger:focus-visible,
+.tv-ring-contrast:focus-visible {
+  outline: none;
+}
 
 
 .news-ticker-track {
@@ -626,10 +651,10 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 }
 
 /* D-pad focus highlight inside any modal dialog (AlertDialog / Dialog). */
-[role="alertdialog"] :focus,
-[role="alertdialog"] :focus-visible,
-[role="dialog"] :focus,
-[role="dialog"] :focus-visible {
+[role="alertdialog"] :focus:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
+[role="alertdialog"] :focus-visible:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
+[role="dialog"] :focus:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
+[role="dialog"] :focus-visible:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast) {
   outline: none;
   box-shadow: 0 0 0 4px hsl(var(--brand-gold)), 0 0 24px hsl(var(--brand-gold) / 0.7);
   border-radius: inherit;
@@ -660,7 +685,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
    source, so without the :not()s it would overwrite the inset ring (and make
    the red danger variant invisible). Simple :not() args only (Chromium 66).
    ========================================================================= */
-[data-focused="true"]:not(.home-focus-surface):not(.tv-ring):not(.tv-ring-danger),
+[data-focused="true"]:not(.home-focus-surface):not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
@@ -772,10 +797,6 @@ html.snowplayer-fullscreen:not(.snowplayer-multiview) [data-player-chrome] {
 html.snowplayer-multiview [data-player-chrome] {
   background-color: #000 !important;
   backdrop-filter: none !important;
-}
-.ms-tile[data-focused="true"] {
-  outline: 4px solid hsl(var(--brand-gold)) !important;
-  outline-offset: -4px;
 }
 
 
