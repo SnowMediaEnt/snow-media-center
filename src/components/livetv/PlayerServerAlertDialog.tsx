@@ -34,10 +34,10 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
   const { Icon, ring, glow, color } = sevStyle(alert.severity);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
-      <div className={`w-full max-w-lg rounded-3xl bg-slate-900/95 border-2 ${ring} ${glow} p-7 text-center`}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-6">
+      <div className={`w-full max-w-lg rounded-3xl bg-slate-900/95 border-2 ${ring} p-8 text-center`}>
         <div className="flex justify-center mb-4"><Icon className={`w-14 h-14 ${color}`} /></div>
-        <div className="text-xs uppercase tracking-wide text-brand-ice/60 font-nunito mb-2">
+        <div className="text-xs uppercase tracking-wide text-brand-ice/70 font-nunito mb-2">
           {serverLabel} • Service notice
         </div>
         <h2 className="text-2xl font-quicksand font-bold text-white mb-3">{alert.title}</h2>
@@ -47,7 +47,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
           onClick={onDismiss}
           autoFocus
           data-focused="true"
-          className="tv-focusable home-focus-surface px-8"
+          className="tv-ring tv-ring-contrast h-12 rounded-xl px-8 text-base font-semibold scale-105 z-10 transition-transform duration-150 ease-out"
         >
           Got it
         </Button>

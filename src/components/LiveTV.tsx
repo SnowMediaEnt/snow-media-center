@@ -637,7 +637,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div data-player-chrome="" style={{ position: 'fixed', bottom: 2, right: 6, fontSize: 9, opacity: 0.35, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.6.6</div>
+      <div data-player-chrome="" style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.6.6</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog
@@ -649,11 +649,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
 
       {/* Header */}
-      <div data-player-chrome="" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div data-player-chrome="" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
         <div className="flex items-center gap-3">
           <BackButton
             onClick={leaveMode}
             label="Back"
+            className="h-12 rounded-xl"
             data-player-header-btn=""
             focused={pane === 'header' && headerIdx === 0}
           />
@@ -674,9 +675,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             onClick={refreshChannels}
             disabled={isRefreshing}
             aria-label="Update Channels"
-            data-player-header-btn=""
             data-focused={pane === 'header' && headerIdx === 1 ? 'true' : 'false'}
-            className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 1 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+            className={`tv-ring h-12 px-5 rounded-xl transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Updating…' : 'Update Channels'}
@@ -688,9 +688,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               variant="gold"
               size="sm"
               onClick={() => setSettingsOpen(true)}
-              data-player-header-btn=""
               data-focused={pane === 'header' && headerIdx === 2 ? 'true' : 'false'}
-              className={`tv-focusable transition-all duration-150 ${pane === 'header' && headerIdx === 2 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+              className={`tv-ring tv-ring-contrast h-12 px-5 rounded-xl transition-transform duration-150 ease-out ${pane === 'header' && headerIdx === 2 ? 'scale-105 z-10' : ''}`}
             >
               <SettingsIcon className="w-4 h-4 mr-2" />
               Settings
@@ -719,8 +718,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 data-focused={isFocused ? 'true' : 'false'}
                 onClick={(e) => { if (collapsed) return; e.stopPropagation(); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
-                  flex items-center gap-3 ${collapsed ? 'px-1 py-2 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer transition-all duration-150
-                  ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 shadow-lg' : ''}
+                  tv-ring relative flex items-center gap-3 ${collapsed ? 'px-1 py-3 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer
+                  ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                   ${!isFocused && isActive ? 'bg-white/10' : ''}
                   ${!isFocused && !isActive ? 'hover:bg-white/5' : ''}
                 `}

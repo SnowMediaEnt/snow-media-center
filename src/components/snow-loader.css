@@ -1,0 +1,193 @@
+/* ============================================================
+   Snow Media loader — "Able" the yeti pushing a snowball.
+   Everything animated here is a transform (translate / rotate / scale)
+   on its own element, so Chromium 66+ WebViews can drive it on the
+   compositor. No layout properties are ever animated.
+
+   Fire TV (<html class="native-low-memory">) freezes every animation via
+   a (0,3,0) blanket rule in src/index.css. The loader is NOT excluded from
+   it with `:not(.smc-loader *)` (Chromium < 88 rejects combinators inside
+   :not() and drops the whole rule); instead the block at the bottom of this
+   file restores each animated element's duration with (0,4,0) descendant
+   rules, which is why the root carries `smc-loader` and every moving part
+   lives under it with the exact ancestry used there.
+   ============================================================ */
+
+.smc-loader {
+  display: block;
+  width: 100%;
+  --smc-h: 96px; /* scene height; overridden per size below */
+}
+.smc-loader--sm { --smc-h: 56px; }
+.smc-loader--md { --smc-h: 96px; }
+.smc-loader--lg { --smc-h: 150px; }
+
+/* Clipping window. The scene rolls across it and wraps like the ticker. */
+.smc-loader-viewport {
+  position: relative;
+  width: 100%;
+  height: var(--smc-h);
+  overflow: hidden;
+}
+
+/* Faint ground line under the feet, full width. */
+.smc-loader-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--smc-h) * 0.1);
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+}
+
+/* Two nested linear animations of equal duration add up to
+   "start fully off the LEFT edge, end fully off the RIGHT edge":
+   the track slides by the viewport width (0% -> 100% of itself) while the
+   scene slides by its own width (-100% -> 0%). */
+.smc-loader-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+  animation: smc-loader-track-roll 7s linear infinite;
+}
+.smc-loader-scene {
+  display: inline-flex;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  height: 100%;
+  /* Room for the ball's visual overhang (it grows up to 3.2x about its
+     bottom-centre) so nothing pops in at the wrap edges. */
+  padding: 0 calc(var(--smc-h) * 0.3);
+  animation: smc-loader-scene-roll 7s linear infinite;
+}
+@keyframes smc-loader-track-roll {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(100%, 0, 0); }
+}
+@keyframes smc-loader-scene-roll {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+
+/* Able. The outer wrapper takes the JS-driven x nudge (keeps the hands on
+   the growing ball); the svg/img inside takes the bob so the two transforms
+   never fight. */
+.smc-loader-able-wrap {
+  flex: 0 0 auto;
+  display: block;
+  line-height: 0;
+}
+.smc-loader-able {
+  display: block;
+  height: var(--smc-h);
+  width: calc(var(--smc-h) * 0.71); /* viewBox 142 x 200 */
+  overflow: visible;
+  animation: smc-loader-bob 0.55s ease-in-out infinite;
+}
+/* Raster mascot (imageSrc): same ground line, feet at 10% from the bottom. */
+.smc-loader-able-img {
+  display: block;
+  height: calc(var(--smc-h) * 0.75);
+  width: auto;
+  margin-bottom: calc(var(--smc-h) * 0.1);
+  -o-object-fit: contain;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  animation: smc-loader-bob 0.55s ease-in-out infinite;
+}
+@keyframes smc-loader-bob {
+  0%, 100% { transform: translate3d(0, 2px, 0); }
+  50%      { transform: translate3d(0, -2px, 0); }
+}
+
+/* Feet: ONE animated group. Rotating about the point between the two feet
+   lifts one while the other dips, which reads as a little waddle.
+   transform-origin in px on an SVG element = user units of the viewBox
+   (default transform-box: view-box), so no fill-box support is needed. */
+.smc-loader .smc-loader-feet {
+  transform-origin: 63px 172px;
+  animation: smc-loader-step 0.55s ease-in-out infinite alternate;
+}
+@keyframes smc-loader-step {
+  from { transform: rotate(-6deg); }
+  to   { transform: rotate(6deg); }
+}
+
+/* Snowball. Scale is set inline from JS (grows with elapsed time) about
+   the bottom-centre so it grows up and out while staying on the ground.
+   The flake layer on top spins about the ball's own centre. */
+.smc-loader-ball {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(var(--smc-h) * 0.25);
+  height: calc(var(--smc-h) * 0.25);
+  margin-bottom: calc(var(--smc-h) * 0.1);
+  transform-origin: 50% 100%;
+}
+.smc-loader-ball-base,
+.smc-loader-ball-spin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.smc-loader-ball-spin {
+  transform-origin: 50% 50%;
+  animation: smc-loader-spin 1.4s linear infinite;
+}
+@keyframes smc-loader-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Captions */
+.smc-loader-label {
+  margin-top: 8px;
+}
+.smc-loader-elapsed {
+  margin-top: 4px;
+}
+
+/* Reduced motion: park the scene in the middle, no rolling / bobbing /
+   spinning. The snowball still grows with elapsed time (JS-driven). */
+@media (prefers-reduced-motion: reduce) {
+  .smc-loader-track {
+    justify-content: center;
+    animation: none;
+  }
+  .smc-loader-scene,
+  .smc-loader-able,
+  .smc-loader-able-img,
+  .smc-loader .smc-loader-feet,
+  .smc-loader-ball-spin {
+    animation: none;
+  }
+}
+
+/* Fire TV low-memory mode: src/index.css sets animation-duration:0.001ms
+   !important on `.native-low-memory *:not(...)` at (0,3,0). Each selector
+   below is (0,4,0) built from real ancestors (no combinators inside :not(),
+   which Chromium < 88 rejects), so it wins on specificity, not source order.
+   prefers-reduced-motion above still wins: it sets animation-name to none,
+   which an !important duration cannot re-enable. */
+.native-low-memory .smc-loader .smc-loader-viewport .smc-loader-track {
+  animation-duration: 7s !important;
+}
+.native-low-memory .smc-loader .smc-loader-track .smc-loader-scene {
+  animation-duration: 7s !important;
+}
+.native-low-memory .smc-loader .smc-loader-able-wrap .smc-loader-able,
+.native-low-memory .smc-loader .smc-loader-able-wrap .smc-loader-able-img,
+.native-low-memory .smc-loader .smc-loader-able .smc-loader-feet {
+  animation-duration: 0.55s !important;
+}
+.native-low-memory .smc-loader .smc-loader-ball .smc-loader-ball-spin {
+  animation-duration: 1.4s !important;
+}

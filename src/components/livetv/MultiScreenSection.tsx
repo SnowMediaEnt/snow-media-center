@@ -621,18 +621,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
                 key={c.id}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setPickerIdx(i); chooseLayout(c.id); }}
-                className={`w-56 h-40 rounded-2xl p-5 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ${
+                className={`tv-ring w-56 h-40 rounded-2xl py-4 px-6 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ease-out ${
                   focused
-                    ? 'bg-brand-gold/20 border-brand-gold scale-105 shadow-[0_0_22px_2px_rgba(245,200,80,0.4)]'
-                    : 'bg-black/60 border-white/15'
+                    ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10'
+                    : 'bg-black/60 border-white/10'
                 }`}
               >
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-brand-ice/60 font-nunito">{c.sub}</div>
+                  <div className="text-xs uppercase tracking-wider text-brand-ice/70 font-nunito">{c.sub}</div>
                   <div className="text-2xl font-quicksand font-bold text-white mt-1">{c.label}</div>
                 </div>
                 {overplan && (
-                  <div className="text-[11px] text-amber-300 font-nunito leading-snug">
+                  <div className="text-xs text-amber-300 font-nunito leading-snug">
                     Your plan allows {maxCon} stream{maxCon === 1 ? '' : 's'} — extra screens may not play.
                   </div>
                 )}
@@ -676,12 +676,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
             >
               <div
                 data-focused={isFocused && !chromeHidden ? 'true' : 'false'}
-                className={`ms-tile w-full h-full rounded-md relative ${
+                className={`tv-ring ms-tile w-full h-full rounded-md relative ${
                   occupied ? '' : 'bg-black'
                 } ${
-                  chromeHidden ? '' : (isFocused
-                    ? 'ring-[3px] ring-brand-gold'
-                    : 'ring-1 ring-white/20')
+                  chromeHidden ? '' : 'border border-white/10'
                 }`}
               >
                 {!chromeHidden && !occupied && (
@@ -693,10 +691,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
                 {!chromeHidden && occupied && (
                   <>
                     {/* channel pill */}
-                    <div className="absolute left-2 bottom-2 max-w-[70%] px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm">
+                    <div className="absolute left-2 bottom-2 max-w-[70%] px-2 py-1 rounded-lg bg-black/75">
                       <div className="text-xs text-white font-quicksand font-semibold truncate">{tile.channel!.name}</div>
                       {tile.nowNext?.now && (
-                        <div className="text-[10px] text-brand-ice/70 font-nunito truncate">{tile.nowNext.now.title}</div>
+                        <div className="text-xs text-brand-ice/70 font-nunito truncate">{tile.nowNext.now.title}</div>
                       )}
                     </div>
                     {s.buffering && !s.error && (
@@ -721,13 +719,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
       {/* Tile menu */}
       {tileMenuOpen && (
         <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-          <div className="pointer-events-auto bg-brand-navy border border-white/15 rounded-2xl p-3 w-64 shadow-2xl">
+          <div className="pointer-events-auto bg-brand-navy border border-white/10 rounded-2xl p-3 w-64 shadow-2xl">
             {['Change channel', 'Fullscreen', 'Close screen'].map((label, i) => (
               <div
                 key={label}
                 data-focused={tileMenuIdx === i ? 'true' : 'false'}
-                className={`px-4 py-3 rounded-lg cursor-pointer font-quicksand font-semibold ${
-                  tileMenuIdx === i ? 'bg-brand-gold/25 text-white ring-2 ring-brand-gold' : 'text-brand-ice hover:bg-white/5'
+                className={`tv-ring px-4 py-3 rounded-xl cursor-pointer font-quicksand font-semibold ${
+                  tileMenuIdx === i ? 'bg-brand-gold/25 text-white scale-[1.02] z-10' : 'text-brand-ice hover:bg-white/5'
                 }`}
               >
                 {label}
@@ -739,15 +737,15 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
 
       {/* Channel picker (solid bg overlay, right side ~40%) */}
       {pickerOpenForTile !== null && (
-        <div className="absolute top-0 right-[2vw] bottom-0 z-40 w-[40%] min-w-[360px] max-w-[560px] bg-brand-navy/95 border border-white/10 rounded-l-xl flex flex-col">
+        <div className="absolute top-0 right-[2vw] bottom-0 z-40 w-[40%] min-w-[360px] max-w-[560px] bg-brand-navy/95 border border-white/10 rounded-l-2xl flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <div className="text-white font-quicksand font-bold">Add channel to screen {pickerOpenForTile + 1}</div>
+            <div className="text-xl text-white font-quicksand font-semibold">Add channel to screen {pickerOpenForTile + 1}</div>
             <button
               onClick={() => setPickerOpenForTile(null)}
-              className="p-1 text-brand-ice/70 hover:text-white"
+              className="p-3 -m-2 rounded-xl text-brand-ice/70 hover:text-white"
               aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
           <div className="flex-1 min-h-0 flex">
@@ -766,13 +764,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
                     <div
                       key={c.id}
                       style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)`, height: 48 }}
-                      className="px-3 py-2"
+                      className="px-3 pb-1"
                     >
                       <div
                         data-focused={focused ? 'true' : 'false'}
                         onClick={() => { setCategoryIdx(v.index); setPickerPane('ch'); }}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm font-quicksand ${
-                          focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white'
+                        className={`tv-ring flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer text-sm font-quicksand ${
+                          focused ? 'bg-brand-gold/25 text-white scale-[1.02] z-10'
                             : selected ? 'bg-white/10 text-white' : 'text-brand-ice hover:bg-white/5'
                         }`}
                       >
@@ -794,7 +792,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
                   <Loader2 className="w-6 h-6 animate-spin text-brand-gold" />
                 </div>
               ) : channels.length === 0 ? (
-                <div className="p-6 text-sm text-brand-ice/60 font-nunito">No channels.</div>
+                <div className="p-6 text-sm text-brand-ice/70 font-nunito">No channels.</div>
               ) : (
                 <div style={{ height: chVirtualizer.getTotalSize(), position: 'relative' }}>
                   {chVirtualizer.getVirtualItems().map(v => {
@@ -841,7 +839,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
           </div>
           <button
             onClick={() => { hintDismissedForSession = true; setShowHint(false); }}
-            className="px-3 py-1.5 rounded-md bg-brand-gold/25 border border-brand-gold text-white text-sm font-quicksand font-semibold"
+            className="px-5 py-3 rounded-xl bg-brand-gold/25 border border-brand-gold text-white text-sm font-quicksand font-semibold"
           >
             OK
           </button>

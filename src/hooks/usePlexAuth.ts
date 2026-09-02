@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
-  getPlexServers, pickPlexConnection, loadPlexServer, savePlexServer,
-  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches,
+  getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
+  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, type PlexRoute,
 } from '@/lib/plex';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
-export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
+export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; route?: PlexRoute; }
 
 // Demo mode: a frozen "already connected" state. Stable references so the
 // consumer's effects never re-run, and no-op actions so the PIN link flow can
@@ -60,30 +60,38 @@ export function usePlexAuth() {
           if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
           connBaseRef.current = cached.base;
           setConn(cached); setStatus('ready');
-          // Mixed-content upgrade: if the cached base is http:// but a
-          // reachable https:// mirror exists on the same account, silently
-          // migrate so posters stop being blocked by the WebView on https
-          // origins. Runs in the background — no UX change.
-          if (cached.base.startsWith('http://')) {
+          // Background upgrade of a cached connection — no UX change:
+          //  • http:// base → migrate to a reachable https:// mirror so posters
+          //    stop being blocked by the WebView on https origins.
+          //  • unknown route (saved before routes were tracked) → learn it.
+          //  • relay → look for a direct path (Plex caps relay speed hard).
+          if (cached.base.startsWith('http://') || !cached.route || cached.route === 'relay') {
             void (async () => {
               try {
                 const servers = await getPlexServers(accountToken);
                 const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
                 for (const s of owned) {
                   if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
-                  const better = await pickPlexConnection(s, 3500, { httpsOnly: true });
-                  if (better && better !== cached.base && better.startsWith('https://')) {
-                    const upgraded: typeof cached = { ...cached, base: better, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
-                    await savePlexServer(upgraded);
-                    // Invalidate any http-queued image fetches BEFORE swapping
-                    // the conn so rail <img> tags re-commit on https.
-                    bumpPlexImageEpoch();
-                    connBaseRef.current = upgraded.base;
-                    setConn(upgraded);
+                  const wantHttps = cached.base.startsWith('http://');
+                  const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: wantHttps, noRelay: true })
+                    ?? (wantHttps ? null : await pickPlexConnectionDetailed(s, 3500));
+                  if (!better) continue;
+                  if (better.base === cached.base) {
+                    if (cached.route !== better.route) { const learned = { ...cached, route: better.route }; await savePlexServer(learned); setConn(learned); }
                     return;
                   }
+                  const improves = (wantHttps && better.base.startsWith('https://')) || (cached.route === 'relay' && better.route !== 'relay');
+                  if (!improves) return;
+                  const upgraded: typeof cached = { ...cached, base: better.base, route: better.route, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
+                  await savePlexServer(upgraded);
+                  // Invalidate any queued image fetches BEFORE swapping the
+                  // conn so rail <img> tags re-commit on the new base.
+                  bumpPlexImageEpoch();
+                  connBaseRef.current = upgraded.base;
+                  setConn(upgraded);
+                  return;
                 }
-              } catch { /* ignore — cached http keeps working */ }
+              } catch { /* ignore — cached connection keeps working */ }
             })();
           }
           return true;
@@ -99,9 +107,10 @@ export function usePlexAuth() {
       // old/dead registrations; the reachable one may be a shared server.
       const ordered = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
       for (const s of ordered) {
-        const base = await pickPlexConnection(s);
-        if (base) {
-          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
+        const picked = await pickPlexConnectionDetailed(s);
+        if (picked) {
+          const base = picked.base;
+          const c: PlexConn = { base, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned, route: picked.route };
           await savePlexServer(c);
           if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
           connBaseRef.current = base;
@@ -133,6 +142,33 @@ export function usePlexAuth() {
     return () => { cancelledRef.current = true; clearPoll(); };
   }, [discover, demo]);
 
+
+  // Relay escape: Plex Relay is hard-capped (a couple of Mbit/s), which is
+  // exactly the "everything is 2–3× faster on a VPN" symptom — the VPN lets a
+  // direct path through where the ISP/CGNAT blocks it. While stuck on the
+  // relay, re-probe for a direct path every 45 s and switch as soon as one
+  // answers. Stops on its own once the route is direct or LAN.
+  useEffect(() => {
+    if (demo || !conn || conn.route !== 'relay' || !accountToken) return;
+    let stopped = false;
+    const attempt = async () => {
+      if (stopped || discoveringRef.current) return;
+      try {
+        const servers = await getPlexServers(accountToken);
+        const s = servers.find((x) => x.clientIdentifier === conn.clientIdentifier) ?? null;
+        if (!s || stopped) return;
+        const better = await pickPlexConnectionDetailed(s, 3500, { noRelay: true });
+        if (!better || stopped) return;
+        const upgraded: PlexConn = { ...conn, base: better.base, route: better.route, token: s.accessToken || conn.token };
+        await savePlexServer(upgraded);
+        bumpPlexImageEpoch();
+        connBaseRef.current = upgraded.base;
+        setConn(upgraded);
+      } catch { /* still on the relay — try again next tick */ }
+    };
+    const iv = window.setInterval(() => { void attempt(); }, 45_000);
+    return () => { stopped = true; window.clearInterval(iv); };
+  }, [conn, accountToken, demo]);
 
   const startLink = useCallback(async () => {
     if (startingRef.current) return;

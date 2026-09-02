@@ -127,7 +127,7 @@ const HomeActionCard = memo(({
       {badgeCount > 0 && (
         <span
           aria-label={`${badgeCount} unread support replies`}
-          className="absolute top-2 right-2 z-20 min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex items-center justify-center shadow-lg ring-2 ring-white/70 pointer-events-none"
+          className="absolute top-2 right-2 z-20 min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex items-center justify-center shadow-lg border-2 border-white/70 pointer-events-none"
         >
           {badgeCount > 9 ? '9+' : badgeCount}
         </span>
@@ -200,7 +200,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
     showGiveawayBadge, isGiveawayFocused, giveawayLabel, onOpenGiveaway,
   } = props;
 
-  const btnClass = tier === 'xl' ? 'text-xl px-6 py-3' : tier === 'lg' ? 'text-lg px-5 py-2.5' : '';
+  const btnClass = tier === 'xl' ? 'rounded-xl h-14 text-xl px-6' : tier === 'lg' ? 'rounded-xl h-12 text-xl px-4' : 'rounded-xl h-12';
   const iconClass = tier === 'xl' ? 'w-6 h-6' : tier === 'lg' ? 'w-5 h-5' : 'w-4 h-4';
   const btnSize = tier === 'md' ? 'sm' : 'default';
   const inset = tier === 'xl' ? '2rem' : tier === 'lg' ? '1.5rem' : '1rem';

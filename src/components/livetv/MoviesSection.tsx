@@ -20,6 +20,8 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import SnowLoader from '@/components/SnowLoader';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -69,6 +71,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [infoLoading, setInfoLoading] = useState(false);
 
   const [playing, setPlaying] = useState<{ url: string; title: string } | null>(null);
+  // On-screen title: shows 4 s on play / title change / any key, then hides.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
@@ -412,10 +416,10 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const demoNoticeOverlay = demoNotice ? (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
-      <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
+      <div className="max-w-md w-full rounded-3xl border border-brand-gold/40 bg-[#0b1622] p-8 text-center shadow-2xl">
         <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
-          className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
+          className="mt-6 px-6 py-3 rounded-xl bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
           OK
         </button>
       </div>
@@ -426,7 +430,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   if (playing) {
     return (
       <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
           <VideoPlayer
             src={playing.url}
             volume={volume}
@@ -436,9 +440,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             }}
           />
         </Suspense>
-        <div className="absolute top-4 left-4 text-white font-quicksand font-bold text-lg drop-shadow-lg">
-          {playing.title}
-        </div>
+        {titleShown && (
+          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
+            {playing.title}
+          </div>
+        )}
       </div>
     );
   }
@@ -453,12 +459,12 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
           <BackButton onClick={() => { setPane('grid'); setSelectedMovie(null); }} label="Back" />
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        <div className="flex gap-8 max-w-6xl">
-          <div className="w-64 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
+        <div className="flex gap-8 max-w-4xl">
+          <div className="w-80 aspect-[2/3] rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
             {cover ? <img src={cover} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-4xl font-quicksand font-bold mb-3">{selectedMovie.name}</h2>
+            <h2 className="text-3xl font-quicksand font-bold mb-3">{selectedMovie.name}</h2>
             <div className="flex flex-wrap items-center gap-3 text-sm text-brand-ice/80 font-nunito mb-4">
               {info?.rating != null && (
                 <span className="flex items-center gap-1"><Star className="w-4 h-4 text-brand-gold fill-brand-gold" />{Number(info.rating).toFixed(1)}</span>
@@ -478,7 +484,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               variant="gold"
               onClick={playMovie}
               autoFocus
-              className="tv-focusable home-focus-surface text-lg px-8 py-6"
+              data-focused={isActive && !demoNotice ? 'true' : 'false'}
+              className="tv-ring tv-ring-contrast h-12 rounded-xl text-xl px-8 transition-transform duration-150 ease-out scale-105 z-10"
             >
               <Play className="w-5 h-5 mr-2 fill-current" />
               Play Movie
@@ -498,7 +505,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
-          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+          className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
           {searchOpen ? 'Close search' : 'Search movies'}
@@ -515,13 +522,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
             placeholder="Type to search…"
-            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+            className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
         {!searchOpen && (
           <div className="space-y-1">
             {categoriesLoading && categories.length === 0 && (
-              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
             )}
@@ -539,8 +546,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     setCategoryIdx(i); setGridIdx(0); setPane('grid');
                   }}
                   className={`
-                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
+                    tv-ring flex items-center gap-2 px-3 py-3 rounded-xl cursor-pointer font-nunito text-brand-ice
+                    ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                     ${!isFocused && isSelected ? 'bg-white/10' : ''}
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
@@ -555,7 +562,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       </div>
 
       {/* Pane 3 — Grid (virtualized by row) */}
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-5 bg-black/30">
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {moviesLoading && visibleMovies.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
@@ -563,7 +570,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleMovies.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito">
             {searchOpen
               ? (searchQuery
                   ? (allMoviesLoading ? 'Loading movie catalog…' : 'No movies match your search.')

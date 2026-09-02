@@ -10,8 +10,14 @@ import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
+// 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
+// move a preview marker (accelerating on repeated presses), OK jumps there.
+type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
 const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'volume', 'buffering'];
+// Scrub step (seconds) by acceleration level; every 4 quick presses (< 700 ms
+// apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
+const SCRUB_STEPS = [10, 30, 60, 120, 300];
+const SCRUB_REPEAT_MS = 700;
 
 export interface SubtitleSearchContext {
   title: string;
@@ -31,6 +37,8 @@ interface Props {
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
   seekTo: (sec: number) => Promise<void>;
   onBackWhileHidden: () => void;                // called when Back pressed with overlay hidden (fullscreen exit)
+  /** Which path the stream takes ("Direct to server · https", "Plex Relay…"). Shown in Help. */
+  routeLabel?: string;
   subtitleContext?: SubtitleSearchContext;
   /** Reload native player with an external subtitle sidecar at the given resume position. */
   onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
@@ -65,7 +73,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume' | 'help'>('none');
@@ -73,6 +81,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Preview position while on the scrub row (null = not scrubbing).
+  const [scrubPos, setScrubPos] = useState<number | null>(null);
+  const scrubRepeatRef = useRef<{ at: number; count: number }>({ at: 0, count: 0 });
   const { toast } = useToast();
 
   // OpenSubtitles panel state
@@ -89,7 +100,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const clearHide = () => { if (hideTimerRef.current) { window.clearTimeout(hideTimerRef.current); hideTimerRef.current = null; } };
   const armHide = useCallback(() => {
     clearHide();
-    hideTimerRef.current = window.setTimeout(() => { setVisible(false); setMenu('none'); }, 5000);
+    hideTimerRef.current = window.setTimeout(() => { setVisible(false); setMenu('none'); setScrubPos(null); }, 5000);
   }, []);
 
   const show = useCallback(() => {
@@ -216,6 +227,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
+  const posRef = useRef(pos); useEffect(() => { posRef.current = pos; }, [pos]);
+  const durRef = useRef(dur); useEffect(() => { durRef.current = dur; }, [dur]);
+  const scrubPosRef = useRef(scrubPos); useEffect(() => { scrubPosRef.current = scrubPos; }, [scrubPos]);
+  const seekToRef = useRef(seekTo); useEffect(() => { seekToRef.current = seekTo; }, [seekTo]);
   const visibleRef = useRef(visible); useEffect(() => { visibleRef.current = visible; }, [visible]);
   const menuRef = useRef(menu); useEffect(() => { menuRef.current = menu; }, [menu]);
   const menuIdxRef = useRef(menuIdx); useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
@@ -366,8 +381,38 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
 
-      // main control row (horizontal)
       const r = rowRef.current;
+
+      // Scrub row: the progress bar owns ◀ ▶ / OK; ▼ returns to the controls.
+      if (r === 'scrub') {
+        if (e.key === 'ArrowDown') { setScrubPos(null); setRow('play'); return; }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const now = Date.now();
+          const rep = scrubRepeatRef.current;
+          const quick = now - rep.at < SCRUB_REPEAT_MS;
+          rep.count = quick ? rep.count + 1 : 0;
+          rep.at = now;
+          const level = Math.min(SCRUB_STEPS.length - 1, Math.floor(rep.count / 4));
+          const step = SCRUB_STEPS[level] * (e.key === 'ArrowLeft' ? -1 : 1);
+          const from = scrubPosRef.current ?? posRef.current;
+          const max = durRef.current > 0 ? durRef.current : Number.MAX_SAFE_INTEGER;
+          setScrubPos(Math.min(max, Math.max(0, from + step)));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          const target = scrubPosRef.current;
+          setScrubPos(null);
+          if (target != null && Math.abs(target - posRef.current) >= 1) {
+            setPos(target);
+            void seekToRef.current(target);
+          }
+          return;
+        }
+        return;
+      }
+      if (e.key === 'ArrowUp') { setScrubPos(null); setRow('scrub'); return; }
+
+      // main control row (horizontal)
       const idx = ROWS.indexOf(r);
       if (e.key === 'ArrowLeft') { if (idx > 0) setRow(ROWS[idx - 1]); }
       else if (e.key === 'ArrowRight') { if (idx < ROWS.length - 1) setRow(ROWS[idx + 1]); }
@@ -379,12 +424,27 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   if (!visible) return null;
 
-  const pct = dur > 0 ? Math.min(100, Math.max(0, (pos / dur) * 100)) : 0;
+  const scrubbing = row === 'scrub';
+  const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
+  const pct = dur > 0 ? Math.min(100, Math.max(0, (shownPos / dur) * 100)) : 0;
+  const scrubDelta = scrubbing && scrubPos != null ? Math.round(scrubPos - pos) : 0;
   const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
-  const focusVis = (r: Row) => row === r
-    ? 'bg-brand-gold text-brand-navy scale-110 shadow-[0_0_18px_rgba(245,200,80,0.55)]'
-    : 'bg-white/10 text-white';
+  // Control-bar row whose popup menu is open. That button drops its focused
+  // look (and data-focused) for an "open" outline so the eye moves to the menu.
+  const menuRow: Row | null =
+    menu === 'audio' ? 'audio'
+      : menu === 'subs' || menu === 'osdl' ? 'subs'
+        : menu === 'quality' ? 'quality'
+          : menu === 'volume' ? 'volume'
+            : menu === 'help' ? 'buffering'
+              : null;
+  const btnFocused = (r: Row) => (row === r && menuRow !== r ? 'true' : 'false');
+  const focusVis = (r: Row) => menuRow === r
+    ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
+    : row === r
+      ? 'bg-brand-gold text-brand-navy scale-110'
+      : 'bg-white/10 text-white';
 
   const subsList: Array<{ id: number; label: string; active: boolean }> = [
     { id: -1, label: 'Off', active: subs.every((s) => !s.active) },
@@ -394,161 +454,206 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   return (
     <>
-      <div className="absolute left-0 right-0 bottom-0 z-20 px-6 pt-16 pb-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
+      <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
-          <p className="font-quicksand font-bold text-white truncate mb-2">
+          <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
             {title}
             {resolutionLabel && (
-              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
+              <span className={`ml-2 align-middle text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
             )}
           </p>
-          <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-            <div className="h-full bg-brand-gold" style={{ width: `${pct}%` }} />
+          <div
+            className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
+            data-focused={scrubbing ? 'true' : 'false'}
+            aria-label="Seek bar"
+          >
+            <div className="h-full rounded-full bg-brand-gold" style={{ width: `${pct}%` }} />
+            {scrubbing && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-brand-gold border-2 border-white"
+                style={{ left: `${pct}%` }}
+                aria-hidden="true"
+              />
+            )}
           </div>
-          <div className="flex justify-between text-[11px] text-brand-ice/70 font-nunito tabular-nums mt-1">
-            <span>{fmtTime(pos)}</span>
+          <div className="flex justify-between text-xs text-brand-ice/70 font-nunito tabular-nums mt-1">
+            <span>
+              {fmtTime(shownPos)}
+              {scrubDelta !== 0 && (
+                <span className="ml-2 text-brand-gold">{scrubDelta > 0 ? '+' : '−'}{fmtTime(Math.abs(scrubDelta))}</span>
+              )}
+            </span>
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-5 h-5" /></button>
+            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-6 h-6" /></button>
             <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label="Play/Pause">
               {paused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
-            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'audio' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
-            <div className="flex flex-col items-center gap-0.5">
+            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-6 h-6" /></button>
+            <div className="flex flex-col items-center gap-1">
               <button
                 type="button"
-                data-focused={row === 'volume' ? 'true' : 'false'}
+                data-focused={btnFocused('volume')}
                 className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
                 aria-label="Volume"
               >
-                {volPct === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                {volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
               </button>
               {row === 'volume' && (
-                <span className="text-[9px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+                <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
               )}
             </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
-              <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
+            <div className="flex flex-col items-center gap-1">
+              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
+              <span className="text-xs font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
           </div>
-          <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
-            {row === 'buffering'
-              ? 'Help — OK for support options'
-              : row === 'volume'
-                ? 'Volume — OK opens the slider'
-                : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
+          <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
+            {row === 'scrub'
+              ? '◀ ▶ move · keep pressing for bigger jumps · OK jump there · ▼ controls'
+              : row === 'buffering'
+                ? 'Help — OK for support options'
+                : row === 'volume'
+                  ? 'Volume — OK opens the slider'
+                  : '▲ seek bar · ◀ ▶ select · OK activate · Back hides'}
           </p>
         </div>
       </div>
 
       {menu === 'audio' && (
-        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Audio</p>
-          {auds.length === 0 && <p className="text-xs text-brand-ice/50 px-3 py-2">No tracks</p>}
-          {auds.map((a, i) => (
-            <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="truncate">{a.label}</span>{a.active && <span className="text-[10px] text-brand-gold">●</span>}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Audio</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">No tracks</p>}
+          <div className="space-y-1">
+            {auds.map((a, i) => (
+              <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{a.label}</span>{a.active && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+            <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
+              className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
+              <VolumeX className="w-3.5 h-3.5" />
+              <span className="truncate">Fix audio (no sound?)</span>
             </div>
-          ))}
-          <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
-            className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-gold'}`}>
-            <VolumeX className="w-3.5 h-3.5" />
-            <span className="truncate">Fix audio (no sound?)</span>
           </div>
         </div>
       )}
 
       {menu === 'volume' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-3 animate-fade-in pointer-events-auto">
-          <div className="flex items-center justify-between px-1 py-1">
-            <p className="text-xs font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               Volume
             </p>
-            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">◀ ▶ · OK · Back</span>
           </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
-            <div className="h-full bg-brand-gold transition-all" style={{ width: `${volPct}%` }} />
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
+              <div className="h-full bg-brand-gold transition-[width] duration-150 ease-out" style={{ width: `${volPct}%` }} />
+            </div>
+            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums w-10 text-right">{volPct}%</span>
           </div>
-          <p className="text-center text-[10px] text-brand-ice/60 font-nunito mt-2">◀ ▶ adjust · OK/Back done</p>
         </div>
       )}
 
 
       {menu === 'quality' && (
-        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Quality</p>
-          {PLEX_QUALITY_PRESETS.map((p, i) => (
-            <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-[10px] text-brand-gold">●</span>}
-            </div>
-          ))}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Quality</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {PLEX_QUALITY_PRESETS.map((p, i) => (
+              <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
 
       {menu === 'subs' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Subtitles</p>
-          {subsList.map((r, i) => (
-            <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice'}`}>
-              <span className="truncate">{r.label}</span>{r.active && <span className="text-[10px] text-brand-gold">●</span>}
-            </div>
-          ))}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Subtitles</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {subsList.map((r, i) => (
+              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {menu === 'osdl' && (
-        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <div className="flex items-center gap-2 px-2 py-1">
-            <Download className="w-3.5 h-3.5 text-brand-gold" />
-            <p className="text-xs font-quicksand font-semibold text-brand-ice/70">OpenSubtitles</p>
+        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles
+            </p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
           </div>
           {osdlLoading && (
-            <div className="flex items-center gap-2 px-3 py-4 text-brand-ice/60 font-nunito text-sm">
+            <div className="flex items-center gap-2 px-3 py-4 text-brand-ice/70 font-nunito text-sm">
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Searching…
             </div>
           )}
           {!osdlLoading && osdlError && (
-            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/70">{osdlError}</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">{osdlError}</p>
           )}
           {!osdlLoading && !osdlError && osdlResults.length === 0 && (
-            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/50">No subtitles found.</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">No subtitles found.</p>
           )}
-          {!osdlLoading && osdlResults.map((r, i) => (
-            <div key={r.id}
-              data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-xs flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
-              <span className="flex-1 truncate">{r.release || '—'}</span>
-              <span className="text-[10px] text-brand-ice/60 tabular-nums">{r.downloads}⬇</span>
-              {osdlBusyId === r.id && <Loader2 className="w-3 h-3 animate-spin text-brand-gold" />}
-            </div>
-          ))}
-          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK download · Back</p>
+          <div className="space-y-1 px-1">
+            {!osdlLoading && osdlResults.map((r, i) => (
+              <div key={r.id}
+                data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
+                <span className="flex-1 truncate">{r.release || '—'}</span>
+                <span className="text-xs text-brand-ice/70 tabular-nums">{r.downloads}⬇</span>
+                {osdlBusyId === r.id && <Loader2 className="w-3 h-3 animate-spin text-brand-gold" />}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {menu === 'help' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1 flex items-center gap-2">
-            <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
-          </p>
-          {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
-            <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              {label}
-            </div>
-          ))}
-          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK · Back closes</p>
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
+            </p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          {routeLabel && (
+            <p className="px-2 pb-2 text-xs text-brand-ice/70 font-nunito">Connection: <span className="text-white/90">{routeLabel}</span></p>
+          )}
+          <div className="space-y-1">
+            {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
+              <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </>

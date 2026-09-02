@@ -3,7 +3,7 @@
 // RLS already filters to active rows inside their start/end window; the hook
 // only filters server/tenant targeting.
 import { memo, useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { Loader2, RefreshCw, LifeBuoy, Radio, Film } from 'lucide-react';
+import { RefreshCw, LifeBuoy, Radio, Film } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBackupStreams, type BackupStream } from '@/hooks/useBackupStreams';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -11,6 +11,9 @@ import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { loadVolume, saveVolume } from '@/lib/xtream';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import SnowLoader from '@/components/SnowLoader';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -37,6 +40,8 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
   const [focus, setFocus] = useState<Focus>({ row: 'refresh', col: 0 });
   const [playing, setPlaying] = useState<BackupStream | null>(null);
+  // On-screen title: shows 4 s on play / title change / any key, then hides.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [volume, setVolume] = useState<number>(() => loadVolume());
   const [isPaused, setIsPaused] = useState(false);
   const [, setTracksTick] = useState(0);
@@ -205,7 +210,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
     return (
       <div className={`fixed inset-0 z-[60] text-white ${nativeActive ? 'bg-transparent' : 'bg-black'}`}>
         {!nativeActive && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer
               src={playing.url}
               volume={volume}
@@ -221,19 +226,22 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
         )}
         {nativeActive && native.buffering && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Loader2 className="w-12 h-12 animate-spin text-brand-gold" />
+            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
           </div>
         )}
+        {nativeActive && !native.error && <BufferingDiagnostics buffering={native.buffering} className="mt-12" />}
         {nativeActive && native.error && (
           <div className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none">
-            <div className="px-4 py-2 rounded-lg bg-black/70 border border-red-400/40 text-sm font-nunito">
+            <div className="px-4 py-2 rounded-xl bg-black/70 border border-red-400/40 text-sm font-nunito">
               Stream error — OK to retry, Back to stop.
             </div>
           </div>
         )}
-        <div className="absolute top-4 left-4 font-quicksand font-bold text-lg drop-shadow-lg">
-          {playing.title}
-        </div>
+        {titleShown && (
+          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-xl pointer-events-none">
+            {playing.title}
+          </div>
+        )}
         {isPaused && (
           <div className="absolute top-4 right-4 px-3 py-1 rounded-lg bg-black/60 text-sm font-nunito">Paused</div>
         )}
@@ -243,19 +251,19 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
   const shelfFocused = (row: RowId, col: number) => isActive && focus.row === row && focus.col === col;
   const cardCls = (focused: boolean) =>
-    `tv-focusable home-focus-surface cursor-pointer rounded-xl border transition-transform duration-150 flex-shrink-0 ${
-      focused ? 'bg-brand-gold/20 border-brand-gold ring-2 ring-brand-gold scale-105 shadow-[0_0_24px_rgba(245,200,80,0.25)]' : 'bg-slate-900/70 border-white/10'
+    `tv-ring cursor-pointer rounded-2xl border transition-transform duration-150 ease-out flex-shrink-0 ${
+      focused ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10' : 'bg-slate-900/70 border-white/10'
     }`;
 
   return (
     <div ref={rootRef} className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-2 flex-shrink-0">
+      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-6 flex-shrink-0">
         <div className="min-w-0">
-          <h2 className="text-xl font-quicksand font-bold flex items-center gap-2">
-            <LifeBuoy className="w-5 h-5 text-brand-gold" /> Backups
+          <h2 className="text-2xl font-quicksand font-bold flex items-center gap-2">
+            <LifeBuoy className="w-6 h-6 text-brand-gold" /> Backups
           </h2>
-          <p className="text-brand-ice/60 font-nunito text-sm mt-1">
+          <p className="text-brand-ice/70 font-nunito text-sm mt-1">
             Streams posted by Snow Media. Press Refresh if something was just added.
           </p>
         </div>
@@ -264,9 +272,9 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
           data-focus-key="refresh:0"
           data-focused={shelfFocused('refresh', 0) ? 'true' : 'false'}
           onClick={doRefresh}
-          className={`tv-focusable home-focus-surface flex items-center gap-2 px-4 py-2 rounded-lg border font-nunito font-semibold transition-transform duration-150 flex-shrink-0 ${
+          className={`tv-focusable tv-ring flex items-center gap-2 px-4 py-3 rounded-xl border font-nunito font-semibold transition-transform duration-150 ease-out flex-shrink-0 ${
             shelfFocused('refresh', 0)
-              ? 'bg-brand-gold/20 border-brand-gold ring-2 ring-brand-gold scale-105'
+              ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10'
               : 'bg-slate-900/70 border-white/10'
           }`}
         >
@@ -278,32 +286,32 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
       <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-6">
         {loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center">
-            <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
+            <div className="w-full max-w-sm"><SnowLoader size="md" label="Loading backups…" /></div>
           </div>
         )}
 
         {live.length > 0 && (
           <section>
-            <h3 className="text-lg font-quicksand font-bold mb-2 flex items-center gap-2">
-              <Radio className="w-4 h-4 text-brand-gold" /> Live
+            <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
+              <Radio className="w-5 h-5 text-brand-gold" /> Live
             </h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 pt-1 pl-1 -ml-1">
+            <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {live.map((s, i) => (
                 <div
                   key={s.id}
                   data-focus-key={`live:${i}`}
                   data-focused={shelfFocused('live', i) ? 'true' : 'false'}
                   onClick={() => playItem(s)}
-                  className={`${cardCls(shelfFocused('live', i))} w-64 p-4`}
+                  className={`${cardCls(shelfFocused('live', i))} w-64 py-3 px-5`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold font-nunito bg-red-600/80">LIVE</span>
+                    <span className="px-2 py-1 rounded-lg text-xs font-bold font-nunito bg-red-600/80">LIVE</span>
                     {s.server_label && (
-                      <span className="text-[10px] text-brand-ice/50 font-nunito truncate">{s.server_label}</span>
+                      <span className="text-xs text-brand-ice/70 font-nunito truncate">{s.server_label}</span>
                     )}
                   </div>
                   <div className="font-quicksand font-bold truncate">{s.title}</div>
-                  {s.subtitle && <div className="text-brand-ice/60 font-nunito text-sm truncate mt-1">{s.subtitle}</div>}
+                  {s.subtitle && <div className="text-brand-ice/70 font-nunito text-sm truncate mt-1">{s.subtitle}</div>}
                 </div>
               ))}
             </div>
@@ -312,17 +320,17 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
         {vod.length > 0 && (
           <section>
-            <h3 className="text-lg font-quicksand font-bold mb-2 flex items-center gap-2">
-              <Film className="w-4 h-4 text-brand-gold" /> Movies &amp; Shows
+            <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
+              <Film className="w-5 h-5 text-brand-gold" /> Movies &amp; Shows
             </h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 pt-1 pl-1 -ml-1">
+            <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {vod.map((s, i) => (
                 <div
                   key={s.id}
                   data-focus-key={`vod:${i}`}
                   data-focused={shelfFocused('vod', i) ? 'true' : 'false'}
                   onClick={() => playItem(s)}
-                  className={`${cardCls(shelfFocused('vod', i))} w-40 overflow-hidden`}
+                  className={`${cardCls(shelfFocused('vod', i))} w-[150px] overflow-hidden`}
                 >
                   {s.poster_url ? (
                     <div className="w-full aspect-[2/3] bg-black/40">
@@ -333,9 +341,9 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                       <span className="font-quicksand font-bold text-sm line-clamp-3">{s.title}</span>
                     </div>
                   )}
-                  <div className="p-2">
+                  <div className="py-2 px-3">
                     <div className="font-quicksand font-semibold text-sm truncate">{s.title}</div>
-                    {s.subtitle && <div className="text-brand-ice/60 font-nunito text-xs truncate">{s.subtitle}</div>}
+                    {s.subtitle && <div className="text-brand-ice/70 font-nunito text-xs truncate">{s.subtitle}</div>}
                   </div>
                 </div>
               ))}
@@ -345,7 +353,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
         {!loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center text-center px-8">
-            <p className="text-brand-ice/60 font-nunito text-lg">
+            <p className="text-brand-ice/70 font-nunito text-xl max-w-[62%]">
               No backups right now. When Snow Media posts one it shows up here automatically.
             </p>
           </div>

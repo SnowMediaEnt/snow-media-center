@@ -21,6 +21,8 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import SnowLoader from '@/components/SnowLoader';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -75,6 +77,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [detailFocus, setDetailFocus] = useState<'seasons' | 'episodes' | 'play'>('episodes');
 
   const [playing, setPlaying] = useState<{ url: string; title: string; episodeIdx: number } | null>(null);
+  // On-screen title: shows 4 s on play / episode change / any key, then hides.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
@@ -477,10 +481,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const demoNoticeOverlay = demoNotice ? (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
-      <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
+      <div className="max-w-md w-full rounded-3xl border border-brand-gold/40 bg-[#0b1622] p-8 text-center shadow-2xl">
         <p className="font-nunito text-white/90 text-base leading-relaxed">{DEMO_DIALOG_MSG}</p>
         <button type="button" autoFocus onClick={() => setDemoNotice(false)}
-          className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
+          className="mt-6 px-6 py-3 rounded-xl bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
           OK
         </button>
       </div>
@@ -491,7 +495,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   if (playing) {
     return (
       <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
           <VideoPlayer
             src={playing.url}
             volume={volume}
@@ -507,9 +511,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             }}
           />
         </Suspense>
-        <div className="absolute top-4 left-4 right-4 text-white font-quicksand font-bold text-lg drop-shadow-lg truncate">
-          {playing.title}
-        </div>
+        {titleShown && (
+          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
+            {playing.title}
+          </div>
+        )}
       </div>
     );
   }
@@ -545,7 +551,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                 variant="gold"
                 onClick={() => { if (episodes.length) { setEpisodeIdx(0); playEpisode(0); } }}
                 data-focused={detailFocus === 'play' ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface ${detailFocus === 'play' ? 'ring-2 ring-brand-gold scale-105' : ''}`}
+                className={`tv-ring tv-ring-contrast rounded-xl h-12 px-6 text-base transition-transform duration-150 ease-out ${detailFocus === 'play' ? 'scale-105 z-10' : ''}`}
                 disabled={!episodes.length}
               >
                 <Play className="w-4 h-4 mr-2 fill-current" />
@@ -567,19 +573,20 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         <div className="flex gap-6">
           {/* Seasons */}
           <div className="w-44 flex-shrink-0">
-            <h4 className="font-quicksand font-semibold mb-2 text-brand-ice/80">Seasons</h4>
+            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">Seasons</h4>
             <div className="space-y-1">
-              {seasons.length === 0 && <p className="text-brand-ice/50 text-sm font-nunito">No seasons</p>}
+              {seasons.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">No seasons</p>}
               {seasons.map((s, i) => {
                 const focused = detailFocus === 'seasons' && seasonIdx === i;
                 const selected = seasonIdx === i;
                 return (
                   <div
                     key={s.season_number}
+                    data-focused={focused ? 'true' : 'false'}
                     onClick={() => { setSeasonIdx(i); setEpisodeIdx(0); setDetailFocus('episodes'); }}
                     className={`
-                      px-3 py-2 rounded-lg cursor-pointer font-nunito text-sm transition-all duration-150
-                      ${focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02]' : ''}
+                      tv-ring px-3 py-3 rounded-xl cursor-pointer font-nunito text-base
+                      ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                       ${!focused && selected ? 'bg-white/10' : ''}
                       ${!focused && !selected ? 'hover:bg-white/5' : ''}
                       text-brand-ice
@@ -594,9 +601,9 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
 
           {/* Episodes */}
           <div className="flex-1 min-w-0">
-            <h4 className="font-quicksand font-semibold mb-2 text-brand-ice/80">Episodes</h4>
-            <div className="space-y-1 max-h-[55vh] overflow-y-auto pr-2">
-              {episodes.length === 0 && <p className="text-brand-ice/50 text-sm font-nunito">No episodes</p>}
+            <h4 className="font-quicksand font-semibold text-xl mb-2 text-white/90">Episodes</h4>
+            <div className="space-y-1 max-h-[55vh] overflow-y-auto px-2 -mx-2">
+              {episodes.length === 0 && <p className="text-brand-ice/70 text-sm font-nunito">No episodes</p>}
               {episodes.map((ep, i) => {
                 const focused = detailFocus === 'episodes' && episodeIdx === i;
                 return (
@@ -604,14 +611,15 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     key={ep.id}
                     ref={focused ? focusedEpRef : null}
                     onClick={() => { setEpisodeIdx(i); playEpisode(i); }}
+                    data-focused={focused ? 'true' : 'false'}
                     className={`
-                      flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150
-                      ${focused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.01]' : 'bg-white/5 hover:bg-white/10'}
+                      tv-ring flex items-center gap-4 px-5 py-3 rounded-xl border border-white/10 cursor-pointer
+                      ${focused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-white/5 hover:bg-white/10'}
                     `}
                   >
                     <span className="w-10 text-right font-quicksand font-bold text-brand-gold">{ep.episode_num}</span>
                     <span className="flex-1 truncate font-nunito text-white">{ep.title || `Episode ${ep.episode_num}`}</span>
-                    {ep.info?.duration && <span className="text-xs text-brand-ice/60 font-nunito">{ep.info.duration}</span>}
+                    {ep.info?.duration && <span className="text-xs text-brand-ice/70 font-nunito">{ep.info.duration}</span>}
                   </div>
                 );
               })}
@@ -630,7 +638,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
-          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+          className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
           {searchOpen ? 'Close search' : 'Search series'}
@@ -647,13 +655,13 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
             placeholder="Type to search…"
-            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+            className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
         {!searchOpen && (
           <div className="space-y-1">
             {categoriesLoading && categories.length === 0 && (
-              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
             )}
@@ -671,8 +679,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                     setCategoryIdx(i); setGridIdx(0); setPane('grid');
                   }}
                   className={`
-                    flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 font-nunito text-brand-ice
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-lg' : ''}
+                    tv-ring flex items-center gap-2 px-3 py-3 rounded-xl cursor-pointer font-nunito text-brand-ice
+                    ${isFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : ''}
                     ${!isFocused && isSelected ? 'bg-white/10' : ''}
                     ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                   `}
@@ -686,7 +694,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
         )}
       </div>
 
-      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-5 bg-black/30">
+      <div ref={gridScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-6 bg-black/30">
         {seriesLoading && visibleSeries.length === 0 ? (
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
             {Array.from({ length: GRID_COLS * 3 }).map((_, i) => (
@@ -694,7 +702,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             ))}
           </div>
         ) : visibleSeries.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito">
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito">
             {searchOpen
               ? (searchQuery
                   ? (allSeriesLoading ? 'Loading series catalog…' : 'No series match your search.')

@@ -434,21 +434,21 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         contain: 'layout paint style',
       }}
     >
-      <div className="flex items-stretch gap-2 py-3 px-2">
+      <div className="flex items-stretch gap-3 py-3 px-2">
         <button
           type="button"
           onClick={goPrev}
           disabled={isEmpty || totalPages <= 1}
           aria-label="Previous"
-          className="flex-shrink-0 flex items-center justify-center w-10 rounded-md bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-all hover:scale-110"
+          className="flex-shrink-0 flex items-center justify-center w-10 rounded-xl bg-black/40 hover:bg-black/70 text-white disabled:opacity-30 transition-transform duration-150 ease-out hover:scale-110"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
 
-        <div className="flex-1 grid gap-2 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
+        <div className="flex-1 grid gap-3 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
           {isEmpty
             ? Array.from({ length: PAGE_SIZE }).map((_, i) => (
-                <div key={i} className="media-poster rounded-md bg-black/30 animate-pulse" />
+                <div key={i} className="media-poster rounded-2xl bg-black/30 animate-pulse" />
               ))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
@@ -462,9 +462,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
-                    className={`flex flex-col bg-black/40 rounded-md overflow-hidden text-left min-w-0 transition-transform duration-150 ${
+                    className={`tv-ring flex flex-col bg-black/40 border border-white/10 rounded-2xl overflow-hidden text-left min-w-0 transition-transform duration-200 ease-out ${
                       isFocused
-                        ? 'scale-110 shadow-[0_0_24px_hsl(var(--brand-gold)/0.7)] ring-2 ring-[hsl(var(--brand-gold))] will-change-transform'
+                        ? 'scale-[1.08] z-10'
                         : ''
                     }`}
                   >
@@ -483,19 +483,19 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                       ) : null}
                       {badge && (
                         <span
-                          className="absolute top-1 left-1 text-[8px] font-bold tracking-wider px-1.5 py-0.5 rounded"
+                          className="absolute top-2 left-2 text-xs font-bold tracking-wider px-2 py-1 rounded-lg"
                           style={{ backgroundColor: badge.color, color: 'hsl(0 0% 10%)' }}
                         >
                           {badge.label}
                         </span>
                       )}
                     </div>
-                    <div className="px-1.5 py-1 min-w-0 w-full">
-                      <span className="block text-white text-[11px] font-semibold leading-tight line-clamp-1">
+                    <div className="px-3 py-2 min-w-0 w-full">
+                      <span className="block text-white text-sm font-semibold leading-tight line-clamp-1">
                         {item.title}
                       </span>
                       {item.subtitle && (
-                        <span className="block text-white/60 text-[9px] leading-tight line-clamp-1">
+                        <span className="block text-brand-ice/70 text-xs leading-tight line-clamp-1">
                           {item.subtitle}
                         </span>
                       )}
@@ -517,22 +517,22 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       </div>
 
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-1 pb-1.5">
-          <span className="text-[10px] text-white/50 mr-2">∞</span>
+        <div className="flex justify-center items-center gap-1 pb-2">
+          <span className="text-xs text-white/50 mr-2">∞</span>
           {Array.from({ length: Math.min(totalPages, 12) }).map((_, i) => (
             <span
               key={i}
-              className={`h-1 rounded-full transition-all ${
+              className={`h-1 rounded-full transition-[width] duration-150 ease-out ${
                 i === pageIdx % 12 ? 'w-4 bg-primary' : 'w-1 bg-white/30'
               }`}
             />
           ))}
-          <span className="text-[10px] text-white/50 ml-2">{pageIdx + 1}/{totalPages}</span>
+          <span className="text-xs text-brand-ice/70 ml-2">{pageIdx + 1}/{totalPages}</span>
         </div>
       )}
 
       <Dialog open={!!liveDialog} onOpenChange={(o) => !o && setLiveDialog(null)}>
-        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg">
+        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[hsl(var(--brand-gold))]">
               <Tv className="w-5 h-5" />
@@ -541,7 +541,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
             <DialogDescription className="text-white/80 pt-2 space-y-1">
               <span className="block font-semibold text-white text-base">{liveDialog?.title}</span>
               {liveDialog?.subtitle && (
-                <span className="block text-sm text-white/60">{liveDialog.subtitle}</span>
+                <span className="block text-sm text-brand-ice/70">{liveDialog.subtitle}</span>
               )}
               <span className="block pt-2 text-sm">
                 Open <b className="text-[hsl(var(--brand-gold))]">Dreamstreams</b> or <b className="text-[hsl(var(--brand-gold))]">VibezTV</b> and check these categories:
@@ -570,17 +570,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                 {hints.map((h, i) => (
                   <li
                     key={i}
-                    className="flex items-start gap-3 rounded-md bg-black/30 border border-white/10 px-3 py-2"
+                    className="flex items-start gap-3 rounded-xl bg-black/30 border border-white/10 px-3 py-2"
                   >
                     <span
-                      className={`shrink-0 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded border ${chipColor[h.kind]}`}
+                      className={`shrink-0 text-xs font-bold tracking-wider uppercase px-2 py-0.5 rounded-lg border ${chipColor[h.kind]}`}
                     >
                       {h.chip}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="text-white text-sm font-medium leading-snug">{h.label}</div>
                       {h.sublabel && (
-                        <div className="text-white/60 text-xs mt-0.5">{h.sublabel}</div>
+                        <div className="text-brand-ice/70 text-xs mt-1">{h.sublabel}</div>
                       )}
                     </div>
                   </li>
@@ -592,7 +592,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           <DialogFooter>
             <Button
               variant="outline"
-              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              className="h-12 px-6 rounded-xl text-base transition-transform duration-150 ease-out bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
               onClick={() => setLiveDialog(null)}
             >
               Got it
@@ -602,7 +602,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       </Dialog>
 
       <Dialog open={demoNotice} onOpenChange={(o) => { if (!o) setDemoNotice(false); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle>Live demo</DialogTitle>
           </DialogHeader>
@@ -610,7 +610,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           <DialogFooter>
             <Button
               variant="outline"
-              className="bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
+              className="h-12 px-6 rounded-xl text-base transition-transform duration-150 ease-out bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
               onClick={() => setDemoNotice(false)}
             >
               Got it

@@ -149,7 +149,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
           label="Back"
@@ -166,7 +166,7 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
         <div className="w-full max-w-xl space-y-3">
           {accounts.length === 0 && (
-            <p className="text-white/60 text-sm text-center py-6">
+            <p className="text-white/70 text-sm text-center py-6">
               No saved accounts yet. Add one below.
             </p>
           )}
@@ -177,10 +177,9 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
             return (
               <div
                 key={a.id}
-                data-player-header-btn=""
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setFocusIdx(rowIdx); void pickAccount(a); }}
-                className={`tv-focusable flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/70 border border-white/10 cursor-pointer transition-all duration-150 ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+                className={`tv-ring flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/70 border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : ''}`}
               >
                 <Badge className="bg-brand-gold/25 text-brand-gold border border-brand-gold/40">
                   {a.serverLabel}
@@ -196,10 +195,9 @@ const SwitchAccountScreen = memo(({ onBack, onPicked, onAddAccount }: Props) => 
           })}
 
           <div
-            data-player-header-btn=""
             data-focused={focusIdx === addIdx ? 'true' : 'false'}
             onClick={() => { setFocusIdx(addIdx); onAddAccount(); }}
-            className={`tv-focusable flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/40 border border-dashed border-white/20 cursor-pointer transition-all duration-150 ${focusIdx === addIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+            className={`tv-ring flex items-center gap-3 rounded-xl px-4 py-3 bg-slate-900/40 border border-dashed border-white/20 cursor-pointer ${focusIdx === addIdx ? 'scale-[1.02] z-10' : ''}`}
           >
             <Plus className="w-5 h-5 text-brand-ice" />
             <span className="font-nunito">Add another account</span>

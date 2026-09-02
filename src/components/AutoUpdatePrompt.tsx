@@ -121,7 +121,7 @@ const AutoUpdatePrompt = () => {
         // without running its own timer/fetch.
         try {
           const __info = { version: data.version, versionCode: data.versionCode ?? null };
-          (window as any).__smcUpdateInfo = __info;
+          (window as unknown as { __smcUpdateInfo?: typeof __info }).__smcUpdateInfo = __info;
           window.dispatchEvent(new CustomEvent('smc:update-info', { detail: __info }));
         } catch { /* ignore */ }
 
@@ -148,15 +148,19 @@ const AutoUpdatePrompt = () => {
 
     // Run when the browser is idle, then hourly (paused while backgrounded).
     const cancelIdle = runWhenIdle(() => { void check(); }, 4000);
+    // Also paused under quiet mode (stream playing on a low-memory box):
+    // check() bails on `streaming-active` anyway, which flips on the same
+    // transitions, so an `essential` interval would only tick and return.
     const cancelInterval = setPausableInterval(check, 60 * 60 * 1000);
     return () => {
       cancelled = true;
       cancelIdle();
       cancelInterval();
     };
+    // NOTE: `prepared`/`open`/`toast` intentionally not in deps — re-running the
+    // check effect on every state change would re-arm the hourly interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVersion, currentVersionCode, isLoading]);
-  // NOTE: `prepared`/`open` intentionally not in deps — re-running the check
-  // effect on every state change would re-arm the hourly interval.
 
   // Auto-focus primary button + trap focus/back so background D-pad can't steal it
   useEffect(() => {
@@ -186,7 +190,7 @@ const AutoUpdatePrompt = () => {
         ? Array.from(dialog.querySelectorAll<HTMLButtonElement>('button:not([tabindex="-1"]):not([disabled])'))
         : [];
       const idx = btns.indexOf(document.activeElement as HTMLButtonElement);
-      if (e.key === 'Escape' || e.key === 'GoBack' || (e as any).keyCode === 4) {
+      if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 4) {
         e.preventDefault();
         if (!installing) {
           if (info?.version) { try { localStorage.setItem(SNOOZE_KEY, info.version); } catch { /* ignore */ } }
@@ -219,7 +223,6 @@ const AutoUpdatePrompt = () => {
       document.removeEventListener('focusin', onFocusIn);
       window.removeEventListener('keydown', onKey, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, installing, info?.version]);
 
   const snooze = () => {

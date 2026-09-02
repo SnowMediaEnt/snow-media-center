@@ -49,7 +49,7 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
           return (
             <div key={c.id} data-focused={focused ? 'true' : 'false'}
               onClick={() => { setIdx(i); onPick(c.id); }}
-              className={`tv-focusable home-focus-surface cursor-pointer rounded-3xl p-8 flex flex-col items-center gap-4 text-center border transition-transform duration-150 ${focused ? 'bg-brand-gold/20 border-brand-gold ring-2 ring-brand-gold scale-105 shadow-[0_0_30px_rgba(245,200,80,0.3)]' : 'bg-slate-900/70 border-white/10'}`}>
+              className={`tv-ring cursor-pointer rounded-3xl p-8 flex flex-col items-center gap-4 text-center border transition-transform duration-150 ease-out ${focused ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10' : 'bg-slate-900/70 border-white/10'}`}>
               <div className="w-20 h-20 rounded-2xl bg-brand-gold/20 flex items-center justify-center">
                 <Icon className="w-11 h-11 text-brand-gold" />
               </div>
@@ -61,7 +61,7 @@ const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {
           );
         })}
       </div>
-      <p className="mt-8 text-brand-ice/50 font-nunito text-sm">◀ ▶ choose · OK to open · Back to exit</p>
+      <p className="mt-4 text-brand-ice/60 font-nunito text-xs">◀ ▶ choose · OK to open · Back to exit</p>
     </div>
   );
 });

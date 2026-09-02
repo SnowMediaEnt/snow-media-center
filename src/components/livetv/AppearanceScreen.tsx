@@ -140,11 +140,10 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
     return (
       <div
         key={`${chip.kind}-${chip.id}`}
-        data-player-header-btn=""
         data-focused={focused ? 'true' : 'false'}
         data-selected={selected ? 'true' : 'false'}
         onClick={() => { setFocusIdx(flatIdx); applyChip(chip); }}
-        className={`tv-focusable inline-flex items-center gap-2 rounded-full px-4 py-2 border cursor-pointer transition-all duration-150 ${selected ? 'bg-brand-gold/25 border-brand-gold/60' : 'bg-slate-900/60 border-white/10' } ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+        className={`tv-ring inline-flex items-center gap-2 rounded-full px-4 py-3 border cursor-pointer ${selected ? 'bg-brand-gold/25 border-brand-gold/60' : 'bg-slate-900/60 border-white/10' } ${focused ? 'scale-105 z-10' : ''}`}
       >
         {showDot && chip.hsl && (
           <span
@@ -162,7 +161,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
           label="Back"
@@ -176,10 +175,10 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
       </div>
 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
-        <div className="w-full max-w-3xl space-y-5">
+        <div className="w-full max-w-3xl space-y-6">
           {groups.map((g, gi) => (
-            <div key={groupLabels[gi]} className="space-y-2">
-              <div className="text-xs uppercase tracking-wide text-white/60">{groupLabels[gi]}</div>
+            <div key={groupLabels[gi]} className="space-y-3">
+              <div className="text-xs uppercase tracking-wide text-white/70">{groupLabels[gi]}</div>
               <div className="flex flex-wrap gap-2">
                 {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
               </div>
@@ -188,10 +187,9 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
 
           <div className="pt-2">
             <div
-              data-player-header-btn=""
               data-focused={focusIdx === groupStarts.resetIdx ? 'true' : 'false'}
               onClick={() => { setFocusIdx(groupStarts.resetIdx); resetTheme(); }}
-              className={`tv-focusable inline-flex items-center gap-2 rounded-xl px-4 py-2 border border-white/15 bg-slate-900/60 cursor-pointer transition-all duration-150 ${focusIdx === groupStarts.resetIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+              className={`tv-ring inline-flex items-center gap-2 rounded-xl px-4 py-3 border border-white/15 bg-slate-900/60 cursor-pointer ${focusIdx === groupStarts.resetIdx ? 'scale-105 z-10' : ''}`}
             >
               <RotateCcw className="w-4 h-4 text-brand-ice" />
               <span className="text-sm font-nunito">Reset to default</span>

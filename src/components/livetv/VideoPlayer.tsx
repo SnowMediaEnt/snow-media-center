@@ -1,6 +1,16 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 import { isFireTV } from '@/utils/platform';
+import SnowLoader from '@/components/SnowLoader';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import { enterQuiet, exitQuiet } from '@/utils/quietMode';
+import {
+  beginStream,
+  endStream,
+  recordEngineEstimate,
+  recordStreamThroughput,
+  setBuffering,
+} from '@/lib/bufferDiagnostics';
 
 export interface VideoTrackInfo {
   id: number;
@@ -45,6 +55,12 @@ interface VideoPlayerProps {
   onPlayStateChange?: (paused: boolean) => void;
   /** Signal — caller should re-query controller.getSubtitleTracks() / getAudioTracks(). */
   onTracksChanged?: () => void;
+  /**
+   * 'full' (default): fullscreen player — Able loader with caption + the
+   * buffering diagnostics card. 'minimal': small preview tiles — a compact
+   * loader, no caption, no diagnostics.
+   */
+  chrome?: 'full' | 'minimal';
 }
 
 type Engine = 'hls' | 'mpegts' | 'native';
@@ -70,7 +86,7 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged, chrome = 'full' }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
@@ -234,6 +250,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         try { v.removeAttribute('src'); v.load(); } catch { /* ignore */ }
       }
       try { document.documentElement.classList.remove('streaming-active'); } catch { /* ignore */ }
+      try { exitQuiet('web-player'); } catch { /* ignore */ }
+      try { setBuffering(false); endStream(); } catch { /* ignore */ }
     };
 
     const resumePlayback = () => {
@@ -279,6 +297,9 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
     setFatal(null);
 
     let cancelled = false;
+    // Buffer-diagnostics bridge (never throws). Declared first: the fatal
+    // branches inside attach()/attachMpegts()/scheduleRetry() use it too.
+    const diagBuffering = (on: boolean) => { try { setBuffering(on); } catch { /* ignore */ } };
     // Watchdog timers — cleared on src change / unmount / first real frame.
     let watchdogIv: ReturnType<typeof setInterval> | null = null;
     let nativeLoadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -375,6 +396,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
 
       const engine = pickEngine(src);
       engineRef.current = engine;
+      // Fresh diagnostics history for this attach (retries count as a new stream).
+      try { beginStream(src, isLiveSrc(src) ? 'live' : 'vod'); } catch { /* ignore */ }
 
       try {
         if (engine === 'hls') {
@@ -403,6 +426,22 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, fireTracks);
             hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, fireTracks);
             hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, fireTracks);
+            // Throughput stats → buffering diagnostics. Stats shapes differ
+            // across hls.js versions, so guard every property.
+            hls.on(Hls.Events.FRAG_LOADED, (_evt, data) => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const st = (data as any)?.frag?.stats;
+                if (st) {
+                  const bytes = st.loaded ?? st.total ?? 0;
+                  const ms = Math.max(1, (st.loading?.end ?? 0) - (st.loading?.start ?? 0));
+                  recordStreamThroughput(bytes, ms);
+                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const est = (hls as any).bandwidthEstimate;
+                if (typeof est === 'number' && isFinite(est)) recordEngineEstimate(est);
+              } catch { /* diagnostics must never affect playback */ }
+            });
             hls.on(Hls.Events.ERROR, (_evt, data) => {
               // MEDIA_ERROR recovery ladder — handles decoder hiccups that
               // would otherwise leave the screen black with audio drifting.
@@ -484,6 +523,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           if (!loadProgressed && !moved) {
             setLoading(false);
             setFatal("This title's format may not be supported on this device.");
+            diagBuffering(false);
+            try { endStream(); } catch { /* ignore */ }
             onError?.("This title's format may not be supported on this device.");
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
           }
@@ -510,8 +551,19 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           },
         );
         engineRef.current = 'mpegts';
+        // Fallback path swaps the URL (.m3u8 → .ts): re-point the host probe.
+        if (url !== src) { try { beginStream(url, isLiveSrc(url) ? 'live' : 'vod'); } catch { /* ignore */ } }
         player.attachMediaElement(video);
         player.load();
+        // mpegts reports `speed` in KB/s, sampled once per second.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        player.on(mpegts.Events.STATISTICS_INFO, (info: any) => {
+          try {
+            if (info && typeof info.speed === 'number' && isFinite(info.speed)) {
+              recordStreamThroughput(info.speed * 1024, 1000);
+            }
+          } catch { /* ignore */ }
+        });
         player.on(mpegts.Events.ERROR, (errType: string, errDetail: string) => {
           onError?.(`TS ${errType}: ${errDetail}`);
           scheduleRetry();
@@ -537,6 +589,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             if (cancelled) return;
             setLoading(false);
             setFatal('Stream unavailable on this device.');
+            diagBuffering(false);
+            try { endStream(); } catch { /* ignore */ }
             onError?.('Stream unavailable on this device.');
             teardownEngine();
           },
@@ -553,6 +607,8 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       if (retriesRef.current >= maxRetries) {
         setLoading(false);
         setFatal('Stream unavailable. Check your connection and try again.');
+        diagBuffering(false);
+        try { endStream(); } catch { /* ignore */ }
         return;
       }
       retriesRef.current += 1;
@@ -565,18 +621,36 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         if (on) document.documentElement.classList.add('streaming-active');
         else document.documentElement.classList.remove('streaming-active');
       } catch { /* ignore */ }
+      // Quiet mode: pause non-essential background work while a stream plays.
+      try { if (on) enterQuiet('web-player'); else exitQuiet('web-player'); } catch { /* ignore */ }
     };
-
-    const onPlaying = () => { setLoading(false); setFatal(null); onPlayStateRef.current?.(false); markStreaming(true); };
-    const onPause   = () => { onPlayStateRef.current?.(true); markStreaming(false); };
+    const onPlaying = () => { setLoading(false); setFatal(null); onPlayStateRef.current?.(false); markStreaming(true); diagBuffering(false); };
+    const onPause   = () => { onPlayStateRef.current?.(true); markStreaming(false); diagBuffering(false); };
     const onPlay    = () => { onPlayStateRef.current?.(false); markStreaming(true); };
-    const onWaiting = () => setLoading(true);
-    const onEndedInner = () => { markStreaming(false); onEnded?.(); };
+    const onWaiting = () => { setLoading(true); diagBuffering(true); };
+    // Chromium fires `stalled` on progressive <video src> after 3 s without
+    // network progress even when playback is fine (download deliberately
+    // deferred). Only trust it when the element genuinely has no future data.
+    const onStalled = () => {
+      if (!video.paused && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) diagBuffering(true);
+    };
+    const onCanPlay = () => { diagBuffering(false); };
+    // Progress is the ground truth: any forward movement of currentTime ends a stall.
+    let lastDiagTime = -1;
+    const onTimeUpdate = () => {
+      const ct = video.currentTime;
+      if (lastDiagTime >= 0 && ct > lastDiagTime) diagBuffering(false);
+      lastDiagTime = ct;
+    };
+    const onEndedInner = () => { markStreaming(false); diagBuffering(false); onEnded?.(); };
     const onLoadedMeta = () => { try { onTracksChangedRef.current?.(); } catch { /* ignore */ } };
     video.addEventListener('playing', onPlaying);
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
     video.addEventListener('waiting', onWaiting);
+    video.addEventListener('stalled', onStalled);
+    video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('ended', onEndedInner);
     video.addEventListener('loadedmetadata', onLoadedMeta);
 
@@ -586,10 +660,15 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       cancelled = true;
       clearWatchdogs();
       markStreaming(false);
+      diagBuffering(false);
+      try { endStream(); } catch { /* ignore */ }
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('waiting', onWaiting);
+      video.removeEventListener('stalled', onStalled);
+      video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('ended', onEndedInner);
       video.removeEventListener('loadedmetadata', onLoadedMeta);
       teardownEngine();
@@ -618,9 +697,12 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       />
       {loading && !fatal && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+          {chrome === 'minimal'
+            ? <SnowLoader size="sm" className="max-w-[160px]" />
+            : <SnowLoader size="lg" label="Buffering…" className="max-w-md" />}
         </div>
       )}
+      {chrome === 'full' && <BufferingDiagnostics />}
       {fatal && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
           <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />

@@ -2754,6 +2754,54 @@ export type Database = {
           },
         ]
       }
+      store_display: {
+        Row: {
+          badge: string | null
+          blurb: string | null
+          created_at: string
+          created_by: string | null
+          group_kind: string | null
+          hidden: boolean
+          highlight: boolean
+          image_url: string | null
+          notes: string | null
+          product_slug: string
+          sort: number
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          badge?: string | null
+          blurb?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_kind?: string | null
+          hidden?: boolean
+          highlight?: boolean
+          image_url?: string | null
+          notes?: string | null
+          product_slug: string
+          sort?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          badge?: string | null
+          blurb?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_kind?: string | null
+          hidden?: boolean
+          highlight?: boolean
+          image_url?: string | null
+          notes?: string | null
+          product_slug?: string
+          sort?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           admin_has_unread: boolean

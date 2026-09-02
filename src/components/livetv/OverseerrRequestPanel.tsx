@@ -149,7 +149,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
   }, [isActive, onExitToTabs]);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className="flex-shrink-0 flex items-center gap-3 mb-4">
         <Search className="w-5 h-5 text-brand-gold flex-shrink-0" />
         <input
@@ -162,7 +162,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
             else if (e.key === 'Escape' || (e.key === 'Backspace' && !query)) { e.stopPropagation(); (e.target as HTMLInputElement).blur(); }
           }}
           placeholder="Search for a movie or show to request…"
-          className="tv-focusable flex-1 bg-black/40 border border-white/20 rounded-xl px-4 py-2.5 text-white font-nunito placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-brand-gold"
+          className="tv-ring flex-1 bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white font-nunito placeholder:text-white/70 focus:outline-none"
           data-focused={isActive && zone === 'search' ? 'true' : 'false'}
         />
         {loading && <Loader2 className="w-5 h-5 animate-spin text-brand-gold flex-shrink-0" />}
@@ -170,13 +170,13 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {results.length === 0 && !loading && (
-          <div className="h-full flex flex-col items-center justify-center text-brand-ice/60 font-nunito text-sm gap-2">
+          <div className="h-full flex flex-col items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
             <Film className="w-8 h-8 text-brand-gold/60" />
             <p>Search for something you'd like added to Plex.</p>
-            <p className="text-xs text-brand-ice/40">Press OK on the search box to type · results show below</p>
+            <p className="text-xs text-brand-ice/60 mt-4">Press OK on the search box to type · results show below</p>
           </div>
         )}
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-6 gap-4 p-2">
           {results.map((it, idx) => {
             const focused = isActive && zone === 'results' && cursor === idx;
             const badge = statusBadge(it.status);
@@ -185,18 +185,18 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setCursor(idx); activate(it); }}
-                className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 transition-transform duration-150 ease-out ${focused ? 'scale-105 z-10' : ''}`}>
                 <div className="aspect-[2/3] bg-black/40 flex items-center justify-center">
                   {it.posterUrl
                     ? <img src={it.posterUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                     : (it.mediaType === 'tv' ? <Tv className="w-8 h-8 text-brand-ice/40" /> : <Film className="w-8 h-8 text-brand-ice/40" />)}
                 </div>
                 {badge && (
-                  <span className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[9px] font-nunito font-bold ${badge.cls}`}>{badge.label}</span>
+                  <span className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-nunito font-bold ${badge.cls}`}>{badge.label}</span>
                 )}
-                <div className="px-1.5 py-1">
-                  <div className="text-[11px] font-nunito text-white/90 truncate">{it.title}</div>
-                  <div className="text-[9px] font-nunito text-brand-ice/50">{it.year || ''} · {it.mediaType === 'tv' ? 'Show' : 'Movie'}</div>
+                <div className="px-3 py-2">
+                  <div className="text-sm font-nunito font-semibold text-white/90 truncate">{it.title}</div>
+                  <div className="text-xs font-nunito text-brand-ice/70">{it.year || ''} · {it.mediaType === 'tv' ? 'Show' : 'Movie'}</div>
                 </div>
               </div>
             );
@@ -205,19 +205,19 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       </div>
 
       {confirming && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900/95 border-2 border-brand-gold/50 p-7 text-center">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-6">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900/95 border-2 border-brand-gold/50 p-8 text-center">
             <h3 className="text-xl font-quicksand font-bold text-white mb-2">Request {confirming.title}?</h3>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6">
               {confirming.mediaType === 'tv' ? 'All seasons will be requested.' : 'The movie will be added to the request queue.'}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button onClick={() => void submitRequest(confirming)} data-focused={confirmIdx === 0 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold ${confirmIdx === 0 ? 'scale-105 ring-2 ring-brand-gold' : ''}`}>
+                className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl border border-brand-gold/40 text-white font-quicksand font-bold ${confirmIdx === 0 ? 'bg-brand-gold/30 scale-105 z-10' : 'bg-brand-gold/15'}`}>
                 {requesting ? 'Requesting…' : 'Request'}
               </button>
               <button onClick={() => setConfirming(null)} data-focused={confirmIdx === 1 ? 'true' : 'false'}
-                className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl bg-white/10 text-white font-quicksand font-bold ${confirmIdx === 1 ? 'scale-105 ring-2 ring-white/60' : ''}`}>
+                className={`tv-ring px-6 py-3 rounded-xl border border-white/10 bg-white/10 text-white font-quicksand font-bold ${confirmIdx === 1 ? 'scale-105 z-10' : ''}`}>
                 Cancel
               </button>
             </div>

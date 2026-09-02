@@ -23,6 +23,9 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import SnowLoader from '@/components/SnowLoader';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -61,6 +64,7 @@ const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
 const ROW_HEIGHT = 84;
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
+const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
 const PREVIEW_DEBOUNCE_MS = 700;
 
@@ -112,6 +116,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
   useEffect(() => { savePlayerVolume(volume); }, [volume]);
+  // "Vol NN%" pill (shown while the bar is hidden) only lingers 3 s after a change.
+  const [volPillShown] = useTransientVisible(3000, { watchKeys: false, deps: [volume], initial: false });
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on Favorites (0). A separate effect bumps to the first REAL category
@@ -360,6 +366,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Virtualizer
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const categoriesScrollRef = useRef<HTMLDivElement | null>(null);
+  // Wrapper around the virtualized rows — sits BELOW the Search button inside
+  // the same scroll container, so we must measure its offset to scroll correctly.
+  const categoriesListRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: visibleChannels.length,
     getScrollElement: () => scrollParentRef.current,
@@ -427,23 +436,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdx, visibleChannels.length]);
 
-  // Keep the focused category visible. The categories scroll container also
-  // holds the Search button (+ optional input) ABOVE the virtualizer, so raw
-  // `idx * ROW_HEIGHT` math would ignore that header offset and let the
-  // focused row slip below the fold. Ask the virtualizer to handle it — its
-  // scrollToIndex measures the list's actual offset within the scroll parent.
+  // Keep the focused category visible.
+  //
+  // The categories scroll container also holds the Search button (+ optional
+  // input) and its own `p-3` padding ABOVE the virtualizer. TanStack Virtual
+  // reports every row's `start` relative to the LIST, not to the scroll
+  // container, and it is not told about that header — so `scrollToIndex` and
+  // raw `idx * CAT_ROW_HEIGHT` are both short by the header's height (~56px).
+  // Moving down, the focused row therefore parked ~56px lower than intended
+  // and slid under the bottom edge of the pane: the user could not see which
+  // category was highlighted without clicking it.
+  //
+  // Fix: measure the list wrapper's real offset inside the scroll parent and
+  // do the same vertical-only scrollTop math the channel list uses. Same
+  // reason as the block above — never scrollIntoView for focus tracking.
   useEffect(() => {
     if (!visibleCategories.length || searchOpen) return;
     const apply = () => {
       const node = categoriesScrollRef.current;
       if (!node) return;
       if (categoryIdx === 0) { node.scrollTop = 0; return; }
-      try { categoryVirtualizer.scrollToIndex(categoryIdx, { align: 'auto' }); } catch { /* ignore */ }
+      const listEl = categoriesListRef.current;
+      // Header height = distance from the scroll container's content origin
+      // down to the first virtualized row.
+      const listOffset = listEl
+        ? listEl.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop
+        : 0;
+      const rowTop = listOffset + categoryIdx * CAT_ROW_HEIGHT;
+      const rowBottom = rowTop + CAT_ROW_HEIGHT;
+      // Keep a little air so the gold focus ring never sits flush against the
+      // pane edge — on a TV that reads as "cut off".
+      if (rowTop - CAT_FOCUS_PAD < node.scrollTop) {
+        node.scrollTop = Math.max(0, rowTop - CAT_FOCUS_PAD);
+      } else if (rowBottom + CAT_FOCUS_PAD > node.scrollTop + node.clientHeight) {
+        node.scrollTop = rowBottom + CAT_FOCUS_PAD - node.clientHeight;
+      }
     };
     apply();
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
@@ -1005,7 +1036,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer
               src={streamUrl}
               volume={volume}
@@ -1041,27 +1072,30 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 Now: {playingNowNext.now.title}{playingNowNext.next ? ` · Next: ${playingNowNext.next.title}` : ''}
               </p>
             )}
-            <p className="mt-5 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
+            <p className="mt-6 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
               Demo mode — playback is disabled
             </p>
-            <p className="mt-2 text-brand-ice/60 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
-            <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
             {slowConn && (
-              <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80 drop-shadow">
+              <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80">
                 Still loading — your connection looks slow. If channels keep buffering, a VPN often helps.
               </p>
             )}
           </div>
         )}
+        {NATIVE_PLAYBACK && !native.error && (
+          <BufferingDiagnostics buffering={native.buffering} className="mt-12" />
+        )}
         {/* Audio present but undecodable on this device: video is fine, so don't
             block it — just say why there's no sound, and name the codec so
             support can act on it instead of guessing. */}
         {NATIVE_PLAYBACK && native.audioWarning && !native.error && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-lg bg-black/85 px-4 py-3 text-center">
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-2xl bg-black/85 px-5 py-3 text-center">
             <p className="font-quicksand font-semibold text-brand-gold text-sm">
               No sound on this channel
             </p>
@@ -1069,7 +1103,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               This channel's audio ({native.audioWarning.codecs}) can't be decoded on this device.
               Report the channel in Support and we'll re-encode it.
             </p>
-            <p className="mt-1 font-nunito text-[10px] text-brand-ice/40">
+            <p className="mt-1 font-nunito text-xs text-brand-ice/70">
               audio-decode: {native.audioWarning.codecs} · ffmpeg:{' '}
               {native.audioWarning.ffmpegAvailable ? 'yes' : 'no'}
             </p>
@@ -1078,12 +1112,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="text-xl font-quicksand font-semibold mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button
               onClick={() => native.retry()}
               autoFocus
-              className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+              data-focused="true"
+              className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold scale-105 z-10"
             >
               <RotateCw className="w-4 h-4" /> Retry
             </button>
@@ -1111,8 +1146,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           volume={volume}
         />
         {/* Volume hint while bar is hidden */}
-        {!barVisible && (
-          <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
+        {!barVisible && volPillShown && (
+          <div className="absolute bottom-4 right-6 px-3 py-2 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
             Vol {Math.round(volume * 100)}%
           </div>
         )}
@@ -1130,7 +1165,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
-          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+          className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
           {searchOpen ? 'Close search' : 'Search channels'}
@@ -1147,18 +1182,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
             placeholder="Type to search…"
-            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+            className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
         {!searchOpen && (
           <>
             {categoriesLoading && categories.length === 0 && (
-              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
             )}
             {visibleCategories.length > 0 && (
               <div
+                ref={categoriesListRef}
                 style={{
                   height: categoryVirtualizer.getTotalSize(),
                   position: 'relative',
@@ -1193,8 +1229,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         paddingBottom: 4, // matches space-y-1 gap so heights are stable
                       }}
                       className={`
-                        flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
-                        ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
+                        tv-ring flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer
+                        ${isFocused ? 'bg-brand-gold/25 z-10' : ''}
                         ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
                         ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                       `}
@@ -1203,7 +1239,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && c.count != null && c.count > 0 && (
-                        <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
+                        <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
                           {c.count}
                         </span>
                       )}
@@ -1224,15 +1260,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               // Preview <video> is disabled on Fire TV and low-memory / legacy
               // WebView devices — each <video> spawns a WebMediaPlayer that
               // saturates the compositor thread and freezes the UI.
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
+              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
                 {focusedChannel ? 'Press OK to play' : 'No channel selected'}
               </div>
             ) : previewUrl ? (
-              <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
-                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" />
+              <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
+                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
               </Suspense>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
+              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
                 {focusedChannel ? 'Preview loading…' : 'No channel selected'}
               </div>
             )}
@@ -1248,22 +1284,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 {focusedNowNext?.now ? (
                   <>
                     <p className="text-brand-ice/90 font-nunito truncate mt-1">Now: {focusedNowNext.now.title}</p>
-                    <p className="text-xs text-brand-ice/60 font-nunito mt-0.5">
+                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
                       {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
                     </p>
                   </>
                 ) : (
-                  <p className="text-brand-ice/60 font-nunito mt-1 text-sm">No program info available</p>
+                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">No program info available</p>
                 )}
                 {focusedNowNext?.next && (
                   <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">
                     Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/50 font-nunito mt-3">Press Enter to play · F to favorite</p>
+                <p className="text-xs text-brand-ice/60 font-nunito mt-4">Press Enter to play · F to favorite</p>
               </>
             ) : (
-              <p className="text-brand-ice/60 font-nunito">
+              <p className="text-brand-ice/70 font-nunito">
                 {channelsLoading ? 'Loading channels…' : 'No channel focused'}
               </p>
             )}
@@ -1276,17 +1312,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
-                  <div className="w-8 h-4 rounded bg-white/10" />
+                  <div className="w-8 h-4 rounded-full bg-white/10" />
                   <div className="w-14 h-14 rounded-lg bg-white/10" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 w-1/2 rounded bg-white/10" />
-                    <div className="h-3 w-2/3 rounded bg-white/5" />
+                    <div className="h-4 w-1/2 rounded-full bg-white/10" />
+                    <div className="h-3 w-2/3 rounded-full bg-white/5" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visibleChannels.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-center px-6">
+            <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-center px-6">
               {searchOpen
                 ? (searchQuery
                     ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')

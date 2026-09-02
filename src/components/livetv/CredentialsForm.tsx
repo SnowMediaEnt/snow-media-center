@@ -139,7 +139,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
   };
 
   return (
-    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-10">
+    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-12">
       <form
         onSubmit={submit}
         className="w-full max-w-xl rounded-3xl p-8 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
@@ -157,19 +157,19 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         </div>
 
         <div className="space-y-4">
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="lt-user" className="text-brand-ice font-nunito">Username</Label>
             <Input
               id="lt-user"
               data-tv-focus-id="cf-user"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="tv-focusable bg-black/30 text-white border-white/20"
+              className="rounded-xl h-12 bg-black/30 text-white border-white/20"
               autoComplete="off"
               disabled={testing}
             />
           </div>
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">Password</Label>
             <Input
               id="lt-pass"
@@ -178,7 +178,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="tv-focusable bg-black/30 text-white border-white/20"
+              className="rounded-xl h-12 bg-black/30 text-white border-white/20"
               autoComplete="off"
               disabled={testing}
             />
@@ -186,7 +186,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
         </div>
 
         {testing && (
-          <div className="mt-5 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
+          <div className="mt-4 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
             <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
             <span>
               {probingServer ? `Checking ${probingServer.label}…` : 'Connecting…'}
@@ -200,7 +200,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
             variant="gold"
             data-tv-focus-id="cf-submit"
             disabled={testing}
-            className="tv-focusable home-focus-surface flex-1"
+            className="flex-1 rounded-xl h-12 transition-transform duration-150 ease-out"
           >
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             {testing ? 'Signing in…' : 'Sign In'}
@@ -212,14 +212,14 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel }: Props) => {
               onClick={onCancel}
               data-tv-focus-id="cf-cancel"
               disabled={testing}
-              className="tv-focusable home-focus-surface"
+              className="rounded-xl h-12 transition-transform duration-150 ease-out"
             >
               Cancel
             </Button>
           )}
         </div>
 
-        <p className="text-brand-ice/50 text-xs font-nunito mt-6">
+        <p className="text-brand-ice/60 text-xs font-nunito mt-4">
           Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
           Your credentials are stored only on this device.
         </p>

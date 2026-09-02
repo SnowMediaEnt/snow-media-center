@@ -32,8 +32,7 @@ import {
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
   setPlexImageFocus, preloadImages,
-  type PlexLibrary, type PlexItem, type PlexEpisode,
-} from '@/lib/plex';
+  type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
@@ -47,6 +46,9 @@ import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
+import SnowLoader from '@/components/SnowLoader';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
 // ── data access indirection ────────────────────────────────────────────────
@@ -90,7 +92,7 @@ const ResChip = memo(({ label }: { label: string }) => {
   if (!label) return null;
   const gold = label === '4K';
   return (
-    <span className={`absolute top-1 right-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
+    <span className={`absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${gold ? 'text-brand-gold' : 'text-white/80'}`}>
       {label}
     </span>
   );
@@ -169,15 +171,15 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
     return () => window.removeEventListener('keydown', handler, true);
   }, [isActive]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/60"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
-  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm">Nothing here yet.</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-brand-ice/70"><Loader2 className="w-5 h-5 animate-spin text-brand-gold mr-2" /> Loading…</div>;
+  if (rows.length === 0) return <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>;
 
   return (
     <div className="flex flex-col gap-6">
       {rows.map((r, ri) => (
         <div key={r.title}>
-          <div className="text-sm font-quicksand font-semibold text-white/90 mb-2">{r.title}</div>
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="text-xl font-quicksand font-semibold text-white/90 mb-3">{r.title}</div>
+          <div className="flex gap-4 overflow-x-auto py-3 px-2 -mx-2">
             {r.items.map((it, ci) => {
               const focused = isActive && ri === row && ci === col;
               const label = resolutionLabel(it.videoResolution);
@@ -185,13 +187,13 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
                 <div key={it.ratingKey}
                   ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                   onClick={() => { setRow(ri); setCol(ci); onPlay(it); }}
-                  className={`relative flex-shrink-0 w-[140px] cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                  className={`tv-ring relative flex-shrink-0 w-[150px] cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-[1.08] z-10' : ''}`}
+                  data-focused={focused ? 'true' : 'false'}>
                   <div className="relative aspect-[2/3]">
                     <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                     <ResChip label={label} />
                   </div>
-                  <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                  {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
+                  <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
                 </div>
               );
             })}
@@ -204,7 +206,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
 HomePanel.displayName = 'HomePanel';
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
-interface SearchPanelProps extends HomePanelProps {}
+type SearchPanelProps = HomePanelProps;
 const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
@@ -272,7 +274,7 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
   const rows = Math.ceil(results.length / COLS);
   return (
     <div className="flex flex-col gap-4">
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border ${isActive && zone === 'input' ? 'border-brand-gold' : 'border-white/10'}`}>
+      <div data-focused={isActive && zone === 'input' ? 'true' : 'false'} className="tv-ring flex items-center gap-2 px-4 py-3 rounded-xl bg-black/40 border border-white/10">
         <SearchIcon className="w-4 h-4 text-brand-ice/60" />
         <input
           ref={inputRef}
@@ -280,12 +282,12 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setZone('input')}
           placeholder="Search movies & shows…"
-          className="flex-1 bg-transparent outline-none text-white font-nunito text-sm placeholder:text-brand-ice/40"
+          className="flex-1 bg-transparent outline-none text-white font-nunito text-base placeholder:text-brand-ice/50"
         />
         {loading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />}
       </div>
       {results.length === 0 ? (
-        <div className="text-brand-ice/50 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
+        <div className="text-brand-ice/70 font-nunito text-sm text-center py-6">{query.trim() ? (loading ? 'Searching…' : 'No results.') : 'Type to search Plex.'}</div>
       ) : (
         <div className="grid grid-cols-6 gap-3">
           {Array.from({ length: rows * COLS }).map((_, idx) => {
@@ -297,13 +299,13 @@ const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: Searc
               <div key={it.ratingKey}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                 onClick={() => { setZone('grid'); setCursor(idx); onPlay(it); }}
-                className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}
+                data-focused={focused ? 'true' : 'false'}>
                 <div className="relative aspect-[2/3]">
                   <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} className="w-full h-full object-cover" />
                   <ResChip label={label} />
                 </div>
-                <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
+                <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
               </div>
             );
           })}
@@ -406,17 +408,17 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
   return (
     <div className="max-w-xl mx-auto flex flex-col gap-2">
       {(serverName || ownedLine || accountLine) && (
-        <div className="mb-3 rounded-lg bg-black/30 ring-1 ring-white/10 px-4 py-3">
+        <div className="mb-3 rounded-xl bg-black/30 border border-white/10 px-4 py-3">
           {serverName && <div className="font-quicksand font-bold text-white">{serverName}</div>}
-          {ownedLine && <div className="text-xs font-nunito text-brand-ice/70 mt-0.5">{ownedLine}</div>}
-          {accountLine && <div className="text-xs font-nunito text-brand-ice/50 mt-0.5">{accountLine}</div>}
+          {ownedLine && <div className="text-xs font-nunito text-brand-ice/70 mt-1">{ownedLine}</div>}
+          {accountLine && <div className="text-xs font-nunito text-brand-ice/70 mt-1">{accountLine}</div>}
         </div>
       )}
       {libraries.length === 0 ? (
-        <div className="text-brand-ice/60 font-nunito text-sm">No libraries found.</div>
+        <div className="text-brand-ice/70 font-nunito text-sm">No libraries found.</div>
       ) : (
         <>
-          <div className="text-xs uppercase tracking-wide text-brand-ice/50 mb-1">Show / hide libraries</div>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/70 mb-1">Show / hide libraries</div>
           {libraries.map((lib, i) => {
             const focused = isActive && cursor === i;
             const isHidden = hidden.indexOf(lib.key) >= 0;
@@ -424,14 +426,15 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
               <div key={lib.key}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 onClick={() => { setCursor(i); onToggle(lib.key); }}
-                className={`flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]' : 'bg-black/40 ring-1 ring-white/10'}`}>
+                className={`tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'bg-brand-gold/20 scale-[1.02] z-10' : 'bg-black/40'}`}
+                data-focused={focused ? 'true' : 'false'}>
                 <div>
                   <div className="font-quicksand text-white">{lib.title}</div>
-                  <div className="text-[11px] font-nunito text-brand-ice/50 uppercase">{lib.type}</div>
+                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{lib.type}</div>
                 </div>
                 {isHidden
-                  ? <span className="flex items-center gap-1.5 text-xs text-brand-ice/60"><EyeOff className="w-4 h-4" /> Hidden</span>
-                  : <span className="flex items-center gap-1.5 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
+                  ? <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> Hidden</span>
+                  : <span className="flex items-center gap-2 text-xs text-brand-gold"><Eye className="w-4 h-4" /> Visible</span>}
               </div>
             );
           })}
@@ -452,7 +455,8 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
                 confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
               }
             }}
-            className={`mt-3 flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-transform duration-150 ${focused ? (confirmSignOut ? 'bg-red-500/25 ring-2 ring-red-400 scale-[1.02]' : 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.02]') : (confirmSignOut ? 'bg-red-500/15 ring-1 ring-red-500/40' : 'bg-black/40 ring-1 ring-white/10')}`}>
+            className={`tv-ring mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer ${confirmSignOut ? 'tv-ring-danger border-red-500/40' : 'border-white/10'} ${focused ? (confirmSignOut ? 'bg-red-500/25 scale-[1.02] z-10' : 'bg-brand-gold/20 scale-[1.02] z-10') : (confirmSignOut ? 'bg-red-500/15' : 'bg-black/40')}`}
+            data-focused={focused ? 'true' : 'false'}>
             <LogOut className={`w-4 h-4 ${confirmSignOut ? 'text-red-300' : 'text-brand-ice/70'}`} />
             <div className={`font-quicksand ${confirmSignOut ? 'text-red-200' : 'text-white'}`}>
               {confirmSignOut ? "Press OK again to sign out — you'll need a new code to sign back in" : 'Sign out of Plex'}
@@ -523,31 +527,31 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
         <h2 className="text-2xl font-quicksand font-bold mb-2">Connected to {conn?.name || 'Plex'}</h2>
         {accountLine && <p className="text-brand-ice/70 font-nunito text-sm mb-4">as {accountLine}</p>}
         {showOwnedWarning && (
-          <div className="mb-5 rounded-xl bg-red-500/15 ring-1 ring-red-500/40 px-4 py-3 text-left">
+          <div className="mb-6 rounded-xl bg-red-500/15 border border-red-500/40 px-4 py-3 text-left">
             <p className="text-red-200 font-quicksand font-semibold text-sm mb-1">Heads up</p>
-            <p className="text-red-100/90 font-nunito text-xs">
+            <p className="text-red-100/90 font-nunito text-sm">
               This looks like <span className="font-bold">YOUR OWN</span> Plex server. If you meant to use your provider's service, sign out and send them the code instead.
             </p>
           </div>
         )}
         {showProviderReassure && (
-          <p className="text-brand-ice/70 font-nunito text-xs mb-4">You're all set — this is your provider's server.</p>
+          <p className="text-brand-ice/70 font-nunito text-sm mb-4">You're all set — this is your provider's server.</p>
         )}
         <div className="mt-4 flex items-center justify-center gap-3">
           <button type="button"
             data-focused={focusIdx === 0 ? 'true' : 'false'}
             onClick={onContinue}
-            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-bold transition-transform duration-150 ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-bold ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
             Continue
           </button>
           <button type="button"
             data-focused={focusIdx === 1 ? 'true' : 'false'}
             onClick={onSignOut}
-            className={`tv-focusable home-focus-surface px-6 py-2.5 rounded-xl font-quicksand font-semibold transition-transform duration-150 ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 shadow-lg' : 'bg-white/10 text-white'}`}>
+            className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-semibold ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
             Sign out
           </button>
         </div>
-        <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-4">◀ ▶ select · OK activate · Back continues</p>
+        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">◀ ▶ select · OK activate · Back continues</p>
       </div>
     </div>
   );
@@ -930,7 +934,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => () => { setPlexKeyOwner('browse'); resumeLoading(); }, []);
   useEffect(() => {
     if (fullscreen) { setPlexKeyOwner('player'); return; }
-    if (!detailItem) { setPlexKeyOwner('browse'); resumeLoading(); }
+    if (detailItem) { setPlexKeyOwner('detail'); return; }
+    setPlexKeyOwner('browse'); resumeLoading();
   }, [fullscreen, detailItem]);
 
   // Demo mode: playback is the one thing the website embed can't do, so every
@@ -975,14 +980,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [conn]);
 
 
+  // Which path the stream takes (LAN / direct / Plex relay, http vs https).
+  // Logged with every play so the Hub can tell a throttled-relay box from a
+  // slow-server one, and shown in the player's Help menu + buffering card.
+  const routeLabel = conn ? plexRouteLabel(conn.route, conn.base) : '';
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
-    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie' }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution));
-  }, [playRatingKey]);
+  }, [playRatingKey, conn]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
-    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode' }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '');
-  }, [playRatingKey]);
+  }, [playRatingKey, conn]);
 
   // (plex_error tracked below, once `native` is declared.)
 
@@ -1116,7 +1125,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     subtitles: extraSubs,
     onTracksChanged,
     onPlayStateChange: onPlayStateChangeCb,
-    onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
+    onEnded: () => { setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
   });
   // Reset the safety-net guard whenever the underlying title changes.
@@ -1170,6 +1179,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // kick the pipeline instead of staring at a stalled spinner.
   const [slowLoad, setSlowLoad] = useState(false);
   setSlowLoadRef.current = setSlowLoad;
+  // Fullscreen title bar: visible for 4 s after mount / title change / a
+  // buffering flip, then hides. watchKeys=false — any key opens
+  // PlexPlayerOverlay, which already shows the title at the bottom.
+  // fullscreen in deps so a same-title replay re-shows it; NOT native.buffering —
+  // the diagnostics card owns the top-right corner during a stall.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: false, deps: [fullscreen, playingTitle] });
   const armSlowLoadTimer = useCallback(() => {
     clearSlowLoadTimer();
     stillLoadingRef.current = true;
@@ -1268,7 +1283,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
   }, [native.error, playingTitle, playing, conn]);
 
-  const exitFullscreen = useCallback(() => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); }, []);
+  const exitFullscreen = useCallback(() => {
+    // Synchronous owner hand-back: the Back keydown that closes the player
+    // must never also be seen by PlexDetail (episodes → seasons pop).
+    setPlexKeyOwner(detailRef.current ? 'detail' : 'browse');
+    setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
+  }, []);
 
   const toggleHidden = useCallback((key: string) => {
     setHidden((prev) => {
@@ -1311,6 +1331,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
         if (!isBack) return;
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Hand the D-pad back synchronously so the same Back can't leak
+        // into the detail page's listener.
+        setPlexKeyOwner(detailRef.current ? 'detail' : 'browse');
         setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
       };
       window.addEventListener('keydown', backOnly, true);
@@ -1410,7 +1433,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
-    return <div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>;
+    return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label="Connecting to Plex…" /></div></div>;
   }
   if (status !== 'ready') {
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
@@ -1436,9 +1459,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   if (!warmedUp && !fullscreen && !detailItem) {
     return (
       <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
-        <Loader2 className="w-12 h-12 animate-spin text-brand-gold" />
-        <p className="font-quicksand font-semibold text-brand-ice">Loading your library…</p>
-        <p className="text-xs font-nunito text-brand-ice/50">Plex · {conn?.name}</p>
+        <div className="w-full max-w-md">
+          <SnowLoader size="md" label="Loading your library…" />
+        </div>
+        <p className="text-xs font-nunito text-brand-ice/70">Plex · {conn?.name}</p>
       </div>
     );
   }
@@ -1449,16 +1473,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && streamUrl && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
         {NATIVE_PLAYBACK && !native.error && !slowLoad && (!streamUrl || !nativeActive || native.buffering) && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" /></div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-full max-w-md">
+              <SnowLoader size="lg" label={streamUrl && nativeActive ? 'Buffering…' : 'Loading…'} />
+            </div>
+          </div>
         )}
         {NATIVE_PLAYBACK && !native.error && slowLoad && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
-            <Loader2 className="w-10 h-10 text-brand-gold animate-spin mb-3" />
+            <div className="w-full max-w-md mb-3">
+              <SnowLoader size="md" />
+            </div>
             <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
             <button onClick={() => {
@@ -1471,7 +1501,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 armSlowLoadTimer();
                 native.retry();
               }
-            }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+            }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
               <RotateCw className="w-4 h-4" /> Retry
             </button>
           </div>
@@ -1481,19 +1511,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
             <p className="font-quicksand font-semibold mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
-            <button onClick={() => { armSlowLoadTimer(); native.retry(); }} autoFocus className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60">
+            <button onClick={() => { armSlowLoadTimer(); native.retry(); }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
               <RotateCw className="w-4 h-4" /> Retry
             </button>
           </div>
         )}
-        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-          <p className="font-quicksand font-bold text-white truncate">
-            {playingTitle}{useTranscode ? ' · transcoding' : ''}
-            {playingResLabel && (
-              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
-            )}
-          </p>
-        </div>
+        {titleShown && (
+          <div className="absolute top-0 left-0 right-0 p-4 pr-96 bg-gradient-to-b from-black/80 to-transparent pointer-events-none animate-fade-in">
+            <p className="font-quicksand font-bold text-white truncate">
+              {playingTitle}{useTranscode ? ' · transcoding' : ''}
+              {playingResLabel && (
+                <span className={`ml-2 align-middle text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
+              )}
+            </p>
+          </div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && (
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? `Route: ${routeLabel}` : undefined} />
+        )}
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
             active={nativeActive && !slowLoad}
@@ -1504,6 +1539,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             getPosition={native.getPosition}
             seekTo={native.seekTo}
             onBackWhileHidden={exitFullscreen}
+            routeLabel={routeLabel}
             subtitleContext={subCtx}
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
             qualityKey={qualityKey}
@@ -1559,7 +1595,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-black/30 text-white">
       <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-black/40 overflow-x-auto whitespace-nowrap">
-        <span className="text-xs uppercase tracking-wide text-brand-ice/50 mr-2">Plex · {conn?.name}</span>
+        <span className="text-xs uppercase tracking-wide text-brand-ice/70 mr-2">Plex · {conn?.name}</span>
         {tabs.map((tab, i) => {
           const focused = isActive && zone === 'tabs' && libIdx === i;
           const selected = libIdx === i;
@@ -1569,7 +1605,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
               data-focused={focused ? 'true' : 'false'}
               onClick={() => { setLibIdx(i); setZone('grid'); }}
-              className={`tv-focusable flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150 ${focused ? 'bg-brand-gold text-black font-bold scale-105 shadow-lg' : selected ? 'bg-white/90 text-black font-semibold' : 'bg-white/10 text-white'}`}>
+              className={`tv-ring tv-ring-contrast flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-base font-nunito ${focused ? 'bg-brand-gold text-black font-bold scale-105 z-10' : selected ? 'bg-white/90 text-black font-semibold' : 'bg-white/10 text-white'}`}>
               {Icon && <Icon className="w-3.5 h-3.5" />}
               {tab.title}
             </button>
@@ -1588,9 +1624,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         ) : currentTab?.type === 'manage' ? (
           <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
         ) : itemsLoading && items.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm">Nothing here yet.</div>
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">Nothing here yet.</div>
         ) : (
           <div style={{ height: totalH, position: 'relative', width: '100%' }}>
             {rowVirtualizer.getVirtualItems().map((vr) => {
@@ -1606,13 +1642,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                       return (
                         <div key={it.ratingKey} data-focused={focused ? 'true' : 'false'}
                           onClick={() => { setCursor(idx); openDetail(it); }}
-                          className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                          className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 ${focused ? 'scale-105 z-10' : ''}`}>
                           <div className="relative aspect-[2/3]">
                             {conn && <PlexImage base={conn.base} path={it.thumb} token={conn.token} w={180} h={270} className="w-full h-full object-cover" />}
                             <ResChip label={label} />
                           </div>
-                          <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                          {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
+                          <div className={`px-2 py-1 text-sm font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
                         </div>
                       );
                     })}
@@ -1624,13 +1659,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         )}
       </div>
 
-      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-1.5 text-[11px] font-nunito text-brand-ice/60">
+      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-2 text-xs font-nunito text-brand-ice/60">
         ◀ ▶ ▲ ▼ browse · OK for details · Back for Home / exit
       </div>
 
       {detailItem && conn && (
         <PlexDetail
-          isActive={isActive}
+          isActive={isActive && !fullscreen}
           base={conn.base}
           token={conn.token}
           item={detailItem}
