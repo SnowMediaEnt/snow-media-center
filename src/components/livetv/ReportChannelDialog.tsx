@@ -268,7 +268,7 @@ const ReportChannelDialog = memo(({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75"
       onClick={(e) => {
         if (e.target === e.currentTarget && !submitting) onClose();
       }}
@@ -306,12 +306,12 @@ const ReportChannelDialog = memo(({
                     else if (i === 1) { onToggleFavorite?.(); onClose(); }
                     else onClose();
                   }}
-                  className={`tv-focusable w-full text-left px-4 py-3 rounded-xl font-nunito font-semibold transition-transform duration-150 flex items-center gap-3 ${
+                  className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
                     focused
                       ? (isCancel
-                          ? 'bg-white/15 ring-2 ring-white/60 scale-[1.02]'
-                          : 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_14px_rgba(245,200,80,0.4)]')
-                      : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                          ? 'bg-white/15 scale-[1.02] z-10'
+                          : 'bg-brand-gold/25 scale-[1.02] z-10')
+                      : 'bg-white/5 hover:bg-white/10'
                   }`}
                 >
                   <Icon className="w-5 h-5 text-brand-gold" />
@@ -334,10 +334,10 @@ const ReportChannelDialog = memo(({
                   onMouseEnter={() => setFocusIdx(i)}
                   onClick={() => onPick(c)}
                   disabled={submitting}
-                  className={`tv-focusable w-full text-left px-4 py-3 rounded-xl font-nunito font-semibold transition-transform duration-150 ${
+                  className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out ${
                     focused
-                      ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_14px_rgba(245,200,80,0.4)]'
-                      : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                      ? 'bg-brand-gold/25 scale-[1.02] z-10'
+                      : 'bg-white/5 hover:bg-white/10'
                   }`}
                 >
                   {c}
@@ -351,10 +351,10 @@ const ReportChannelDialog = memo(({
               onMouseEnter={() => setFocusIdx(CHOICES.length)}
               onClick={onClose}
               disabled={submitting}
-              className={`tv-focusable w-full mt-3 px-4 py-2.5 rounded-xl font-nunito transition-transform duration-150 ${
+              className={`tv-ring w-full px-4 py-3 rounded-xl border border-white/10 font-nunito transition-transform duration-150 ease-out ${
                 focusIdx === CHOICES.length
-                  ? 'bg-white/15 ring-2 ring-white/60 scale-[1.02]'
-                  : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                  ? 'bg-white/15 scale-[1.02] z-10'
+                  : 'bg-white/5 hover:bg-white/10'
               }`}
             >
               Cancel
@@ -376,23 +376,19 @@ const ReportChannelDialog = memo(({
               placeholder="What went wrong?"
               data-focused={focusIdx === 0 ? 'true' : 'false'}
               onFocus={() => setFocusIdx(0)}
-              className={`tv-focusable w-full rounded-xl bg-black/40 text-white border px-3 py-2 font-nunito text-sm resize-none focus:outline-none ${
-                focusIdx === 0
-                  ? 'border-brand-gold ring-2 ring-brand-gold'
-                  : 'border-white/20'
-              }`}
+              className="tv-ring w-full rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm resize-none focus:outline-none"
             />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 data-focused={focusIdx === 1 ? 'true' : 'false'}
                 onMouseEnter={() => setFocusIdx(1)}
                 onClick={() => void submit('Other', note)}
                 disabled={submitting}
-                className={`tv-focusable flex-1 px-4 py-2.5 rounded-xl font-nunito font-semibold transition-transform duration-150 flex items-center justify-center gap-2 ${
+                className={`tv-ring tv-ring-contrast flex-1 px-4 py-3 rounded-xl border border-brand-gold/40 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center justify-center gap-2 ${
                   focusIdx === 1
-                    ? 'bg-brand-gold/30 ring-2 ring-brand-gold scale-[1.02] shadow-[0_0_14px_rgba(245,200,80,0.4)]'
-                    : 'bg-brand-gold/15 border border-brand-gold/40'
+                    ? 'bg-brand-gold/30 scale-[1.02] z-10'
+                    : 'bg-brand-gold/15'
                 }`}
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -404,10 +400,10 @@ const ReportChannelDialog = memo(({
                 onMouseEnter={() => setFocusIdx(2)}
                 onClick={onClose}
                 disabled={submitting}
-                className={`tv-focusable px-4 py-2.5 rounded-xl font-nunito transition-transform duration-150 ${
+                className={`tv-ring px-4 py-3 rounded-xl border border-white/10 font-nunito transition-transform duration-150 ease-out ${
                   focusIdx === 2
-                    ? 'bg-white/15 ring-2 ring-white/60 scale-[1.02]'
-                    : 'bg-white/5 border border-white/10'
+                    ? 'bg-white/15 scale-105 z-10'
+                    : 'bg-white/5'
                 }`}
               >
                 Cancel
@@ -416,7 +412,7 @@ const ReportChannelDialog = memo(({
           </div>
         )}
 
-        <p className="mt-4 text-[11px] text-brand-ice/50 font-nunito">
+        <p className="mt-4 text-xs text-brand-ice/60 font-nunito">
           Long-press OK or press the Menu key on a channel to open this.
         </p>
       </div>

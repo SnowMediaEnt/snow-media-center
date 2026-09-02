@@ -54,7 +54,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900/90 border border-white/10 p-8 text-center shadow-2xl">
         <div className="w-16 h-16 rounded-2xl bg-brand-gold/20 flex items-center justify-center mx-auto mb-5">
-          {status === 'unreachable' ? <WifiOff className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
+          {status === 'unreachable' ? <WifiOff className="w-9 h-9 text-brand-gold" /> : status === 'error' ? <AlertTriangle className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
         </div>
 
         {(status === 'signed-out') && (
@@ -63,13 +63,13 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
             <p className="text-brand-ice/80 font-nunito mb-2">
               Most members: press Sign in to get a code, then <span className="text-brand-gold font-semibold">SEND THE CODE TO YOUR PROVIDER</span> — they link this device for you.
             </p>
-            <p className="text-brand-ice/60 font-nunito text-sm mb-6">
+            <p className="text-brand-ice/70 font-nunito text-sm mb-6">
               Only enter the code at plex.tv/link yourself if you run your OWN Plex server.
             </p>
-            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-focusable home-focus-surface px-8">
+            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
               <LogIn className="w-4 h-4 mr-2" /> Sign in with Plex
             </Button>
-            <p className="text-brand-ice/50 font-nunito text-xs mt-4 max-w-sm mx-auto">
+            <p className="text-brand-ice/70 font-nunito text-sm mt-4 max-w-sm mx-auto">
               Using your provider's Plex? Message them first — the sign-in code expires about 10 minutes after you press Sign in.
             </p>
           </>
@@ -81,16 +81,16 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
             <p className="text-brand-ice/70 font-nunito mb-4">
               On your phone or computer, go to <span className="text-brand-gold font-semibold">plex.tv/link</span> and enter this code:
             </p>
-            <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-5 mb-4 select-all">
+            <div className="text-5xl font-quicksand font-black tracking-[0.3em] text-white bg-black/40 rounded-2xl py-6 mb-4 select-all">
               {pinCode || '····'}
             </div>
             <div className="flex items-center justify-center gap-2 text-brand-ice/70 font-nunito text-sm mb-3">
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Waiting for you to sign in…
             </div>
-            <p className="text-brand-ice/60 font-nunito text-xs mb-6 max-w-sm mx-auto">
+            <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
               Send this code to your provider now — codes expire in about 10 minutes. Only enter it at plex.tv/link yourself if the Plex server is your own.
             </p>
-            <Button variant="white" autoFocus data-focused="true" onClick={onCancel} className="tv-focusable home-focus-surface px-6">
+            <Button variant="white" autoFocus data-focused="true" onClick={onCancel} className="tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out scale-105 z-10">
               Cancel
             </Button>
           </>
@@ -106,18 +106,18 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
 
         {status === 'unreachable' && (
           <>
-            <h2 className="text-xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
             <p className="text-brand-ice/80 font-nunito text-sm mb-4">{error || 'Your Plex server did not respond.'}</p>
-            <p className="text-brand-ice/70 font-nunito text-xs mb-6 max-w-sm mx-auto">
+            <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
               Wrong account? If you signed in with your personal Plex account by mistake, sign out and send your provider the new code instead.
             </p>
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}
-                className={`tv-focusable home-focus-surface px-6 ${focusIdx === 0 ? 'scale-105' : ''}`}>
+                className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
                 Retry connection
               </Button>
               <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onSignOut}
-                className={`tv-focusable home-focus-surface px-6 ${focusIdx === 1 ? 'scale-105' : ''}`}>
+                className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
                 Sign out of Plex
               </Button>
             </div>
@@ -126,10 +126,9 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
 
         {status === 'error' && (
           <>
-            <AlertTriangle className="w-10 h-10 text-brand-gold mx-auto mb-3" />
-            <h2 className="text-xl font-quicksand font-bold mb-2">Plex connection problem</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">Plex connection problem</h2>
             <p className="text-brand-ice/80 font-nunito text-sm mb-6">{error || 'Something went wrong.'}</p>
-            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-focusable home-focus-surface px-8">
+            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
               Try again
             </Button>
           </>

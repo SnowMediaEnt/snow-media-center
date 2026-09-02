@@ -317,11 +317,11 @@ const PinnedAppsPopup = ({
   return (
     <>
       <div className="absolute bottom-full left-0 mb-3 z-50">
-        <Card className="bg-slate-900/95 border-2 border-brand-gold/60 shadow-[0_0_30px_rgba(255,200,80,0.35)] p-3">
+        <Card className="rounded-2xl bg-slate-900/95 border-2 border-brand-gold/60 p-4">
           {/* Header */}
-          <div className="flex items-center gap-2 mb-3">
-            <Pin className="w-4 h-4 text-brand-gold" />
-            <span className="text-sm font-semibold text-white">Pinned Apps</span>
+          <div className="flex items-center gap-2 mb-6">
+            <Pin className="w-5 h-5 text-brand-gold" />
+            <span className="text-base font-semibold text-white">Pinned Apps</span>
             <Badge variant="secondary" className="bg-brand-gold/20 text-brand-gold border-brand-gold/30 text-xs">
               {pinnedApps.length}/4
             </Badge>
@@ -400,14 +400,14 @@ const PinnedAppsPopup = ({
                     title={installed ? 'Tap to launch · Hold to change' : 'Not installed — tap to download · Hold to change'}
                     data-focused={isFocused ? 'true' : 'false'}
                     className={`
-                      tv-focusable home-focus-surface
-                      relative flex-shrink-0 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 
+                      home-focus-surface
+                      relative flex-shrink-0 p-2 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80
                       border-2 ${installed ? 'border-slate-600 hover:border-brand-ice/50' : 'border-slate-700/70 hover:border-amber-500/60'}
-                      transition-all duration-150 group cursor-pointer
+                      transition-transform duration-150 ease-out group cursor-pointer
                       ${isFocused ? 'brightness-125 z-10' : ''}
                     `}
                   >
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-2">
                       <div className={`relative w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform ${installed ? '' : 'grayscale opacity-60'}`}>
                         <img 
                           src={pinnedApp.icon || iconFallback(pinnedApp.name)} 
@@ -426,7 +426,7 @@ const PinnedAppsPopup = ({
                           </div>
                         )}
                       </div>
-                      <span className={`text-xs text-center font-medium line-clamp-1 w-full ${installed ? 'text-white' : 'text-amber-200/90'}`}>
+                      <span className={`text-sm text-center font-medium line-clamp-1 w-full ${installed ? 'text-white' : 'text-amber-200/90'}`}>
                         {installed ? pinnedApp.name : 'Install'}
                       </span>
                     </div>
@@ -445,18 +445,18 @@ const PinnedAppsPopup = ({
                     }}
                     data-focused={isFocused ? 'true' : 'false'}
                     className={`
-                      tv-focusable home-focus-surface
-                      flex-shrink-0 p-2 rounded-xl bg-slate-800/30 hover:bg-slate-700/50 
-                      border-2 border-dashed border-slate-600 hover:border-brand-gold/50 
-                      transition-all duration-150 group cursor-pointer
+                      home-focus-surface
+                      relative flex-shrink-0 p-2 rounded-2xl bg-slate-800/30 hover:bg-slate-700/50
+                      border-2 border-dashed border-slate-600 hover:border-brand-gold/50
+                      transition-transform duration-150 ease-out group cursor-pointer
                       ${isFocused ? 'brightness-125 z-10' : ''}
                     `}
                   >
-                    <div className="flex flex-col items-center justify-center gap-1.5">
+                    <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center bg-slate-700/30 group-hover:bg-brand-gold/20 transition-colors">
                         <Plus className="w-6 h-6 text-slate-500 group-hover:text-brand-gold transition-colors" />
                       </div>
-                      <span className="text-xs text-slate-500 group-hover:text-brand-gold transition-colors">
+                      <span className="text-sm text-slate-400 group-hover:text-brand-gold transition-colors">
                         Add
                       </span>
                     </div>
@@ -473,7 +473,7 @@ const PinnedAppsPopup = ({
 
       {/* App Selector Dialog */}
       <Dialog open={showAppSelector} onOpenChange={(open) => { setShowAppSelector(open); if (open) setSelectorFocusIndex(0); else setEditingSlotIndex(null); }}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-md max-h-[85vh] flex flex-col">
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-md max-h-[85vh] flex flex-col sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Pin className="w-5 h-5 text-brand-gold" />
@@ -481,7 +481,7 @@ const PinnedAppsPopup = ({
             </DialogTitle>
           </DialogHeader>
           <div
-            className="grid grid-cols-2 gap-3 mt-4 overflow-y-auto pr-1 flex-1"
+            className="grid grid-cols-2 gap-3 mt-1 p-1 overflow-y-auto flex-1"
             onKeyDown={(e) => {
               const cols = 2;
               const total = allSelectableApps.length;
@@ -523,15 +523,16 @@ const PinnedAppsPopup = ({
                     e.stopPropagation();
                     handleSelectApp(app);
                   }}
+                  data-focused={isFocused ? 'true' : 'false'}
                   className={`
-                    p-3 rounded-xl border transition-all duration-150 text-left
+                    tv-ring p-3 rounded-xl border transition-transform duration-150 ease-out text-left
                     ${isAppPinned
                       ? 'bg-brand-gold/20 border-brand-gold'
                       : installedOnDevice
                         ? 'bg-slate-800 border-slate-600 hover:border-brand-ice/50'
                         : 'bg-slate-800/40 border-slate-700/70 hover:border-amber-500/60'
                     }
-                    ${isFocused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_24px_rgba(255,200,80,0.7)] z-10' : ''}
+                    ${isFocused ? 'scale-105 z-10' : ''}
                   `}
                 >
                   <div className="flex items-center gap-3">
@@ -573,7 +574,7 @@ const PinnedAppsPopup = ({
             })}
 
           </div>
-          <p className="text-xs text-slate-500 text-center mt-4">
+          <p className="text-xs text-brand-ice/60 text-center mt-4">
             {canPinMore 
               ? `You can pin ${4 - pinnedApps.length} more app${4 - pinnedApps.length !== 1 ? 's' : ''}`
               : 'Maximum 4 apps pinned. Unpin one to add more.'

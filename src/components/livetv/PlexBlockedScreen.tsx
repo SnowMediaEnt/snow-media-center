@@ -72,11 +72,11 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
     );
   }
 
-  const focusedCls = 'ring-brand-ice scale-105';
+  const focusedCls = 'scale-105 z-10';
 
   return (
     <div className="flex-1 min-h-0 flex items-center justify-center p-8 text-white bg-black/60">
-      <div className="max-w-xl w-full rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-red-500/60 shadow-[0_0_60px_rgba(239,68,68,0.35)] ring-4 ring-red-500/25 p-8 text-center">
+      <div className="max-w-xl w-full rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-red-500/60 p-8 text-center">
         <div className="w-16 h-16 mx-auto rounded-2xl bg-red-500/20 flex items-center justify-center mb-4">
           <ShieldAlert className="w-9 h-9 text-red-300" />
         </div>
@@ -93,7 +93,7 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
               variant="gold"
               onClick={openRenew}
               data-focused={focusIdx === 0 ? 'true' : 'false'}
-              className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 0 ? focusedCls : ''}`}
+              className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : ''}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Renew now
             </Button>
@@ -103,7 +103,7 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
             variant={showRenew ? 'white' : 'gold'}
             onClick={onBack}
             data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
-            className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
+            className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${showRenew ? '' : 'tv-ring-contrast'} ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
           >
             OK
           </Button>

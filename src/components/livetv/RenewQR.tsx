@@ -70,7 +70,8 @@ const RenewQR = memo(({ username, serverLabel, onBack }: Props) => {
         ref={backRef}
         variant="white"
         onClick={onBack}
-        className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 focus:ring-brand-ice focus:scale-105 transition tv-focusable home-focus-surface"
+        data-focused="true"
+        className="min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out scale-105 z-10"
       >
         <ArrowLeft className="w-4 h-4 mr-2" /> Back
       </Button>

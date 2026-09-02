@@ -1072,10 +1072,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 Now: {playingNowNext.now.title}{playingNowNext.next ? ` · Next: ${playingNowNext.next.title}` : ''}
               </p>
             )}
-            <p className="mt-5 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
+            <p className="mt-6 px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
               Demo mode — playback is disabled
             </p>
-            <p className="mt-2 text-brand-ice/60 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
@@ -1095,7 +1095,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             block it — just say why there's no sound, and name the codec so
             support can act on it instead of guessing. */}
         {NATIVE_PLAYBACK && native.audioWarning && !native.error && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-lg bg-black/85 px-4 py-3 text-center">
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 max-w-lg rounded-2xl bg-black/85 px-5 py-3 text-center">
             <p className="font-quicksand font-semibold text-brand-gold text-sm">
               No sound on this channel
             </p>
@@ -1112,12 +1112,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="text-xl font-quicksand font-semibold mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button
               onClick={() => native.retry()}
               autoFocus
-              className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+              data-focused="true"
+              className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold scale-105 z-10"
             >
               <RotateCw className="w-4 h-4" /> Retry
             </button>
@@ -1146,7 +1147,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         />
         {/* Volume hint while bar is hidden */}
         {!barVisible && volPillShown && (
-          <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
+          <div className="absolute bottom-4 right-6 px-3 py-2 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
             Vol {Math.round(volume * 100)}%
           </div>
         )}
@@ -1164,7 +1165,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
-          className="tv-focusable w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-black/40 border border-white/10 text-brand-ice font-nunito text-sm"
+          className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
           {searchOpen ? 'Close search' : 'Search channels'}
@@ -1181,13 +1182,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               else if (e.key === 'Escape')  { e.preventDefault(); e.currentTarget.blur(); setSearchFocused(true); }
             }}
             placeholder="Type to search…"
-            className="tv-focusable w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+            className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
         )}
         {!searchOpen && (
           <>
             {categoriesLoading && categories.length === 0 && (
-              <div className="px-3 py-2 text-brand-ice/60 font-nunito text-sm flex items-center gap-2">
+              <div className="px-3 py-2 text-brand-ice/70 font-nunito text-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
               </div>
             )}
@@ -1228,8 +1229,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         paddingBottom: 4, // matches space-y-1 gap so heights are stable
                       }}
                       className={`
-                        flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-transform duration-150
-                        ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-[1.03] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : ''}
+                        tv-ring flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer
+                        ${isFocused ? 'bg-brand-gold/25 z-10' : ''}
                         ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
                         ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
                       `}
@@ -1238,7 +1239,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && c.count != null && c.count > 0 && (
-                        <span className={`text-[10px] font-nunito tabular-nums px-1.5 py-0.5 rounded-md ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/60'}`}>
+                        <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
                           {c.count}
                         </span>
                       )}
@@ -1259,7 +1260,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               // Preview <video> is disabled on Fire TV and low-memory / legacy
               // WebView devices — each <video> spawns a WebMediaPlayer that
               // saturates the compositor thread and freezes the UI.
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
+              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
                 {focusedChannel ? 'Press OK to play' : 'No channel selected'}
               </div>
             ) : previewUrl ? (
@@ -1267,7 +1268,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
               </Suspense>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">
+              <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
                 {focusedChannel ? 'Preview loading…' : 'No channel selected'}
               </div>
             )}
@@ -1283,22 +1284,22 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 {focusedNowNext?.now ? (
                   <>
                     <p className="text-brand-ice/90 font-nunito truncate mt-1">Now: {focusedNowNext.now.title}</p>
-                    <p className="text-xs text-brand-ice/60 font-nunito mt-0.5">
+                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
                       {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
                     </p>
                   </>
                 ) : (
-                  <p className="text-brand-ice/60 font-nunito mt-1 text-sm">No program info available</p>
+                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">No program info available</p>
                 )}
                 {focusedNowNext?.next && (
                   <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">
                     Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
                   </p>
                 )}
-                <p className="text-xs text-brand-ice/50 font-nunito mt-3">Press Enter to play · F to favorite</p>
+                <p className="text-xs text-brand-ice/60 font-nunito mt-4">Press Enter to play · F to favorite</p>
               </>
             ) : (
-              <p className="text-brand-ice/60 font-nunito">
+              <p className="text-brand-ice/70 font-nunito">
                 {channelsLoading ? 'Loading channels…' : 'No channel focused'}
               </p>
             )}
@@ -1311,17 +1312,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             <div className="space-y-1">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
-                  <div className="w-8 h-4 rounded bg-white/10" />
+                  <div className="w-8 h-4 rounded-full bg-white/10" />
                   <div className="w-14 h-14 rounded-lg bg-white/10" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 w-1/2 rounded bg-white/10" />
-                    <div className="h-3 w-2/3 rounded bg-white/5" />
+                    <div className="h-4 w-1/2 rounded-full bg-white/10" />
+                    <div className="h-3 w-2/3 rounded-full bg-white/5" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visibleChannels.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-center px-6">
+            <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-center px-6">
               {searchOpen
                 ? (searchQuery
                     ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')

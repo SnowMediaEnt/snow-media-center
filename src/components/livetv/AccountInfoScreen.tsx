@@ -88,7 +88,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
   if (!account) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white bg-black/70">
-        <Card className="p-6 bg-slate-900/80 border-slate-700 text-center">
+        <Card className="rounded-2xl p-6 bg-slate-900/80 border-slate-700 text-center">
           <p className="text-white/80 mb-4">No player account on this device.</p>
           <BackButton onClick={onBack} label="Back" />
         </Card>
@@ -99,7 +99,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
   if (showQR) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white bg-black/70 p-6">
-        <Card className="bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-8 shadow-xl">
+        <Card className="rounded-3xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-8 shadow-xl">
           <RenewQR username={account.username} serverLabel={account.serverLabel} onBack={() => setShowQR(false)} />
         </Card>
       </div>
@@ -134,7 +134,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     )},
     { label: 'Expires',   icon: Calendar, value: (
       <span><span className="font-medium">{fmtDay(expMs)}</span>
-        <span className={`ml-2 text-xs font-semibold ${daysColor}`}>({daysLabel})</span>
+        <span className={`ml-2 text-sm font-semibold ${daysColor}`}>({daysLabel})</span>
       </span>
     )},
     { label: 'Trial',     icon: ShieldCheck, value: account.isTrial ? 'Yes' : 'No' },
@@ -142,14 +142,14 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     { label: 'Created',   icon: Clock,  value: fmtDate(createdMs) },
     { label: 'Server',    icon: Server, value: (
       <span>{account.serverLabel}
-        <span className="ml-2 text-white/50 text-xs break-all">{account.host}</span>
+        <span className="ml-2 text-white/70 text-xs break-all">{account.host}</span>
       </span>
     )},
   ];
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
         <div className="flex items-center gap-3">
           <BackButton
             onClick={onBack}
@@ -167,8 +167,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             variant="white"
             size="sm"
             onClick={() => setShowPwd(v => !v)}
-            data-player-header-btn="" data-focused={focusIdx === 1 ? "true" : "false"}
-            className={`tv-focusable transition-all duration-150 ${focusIdx === 1 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+            data-focused={focusIdx === 1 ? "true" : "false"}
+            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}
           >
             {showPwd ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
             {showPwd ? 'Hide' : 'Show'} password
@@ -177,8 +177,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             variant="white"
             size="sm"
             onClick={onChangeCredentials}
-            data-player-header-btn="" data-focused={focusIdx === 2 ? "true" : "false"}
-            className={`tv-focusable transition-all duration-150 ${focusIdx === 2 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+            data-focused={focusIdx === 2 ? "true" : "false"}
+            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 2 ? 'scale-105 z-10' : ''}`}
           >
             <KeyRound className="w-4 h-4 mr-2" /> Change credentials
           </Button>
@@ -187,8 +187,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
               variant="white"
               size="sm"
               onClick={openRenew}
-              data-player-header-btn="" data-focused={focusIdx === 3 ? "true" : "false"}
-              className={`tv-focusable transition-all duration-150 ${focusIdx === 3 ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+              data-focused={focusIdx === 3 ? "true" : "false"}
+              className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === 3 ? 'scale-105 z-10' : ''}`}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Renew
             </Button>
@@ -197,8 +197,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
             variant="white"
             size="sm"
             onClick={onSignOut}
-            data-player-header-btn="" data-focused={focusIdx === signOutIdx ? "true" : "false"}
-            className={`tv-focusable transition-all duration-150 ${focusIdx === signOutIdx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+            data-focused={focusIdx === signOutIdx ? "true" : "false"}
+            className={`tv-ring rounded-xl h-12 px-4 transition-transform duration-150 ease-out ${focusIdx === signOutIdx ? 'scale-105 z-10' : ''}`}
           >
             <LogOut className="w-4 h-4 mr-2" /> Sign out
           </Button>
@@ -207,7 +207,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
 
 
       <div className="flex-1 overflow-auto p-6 flex items-start justify-center">
-        <Card className="w-full max-w-3xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
+        <Card className="w-full max-w-3xl rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 p-6 shadow-xl">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
             {rows.map((r) => {
               const Icon = r.icon;
@@ -215,7 +215,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
                 <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
                   <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase tracking-wide text-white/50 mb-1">{r.label}</div>
+                    <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>
                     <div className="text-base text-white font-medium">{r.value}</div>
                   </div>
                 </div>

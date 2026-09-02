@@ -124,7 +124,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}
           label="Back"
@@ -145,13 +145,12 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
             return (
               <div
                 key={m.id}
-                data-player-header-btn=""
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setMenuIdx(i + 1); activate(m.id); }}
-                className={`tv-focusable flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer transition-all duration-150 ${focused ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : ''}`}
+                className={`tv-ring flex items-center gap-4 rounded-xl px-5 py-4 bg-slate-900/70 border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : ''}`}
               >
                 <Icon className="w-6 h-6 text-brand-gold shrink-0" />
-                <span className="text-lg font-quicksand font-semibold">{m.label}</span>
+                <span className="text-xl font-quicksand font-semibold">{m.label}</span>
               </div>
             );
           })}

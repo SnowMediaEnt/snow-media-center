@@ -26,11 +26,11 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
       onMouseEnter={onFocus}
       onClick={onActivate}
       className={`
-        relative rounded-xl overflow-hidden cursor-pointer
+        tv-ring relative rounded-2xl overflow-hidden cursor-pointer
         transition-transform duration-200 ease-out will-change-transform
         bg-black/40 border border-white/10
         ${isFocused
-          ? 'ring-2 ring-brand-gold scale-[1.08] shadow-[0_0_28px_4px_rgba(245,200,80,0.45)] z-10'
+          ? 'scale-[1.08] z-10'
           : 'hover:scale-[1.02]'}
       `}
       style={{ aspectRatio: '2 / 3' }}
@@ -57,7 +57,7 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
       )}
 
       {showRating && (
-        <span className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-[10px] font-nunito text-brand-gold font-semibold">
+        <span className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/75 text-xs font-nunito text-brand-gold font-semibold">
           <Star className="w-3 h-3 fill-brand-gold" /> {ratingNum!.toFixed(1)}
         </span>
       )}
@@ -70,12 +70,12 @@ const PosterCard = memo(({ title, image, rating, year, isFocused, variant = 'mov
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/95 via-black/70 to-transparent">
+      <div className="absolute inset-x-0 bottom-0 py-2 px-3 bg-gradient-to-t from-black/95 via-black/70 to-transparent">
         <p className={`text-xs sm:text-sm font-quicksand font-semibold line-clamp-2 leading-tight ${isFocused ? 'text-brand-gold' : 'text-white'}`}>
           {title}
         </p>
         {year && (
-          <p className="text-[10px] text-brand-ice/70 font-nunito mt-0.5">{year}</p>
+          <p className="text-xs text-brand-ice/70 font-nunito mt-1">{year}</p>
         )}
       </div>
     </div>

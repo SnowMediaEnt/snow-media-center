@@ -409,7 +409,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             <p className="px-3 py-1 rounded-full bg-brand-gold/20 border border-brand-gold/40 text-brand-gold text-xs font-nunito font-semibold tracking-widest uppercase">
               Demo mode — playback is disabled
             </p>
-            <p className="mt-2 text-brand-ice/60 font-nunito text-xs max-w-md">{DEMO_DIALOG_MSG}</p>
+            <p className="mt-2 text-brand-ice/70 font-nunito text-sm max-w-md">{DEMO_DIALOG_MSG}</p>
           </div>
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
@@ -423,12 +423,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
-            <p className="font-quicksand font-semibold mb-1">Playback Error</p>
+            <p className="font-quicksand font-semibold text-xl mb-1">Playback Error</p>
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
             <button
               onClick={() => native.retry()}
               autoFocus
-              className="tv-focusable home-focus-surface flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold focus:outline-none focus:ring-4 focus:ring-brand-gold/60"
+              data-focused="true"
+              className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold"
             >
               <RotateCw className="w-4 h-4" /> Retry
             </button>
@@ -437,7 +438,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
           <div className="flex items-center gap-3">
             {playingChannel?.stream_icon
-              ? <img src={playingChannel.stream_icon} alt="" className="w-12 h-12 rounded bg-black/40 object-contain" />
+              ? <img src={playingChannel.stream_icon} alt="" className="w-12 h-12 rounded-lg bg-black/40 object-contain" />
               : <Tv className="w-8 h-8 text-brand-gold" />}
             <div className="min-w-0">
               <p className="font-quicksand font-bold text-white truncate">{playingChannel?.name || ''}</p>
@@ -445,7 +446,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             </div>
           </div>
         </div>
-        <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
+        <div className="absolute bottom-4 right-6 px-3 py-2 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
           Vol {Math.round(volume * 100)}% · Back to exit
         </div>
       </div>
@@ -464,13 +465,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Category selector row */}
       <div className={`flex-shrink-0 border-b border-white/10 bg-black/40 px-3 py-2 ${focusZone === 'category' && isActive ? 'bg-white/5' : ''}`}>
         {categoriesLoading && categories.length === 0 ? (
-          <div className="flex items-center gap-2 text-brand-ice/60 font-nunito text-sm px-2 py-1">
+          <div className="flex items-center gap-2 text-brand-ice/70 font-nunito text-sm px-2 py-1">
             <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Loading categories…
           </div>
         ) : categories.length === 0 ? (
-          <div className="text-brand-ice/60 font-nunito text-sm px-2 py-1">No categories.</div>
+          <div className="text-brand-ice/70 font-nunito text-sm px-2 py-1">No categories.</div>
         ) : (
-          <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+          <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 px-2 -mx-2">
             {categories.map((c, i) => {
               const isFocused = isActive && focusZone === 'category' && categoryIdx === i;
               const isSelected = categoryIdx === i;
@@ -481,10 +482,8 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => { setCategoryIdx(i); setFocusZone('grid'); }}
                   className={`
-                    tv-focusable flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-nunito transition-transform duration-150
-                    ${isFocused ? 'bg-brand-gold/25 ring-2 ring-brand-gold scale-105 shadow-[0_0_14px_rgba(245,200,80,0.35)] text-white' : ''}
-                    ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30 text-white' : 'border border-transparent text-brand-ice'}
-                    ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                    tv-ring flex-shrink-0 px-3 py-2 rounded-lg border text-sm font-nunito transition-transform duration-150
+                    ${isFocused ? 'bg-brand-gold/25 border-transparent text-white scale-105 z-10' : isSelected ? 'bg-white/10 border-brand-gold/30 text-white' : 'border-transparent text-brand-ice hover:bg-white/5'}
                   `}
                 >
                   {c.category_name}
@@ -497,7 +496,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
 
       {/* Time header */}
       <div
-        className="flex-shrink-0 border-b border-white/10 bg-black/50 flex"
+        className="flex-shrink-0 border-b border-white/10 bg-black/50 flex px-3"
         style={{ height: TIME_HEADER_HEIGHT }}
       >
         <div
@@ -505,7 +504,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
           style={{ width: CHANNEL_COL_WIDTH }}
         >
           <span>Channel</span>
-          <span className={canGoEarlier ? 'text-brand-gold' : 'opacity-40'}>◀ earlier</span>
+          <span className={canGoEarlier ? 'text-brand-gold' : 'opacity-50'}>◀ earlier</span>
         </div>
         <div className="flex-1 relative">
           {slotStarts.map((s, i) => (
@@ -529,14 +528,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       {/* Grid body */}
       <div
         ref={scrollParentRef}
-        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
+        className={`flex-1 min-h-0 px-3 overflow-y-auto overflow-x-hidden ${focusZone === 'grid' && isActive ? 'bg-white/[0.02]' : ''}`}
       >
         {channelsLoading && channels.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm gap-2">
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading channels…
           </div>
         ) : channels.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm">
+          <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm">
             No channels in this category.
           </div>
         ) : (
@@ -550,7 +549,6 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               return (
                 <div
                   key={v.key}
-                  data-focused={isFocused ? 'true' : 'false'}
                   onClick={() => { setRowIdx(v.index); playRow(v.index); }}
                   style={{
                     position: 'absolute',
@@ -559,13 +557,15 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                     width: '100%',
                     height: ROW_HEIGHT,
                     transform: `translateY(${v.start}px)`,
-                    padding: '3px 0',
+                    padding: '4px 0',
                   }}
                   className="cursor-pointer"
                 >
-                  <div className={`
-                    h-full flex rounded-lg transition-transform duration-150
-                    ${isFocused ? 'bg-brand-gold/15 ring-2 ring-brand-gold scale-[1.01] shadow-[0_0_14px_rgba(245,200,80,0.35)]' : 'bg-black/30 border border-white/5'}
+                  <div
+                    data-focused={isFocused ? 'true' : 'false'}
+                    className={`
+                    tv-ring h-full flex rounded-xl border transition-transform duration-150
+                    ${isFocused ? 'bg-brand-gold/15 border-transparent scale-[1.01] z-10' : 'bg-black/30 border-white/10'}
                   `}>
                     {/* Channel cell */}
                     <div
@@ -573,11 +573,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       style={{ width: CHANNEL_COL_WIDTH }}
                     >
                       {ch.stream_icon
-                        ? <img src={ch.stream_icon} alt="" loading="lazy" className="w-10 h-10 object-contain rounded bg-black/40 flex-shrink-0" />
+                        ? <img src={ch.stream_icon} alt="" loading="lazy" className="w-10 h-10 object-contain rounded-lg bg-black/40 flex-shrink-0" />
                         : <Tv className="w-8 h-8 text-brand-ice/60 flex-shrink-0" />}
                       <div className="min-w-0">
                         {ch.num != null && (
-                          <div className="text-[10px] font-nunito text-brand-ice/60 tabular-nums leading-tight">#{ch.num}</div>
+                          <div className="text-xs font-nunito text-brand-ice/70 tabular-nums leading-tight">#{ch.num}</div>
                         )}
                         <div className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{ch.name}</div>
                       </div>
@@ -585,12 +585,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                     {/* Program lane */}
                     <div className="flex-1 relative">
                       {!programs && (
-                        <div className="absolute inset-0 flex items-center justify-center text-brand-ice/40 font-nunito text-xs">
+                        <div className="absolute inset-0 flex items-center justify-center text-brand-ice/70 font-nunito text-xs">
                           <Loader2 className="w-3 h-3 animate-spin mr-2" /> EPG…
                         </div>
                       )}
                       {programs && visible.length === 0 && (
-                        <div className="absolute inset-0 flex items-center px-3 text-brand-ice/40 font-nunito text-xs">
+                        <div className="absolute inset-0 flex items-center px-3 text-brand-ice/70 font-nunito text-xs">
                           No listings
                         </div>
                       )}
@@ -603,14 +603,14 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         return (
                           <div
                             key={i}
-                            style={{ left: `${left}%`, width: `${width}%` }}
+                            style={{ left: `calc(${left}% + 2px)`, width: `calc(${width}% - 4px)` }}
                             className={`
-                              absolute top-1 bottom-1 rounded px-2 flex flex-col justify-center overflow-hidden border
+                              absolute top-1 bottom-1 rounded-lg px-2 flex flex-col justify-center overflow-hidden border
                               ${isNow ? 'bg-brand-gold/25 border-brand-gold/50' : 'bg-white/5 border-white/10'}
                             `}
                           >
-                            <div className="text-xs font-quicksand font-semibold text-white truncate leading-tight">{p.title}</div>
-                            <div className="text-[10px] font-nunito text-brand-ice/60 truncate leading-tight">
+                            <div className="text-sm font-quicksand font-semibold text-white truncate leading-tight">{p.title}</div>
+                            <div className="text-xs font-nunito text-brand-ice/70 truncate leading-tight">
                               {formatSlot(p.start)}
                             </div>
                           </div>
@@ -630,7 +630,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       </div>
 
       {/* Hint bar */}
-      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-4 py-1.5 text-[11px] font-nunito text-brand-ice/60">
+      <div className="flex-shrink-0 border-t border-white/10 bg-black/40 px-3 py-2 text-xs font-nunito text-brand-ice/60">
         ◀ ▶ shift time · ▲ ▼ channel · OK to play · Back to exit
       </div>
     </div>

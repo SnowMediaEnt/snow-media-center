@@ -311,7 +311,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   if (guestMode) {
     const guestRing = (idx: number) =>
-      focusedElement === idx ? 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110' : '';
+      focusedElement === idx ? 'scale-105 z-10' : '';
     return (
       <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
         <div className={BACK_ROW}>
@@ -323,7 +323,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </div>
         <div className="max-w-4xl mx-auto pb-24">
           <div className="text-center mt-4 mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">My Account</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">My Account</h1>
             <p className="text-xl text-blue-200">
               {playerAccount
                 ? `Signed in to ${playerAccount.serverLabel} as ${playerAccount.username}`
@@ -332,7 +332,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </div>
 
           {/* Player Account — Dreamstreams / Vibez streaming login (local, same store the Player uses) */}
-          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6 mb-6">
+          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6 mb-6">
             <h2 className="text-2xl font-bold text-white mb-1">Player Account</h2>
             <p className="text-slate-400 text-sm mb-4">
               Your Dreamstreams / Vibez streaming login — the same one the Player uses.
@@ -344,7 +344,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 data-focused={focusedElement === 1 ? 'true' : 'false'}
                 data-dash-focus={focusedElement === 1 ? 'true' : 'false'}
                 onClick={() => onViewChange('account-signin')}
-                className={`tv-focusable transition-all duration-200 ${guestRing(1)}`}
+                className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(1)}`}
               >
                 <Tv className="w-5 h-5 mr-2" />
                 Sign in with Dreamstreams / Vibez
@@ -364,7 +364,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                     data-focused={focusedElement === 1 ? 'true' : 'false'}
                     data-dash-focus={focusedElement === 1 ? 'true' : 'false'}
                     onClick={() => setClaimOpen(true)}
-                    className={`tv-focusable transition-all duration-200 ${guestRing(1)}`}
+                    className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(1)}`}
                   >
                     <BellRing className="w-5 h-5 mr-2" />
                     Link email for renewal reminders
@@ -375,7 +375,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </Card>
 
           {/* Website account — optional Snow Media WEBSITE account (Supabase) */}
-          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
             <h2 className="text-2xl font-bold text-white mb-1">Website account</h2>
             <p className="text-slate-400 text-sm mb-4">
               Optional Snow Media WEBSITE account (email &amp; password) for purchases, support
@@ -388,7 +388,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 data-focused={focusedElement === 2 ? 'true' : 'false'}
                 data-dash-focus={focusedElement === 2 ? 'true' : 'false'}
                 onClick={() => navigate('/auth')}
-                className={`tv-focusable transition-all duration-200 ${guestRing(2)}`}
+                className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(2)}`}
               >
                 <LogIn className="w-5 h-5 mr-2" />
                 Sign in
@@ -399,7 +399,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 data-focused={focusedElement === 3 ? 'true' : 'false'}
                 data-dash-focus={focusedElement === 3 ? 'true' : 'false'}
                 onClick={() => navigate('/auth')}
-                className={`tv-focusable transition-all duration-200 ${guestRing(3)}`}
+                className={`tv-ring min-h-12 rounded-xl transition-transform duration-150 ease-out ${guestRing(3)}`}
               >
                 <UserPlus className="w-5 h-5 mr-2" />
                 Create free account
@@ -442,8 +442,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         <Button
           onClick={handleSignOut}
           variant="outline"
-          className={`bg-red-600 border-red-500 text-white hover:bg-red-700 transition-all duration-200 ${
-            focusedElement === 1 ? 'ring-4 ring-white/60 scale-105' : ''
+          data-focused={focusedElement === 1 ? 'true' : 'false'}
+          className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600 border-red-500 text-white hover:bg-red-700 transition-transform duration-150 ease-out ${
+            focusedElement === 1 ? 'scale-105 z-10' : ''
           }`}
         >
           <LogOut className="w-4 h-4 mr-2" />
@@ -453,14 +454,14 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
       <div className="max-w-6xl mx-auto pb-24">
         <div className="flex flex-col items-center mb-8">
           <div className="text-center mt-4">
-            <h1 className="text-4xl font-bold text-white mb-2">Your Dashboard</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Your Dashboard</h1>
             <p className="text-xl text-blue-200">Welcome back, {profile?.full_name || user?.email}</p>
           </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 p-6">
+          <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-green-100 text-sm font-medium">Available Snow Gems</p>
@@ -470,7 +471,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6">
+          <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm font-medium">Total Spent</p>
@@ -480,7 +481,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6">
+          <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-100 text-sm font-medium">Transactions</p>
@@ -496,8 +497,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           <Button 
             onClick={onCreditStore}
             size="lg"
-            className={`bg-green-600 hover:bg-green-700 text-white transition-all duration-200 ${
-              focusedElement === 2 ? 'ring-4 ring-white/60 scale-105' : ''
+            data-focused={focusedElement === 2 ? 'true' : 'false'}
+            className={`tv-ring min-h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white transition-transform duration-150 ease-out ${
+              focusedElement === 2 ? 'scale-105 z-10' : ''
             }`}
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -507,8 +509,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onCommunityChat}
             size="lg"
             variant="outline"
-            className={`bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 transition-all duration-200 ${
-              focusedElement === 3 ? 'ring-4 ring-white/60 scale-105' : ''
+            data-focused={focusedElement === 3 ? 'true' : 'false'}
+            className={`tv-ring min-h-12 rounded-xl bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 transition-transform duration-150 ease-out ${
+              focusedElement === 3 ? 'scale-105 z-10' : ''
             }`}
           >
             <MessageCircle className="w-5 h-5 mr-2" />
@@ -517,20 +520,22 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           <Button 
             onClick={onGames}
             size="lg"
-            className={`bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-all duration-200 ${
-              focusedElement === 4 ? 'ring-4 ring-white/60 scale-105' : ''
+            data-focused={focusedElement === 4 ? 'true' : 'false'}
+            className={`tv-ring min-h-12 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-transform duration-150 ease-out ${
+              focusedElement === 4 ? 'scale-105 z-10' : ''
             }`}
           >
             <Gamepad2 className="w-5 h-5 mr-2" />
             Games
-            <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-0.5 rounded-full">Soon</span>
+            <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-1 rounded-full">Soon</span>
           </Button>
           {giveawayOn && (
             <Button 
               onClick={onGiveaway}
               size="lg"
-              className={`bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition-all duration-200 ${
-                focusedElement === 5 ? 'ring-4 ring-white/60 scale-105' : ''
+              data-focused={focusedElement === 5 ? 'true' : 'false'}
+              className={`tv-ring min-h-12 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition-transform duration-150 ease-out ${
+                focusedElement === 5 ? 'scale-105 z-10' : ''
               }`}
             >
               <Gift className="w-5 h-5 mr-2" />
@@ -541,19 +546,21 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 bg-slate-800/50 border-slate-600 p-2">
+          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 rounded-2xl bg-slate-800/50 border-slate-600 p-2">
             <TabsTrigger 
               value="overview" 
-              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === TAB_BASE ? 'ring-4 ring-white/60 scale-105' : ''
+              data-focused={focusedElement === TAB_BASE ? 'true' : 'false'}
+              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+                focusedElement === TAB_BASE ? 'scale-[1.02] z-10' : ''
               }`}
             >
               Overview
             </TabsTrigger>
             <TabsTrigger 
               value="credits" 
-              className={`min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-all duration-200 ${
-                focusedElement === TAB_BASE + 1 ? 'ring-4 ring-white/60 scale-105' : ''
+              data-focused={focusedElement === TAB_BASE + 1 ? 'true' : 'false'}
+              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+                focusedElement === TAB_BASE + 1 ? 'scale-[1.02] z-10' : ''
               }`}
             >
               Snow Gems
@@ -561,11 +568,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsList>
 
           <TabsContent value="overview" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
               <h2 className="text-2xl font-bold text-white mb-4">Account Overview</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white">Profile Information</h3>
+                  <h3 className="text-xl font-semibold text-white">Profile Information</h3>
                   <div className="space-y-2">
                     <p className="text-slate-300"><span className="font-medium">Name:</span> {profile?.full_name || 'Not set'}</p>
                     <p className="text-slate-300"><span className="font-medium">Email:</span> {profile?.email || user?.email}</p>
@@ -573,7 +580,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white">Account Stats</h3>
+                  <h3 className="text-xl font-semibold text-white">Account Stats</h3>
                   <div className="space-y-2">
                     <p className="text-slate-300"><span className="font-medium">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
                     <p className="text-slate-300"><span className="font-medium">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
@@ -583,7 +590,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* Player Account */}
               <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
-                <h3 className="text-lg font-semibold text-white mb-3">Player Account</h3>
+                <h3 className="text-xl font-semibold text-white mb-5">Player Account</h3>
                 {!playerAccount ? (
                   <div className="space-y-3">
                     <p className="text-slate-400 text-sm">
@@ -594,8 +601,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         variant="gold"
                         size="lg"
                         onClick={() => onViewChange('account-signin')}
-                        className={`tv-focusable transition-all duration-200 ${
-                          focusedElement === CLAIM_IDX ? 'ring-4 ring-brand-gold scale-105' : ''
+                        data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
+                        className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${
+                          focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
                         }`}
                       >
                         <Tv className="w-5 h-5 mr-2" />
@@ -617,8 +625,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         variant="gold"
                         size="lg"
                         onClick={() => setClaimOpen(true)}
-                        className={`tv-focusable transition-all duration-200 ${
-                          focusedElement === CLAIM_IDX ? 'ring-4 ring-brand-gold scale-105' : ''
+                        data-focused={focusedElement === CLAIM_IDX ? 'true' : 'false'}
+                        className={`tv-ring tv-ring-contrast min-h-12 rounded-xl transition-transform duration-150 ease-out ${
+                          focusedElement === CLAIM_IDX ? 'scale-105 z-10' : ''
                         }`}
                       >
                         <BellRing className="w-5 h-5 mr-2" />
@@ -631,12 +640,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* My Devices & Services */}
               <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-white">My Devices & Services</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-white">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
-                    className={`bg-blue-600 hover:bg-blue-700 transition-all duration-200 ${
-                      focusedElement === EDIT_IDX ? 'ring-4 ring-white/60 scale-105' : ''
+                    data-focused={focusedElement === EDIT_IDX ? 'true' : 'false'}
+                    className={`tv-ring min-h-12 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 transition-transform duration-150 ease-out ${
+                      focusedElement === EDIT_IDX ? 'scale-105 z-10' : ''
                     }`}
                     size="sm"
                   >
@@ -645,19 +655,19 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Devices</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Devices</p>
                     {myDevices.length === 0 ? (
                       <p className="text-slate-400 text-sm">No devices added yet.</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {myDevices.map(d => (
-                          <Badge key={d.id} className="bg-slate-700 text-white border border-slate-600">{d.device_type}</Badge>
+                          <Badge key={d.id} className="px-3 py-1 bg-slate-700 text-white border border-slate-600">{d.device_type}</Badge>
                         ))}
                       </div>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Services</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Services</p>
                     {myServices.length === 0 ? (
                       <p className="text-slate-400 text-sm">No services tracked yet.</p>
                     ) : (
@@ -687,7 +697,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
 
               <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
-                <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">Danger Zone</h3>
                 <p className="text-slate-400 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
                   
@@ -695,8 +705,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 <Button
                   variant="outline"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className={`bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-all duration-200 ${
-                    focusedElement === DELETE_IDX ? 'ring-4 ring-white/60 scale-105' : ''
+                  data-focused={focusedElement === DELETE_IDX ? 'true' : 'false'}
+                  className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600/20 hover:bg-red-600/40 border-red-500/60 text-white transition-transform duration-150 ease-out ${
+                    focusedElement === DELETE_IDX ? 'scale-105 z-10' : ''
                   }`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -707,7 +718,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsContent>
 
           <TabsContent value="credits" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 p-6">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
               <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
                 <Sparkles className="w-6 h-6 mr-2" />
                 Snow Gems & AI Usage
@@ -750,7 +761,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                             transaction.transaction_type === 'purchase' ? 'bg-green-600' :
                             transaction.transaction_type === 'deduction' ? 'bg-red-600' :
                             'bg-blue-600'
-                          } text-white`}
+                          } text-white px-3 py-1`}
                         >
                           {transaction.transaction_type}
                         </Badge>
@@ -795,9 +806,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
 
-        <AlertDialogContent className="bg-slate-900 border-red-500/50 text-white">
+        <AlertDialogContent className="rounded-3xl sm:rounded-3xl bg-slate-900 border-red-500/50 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete your account?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl text-white">Delete your account?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
               This permanently removes your Snow Media app account, profile, Snow Gems,
               chats, support tickets and media. This cannot be undone. Your separate
@@ -805,13 +816,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
+            <AlertDialogCancel disabled={deleting} className="min-h-12 px-5 rounded-xl bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
               onClick={handleDeleteAccount}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="min-h-12 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white"
             >
               {deleting ? 'Deleting…' : 'Yes, delete my account'}
             </AlertDialogAction>

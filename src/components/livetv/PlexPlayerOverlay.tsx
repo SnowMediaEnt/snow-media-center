@@ -406,12 +406,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   return (
     <>
-      <div className="absolute left-0 right-0 bottom-0 z-20 px-6 pt-16 pb-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
+      <div className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/70 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
-          <p className="font-quicksand font-bold text-white truncate mb-2">
+          <p className="text-xl font-quicksand font-bold text-white truncate mb-2">
             {title}
             {resolutionLabel && (
-              <span className={`ml-2 align-middle text-xs font-bold px-1.5 py-0.5 rounded-md bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
+              <span className={`ml-2 align-middle text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
             )}
           </p>
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
@@ -422,33 +422,33 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-5 h-5" /></button>
+            <button type="button" data-focused={row === 'seek-10' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek-10')}`} aria-label="Back 10 seconds"><Rewind className="w-6 h-6" /></button>
             <button type="button" data-focused={row === 'play' ? 'true' : 'false'} className={`${btnBase} w-16 h-16 ${focusVis('play')}`} aria-label="Play/Pause">
               {paused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
-            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-5 h-5" /></button>
-            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
-            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
-            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
-            <div className="flex flex-col items-center gap-0.5">
+            <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-6 h-6" /></button>
+            <div className="flex flex-col items-center gap-1">
               <button
                 type="button"
                 data-focused={btnFocused('volume')}
                 className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
                 aria-label="Volume"
               >
-                {volPct === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                {volPct === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
               </button>
               {row === 'volume' && (
                 <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
               )}
             </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
+            <div className="flex flex-col items-center gap-1">
+              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
               <span className="text-xs font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
           </div>
-          <p className="text-center text-xs text-brand-ice/70 font-nunito mt-2">
+          <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
             {row === 'buffering'
               ? 'Help — OK for support options'
               : row === 'volume'
@@ -464,7 +464,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Audio</p>
             <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
           </div>
-          {auds.length === 0 && <p className="text-xs text-brand-ice/70 px-3 py-2">No tracks</p>}
+          {auds.length === 0 && <p className="text-sm text-brand-ice/70 px-3 py-2">No tracks</p>}
           <div className="space-y-1">
             {auds.map((a, i) => (
               <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
@@ -549,16 +549,16 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </div>
           )}
           {!osdlLoading && osdlError && (
-            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/70">{osdlError}</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">{osdlError}</p>
           )}
           {!osdlLoading && !osdlError && osdlResults.length === 0 && (
-            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/70">No subtitles found.</p>
+            <p className="px-3 py-3 text-sm font-nunito text-brand-ice/70">No subtitles found.</p>
           )}
           <div className="space-y-1 px-1">
             {!osdlLoading && osdlResults.map((r, i) => (
               <div key={r.id}
                 data-focused={menuIdx === i ? 'true' : 'false'}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-xs flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
                 <span className="flex-1 truncate">{r.release || '—'}</span>
                 <span className="text-xs text-brand-ice/70 tabular-nums">{r.downloads}⬇</span>

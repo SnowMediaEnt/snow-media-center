@@ -78,16 +78,16 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
     : 'Reach out to Snow Media to renew and avoid losing access. You can renew through the store or by contacting support.';
 
   const Icon = expired ? ShieldAlert : AlertTriangle;
-  const focusedCls = 'ring-4 ring-brand-ice scale-105';
+  const focusedCls = 'scale-105 z-10';
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent
-        className="max-w-lg w-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white ring-4 ring-brand-gold/30 shadow-[0_0_60px_rgba(212,175,55,0.35)] p-0 overflow-hidden flex flex-col"
+        className="max-w-lg w-full rounded-3xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white p-0 gap-0 overflow-hidden flex flex-col"
       >
         <div className={`px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 ${expired ? 'bg-gradient-to-r from-red-600/40 via-red-500/25 to-red-600/40' : 'bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30'}`}>
-          <Icon className={`w-6 h-6 drop-shadow ${expired ? 'text-red-300' : 'text-brand-gold'}`} />
-          <h2 className="text-2xl font-bold text-white leading-tight tracking-tight">
+          <Icon className={`w-6 h-6 ${expired ? 'text-red-300' : 'text-brand-gold'}`} />
+          <h2 className="text-2xl font-quicksand font-bold text-white leading-tight tracking-tight">
             {view === 'qr' ? 'Renew your subscription' : title}
           </h2>
         </div>
@@ -98,7 +98,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
           </div>
         ) : (
           <>
-            <p className="px-6 py-5 text-base font-medium text-slate-100 leading-relaxed">
+            <p className="px-6 py-6 text-base font-medium text-slate-100 leading-relaxed">
               {body}
             </p>
 
@@ -108,7 +108,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
                   variant="gold"
                   onClick={openRenew}
                   data-focused={focusIdx === 0 ? 'true' : 'false'}
-                  className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 0 ? focusedCls : ''}`}
+                  className={`tv-ring tv-ring-contrast h-12 min-w-[140px] rounded-xl py-3 text-base font-semibold transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : ''}`}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" /> Renew now
                 </Button>
@@ -118,7 +118,7 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
                 variant={showRenew ? 'white' : 'gold'}
                 onClick={handleDismiss}
                 data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
-                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
+                className={`tv-ring h-12 min-w-[140px] rounded-xl py-3 text-base font-semibold transition-transform duration-150 ease-out ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
               >
                 OK, got it
               </Button>

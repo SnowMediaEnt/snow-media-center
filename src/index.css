@@ -247,8 +247,10 @@
     }
   }
 
-  /* Button focus states for D-pad navigation */
-  button:focus-visible {
+  /* Button focus states for D-pad navigation. tv-ring buttons are excluded:
+     they draw their own ring, and this rule's transform (0,1,1) would beat
+     their `scale-105` utility (0,1,0) while natively focused. */
+  button:focus-visible:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast) {
     outline: 3px solid hsl(var(--brand-ice));
     outline-offset: 2px;
     transform: scale(1.02);

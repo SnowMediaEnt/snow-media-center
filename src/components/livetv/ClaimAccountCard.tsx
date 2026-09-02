@@ -26,7 +26,7 @@ interface Props {
 type View = 'prompt' | 'qr' | 'manual';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const FOCUSED_CLS = 'ring-4 ring-brand-ice scale-105';
+const FOCUSED_CLS = 'scale-105 z-10';
 
 /**
  * "Get renewal reminders" card for player-only users. Styled after
@@ -255,18 +255,18 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCloseRef.current('back'); }}>
       <DialogContent
-        className="max-w-lg w-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white ring-4 ring-brand-gold/30 shadow-[0_0_60px_rgba(212,175,55,0.35)] p-0 overflow-hidden flex flex-col"
+        className="max-w-lg w-full rounded-3xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-brand-gold/60 text-white p-0 gap-0 overflow-hidden flex flex-col"
       >
         <div className="px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30">
-          <BellRing className="w-6 h-6 drop-shadow text-brand-gold" />
-          <h2 className="text-2xl font-bold text-white leading-tight tracking-tight">
+          <BellRing className="w-6 h-6 text-brand-gold" />
+          <h2 className="text-2xl font-quicksand font-bold text-white leading-tight tracking-tight">
             Get renewal reminders
           </h2>
         </div>
 
         {view === 'prompt' && (
           <>
-            <p className="px-6 py-5 text-base font-medium text-slate-100 leading-relaxed">
+            <p className="px-6 py-6 text-base font-medium text-slate-100 leading-relaxed">
               Add your email so we can remind you before <span className="font-semibold text-white break-all">{account.username}</span> expires, and let you manage your subscription from your phone.
             </p>
             <div className="px-6 py-4 border-t border-brand-gold/30 bg-slate-950/60 flex justify-center gap-3 flex-wrap">
@@ -275,7 +275,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 id="claim-prompt-btn-0"
                 data-focused={focusIdx === 0 ? 'true' : 'false'}
                 onClick={() => { setView('qr'); setFocusIdx(0); }}
-                className={`text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
+                className={`h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
               >
                 <QrCode className="w-4 h-4 mr-2" /> Scan QR with your phone
               </Button>
@@ -284,7 +284,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 id="claim-prompt-btn-1"
                 data-focused={focusIdx === 1 ? 'true' : 'false'}
                 onClick={openManual}
-                className={`text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
+                className={`h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
               >
                 <Keyboard className="w-4 h-4 mr-2" /> Enter email here
               </Button>
@@ -293,7 +293,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 id="claim-prompt-btn-2"
                 data-focused={focusIdx === 2 ? 'true' : 'false'}
                 onClick={() => onCloseRef.current('notnow')}
-                className={`text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
+                className={`h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
               >
                 Not now
               </Button>
@@ -317,7 +317,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 </p>
               </>
             ) : qrState === 'loading' ? (
-              <div className="py-10 flex flex-col items-center gap-3">
+              <div className="py-12 flex flex-col items-center gap-3">
                 <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
                 <p className="text-white/70 text-sm">Preparing your QR code…</p>
               </div>
@@ -333,7 +333,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                   id="claim-qr-btn-0"
                   data-focused={focusIdx === 0 ? 'true' : 'false'}
                   onClick={() => void startQrSession()}
-                  className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
+                  className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" /> Make new QR
                 </Button>
@@ -343,7 +343,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 id={(qrState === 'expired' || qrState === 'error') ? 'claim-qr-btn-1' : 'claim-qr-btn-0'}
                 data-focused={focusIdx === ((qrState === 'expired' || qrState === 'error') ? 1 : 0) ? 'true' : 'false'}
                 onClick={backToPrompt}
-                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === ((qrState === 'expired' || qrState === 'error') ? 1 : 0) ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === ((qrState === 'expired' || qrState === 'error') ? 1 : 0) ? FOCUSED_CLS : ''}`}
               >
                 Back
               </Button>
@@ -366,7 +366,8 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
               autoComplete="off"
               data-tv-allow-enter="true"
               disabled={manualBusy}
-              className={`tv-focusable bg-black/30 text-white border-white/20 ${focusIdx === 0 ? 'ring-4 ring-brand-ice/60' : ''}`}
+              data-focused={focusIdx === 0 ? 'true' : 'false'}
+              className="tv-ring h-12 rounded-xl bg-black/30 text-white border-white/20"
             />
             {manualError && <p className="text-red-300 text-sm leading-relaxed">{manualError}</p>}
             <div className="flex justify-center gap-3">
@@ -376,7 +377,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 data-focused={focusIdx === 1 ? 'true' : 'false'}
                 onClick={() => void submitManual()}
                 disabled={manualBusy}
-                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
               >
                 {manualBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {manualBusy ? 'Saving…' : 'Save'}
@@ -387,7 +388,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
                 data-focused={focusIdx === 2 ? 'true' : 'false'}
                 onClick={backToPrompt}
                 disabled={manualBusy}
-                className={`min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 transition tv-focusable home-focus-surface ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
               >
                 Back
               </Button>

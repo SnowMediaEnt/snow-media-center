@@ -238,7 +238,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
           </div>
         )}
         {titleShown && (
-          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
+          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-xl pointer-events-none">
             {playing.title}
           </div>
         )}
@@ -251,19 +251,19 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
   const shelfFocused = (row: RowId, col: number) => isActive && focus.row === row && focus.col === col;
   const cardCls = (focused: boolean) =>
-    `tv-focusable tv-ring cursor-pointer rounded-2xl border transition-transform duration-150 ease-out flex-shrink-0 ${
+    `tv-ring cursor-pointer rounded-2xl border transition-transform duration-150 ease-out flex-shrink-0 ${
       focused ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10' : 'bg-slate-900/70 border-white/10'
     }`;
 
   return (
     <div ref={rootRef} className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-2 flex-shrink-0">
+      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-6 flex-shrink-0">
         <div className="min-w-0">
-          <h2 className="text-xl font-quicksand font-bold flex items-center gap-2">
-            <LifeBuoy className="w-5 h-5 text-brand-gold" /> Backups
+          <h2 className="text-2xl font-quicksand font-bold flex items-center gap-2">
+            <LifeBuoy className="w-6 h-6 text-brand-gold" /> Backups
           </h2>
-          <p className="text-brand-ice/60 font-nunito text-sm mt-1">
+          <p className="text-brand-ice/70 font-nunito text-sm mt-1">
             Streams posted by Snow Media. Press Refresh if something was just added.
           </p>
         </div>
@@ -292,26 +292,26 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
         {live.length > 0 && (
           <section>
-            <h3 className="text-lg font-quicksand font-bold mb-2 flex items-center gap-2">
-              <Radio className="w-4 h-4 text-brand-gold" /> Live
+            <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
+              <Radio className="w-5 h-5 text-brand-gold" /> Live
             </h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 pt-1 pl-1 -ml-1">
+            <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {live.map((s, i) => (
                 <div
                   key={s.id}
                   data-focus-key={`live:${i}`}
                   data-focused={shelfFocused('live', i) ? 'true' : 'false'}
                   onClick={() => playItem(s)}
-                  className={`${cardCls(shelfFocused('live', i))} w-64 p-4`}
+                  className={`${cardCls(shelfFocused('live', i))} w-64 py-3 px-5`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="px-2 py-0.5 rounded-lg text-xs font-bold font-nunito bg-red-600/80">LIVE</span>
+                    <span className="px-2 py-1 rounded-lg text-xs font-bold font-nunito bg-red-600/80">LIVE</span>
                     {s.server_label && (
                       <span className="text-xs text-brand-ice/70 font-nunito truncate">{s.server_label}</span>
                     )}
                   </div>
                   <div className="font-quicksand font-bold truncate">{s.title}</div>
-                  {s.subtitle && <div className="text-brand-ice/60 font-nunito text-sm truncate mt-1">{s.subtitle}</div>}
+                  {s.subtitle && <div className="text-brand-ice/70 font-nunito text-sm truncate mt-1">{s.subtitle}</div>}
                 </div>
               ))}
             </div>
@@ -320,17 +320,17 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
         {vod.length > 0 && (
           <section>
-            <h3 className="text-lg font-quicksand font-bold mb-2 flex items-center gap-2">
-              <Film className="w-4 h-4 text-brand-gold" /> Movies &amp; Shows
+            <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
+              <Film className="w-5 h-5 text-brand-gold" /> Movies &amp; Shows
             </h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 pt-1 pl-1 -ml-1">
+            <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {vod.map((s, i) => (
                 <div
                   key={s.id}
                   data-focus-key={`vod:${i}`}
                   data-focused={shelfFocused('vod', i) ? 'true' : 'false'}
                   onClick={() => playItem(s)}
-                  className={`${cardCls(shelfFocused('vod', i))} w-40 overflow-hidden`}
+                  className={`${cardCls(shelfFocused('vod', i))} w-[150px] overflow-hidden`}
                 >
                   {s.poster_url ? (
                     <div className="w-full aspect-[2/3] bg-black/40">
@@ -341,9 +341,9 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
                       <span className="font-quicksand font-bold text-sm line-clamp-3">{s.title}</span>
                     </div>
                   )}
-                  <div className="p-2">
+                  <div className="py-2 px-3">
                     <div className="font-quicksand font-semibold text-sm truncate">{s.title}</div>
-                    {s.subtitle && <div className="text-brand-ice/60 font-nunito text-xs truncate">{s.subtitle}</div>}
+                    {s.subtitle && <div className="text-brand-ice/70 font-nunito text-xs truncate">{s.subtitle}</div>}
                   </div>
                 </div>
               ))}
@@ -353,7 +353,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
 
         {!loading && live.length === 0 && vod.length === 0 && (
           <div className="h-full flex items-center justify-center text-center px-8">
-            <p className="text-brand-ice/60 font-nunito text-lg">
+            <p className="text-brand-ice/70 font-nunito text-xl max-w-[62%]">
               No backups right now. When Snow Media posts one it shows up here automatically.
             </p>
           </div>

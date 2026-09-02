@@ -117,7 +117,7 @@ const PlayerControlBar = memo(({
     );
     if (c.id === 'vol') {
       return (
-        <div key="vol-wrap" className="flex flex-col items-center gap-0.5">
+        <div key="vol-wrap" className="flex flex-col items-center gap-1">
           {btn}
           {focused && (
             <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
@@ -134,7 +134,7 @@ const PlayerControlBar = memo(({
       {/* Top-left: category */}
       <div className="absolute top-4 left-6 z-10 pointer-events-none animate-fade-in">
         {categoryName && (
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice font-nunito text-sm">
+          <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-black/60 text-brand-ice font-nunito text-sm">
             <Tv className="w-4 h-4 text-brand-gold" /> {categoryName}
           </span>
         )}
@@ -142,7 +142,7 @@ const PlayerControlBar = memo(({
 
       {/* Top-right: clock */}
       <div className="absolute top-4 right-6 z-10 pointer-events-none animate-fade-in">
-        <span className="px-3 py-1.5 rounded-full bg-black/60 text-white font-quicksand font-bold text-base tabular-nums">
+        <span className="px-3 py-2 rounded-full bg-black/60 text-white font-quicksand font-bold text-base tabular-nums">
           {fmtClock(new Date(now))}
         </span>
       </div>
@@ -161,7 +161,7 @@ const PlayerControlBar = memo(({
               <h2 className="text-xl font-quicksand font-bold text-white truncate">
                 {channelNum != null ? `${channelNum} · ` : ''}{channelName}
               </h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-600 text-white text-xs font-bold tracking-wider">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600 text-white text-xs font-bold tracking-wider">
                 <Radio className="w-3 h-3" /> LIVE
               </span>
             </div>
@@ -176,7 +176,7 @@ const PlayerControlBar = memo(({
               </p>
             )}
             {nextTitle && (
-              <p className="text-xs text-brand-ice/70 font-nunito truncate mt-0.5">
+              <p className="text-xs text-brand-ice/70 font-nunito truncate mt-1">
                 Next: {nextTitle}
               </p>
             )}
@@ -186,7 +186,7 @@ const PlayerControlBar = memo(({
         {/* Progress */}
         <div className="max-w-6xl mx-auto mt-4 pointer-events-auto">
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-            <div className="h-full bg-brand-gold transition-all" style={{ width: `${progressPct}%` }} />
+            <div className="h-full bg-brand-gold transition-[width] duration-150 ease-out" style={{ width: `${progressPct}%` }} />
           </div>
           {total > 0 && (
             <div className="flex justify-between text-xs text-brand-ice/70 font-nunito tabular-nums mt-1">
@@ -197,12 +197,12 @@ const PlayerControlBar = memo(({
         </div>
 
         {/* Centered control row */}
-        <div className="max-w-6xl mx-auto mt-5 flex items-center justify-center gap-3 pointer-events-auto">
+        <div className="max-w-6xl mx-auto mt-4 flex items-center justify-center gap-3 pointer-events-auto">
           {controls.map(renderButton)}
         </div>
 
         {/* Hint */}
-        <p className="text-center text-xs text-brand-ice/70 font-nunito mt-3 pointer-events-none">
+        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4 pointer-events-none">
           Left / Right: select · Enter: activate · Up or Back: hide bar
         </p>
       </div>
