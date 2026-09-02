@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, RotateCw } from 'lucide-react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 import { isFireTV } from '@/utils/platform';
+import SnowLoader from '@/components/SnowLoader';
+import BufferingDiagnostics from './BufferingDiagnostics';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 import {
   beginStream,
@@ -53,6 +55,12 @@ interface VideoPlayerProps {
   onPlayStateChange?: (paused: boolean) => void;
   /** Signal — caller should re-query controller.getSubtitleTracks() / getAudioTracks(). */
   onTracksChanged?: () => void;
+  /**
+   * 'full' (default): fullscreen player — Able loader with caption + the
+   * buffering diagnostics card. 'minimal': small preview tiles — a compact
+   * loader, no caption, no diagnostics.
+   */
+  chrome?: 'full' | 'minimal';
 }
 
 type Engine = 'hls' | 'mpegts' | 'native';
@@ -78,7 +86,7 @@ function pickEngine(src: string): Engine {
   return 'native';
 }
 
-const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged }: VideoPlayerProps) => {
+const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5, onError, onEnded, onReady, onPlayStateChange, onTracksChanged, chrome = 'full' }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const teardownRef = useRef<(() => void) | null>(null);
   const retriesRef = useRef(0);
@@ -689,9 +697,12 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       />
       {loading && !fatal && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+          {chrome === 'minimal'
+            ? <SnowLoader size="sm" className="max-w-[160px]" />
+            : <SnowLoader size="lg" label="Buffering…" className="max-w-md" />}
         </div>
       )}
+      {chrome === 'full' && <BufferingDiagnostics />}
       {fatal && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
           <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />

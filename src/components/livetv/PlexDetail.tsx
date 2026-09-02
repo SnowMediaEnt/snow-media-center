@@ -455,7 +455,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 ) : cast.length === 0 ? (
                   <div className="text-xs text-brand-ice/50 font-nunito">No cast info.</div>
                 ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-2">
+                  <div className="flex gap-4 overflow-x-auto pb-2 pt-2 px-2 -mx-2">
                     {cast.map((p, i) => {
                       const focused = isActive && zone === 'cast' && castIdx === i;
                       return (
@@ -463,12 +463,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           key={`${p.id ?? p.tag}-${i}`}
                           ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                           onClick={() => { setZone('cast'); setCastIdx(i); void openActor(p); }}
-                          className={`relative flex-shrink-0 w-[120px] rounded-xl transition-transform duration-150 cursor-pointer ${focused ? 'scale-110 z-10' : ''}`}>
-                          <div className={`w-[110px] h-[110px] mx-auto rounded-full overflow-hidden ring-1 ring-white/10 bg-black/40 ${focused ? 'ring-2 ring-brand-gold shadow-[0_0_16px_rgba(245,200,80,0.5)]' : ''}`}>
+                          className={`relative flex-shrink-0 w-[120px] rounded-2xl transition-transform duration-150 cursor-pointer ${focused ? 'scale-[1.08] z-10' : ''}`}>
+                          <div
+                            data-focused={focused ? 'true' : 'false'}
+                            className="tv-ring w-[110px] h-[110px] mx-auto rounded-full overflow-hidden border border-white/10 bg-black/40">
                             <PlexImage base={base} path={p.thumb} token={token} w={120} h={120} focusExempt className="w-full h-full object-cover" />
                           </div>
-                          <div className={`mt-1 text-center text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/85'}`}>{p.tag}</div>
-                          {p.role && <div className="text-center text-[10px] font-nunito text-brand-ice/60 truncate">{p.role}</div>}
+                          <div className={`mt-2 text-center text-xs font-nunito truncate ${focused ? 'text-brand-gold font-semibold' : 'text-white/90'}`}>{p.tag}</div>
+                          {p.role && <div className="text-center text-xs font-nunito text-brand-ice/70 truncate">{p.role}</div>}
                         </div>
                       );
                     })}
@@ -487,21 +489,24 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : seasons.length === 0 ? (
               <div className="text-brand-ice/60">No seasons.</div>
             ) : (
-              <div className="flex gap-3 overflow-x-auto pb-3">
+              // pt-2 px-2 -mx-2: room for the focused card's scale + ring so the
+              // shelf's overflow clip never cuts the highlight.
+              <div className="flex gap-4 overflow-x-auto pb-3 pt-2 px-2 -mx-2">
                 {seasons.map((s, i) => {
                   const focused = isActive && seasonIdx === i;
                   return (
                     <div key={s.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
-                      className={`flex-shrink-0 w-[140px] rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                      data-focused={focused ? 'true' : 'false'}
+                      className={`tv-ring flex-shrink-0 w-[140px] rounded-2xl overflow-hidden border border-white/10 bg-black/40 transition-transform duration-150 ${focused ? 'scale-[1.06] z-10' : ''}`}>
                       <div className="aspect-[2/3]"><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="w-full h-full object-cover" /></div>
-                      <div className="px-1.5 py-1 text-[11px] font-nunito text-white/90 truncate">{s.title}</div>
+                      <div className={`px-2 py-1.5 text-xs font-nunito truncate ${focused ? 'text-brand-gold font-semibold' : 'text-white/90'}`}>{s.title}</div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/50 mt-3">◀ ▶ pick a season · OK to open · Back to detail</p>
+            <p className="text-xs text-brand-ice/70 mt-4">◀ ▶ pick a season · OK to open · Back to detail</p>
           </div>
         )}
 
@@ -515,21 +520,22 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : episodes.length === 0 ? (
               <div className="text-brand-ice/60">No episodes.</div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 px-1 py-1">
                 {episodes.map((ep, i) => {
                   const focused = isActive && epIdx === i;
                   return (
                     <div key={ep.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
-                      className={`flex items-center gap-3 p-2 rounded-lg transition-transform duration-150 ${focused ? 'bg-brand-gold/20 ring-2 ring-brand-gold scale-[1.01]' : 'bg-black/40 ring-1 ring-white/10'}`}>
-                      <div className="w-40 aspect-video flex-shrink-0 rounded overflow-hidden bg-black/60">
+                      data-focused={focused ? 'true' : 'false'}
+                      className={`tv-ring flex items-center gap-4 p-3 rounded-2xl border border-white/10 transition-transform duration-150 ${focused ? 'bg-brand-gold/20 scale-[1.01] z-10' : 'bg-black/40'}`}>
+                      <div className="w-40 aspect-video flex-shrink-0 rounded-lg overflow-hidden bg-black/60">
                         <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-quicksand font-semibold truncate">
                           {ep.index != null ? `${ep.index}. ` : ''}{ep.title}
                         </div>
-                        <div className="text-xs text-brand-ice/60 font-nunito">{fmtRuntime(ep.duration)}</div>
+                        <div className="text-xs text-brand-ice/70 font-nunito">{fmtRuntime(ep.duration)}</div>
                         {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
                       </div>
                     </div>
@@ -537,7 +543,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/50 mt-3">▲ ▼ pick · OK to play · Back to seasons</p>
+            <p className="text-xs text-brand-ice/70 mt-4">▲ ▼ pick · OK to play · Back to seasons</p>
           </div>
         )}
 
@@ -549,7 +555,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : actorItems.length === 0 ? (
               <div className="text-brand-ice/60 font-nunito text-sm">No other titles on this server.</div>
             ) : (
-              <div className="grid grid-cols-6 gap-3">
+              <div className="grid grid-cols-6 gap-4 p-1">
                 {actorItems.map((it, idx) => {
                   const focused = isActive && actorCursor === idx;
                   const label = resolutionLabel(it.videoResolution);
@@ -558,19 +564,19 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       key={it.ratingKey}
                       ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                       onClick={() => { setActorCursor(idx); pushItem(it); }}
-                      className={`relative cursor-pointer rounded-lg overflow-hidden transition-transform duration-150 ${focused ? 'z-10 ring-2 ring-brand-gold scale-105 shadow-[0_0_16px_rgba(245,200,80,0.4)]' : 'ring-1 ring-white/10'}`}>
+                      data-focused={focused ? 'true' : 'false'}
+                      className={`tv-ring relative cursor-pointer rounded-2xl overflow-hidden border border-white/10 bg-black/40 transition-transform duration-150 ${focused ? 'z-10 scale-[1.06]' : ''}`}>
                       <div className="relative aspect-[2/3]">
                         <PlexImage base={base} path={it.thumb} token={token} w={180} h={270} focusExempt className="w-full h-full object-cover" />
                         {label && <div className="absolute top-1 right-1"><ResBadge label={label} /></div>}
                       </div>
-                      <div className={`px-1.5 py-1 text-[11px] font-nunito truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
-                      {focused && <div className="absolute inset-0 border-[3px] border-brand-gold rounded-lg pointer-events-none" />}
+                      <div className={`px-2 py-1.5 text-xs font-nunito truncate ${focused ? 'text-brand-gold font-semibold' : 'text-white/90'}`}>{it.title}</div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <p className="text-xs text-brand-ice/50 mt-3">◀ ▶ ▲ ▼ browse · OK to open · Back to cast</p>
+            <p className="text-xs text-brand-ice/70 mt-4">◀ ▶ ▲ ▼ browse · OK to open · Back to cast</p>
           </div>
         )}
       </div>

@@ -17,7 +17,12 @@ import { formatMbps, useBufferDiagnostics, type Verdict } from '@/lib/bufferDiag
  */
 
 interface BufferingDiagnosticsProps {
-  buffering: boolean;
+  /**
+   * Stall state. Optional: when omitted the card follows the diagnostics
+   * module itself (VideoPlayer / useNativePlayer already call setBuffering),
+   * so a screen can simply mount <BufferingDiagnostics /> next to its player.
+   */
+  buffering?: boolean;
   corner?: 'top-right' | 'top-left';
   /**
    * Render the "Press Help for tips" hint line. The card is pointer-events-none
@@ -39,8 +44,9 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   ok: 'text-emerald-300',
 };
 
-const BufferingDiagnostics = memo(({ buffering, corner = 'top-right', showHelpHint = false, className }: BufferingDiagnosticsProps) => {
+const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, className }: BufferingDiagnosticsProps) => {
   const snap = useBufferDiagnostics();
+  const buffering = bufferingProp ?? snap.bufferingForMs > 0;
   // 'hidden' → (stall ≥ 2 s) → 'active' → (recovered) → 'recovered' (2.5 s) → 'hidden'
   const [phase, setPhase] = useState<'hidden' | 'active' | 'recovered'>('hidden');
   const [elapsedSec, setElapsedSec] = useState(0);
