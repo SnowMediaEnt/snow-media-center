@@ -65,6 +65,7 @@ const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
+const GiveawayWinnersPopup = lazy(() => import('@/components/GiveawayWinnersPopup'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
 const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
