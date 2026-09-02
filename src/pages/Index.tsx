@@ -15,6 +15,7 @@ import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { usePreEventAlert } from '@/hooks/usePreEventAlert';
+import { useGiveawayWinners } from '@/hooks/useGiveawayWinners';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
