@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
+import { enterQuiet, exitQuiet } from '@/utils/quietMode';
+import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuffering } from '@/lib/bufferDiagnostics';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -70,6 +72,15 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     } catch { /* ignore */ }
   };
 
+  // Quiet mode (pause non-essential background jobs) is deliberately NOT
+  // tied to markStreaming: ExoPlayer's `playing` flag flips false on every
+  // buffering stall, and toggling the html class + re-arming every interval
+  // mid-stall is exactly the churn a starved Fire TV can't afford. Quiet is
+  // entered once the stream is primed / playing and released only on the
+  // terminal paths (ended, fatal error, hidden, active=false, unmount).
+  const quietOn = () => { try { enterQuiet('native-player'); } catch { /* ignore */ } };
+  const quietOff = () => { try { exitQuiet('native-player'); } catch { /* ignore */ } };
+
   const clearRetryTimer = () => {
     if (retryTimerRef.current) { window.clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
   };
@@ -116,16 +127,19 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         });
         stateH = await SnowPlayer.addListener('playerState', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
-          if (data.state === 'buffering') setBuffering(true);
-          else if (data.state === 'ready') setBuffering(false);
-          else if (data.state === 'ended') { markStreaming(false); cbEndedRef.current?.(); }
+          // Mirror stall state into the buffering diagnostics (never throws).
+          if (data.state === 'buffering') { setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ } }
+          else if (data.state === 'ready') { setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
+          else if (data.state === 'ended') { markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } cbEndedRef.current?.(); }
           // Playing is authoritative — clear the spinner immediately.
-          if (data.playing === true) setBuffering(false);
+          if (data.playing === true) { setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         });
         errH = await SnowPlayer.addListener('playerError', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           markStreaming(false);
+          quietOff();
+          try { diagEnd(); } catch { /* ignore */ }
           const msg = data.message || 'Playback error';
           const code = data.code;
           // AUDIO_DECODE is a codec-init failure — auto-retrying the same URL
@@ -166,6 +180,10 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     setBuffering(true);
     setError(null);
     clearRetryTimer();
+    // Buffering diagnostics: ExoPlayer has no engine throughput stats, so the
+    // module samples the stream host itself (VOD / opt-in) and probes general
+    // internet during stalls. Retries re-enter here and count as a new stream.
+    try { diagBegin(url, live ? 'live' : 'vod'); diagBuffering(true); } catch { /* ignore */ }
 
     (async () => {
       try {
@@ -181,6 +199,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         if (cancelled || myNonce !== nonceRef.current) return;
         await handleRef.current?.prime();
         markStreaming(true);
+        quietOn();
       } catch (e) {
         if (cancelled || myNonce !== nonceRef.current) return;
         setError({ message: (e as Error)?.message || 'Failed to load stream' });
@@ -206,6 +225,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     // active turned false — hard stop + teardown controller handle.
     clearRetryTimer();
     markStreaming(false);
+    quietOff();
+    try { diagEnd(); } catch { /* ignore */ }
     void SnowPlayer.stop().catch(() => { /* ignore */ });
     if (handleRef.current) {
       try { handleRef.current.dispose(); } catch { /* ignore */ }
@@ -221,6 +242,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     return () => {
       clearRetryTimer();
       markStreaming(false);
+      quietOff();
+      try { diagEnd(); } catch { /* ignore */ }
       void SnowPlayer.stop().catch(() => { /* ignore */ });
       if (handleRef.current) {
         try { handleRef.current.dispose(); } catch { /* ignore */ }
@@ -234,7 +257,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     if (!active) return;
     let capH: { remove?: () => void } | undefined;
     let cancelled = false;
-    const onHidden = () => { void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); };
+    const onHidden = () => { void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } };
     const onVisible = () => { try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1); };
     const onVis = () => { if (document.hidden) onHidden(); else onVisible(); };
     document.addEventListener('visibilitychange', onVis);

@@ -250,6 +250,11 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // checkForUpdates / downloadUpdate are recreated every render (not
+    // memoised); listing them would re-bind the keydown listener on each
+    // render. They only read state that already drives this effect
+    // (updateAvailable / updateInfo are set together), so omit them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedElement, updateAvailable]);
 
   // Auto-check on mount (single one-shot). Periodic polling lives in
@@ -259,6 +264,9 @@ const AppUpdater = ({ onClose, autoCheck = false }: AppUpdaterProps) => {
     // Streaming priority: don't auto-check while a stream is playing.
     if (document.documentElement.classList.contains('streaming-active')) return;
     checkForUpdates();
+    // One-shot on mount by design: checkForUpdates is recreated every
+    // render, so adding it to deps would turn this into a check per render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCheck]);
 
   if (!updateAvailable && autoCheck) {

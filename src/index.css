@@ -329,18 +329,35 @@
   -webkit-backdrop-filter: none !important;
 }
 /* Kill ALL non-essential transitions and animations except the news
-   ticker (which is already a single transform). Focus highlight uses
-   transform/box-shadow without transition under this class. */
-.native-low-memory *:not(.news-ticker):not(.news-ticker-track) {
+   ticker (which is already a single transform) and spinners. Focus
+   highlight uses transform/box-shadow without transition under this class.
+
+   NOTE on specificity: each `:not(.x)` adds (0,1,0), so this selector is
+   (0,3,0). The old "rescue" rule `.native-low-memory .animate-spin` was
+   only (0,2,0) — with both marked !important the blanket rule won and every
+   Loader2 on Fire TV froze into a static "C" (the buffering spinner in the
+   player never spun). Exempting the classes HERE, in the :not() list, is the
+   only reliable fix.
+
+   NOTE on Chromium 66: keep every :not() argument a SINGLE simple selector.
+   Chromium < 88 rejects `:not(.a .b)` (combinators inside :not()) and then
+   drops this WHOLE rule, which would re-enable every animation on Fire TV.
+   The Snow Media loader (src/components/SnowLoader.tsx) is therefore
+   exempted by enumerating each of its animated elements as a simple class
+   (the .smc-loader root itself has no animation and is not listed). This
+   list is the single authority for exemptions; snow-loader.css additionally
+   pins the loader's durations at (0,4,0) as belt-and-braces. */
+.native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-ball-spin) {
   animation-duration: 0.001ms !important;
   animation-delay: 0s !important;
   transition: none !important;
 }
-/* Rescue Loader2 (and any other .animate-spin) from the blanket duration:0
-   above — otherwise Fire TV freezes every spinner into a static "C". */
-.native-low-memory .animate-spin {
+/* Belt-and-braces: pin the spinner's timing explicitly in case a future
+   selector outranks the exemption above. (0,4,0) beats the blanket rule. */
+.native-low-memory .animate-spin.animate-spin.animate-spin {
   animation-duration: 1s !important;
   animation-iteration-count: infinite !important;
+  transition: none !important;
 }
 /* Drop heavy outer glow shadows app-wide; keep the home focus indicator
    defined above. */
@@ -359,6 +376,49 @@
    `background-image: none !important` still wins. */
 .native-low-memory [data-app-scroll-root] {
   background-image: linear-gradient(160deg, #092145 0%, #1c4e63 100%) !important;
+}
+
+/* ============================================================
+   Unified D-pad focus ring for the Player / TV surfaces.
+   Pair with data-focused="true|false" on the SAME element.
+
+   Why this exists: components used to hand-roll focus as
+   `ring-2 ring-brand-gold shadow-[…]`. Tailwind's ring IS a
+   box-shadow, and the low-memory strip rule above deletes
+   box-shadow on anything whose class contains `shadow-[` —
+   so on Fire TV the ring vanished with the glow and the only
+   cue left was a 5% scale (Plex seasons, cast row, etc.).
+   Some screens patched around it with a `border-[3px]`
+   overlay div. This class replaces both patterns.
+
+   INSET ring: hugs the element's own border-radius, can't be
+   clipped by its own overflow-hidden, and never bleeds into a
+   sibling. The outer glow is decorative and dropped on
+   low-memory devices (Fire TV) — the inset ring alone is the
+   accessible indicator. No position/z-index here on purpose:
+   virtualized rows are position:absolute and must stay so;
+   components add `z-10` in their focused branch.
+   ============================================================ */
+.tv-ring {
+  outline: none;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+.tv-ring[data-focused="true"] {
+  box-shadow:
+    inset 0 0 0 3px hsl(var(--brand-gold)),
+    0 0 22px 2px hsl(var(--brand-gold) / 0.45);
+}
+/* Destructive confirm state (e.g. "Sign out?" second press). */
+.tv-ring-danger[data-focused="true"] {
+  box-shadow:
+    inset 0 0 0 3px hsl(0 84% 60%),
+    0 0 22px 2px hsl(0 84% 60% / 0.45);
+}
+.native-low-memory .tv-ring[data-focused="true"] {
+  box-shadow: inset 0 0 0 4px hsl(var(--brand-gold)) !important;
+}
+.native-low-memory .tv-ring-danger[data-focused="true"] {
+  box-shadow: inset 0 0 0 4px hsl(0 84% 60%) !important;
 }
 
 
@@ -595,8 +655,12 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
      - .tv-focusable:focus(-visible) / .tv-focus-highlight.focused
      - .focus-highlight:focus                 (legacy)
    Modal/dialog focus rings live in their own scoped block above and stay.
+   .home-focus-surface, .tv-ring and .tv-ring-danger are excluded: they carry
+   their own (0,2,0) focus box-shadow above and this rule comes later in
+   source, so without the :not()s it would overwrite the inset ring (and make
+   the red danger variant invisible). Simple :not() args only (Chromium 66).
    ========================================================================= */
-[data-focused="true"]:not(.home-focus-surface),
+[data-focused="true"]:not(.home-focus-surface):not(.tv-ring):not(.tv-ring-danger),
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
@@ -742,3 +806,12 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
    Never rely on aspect-ratio (Chrome 88+) to establish poster height. */
 .media-poster { height: 120px; height: clamp(96px, 16vh, 180px); }
 [data-media-bar] { max-height: 40vh; overflow: hidden; }
+
+/* Quiet mode (src/utils/quietMode.ts): html.smc-quiet is set while a stream
+   plays on a low-memory box. Today every player lives inside the LiveTV
+   sections and the home tree (NewsTicker, HomeClock, MediaBar, .home-watermark)
+   is unmounted while a stream plays, so these rules currently match nothing.
+   They are a guard for a future in-home / PiP player: if the ticker or the
+   watermark ever share the screen with a stream, stop their compositing. */
+html.smc-quiet .news-ticker-track { animation-play-state: paused !important; }
+html.smc-quiet .home-watermark, html.smc-quiet .news-ticker { visibility: hidden; }
