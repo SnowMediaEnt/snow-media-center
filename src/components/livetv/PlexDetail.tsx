@@ -15,6 +15,7 @@ import PlexImage from './PlexImage';
 import { isNativePlatform } from '@/utils/platform';
 import { runWhenIdle } from '@/utils/idle';
 import type { SubtitleSearchContext } from './PlexPlayerOverlay';
+import { isPlexKeyOwner } from './plexKeyOwner';
 
 interface Props {
   isActive: boolean;
@@ -250,6 +251,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   useLayoutEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
+      // The player owns the D-pad while a title is playing. Without this
+      // guard the Back that closes the player ALSO popped episodes → seasons
+      // here, so backing out of an episode skipped the episode list.
+      if (!isPlexKeyOwner('detail')) return;
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;

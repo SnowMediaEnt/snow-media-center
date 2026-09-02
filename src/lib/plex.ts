@@ -173,12 +173,37 @@ function isDeadIp(addr: string): boolean {
  *  plain http://ip:port fallbacks) and return the best reachable base URL.
  *  Priority: local non-relay > remote non-relay > relay. Chrome-66-safe
  *  (no Promise.any/allSettled). */
+export type PlexRoute = 'lan' | 'direct' | 'relay';
+
+/** Human label for the Help menu / buffering card, e.g. "Direct · https". */
+export function plexRouteLabel(route: PlexRoute | undefined, base: string): string {
+  const secure = base.slice(0, 6).toLowerCase() === 'https:';
+  const proto = secure ? 'https' : 'http (unencrypted)';
+  if (route === 'lan') return `Home network · ${proto}`;
+  if (route === 'direct') return `Direct to server · ${proto}`;
+  if (route === 'relay') return 'Plex Relay (speed-capped by Plex)';
+  return `Unknown route · ${proto}`;
+}
+
 export async function pickPlexConnection(
   server: PlexServer,
   timeoutMs = 3500,
-  opts?: { httpsOnly?: boolean },
+  opts?: { httpsOnly?: boolean; noRelay?: boolean },
 ): Promise<string | null> {
+  const r = await pickPlexConnectionDetailed(server, timeoutMs, opts);
+  return r ? r.base : null;
+}
+
+/** Same probe as pickPlexConnection, but also says WHICH kind of path won so
+ *  the app can tell a relay-capped stream from a genuinely slow one, and keep
+ *  looking for a direct path while stuck on the relay. */
+export async function pickPlexConnectionDetailed(
+  server: PlexServer,
+  timeoutMs = 3500,
+  opts?: { httpsOnly?: boolean; noRelay?: boolean },
+): Promise<{ base: string; route: PlexRoute } | null> {
   const httpsOnly = !!opts?.httpsOnly;
+  const noRelay = !!opts?.noRelay;
   interface Candidate { url: string; priority: number; timeoutMs: number; }
   const seen: Record<string, boolean> = {};
   const candidates: Candidate[] = [];
@@ -193,6 +218,7 @@ export async function pickPlexConnection(
     candidates.push({ url, priority, timeoutMs: t });
   };
   for (const c of server.connections) {
+    if (noRelay && c.relay) continue;
     const prio = c.relay ? 3 : c.local ? 1 : 2;
     // Skip dead IP families both in the plex.direct dashed-IP hostname AND
     // the raw address field.
@@ -204,8 +230,9 @@ export async function pickPlexConnection(
     }
   }
   if (candidates.length === 0) return null;
+  const routeOf = (c: Candidate): PlexRoute => (c.priority === 1 ? 'lan' : c.priority === 2 ? 'direct' : 'relay');
 
-  return new Promise<string | null>((resolve) => {
+  return new Promise<{ base: string; route: PlexRoute } | null>((resolve) => {
     let pending = candidates.length;
     let best: Candidate | null = null;
     let settled = false;
@@ -223,12 +250,12 @@ export async function pickPlexConnection(
       if (settled) return;
       if (pending === 0 || force) {
         settled = true;
-        resolve(best ? best.url : null);
+        resolve(best ? { base: best.url, route: routeOf(best) } : null);
         return;
       }
       if (best && cannotBeat()) {
         settled = true;
-        resolve(best.url);
+        resolve({ base: best.url, route: routeOf(best) });
       }
     };
     const maxT = Math.max(...candidates.map((c) => c.timeoutMs));
@@ -259,7 +286,7 @@ export async function getPlexIdentity(base: string, token: string): Promise<void
   await plexReq('GET', `${base}/identity`, token, 5000);
 }
 
-export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; }
+export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; route?: PlexRoute; }
 
 export async function savePlexServer(s: PlexSavedServer): Promise<void> {
   const json = JSON.stringify(s);

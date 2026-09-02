@@ -10,8 +10,14 @@ import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
 import { useToast } from '@/hooks/use-toast';
 
-type Row = 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
+// 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
+// move a preview marker (accelerating on repeated presses), OK jumps there.
+type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
 const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'volume', 'buffering'];
+// Scrub step (seconds) by acceleration level; every 4 quick presses (< 700 ms
+// apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
+const SCRUB_STEPS = [10, 30, 60, 120, 300];
+const SCRUB_REPEAT_MS = 700;
 
 export interface SubtitleSearchContext {
   title: string;
@@ -31,6 +37,8 @@ interface Props {
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
   seekTo: (sec: number) => Promise<void>;
   onBackWhileHidden: () => void;                // called when Back pressed with overlay hidden (fullscreen exit)
+  /** Which path the stream takes ("Direct to server · https", "Plex Relay…"). Shown in Help. */
+  routeLabel?: string;
   subtitleContext?: SubtitleSearchContext;
   /** Reload native player with an external subtitle sidecar at the given resume position. */
   onLoadExternalSubtitle?: (sub: SnowSubtitle, resumeSec: number) => void;
@@ -65,7 +73,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
   const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume' | 'help'>('none');
@@ -73,6 +81,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Preview position while on the scrub row (null = not scrubbing).
+  const [scrubPos, setScrubPos] = useState<number | null>(null);
+  const scrubRepeatRef = useRef<{ at: number; count: number }>({ at: 0, count: 0 });
   const { toast } = useToast();
 
   // OpenSubtitles panel state
@@ -89,7 +100,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const clearHide = () => { if (hideTimerRef.current) { window.clearTimeout(hideTimerRef.current); hideTimerRef.current = null; } };
   const armHide = useCallback(() => {
     clearHide();
-    hideTimerRef.current = window.setTimeout(() => { setVisible(false); setMenu('none'); }, 5000);
+    hideTimerRef.current = window.setTimeout(() => { setVisible(false); setMenu('none'); setScrubPos(null); }, 5000);
   }, []);
 
   const show = useCallback(() => {
@@ -216,6 +227,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
+  const posRef = useRef(pos); useEffect(() => { posRef.current = pos; }, [pos]);
+  const durRef = useRef(dur); useEffect(() => { durRef.current = dur; }, [dur]);
+  const scrubPosRef = useRef(scrubPos); useEffect(() => { scrubPosRef.current = scrubPos; }, [scrubPos]);
+  const seekToRef = useRef(seekTo); useEffect(() => { seekToRef.current = seekTo; }, [seekTo]);
   const visibleRef = useRef(visible); useEffect(() => { visibleRef.current = visible; }, [visible]);
   const menuRef = useRef(menu); useEffect(() => { menuRef.current = menu; }, [menu]);
   const menuIdxRef = useRef(menuIdx); useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
@@ -366,8 +381,38 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
 
 
-      // main control row (horizontal)
       const r = rowRef.current;
+
+      // Scrub row: the progress bar owns ◀ ▶ / OK; ▼ returns to the controls.
+      if (r === 'scrub') {
+        if (e.key === 'ArrowDown') { setScrubPos(null); setRow('play'); return; }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const now = Date.now();
+          const rep = scrubRepeatRef.current;
+          const quick = now - rep.at < SCRUB_REPEAT_MS;
+          rep.count = quick ? rep.count + 1 : 0;
+          rep.at = now;
+          const level = Math.min(SCRUB_STEPS.length - 1, Math.floor(rep.count / 4));
+          const step = SCRUB_STEPS[level] * (e.key === 'ArrowLeft' ? -1 : 1);
+          const from = scrubPosRef.current ?? posRef.current;
+          const max = durRef.current > 0 ? durRef.current : Number.MAX_SAFE_INTEGER;
+          setScrubPos(Math.min(max, Math.max(0, from + step)));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          const target = scrubPosRef.current;
+          setScrubPos(null);
+          if (target != null && Math.abs(target - posRef.current) >= 1) {
+            setPos(target);
+            void seekToRef.current(target);
+          }
+          return;
+        }
+        return;
+      }
+      if (e.key === 'ArrowUp') { setScrubPos(null); setRow('scrub'); return; }
+
+      // main control row (horizontal)
       const idx = ROWS.indexOf(r);
       if (e.key === 'ArrowLeft') { if (idx > 0) setRow(ROWS[idx - 1]); }
       else if (e.key === 'ArrowRight') { if (idx < ROWS.length - 1) setRow(ROWS[idx + 1]); }
@@ -379,7 +424,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   if (!visible) return null;
 
-  const pct = dur > 0 ? Math.min(100, Math.max(0, (pos / dur) * 100)) : 0;
+  const scrubbing = row === 'scrub';
+  const shownPos = scrubbing && scrubPos != null ? scrubPos : pos;
+  const pct = dur > 0 ? Math.min(100, Math.max(0, (shownPos / dur) * 100)) : 0;
+  const scrubDelta = scrubbing && scrubPos != null ? Math.round(scrubPos - pos) : 0;
   const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
   // Control-bar row whose popup menu is open. That button drops its focused
@@ -414,11 +462,27 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <span className={`ml-2 align-middle text-xs font-bold px-2 py-1 rounded-lg bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
             )}
           </p>
-          <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-            <div className="h-full bg-brand-gold" style={{ width: `${pct}%` }} />
+          <div
+            className={`relative rounded-full ${scrubbing ? 'h-2.5 bg-white/25' : 'h-1.5 bg-white/15'}`}
+            data-focused={scrubbing ? 'true' : 'false'}
+            aria-label="Seek bar"
+          >
+            <div className="h-full rounded-full bg-brand-gold" style={{ width: `${pct}%` }} />
+            {scrubbing && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-brand-gold border-2 border-white"
+                style={{ left: `${pct}%` }}
+                aria-hidden="true"
+              />
+            )}
           </div>
           <div className="flex justify-between text-xs text-brand-ice/70 font-nunito tabular-nums mt-1">
-            <span>{fmtTime(pos)}</span>
+            <span>
+              {fmtTime(shownPos)}
+              {scrubDelta !== 0 && (
+                <span className="ml-2 text-brand-gold">{scrubDelta > 0 ? '+' : '−'}{fmtTime(Math.abs(scrubDelta))}</span>
+              )}
+            </span>
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-3">
@@ -449,11 +513,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </div>
           </div>
           <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
-            {row === 'buffering'
-              ? 'Help — OK for support options'
-              : row === 'volume'
-                ? 'Volume — OK opens the slider'
-                : '◀ ▶ select · OK activate · Back hides · idle 5s auto-hides'}
+            {row === 'scrub'
+              ? '◀ ▶ move · keep pressing for bigger jumps · OK jump there · ▼ controls'
+              : row === 'buffering'
+                ? 'Help — OK for support options'
+                : row === 'volume'
+                  ? 'Volume — OK opens the slider'
+                  : '▲ seek bar · ◀ ▶ select · OK activate · Back hides'}
           </p>
         </div>
       </div>
@@ -577,6 +643,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             </p>
             <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
           </div>
+          {routeLabel && (
+            <p className="px-2 pb-2 text-xs text-brand-ice/70 font-nunito">Connection: <span className="text-white/90">{routeLabel}</span></p>
+          )}
           <div className="space-y-1">
             {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
               <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}

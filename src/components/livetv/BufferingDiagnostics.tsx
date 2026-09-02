@@ -30,6 +30,8 @@ interface BufferingDiagnosticsProps {
    * open the help surface itself.
    */
   showHelpHint?: boolean;
+  /** One extra muted line under the verdict, e.g. "Route: Plex Relay". */
+  footnote?: string;
   className?: string;
 }
 
@@ -44,7 +46,7 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   ok: 'text-emerald-300',
 };
 
-const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, className }: BufferingDiagnosticsProps) => {
+const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-right', showHelpHint = false, footnote, className }: BufferingDiagnosticsProps) => {
   const snap = useBufferDiagnostics();
   const buffering = bufferingProp ?? snap.bufferingForMs > 0;
   // 'hidden' → (stall ≥ 2 s) → 'active' → (recovered) → 'recovered' (2.5 s) → 'hidden'
@@ -120,6 +122,9 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
           <p aria-live="polite" className={`mt-2 text-sm font-semibold leading-snug ${VERDICT_COLOR[shown.verdict]}`}>{shown.headline}</p>
           {shown.detail && (
             <p className="mt-1 text-xs text-brand-ice/70 leading-snug">{shown.detail}</p>
+          )}
+          {footnote && (
+            <p className="mt-1 text-xs text-brand-ice/60 leading-snug">{footnote}</p>
           )}
           {showHelpHint && (
             <p className="mt-2 text-xs text-brand-ice/60">Press Help for tips</p>

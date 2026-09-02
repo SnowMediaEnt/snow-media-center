@@ -32,8 +32,7 @@ import {
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
   setPlexImageFocus, preloadImages,
-  type PlexLibrary, type PlexItem, type PlexEpisode,
-} from '@/lib/plex';
+  type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
@@ -935,7 +934,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => () => { setPlexKeyOwner('browse'); resumeLoading(); }, []);
   useEffect(() => {
     if (fullscreen) { setPlexKeyOwner('player'); return; }
-    if (!detailItem) { setPlexKeyOwner('browse'); resumeLoading(); }
+    if (detailItem) { setPlexKeyOwner('detail'); return; }
+    setPlexKeyOwner('browse'); resumeLoading();
   }, [fullscreen, detailItem]);
 
   // Demo mode: playback is the one thing the website embed can't do, so every
@@ -980,14 +980,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [conn]);
 
 
+  // Which path the stream takes (LAN / direct / Plex relay, http vs https).
+  // Logged with every play so the Hub can tell a throttled-relay box from a
+  // slow-server one, and shown in the player's Help menu + buffering card.
+  const routeLabel = conn ? plexRouteLabel(conn.route, conn.base) : '';
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
-    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie' }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution));
-  }, [playRatingKey]);
+  }, [playRatingKey, conn]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
-    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode' }); } catch { /* ignore */ }
+    try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '');
-  }, [playRatingKey]);
+  }, [playRatingKey, conn]);
 
   // (plex_error tracked below, once `native` is declared.)
 
@@ -1121,7 +1125,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     subtitles: extraSubs,
     onTracksChanged,
     onPlayStateChange: onPlayStateChangeCb,
-    onEnded: () => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
+    onEnded: () => { setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false); },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
   });
   // Reset the safety-net guard whenever the underlying title changes.
@@ -1279,7 +1283,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
   }, [native.error, playingTitle, playing, conn]);
 
-  const exitFullscreen = useCallback(() => { setFullscreen(false); setStreamUrl(null); setUseTranscode(false); }, []);
+  const exitFullscreen = useCallback(() => {
+    // Synchronous owner hand-back: the Back keydown that closes the player
+    // must never also be seen by PlexDetail (episodes → seasons pop).
+    setPlexKeyOwner(detailRef.current ? 'detail' : 'browse');
+    setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
+  }, []);
 
   const toggleHidden = useCallback((key: string) => {
     setHidden((prev) => {
@@ -1322,6 +1331,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
         if (!isBack) return;
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Hand the D-pad back synchronously so the same Back can't leak
+        // into the detail page's listener.
+        setPlexKeyOwner(detailRef.current ? 'detail' : 'browse');
         setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
       };
       window.addEventListener('keydown', backOnly, true);
@@ -1515,7 +1527,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering} showHelpHint />
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint footnote={routeLabel ? `Route: ${routeLabel}` : undefined} />
         )}
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
@@ -1527,6 +1539,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             getPosition={native.getPosition}
             seekTo={native.seekTo}
             onBackWhileHidden={exitFullscreen}
+            routeLabel={routeLabel}
             subtitleContext={subCtx}
             onLoadExternalSubtitle={handleLoadExternalSubtitle}
             qualityKey={qualityKey}
@@ -1652,7 +1665,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       {detailItem && conn && (
         <PlexDetail
-          isActive={isActive}
+          isActive={isActive && !fullscreen}
           base={conn.base}
           token={conn.token}
           item={detailItem}
