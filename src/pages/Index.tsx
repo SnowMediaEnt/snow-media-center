@@ -15,6 +15,7 @@ import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
 import { usePreEventAlert } from '@/hooks/usePreEventAlert';
+import { useGiveawayWinners } from '@/hooks/useGiveawayWinners';
 import { useDeviceInstalledApps } from '@/hooks/useDeviceInstalledApps';
 import { generatePackageName, findCachedApk } from '@/utils/downloadApk';
 import DownloadProgress from '@/components/DownloadProgress';
@@ -64,6 +65,7 @@ const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
 const PreEventStepsDialog = lazy(() => import('@/components/PreEventStepsDialog'));
+const GiveawayWinnersPopup = lazy(() => import('@/components/GiveawayWinnersPopup'));
 const LiveTV = lazy(() => import('@/components/LiveTV'));
 const Giveaway = lazy(() => import('@/components/Giveaway'));
 const GiveawayPromoPopup = lazy(() => import('@/components/GiveawayPromoPopup'));
@@ -495,6 +497,10 @@ const Index = () => {
     try { sessionStorage.setItem('snow-pre-event-dismissed', '1'); } catch { /* ignore */ }
     setPreEventDismissed(true);
   }, []);
+
+  // "Giveaway winners announced" boot popup — deferred fetch of the public
+  // winners view; dismissal remembered per giveaway/draw in localStorage.
+  const { current: winnersGiveaway, dismiss: dismissWinners } = useGiveawayWinners();
 
   // Force the deferred native enumeration when the pinned-apps popup opens
   // (boot path defers it to idle ~800ms; if the user opens the popup first
@@ -1191,6 +1197,15 @@ const Index = () => {
           />
         </Suspense>
       )}
+
+      {/* Giveaway winners announced — queues behind other boot popups via its
+          own modal-presence polling. */}
+      {deferredOverlaysReady && currentView === 'home' && !preEventOpen && winnersGiveaway && (
+        <Suspense fallback={null}>
+          <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
+        </Suspense>
+      )}
+
 
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
