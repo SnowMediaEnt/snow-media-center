@@ -20,6 +20,8 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import SnowLoader from '@/components/SnowLoader';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 
@@ -69,6 +71,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [infoLoading, setInfoLoading] = useState(false);
 
   const [playing, setPlaying] = useState<{ url: string; title: string } | null>(null);
+  // On-screen title: shows 4 s on play / title change / any key, then hides.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
   const [volume, setVolume] = useState(() => loadVolume());
   useEffect(() => { saveVolume(volume); }, [volume]);
@@ -426,7 +430,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   if (playing) {
     return (
       <div className="fixed inset-0 z-[60] bg-black">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
           <VideoPlayer
             src={playing.url}
             volume={volume}
@@ -436,9 +440,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
             }}
           />
         </Suspense>
-        <div className="absolute top-4 left-4 text-white font-quicksand font-bold text-lg drop-shadow-lg">
-          {playing.title}
-        </div>
+        {titleShown && (
+          <div className="absolute top-4 left-4 max-w-[70%] truncate px-4 py-2 rounded-xl bg-black/70 text-white font-quicksand font-bold text-lg pointer-events-none">
+            {playing.title}
+          </div>
+        )}
       </div>
     );
   }

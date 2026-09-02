@@ -382,9 +382,21 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const pct = dur > 0 ? Math.min(100, Math.max(0, (pos / dur) * 100)) : 0;
   const volPct = Math.round(Math.min(1, Math.max(0, volume)) * 100);
   const btnBase = 'flex items-center justify-center rounded-full transition-transform duration-150';
-  const focusVis = (r: Row) => row === r
-    ? 'bg-brand-gold text-brand-navy scale-110 shadow-[0_0_18px_rgba(245,200,80,0.55)]'
-    : 'bg-white/10 text-white';
+  // Control-bar row whose popup menu is open. That button drops its focused
+  // look (and data-focused) for an "open" outline so the eye moves to the menu.
+  const menuRow: Row | null =
+    menu === 'audio' ? 'audio'
+      : menu === 'subs' || menu === 'osdl' ? 'subs'
+        : menu === 'quality' ? 'quality'
+          : menu === 'volume' ? 'volume'
+            : menu === 'help' ? 'buffering'
+              : null;
+  const btnFocused = (r: Row) => (row === r && menuRow !== r ? 'true' : 'false');
+  const focusVis = (r: Row) => menuRow === r
+    ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
+    : row === r
+      ? 'bg-brand-gold text-brand-navy scale-110'
+      : 'bg-white/10 text-white';
 
   const subsList: Array<{ id: number; label: string; active: boolean }> = [
     { id: -1, label: 'Off', active: subs.every((s) => !s.active) },
@@ -399,13 +411,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <p className="font-quicksand font-bold text-white truncate mb-2">
             {title}
             {resolutionLabel && (
-              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
+              <span className={`ml-2 align-middle text-xs font-bold px-1.5 py-0.5 rounded-md bg-black/70 ${resolutionLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{resolutionLabel}</span>
             )}
           </p>
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-brand-gold" style={{ width: `${pct}%` }} />
           </div>
-          <div className="flex justify-between text-[11px] text-brand-ice/70 font-nunito tabular-nums mt-1">
+          <div className="flex justify-between text-xs text-brand-ice/70 font-nunito tabular-nums mt-1">
             <span>{fmtTime(pos)}</span>
             <span>{dur > 0 ? fmtTime(dur) : ''}</span>
           </div>
@@ -415,28 +427,28 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               {paused ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label="Forward 30 seconds"><FastForward className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'audio' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'subs' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
-            <button type="button" data-focused={row === 'quality' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
+            <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-5 h-5" /></button>
+            <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-5 h-5" /></button>
+            <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-5 h-5" /></button>
             <div className="flex flex-col items-center gap-0.5">
               <button
                 type="button"
-                data-focused={row === 'volume' ? 'true' : 'false'}
+                data-focused={btnFocused('volume')}
                 className={`${btnBase} w-12 h-12 ${focusVis('volume')}`}
                 aria-label="Volume"
               >
                 {volPct === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
               {row === 'volume' && (
-                <span className="text-[9px] font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
+                <span className="text-xs font-nunito text-brand-ice/80 tabular-nums leading-none">{volPct}%</span>
               )}
             </div>
             <div className="flex flex-col items-center gap-0.5">
-              <button type="button" data-focused={row === 'buffering' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
-              <span className="text-[9px] font-nunito text-brand-ice/70 leading-none">Help</span>
+              <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label="Help" onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-5 h-5" /></button>
+              <span className="text-xs font-nunito text-brand-ice/70 leading-none">Help</span>
             </div>
           </div>
-          <p className="text-center text-[11px] text-brand-ice/60 font-nunito mt-2">
+          <p className="text-center text-xs text-brand-ice/70 font-nunito mt-2">
             {row === 'buffering'
               ? 'Help — OK for support options'
               : row === 'volume'
@@ -447,73 +459,92 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       </div>
 
       {menu === 'audio' && (
-        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Audio</p>
-          {auds.length === 0 && <p className="text-xs text-brand-ice/50 px-3 py-2">No tracks</p>}
-          {auds.map((a, i) => (
-            <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="truncate">{a.label}</span>{a.active && <span className="text-[10px] text-brand-gold">●</span>}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Audio</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          {auds.length === 0 && <p className="text-xs text-brand-ice/70 px-3 py-2">No tracks</p>}
+          <div className="space-y-1">
+            {auds.map((a, i) => (
+              <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{a.label}</span>{a.active && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+            <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
+              className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
+              <VolumeX className="w-3.5 h-3.5" />
+              <span className="truncate">Fix audio (no sound?)</span>
             </div>
-          ))}
-          <div data-focused={menuIdx === auds.length ? 'true' : 'false'}
-            className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-gold'}`}>
-            <VolumeX className="w-3.5 h-3.5" />
-            <span className="truncate">Fix audio (no sound?)</span>
           </div>
         </div>
       )}
 
       {menu === 'volume' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-3 animate-fade-in pointer-events-auto">
-          <div className="flex items-center justify-between px-1 py-1">
-            <p className="text-xs font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
               {volPct === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               Volume
             </p>
-            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums">{volPct}%</span>
+            <span className="text-xs text-brand-ice/60 font-nunito">◀ ▶ · OK · Back</span>
           </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-white/15 overflow-hidden">
-            <div className="h-full bg-brand-gold transition-all" style={{ width: `${volPct}%` }} />
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="h-2 flex-1 rounded-full bg-white/15 overflow-hidden">
+              <div className="h-full bg-brand-gold transition-[width] duration-150 ease-out" style={{ width: `${volPct}%` }} />
+            </div>
+            <span className="text-sm font-quicksand font-bold text-brand-gold tabular-nums w-10 text-right">{volPct}%</span>
           </div>
-          <p className="text-center text-[10px] text-brand-ice/60 font-nunito mt-2">◀ ▶ adjust · OK/Back done</p>
         </div>
       )}
 
 
       {menu === 'quality' && (
-        <div className="absolute right-8 bottom-40 z-30 w-64 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Quality</p>
-          {PLEX_QUALITY_PRESETS.map((p, i) => (
-            <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-[10px] text-brand-gold">●</span>}
-            </div>
-          ))}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Quality</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {PLEX_QUALITY_PRESETS.map((p, i) => (
+              <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{p.label}</span>{p.key === qualityKey && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
 
       {menu === 'subs' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1">Subtitles</p>
-          {subsList.map((r, i) => (
-            <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice'}`}>
-              <span className="truncate">{r.label}</span>{r.active && <span className="text-[10px] text-brand-gold">●</span>}
-            </div>
-          ))}
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Subtitles</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {subsList.map((r, i) => (
+              <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {menu === 'osdl' && (
-        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <div className="flex items-center gap-2 px-2 py-1">
-            <Download className="w-3.5 h-3.5 text-brand-gold" />
-            <p className="text-xs font-quicksand font-semibold text-brand-ice/70">OpenSubtitles</p>
+        <div className="absolute right-8 bottom-40 z-30 w-96 max-h-[60vh] overflow-y-auto rounded-2xl bg-black/90 border border-white/15 p-2 animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              <Download className="w-3.5 h-3.5 text-brand-gold" /> OpenSubtitles
+            </p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
           </div>
           {osdlLoading && (
-            <div className="flex items-center gap-2 px-3 py-4 text-brand-ice/60 font-nunito text-sm">
+            <div className="flex items-center gap-2 px-3 py-4 text-brand-ice/70 font-nunito text-sm">
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Searching…
             </div>
           )}
@@ -521,34 +552,39 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <p className="px-3 py-3 text-xs font-nunito text-brand-ice/70">{osdlError}</p>
           )}
           {!osdlLoading && !osdlError && osdlResults.length === 0 && (
-            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/50">No subtitles found.</p>
+            <p className="px-3 py-3 text-xs font-nunito text-brand-ice/70">No subtitles found.</p>
           )}
-          {!osdlLoading && osdlResults.map((r, i) => (
-            <div key={r.id}
-              data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-xs flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
-              <span className="flex-1 truncate">{r.release || '—'}</span>
-              <span className="text-[10px] text-brand-ice/60 tabular-nums">{r.downloads}⬇</span>
-              {osdlBusyId === r.id && <Loader2 className="w-3 h-3 animate-spin text-brand-gold" />}
-            </div>
-          ))}
-          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK download · Back</p>
+          <div className="space-y-1 px-1">
+            {!osdlLoading && osdlResults.map((r, i) => (
+              <div key={r.id}
+                data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-xs flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
+                <span className="flex-1 truncate">{r.release || '—'}</span>
+                <span className="text-xs text-brand-ice/70 tabular-nums">{r.downloads}⬇</span>
+                {osdlBusyId === r.id && <Loader2 className="w-3 h-3 animate-spin text-brand-gold" />}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {menu === 'help' && (
-        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-xl bg-black/95 border border-white/15 p-2 animate-fade-in pointer-events-auto">
-          <p className="text-xs font-quicksand font-semibold text-brand-ice/70 px-2 py-1 flex items-center gap-2">
-            <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
-          </p>
-          {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
-            <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
-              className={`px-3 py-2 rounded-lg font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/25 ring-2 ring-brand-gold text-white' : 'text-brand-ice'}`}>
-              {label}
-            </div>
-          ))}
-          <p className="text-center text-[10px] text-brand-ice/50 font-nunito mt-1">▲ ▼ select · OK · Back closes</p>
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70 flex items-center gap-2">
+              <LifeBuoy className="w-3.5 h-3.5 text-brand-gold" /> Help
+            </p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {['Fix buffering — step-by-step guide', 'More help & support'].map((label, i) => (
+              <div key={label} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </>

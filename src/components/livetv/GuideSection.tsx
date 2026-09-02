@@ -27,6 +27,8 @@ import {
 import { isFireTV } from '@/utils/platform';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import SnowLoader from '@/components/SnowLoader';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import {
   demoGetLiveCategories,
@@ -398,7 +400,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} muted={false} className="w-full h-full" />
           </Suspense>
         )}
@@ -412,8 +414,11 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
           </div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && (
+          <BufferingDiagnostics buffering={native.buffering} />
         )}
         {NATIVE_PLAYBACK && native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">

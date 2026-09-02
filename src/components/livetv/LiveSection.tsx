@@ -23,6 +23,9 @@ import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import SnowLoader from '@/components/SnowLoader';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
@@ -113,6 +116,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
   useEffect(() => { savePlayerVolume(volume); }, [volume]);
+  // "Vol NN%" pill (shown while the bar is hidden) only lingers 3 s after a change.
+  const [volPillShown] = useTransientVisible(3000, { watchKeys: false, deps: [volume], initial: false });
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on Favorites (0). A separate effect bumps to the first REAL category
@@ -1031,7 +1036,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && !DEMO && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer
               src={streamUrl}
               volume={volume}
@@ -1075,13 +1080,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         )}
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
-            <Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" />
+            <div className="w-full max-w-md"><SnowLoader size="lg" label="Buffering…" /></div>
             {slowConn && (
-              <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80 drop-shadow">
+              <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80">
                 Still loading — your connection looks slow. If channels keep buffering, a VPN often helps.
               </p>
             )}
           </div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && (
+          <BufferingDiagnostics buffering={native.buffering} className="mt-12" />
         )}
         {/* Audio present but undecodable on this device: video is fine, so don't
             block it — just say why there's no sound, and name the codec so
@@ -1095,7 +1103,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               This channel's audio ({native.audioWarning.codecs}) can't be decoded on this device.
               Report the channel in Support and we'll re-encode it.
             </p>
-            <p className="mt-1 font-nunito text-[10px] text-brand-ice/40">
+            <p className="mt-1 font-nunito text-xs text-brand-ice/70">
               audio-decode: {native.audioWarning.codecs} · ffmpeg:{' '}
               {native.audioWarning.ffmpegAvailable ? 'yes' : 'no'}
             </p>
@@ -1137,7 +1145,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           volume={volume}
         />
         {/* Volume hint while bar is hidden */}
-        {!barVisible && (
+        {!barVisible && volPillShown && (
           <div className="absolute bottom-4 right-6 px-3 py-1.5 rounded-full bg-black/60 text-brand-ice/80 font-nunito text-xs pointer-events-none">
             Vol {Math.round(volume * 100)}%
           </div>
@@ -1255,8 +1263,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 {focusedChannel ? 'Press OK to play' : 'No channel selected'}
               </div>
             ) : previewUrl ? (
-              <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-gold" /></div>}>
-                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" />
+              <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
+                <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
               </Suspense>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand-ice/60 font-nunito text-sm text-center px-4">

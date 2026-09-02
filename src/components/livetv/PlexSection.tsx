@@ -47,6 +47,9 @@ import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
+import SnowLoader from '@/components/SnowLoader';
+import BufferingDiagnostics from './BufferingDiagnostics';
+import { useTransientVisible } from '@/hooks/useTransientVisible';
 import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 
 // ── data access indirection ────────────────────────────────────────────────
@@ -204,7 +207,7 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
 HomePanel.displayName = 'HomePanel';
 
 // ─── SEARCH PANEL ──────────────────────────────────────────────────────────
-interface SearchPanelProps extends HomePanelProps {}
+type SearchPanelProps = HomePanelProps;
 const SearchPanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: SearchPanelProps) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
@@ -1170,6 +1173,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // kick the pipeline instead of staring at a stalled spinner.
   const [slowLoad, setSlowLoad] = useState(false);
   setSlowLoadRef.current = setSlowLoad;
+  // Fullscreen title bar: visible for 4 s after mount / title change / a
+  // buffering flip, then hides. watchKeys=false — any key opens
+  // PlexPlayerOverlay, which already shows the title at the bottom.
+  // fullscreen in deps so a same-title replay re-shows it; NOT native.buffering —
+  // the diagnostics card owns the top-right corner during a stall.
+  const [titleShown] = useTransientVisible(4000, { watchKeys: false, deps: [fullscreen, playingTitle] });
   const armSlowLoadTimer = useCallback(() => {
     clearSlowLoadTimer();
     stillLoadingRef.current = true;
@@ -1410,7 +1419,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   // ── render: auth gate ───────────────────────────────────────────────
   if (status === 'loading' || status === 'connecting') {
-    return <div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>;
+    return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label="Connecting to Plex…" /></div></div>;
   }
   if (status !== 'ready') {
     return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
@@ -1436,9 +1445,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   if (!warmedUp && !fullscreen && !detailItem) {
     return (
       <div className="min-h-screen flex-1 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
-        <Loader2 className="w-12 h-12 animate-spin text-brand-gold" />
-        <p className="font-quicksand font-semibold text-brand-ice">Loading your library…</p>
-        <p className="text-xs font-nunito text-brand-ice/50">Plex · {conn?.name}</p>
+        <div className="w-full max-w-md">
+          <SnowLoader size="md" label="Loading your library…" />
+        </div>
+        <p className="text-xs font-nunito text-brand-ice/70">Plex · {conn?.name}</p>
       </div>
     );
   }
@@ -1449,16 +1459,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return (
       <div className={`fixed inset-0 z-[60] text-white ${NATIVE_PLAYBACK ? 'bg-transparent' : 'bg-black'}`}>
         {!NATIVE_PLAYBACK && streamUrl && (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-brand-gold" /></div>}>
+          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center"><div className="w-full max-w-md"><SnowLoader size="lg" label="Loading…" /></div></div>}>
             <VideoPlayer src={streamUrl} volume={volume} className="w-full h-full" />
           </Suspense>
         )}
         {NATIVE_PLAYBACK && !native.error && !slowLoad && (!streamUrl || !nativeActive || native.buffering) && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><Loader2 className="w-12 h-12 text-brand-gold animate-spin drop-shadow-lg" /></div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-full max-w-md">
+              <SnowLoader size="lg" label={streamUrl && nativeActive ? 'Buffering…' : 'Loading…'} />
+            </div>
+          </div>
         )}
         {NATIVE_PLAYBACK && !native.error && slowLoad && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
-            <Loader2 className="w-10 h-10 text-brand-gold animate-spin mb-3" />
+            <div className="w-full max-w-md mb-3">
+              <SnowLoader size="md" />
+            </div>
             <p className="font-quicksand font-semibold mb-1">Still preparing…</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">Your Plex server is slow to respond.</p>
             <button onClick={() => {
@@ -1486,14 +1502,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             </button>
           </div>
         )}
-        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-          <p className="font-quicksand font-bold text-white truncate">
-            {playingTitle}{useTranscode ? ' · transcoding' : ''}
-            {playingResLabel && (
-              <span className={`ml-2 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
-            )}
-          </p>
-        </div>
+        {titleShown && (
+          <div className="absolute top-0 left-0 right-0 p-4 pr-96 bg-gradient-to-b from-black/80 to-transparent pointer-events-none animate-fade-in">
+            <p className="font-quicksand font-bold text-white truncate">
+              {playingTitle}{useTranscode ? ' · transcoding' : ''}
+              {playingResLabel && (
+                <span className={`ml-2 align-middle text-xs font-bold px-1.5 py-0.5 rounded-md bg-black/70 ${playingResLabel === '4K' ? 'text-brand-gold' : 'text-white/80'}`}>{playingResLabel}</span>
+              )}
+            </p>
+          </div>
+        )}
+        {NATIVE_PLAYBACK && !native.error && (
+          <BufferingDiagnostics buffering={native.buffering} showHelpHint />
+        )}
         {NATIVE_PLAYBACK && !native.error && (
           <PlexPlayerOverlay
             active={nativeActive && !slowLoad}
