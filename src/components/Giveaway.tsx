@@ -51,6 +51,10 @@ interface GiveawayInfo {
   announcement_md: string | null;
 }
 
+interface PastGiveaway extends GiveawayInfo {
+  winners: PublicWinner[];
+}
+
 interface MyEntry {
   entry_type: string;
   entry_count: number;
@@ -260,6 +264,9 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
   const [winners, setWinners] = useState<PublicWinner[]>([]);
   const [myTotal, setMyTotal] = useState(0);
   const [myEntries, setMyEntries] = useState<MyEntry[]>([]);
+  // Previous giveaways + their announced winners (public bridge action).
+  const [history, setHistory] = useState<PastGiveaway[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [fbName, setFbName] = useState('');
   const [reviewUrl, setReviewUrl] = useState('');
@@ -279,6 +286,14 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
       if (error) throw error;
       setGiveaway((data?.giveaway as GiveawayInfo | null) ?? null);
       setWinners((data?.winners as PublicWinner[] | null) ?? []);
+      void supabase.functions.invoke('giveaway-bridge', { body: { action: 'history', limit: 24 } })
+        .then(({ data: h }) => {
+          const list = (h?.giveaways as PastGiveaway[] | undefined) ?? [];
+          // The newest one is the hero above; history is everything after it.
+          const currentId = (data?.giveaway as GiveawayInfo | null)?.id;
+          setHistory(list.filter((g) => g.id !== currentId));
+        })
+        .catch(() => { /* history is optional */ });
 
       if (user) {
         const { data: mine, error: myErr } = await supabase.rpc('giveaway_my_summary');
@@ -313,7 +328,11 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
   // Signed-in + active + not yet claimed: 1 = FB name, 2 = review URL, 3 = submit.
   const claimOpen = !!user && isActive && !alreadyClaimed;
   const signInSlot = !user && !!giveaway;
-  const totalFocusable = 1 + (claimOpen ? 3 : signInSlot ? 1 : 0);
+  // After the form/CTA slots: the "Previous giveaways" toggle, then (when
+  // open) one slot per past giveaway so Down scrolls through the list.
+  const historyToggleIdx = history.length ? 1 + (claimOpen ? 3 : signInSlot ? 1 : 0) : -1;
+  const historyCount = historyOpen && history.length ? history.length : 0;
+  const totalFocusable = 1 + (claimOpen ? 3 : signInSlot ? 1 : 0) + (historyToggleIdx >= 0 ? 1 : 0) + historyCount;
 
   const submitClaim = useCallback(async () => {
     if (!giveaway || claiming) return;
@@ -388,6 +407,8 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
           void submitClaim();
         } else if (signInSlot && focusIndex === 1) {
           navigate('/auth');
+        } else if (historyToggleIdx >= 0 && focusIndex === historyToggleIdx) {
+          setHistoryOpen((o) => !o);
         }
         return;
       }
@@ -399,7 +420,7 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [demo, focusIndex, claimOpen, signInSlot, totalFocusable, onBack, navigate, submitClaim]);
+  }, [demo, focusIndex, claimOpen, signInSlot, totalFocusable, historyToggleIdx, onBack, navigate, submitClaim]);
 
   // Keep the focused control inside the visible area (nearest — never 'center').
   useEffect(() => {
@@ -624,6 +645,80 @@ const Giveaway = ({ onBack }: { onBack: () => void }) => {
               </Card>
             )}
           </>
+        )}
+
+        {/* Previous giveaways + winners */}
+        {!loading && history.length > 0 && (
+          <div className="mt-8">
+            <button
+              type="button"
+              data-giveaway-focus={historyToggleIdx}
+              data-focused={focusIndex === historyToggleIdx ? 'true' : 'false'}
+              onClick={() => setHistoryOpen((o) => !o)}
+              className={`tv-ring w-full flex items-center gap-3 px-5 py-4 rounded-2xl border border-white/10 bg-slate-800/60 text-left transition-transform duration-150 ease-out ${
+                focusIndex === historyToggleIdx ? 'scale-[1.02] z-10' : ''
+              }`}
+            >
+              <Trophy className="w-6 h-6 text-yellow-300 flex-shrink-0" />
+              <span className="flex-1">
+                <span className="block text-xl font-quicksand font-semibold text-white/90">Previous giveaways</span>
+                <span className="block text-sm text-brand-ice/70 font-nunito">
+                  {history.length} past giveaway{history.length === 1 ? '' : 's'} · see who won
+                </span>
+              </span>
+              <span className="text-sm text-brand-ice/70 font-nunito">{historyOpen ? 'Hide' : 'Show'}</span>
+            </button>
+
+            {historyOpen && (
+              <ul className="mt-4 space-y-4">
+                {history.map((g, i) => {
+                  const idx = historyToggleIdx + 1 + i;
+                  const focused = focusIndex === idx;
+                  const when = [fmtDate(g.start_at), fmtDate(g.end_at)].filter(Boolean).join(' – ');
+                  return (
+                    <li
+                      key={g.id}
+                      data-giveaway-focus={idx}
+                      data-focused={focused ? 'true' : 'false'}
+                      className={`tv-ring rounded-2xl border border-white/10 bg-slate-900/70 p-5 transition-transform duration-150 ease-out ${focused ? 'scale-[1.02] z-10' : ''}`}
+                    >
+                      <div className="flex gap-5 items-start">
+                        {g.prize_image_url && (
+                          <img src={g.prize_image_url} alt="" loading="lazy" decoding="async" className="w-24 h-24 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <h3 className="text-xl font-quicksand font-semibold text-white/90 truncate">{g.name}</h3>
+                            {g.status === 'drawn' || g.status === 'announced' ? (
+                              <span className="rounded-full bg-yellow-500/20 border border-yellow-400/50 px-3 py-1 text-yellow-200 text-xs font-semibold">Winners drawn</span>
+                            ) : g.status === 'ended' ? (
+                              <span className="rounded-full bg-slate-500/20 border border-slate-400/50 px-3 py-1 text-slate-200 text-xs font-semibold">Ended</span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-500/20 border border-emerald-400/50 px-3 py-1 text-emerald-200 text-xs font-semibold">{g.status}</span>
+                            )}
+                          </div>
+                          {g.prize_description && <p className="mt-1 text-base text-amber-100 font-nunito">{g.prize_description}</p>}
+                          {when && <p className="mt-1 text-sm text-brand-ice/70 font-nunito">{when}</p>}
+                          {g.winners.length > 0 ? (
+                            <ul className="mt-3 flex flex-wrap gap-2">
+                              {g.winners.map((w) => (
+                                <li key={`${g.id}-${w.position}`} className="flex items-center gap-2 rounded-xl bg-black/30 border border-yellow-500/20 px-3 py-2 text-sm font-nunito">
+                                  <span>{w.position === 1 ? '🥇' : w.position === 2 ? '🥈' : w.position === 3 ? '🥉' : '🏅'}</span>
+                                  <span className="font-semibold">{w.public_display_name}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="mt-3 text-sm text-brand-ice/70 font-nunito">Winners not announced.</p>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>
