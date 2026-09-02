@@ -498,6 +498,10 @@ const Index = () => {
     setPreEventDismissed(true);
   }, []);
 
+  // "Giveaway winners announced" boot popup — deferred fetch of the public
+  // winners view; dismissal remembered per giveaway/draw in localStorage.
+  const { current: winnersGiveaway, dismiss: dismissWinners } = useGiveawayWinners();
+
   // Force the deferred native enumeration when the pinned-apps popup opens
   // (boot path defers it to idle ~800ms; if the user opens the popup first
   // we want the list ready immediately).
