@@ -78,6 +78,9 @@ const RouteFallback = () => (
   </div>
 );
 
+type HomeCardId = 'player' | 'apps' | 'support' | 'store';
+const HOME_CARD_VIEW: Record<HomeCardId, string> = { player: 'livetv', apps: 'apps', support: 'support', store: 'store' };
+
 const HomeActionCard = memo(({
   button,
   index,
@@ -755,15 +758,22 @@ const Index = () => {
   // Stable per-index activation callbacks — referentially constant for the
   // life of the component so HomeActionCard's React.memo can skip re-renders
   // on unfocused cards when only `focusedButton` changes.
-  const activateByIndex = useMemo(() => {
-    const list = [
-      () => navigateToRef.current('apps'),
-      () => navigateToRef.current('support'),
-      () => navigateToRef.current('store'),
-    ];
-    if (playerEnabled) list.push(() => navigateToRef.current('livetv'));
-    return list;
-  }, [playerEnabled]);
+  // Card order on the home row. The Player is the star of the app, so it sits
+  // at the far left and is the card focused at launch (focusedButton 0 = first
+  // card). Everything below looks cards up by id, never by fixed position.
+  const cardIds = useMemo<HomeCardId[]>(
+    () => (playerEnabled ? ['player', 'apps', 'support', 'store'] : ['apps', 'support', 'store']),
+    [playerEnabled],
+  );
+  const appsCardIdx = cardIds.indexOf('apps');
+  const appsCardIdxRef = useRef(appsCardIdx);
+  useEffect(() => { appsCardIdxRef.current = appsCardIdx; }, [appsCardIdx]);
+  const activateByIndex = useMemo(
+    () => cardIds.map((id) => () => navigateToRef.current(HOME_CARD_VIEW[id])),
+    [cardIds],
+  );
+  const activateByIndexRef = useRef(activateByIndex);
+  useEffect(() => { activateByIndexRef.current = activateByIndex; }, [activateByIndex]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -894,8 +904,8 @@ const Index = () => {
 
 
         case 'ArrowUp':
-          // If on Main Apps (button 0), open the pinned apps popup first
-          if (focusedButton === 0 && !isInPopup) {
+          // If on Main Apps, open the pinned apps popup first
+          if (focusedButton === appsCardIdxRef.current && !isInPopup) {
             setIsInPopup(true);
             setPopupFocusIndex(0);
             return;
@@ -908,7 +918,7 @@ const Index = () => {
             } else {
               // No content bar — jump directly to the top row.
               // Left/middle cards land on Sign In / Dashboard, right card on Settings.
-              setFocusedButton(focusedButton >= 3 ? -1 : -2);
+              setFocusedButton(focusedButton >= maxButtons ? -1 : -2);
             }
           }
           break;
@@ -939,14 +949,8 @@ const Index = () => {
           } else if (focusedButton === -1) {
             // Navigate to settings
             navigateToRef.current('settings');
-          } else if (focusedButton === 0) {
-            navigateToRef.current('apps');
-          } else if (focusedButton === 1) {
-            navigateToRef.current('support');
-          } else if (focusedButton === 2) {
-            navigateToRef.current('store');
-          } else if (focusedButton === 3 && playerEnabledRef.current) {
-            navigateToRef.current('livetv');
+          } else if (focusedButton >= 0) {
+            activateByIndexRef.current[focusedButton]?.();
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
             // Home gift badge
             try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
@@ -968,16 +972,14 @@ const Index = () => {
   }, []);
 
   const buttons = useMemo(() => {
-    const list: Array<{ icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = [
-      { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
-      { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
-      { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
-    ];
-    if (playerEnabled) {
-      list.push({ icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' });
-    }
-    return list;
-  }, [playerEnabled, t]);
+    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy' }> = {
+      player: { icon: Tv, title: t('home.player.title'), description: t('home.player.description'), variant: 'navy' },
+      apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
+      support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
+      store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
+    };
+    return cardIds.map((id) => byId[id]);
+  }, [cardIds, t]);
 
   const tagline = t('home.tagline');
   const adminLabel = t('common.admin');
@@ -1132,8 +1134,8 @@ const Index = () => {
                   />
                 );
 
-                // Wrap Main Apps card (index 0) with pinned apps popup
-                if (index === 0) {
+                // Wrap the Main Apps card with the pinned apps popup
+                if (index === appsCardIdx) {
                   return (
                     <div key={index} className="relative h-full">
                       <PinnedAppsPopup
@@ -1148,7 +1150,7 @@ const Index = () => {
                         onUnpinApp={unpinApp}
                         isPinned={isPinned}
                         canPinMore={canPinMore}
-                        focusedIndex={isInPopup && focusedButton === 0 ? popupFocusIndex : -1}
+                        focusedIndex={isInPopup && focusedButton === appsCardIdx ? popupFocusIndex : -1}
                         onFocusChange={onPopupFocusChange}
                         onExitFocus={onPopupExitFocus}
                       />
