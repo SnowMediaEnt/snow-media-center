@@ -416,11 +416,24 @@
     inset 0 0 0 3px hsl(0 84% 60%),
     0 0 22px 2px hsl(0 84% 60% / 0.45);
 }
+/* Fire TV (low-memory): draw the ring with `outline`, NOT an inset
+   box-shadow. An inset shadow is painted below the element's children, so
+   any tile whose child image fills the box edge-to-edge (PosterCard, Plex
+   posters, PlexDetail seasons / cast, MediaBar) hid the ring and only the
+   scale was left as a cue. `outline` is painted after all descendants, so
+   it sits on top of the image; `outline-offset: -4px` keeps it inside the
+   border box so it cannot drift outside a scaled card. Chromium 66 draws
+   it square on rounded corners — accepted; the dev-box branch above keeps
+   the rounded inset + glow. */
 .native-low-memory .tv-ring[data-focused="true"] {
-  box-shadow: inset 0 0 0 4px hsl(var(--brand-gold)) !important;
+  box-shadow: none !important;
+  outline: 4px solid hsl(var(--brand-gold)) !important;
+  outline-offset: -4px !important;
 }
 .native-low-memory .tv-ring-danger[data-focused="true"] {
-  box-shadow: inset 0 0 0 4px hsl(0 84% 60%) !important;
+  box-shadow: none !important;
+  outline: 4px solid hsl(0 84% 60%) !important;
+  outline-offset: -4px !important;
 }
 /* Gold-on-gold: a gold ring on a solid gold fill (Play / Retry CTAs,
    Button variant=gold) is invisible, so those focusables also carry
@@ -438,7 +451,9 @@
 }
 .native-low-memory .tv-ring-contrast[data-focused="true"],
 .native-low-memory .tv-ring[data-focused="true"][class*="--gradient-gold"] {
-  box-shadow: inset 0 0 0 4px hsl(0 0% 100%) !important;
+  box-shadow: none !important;
+  outline: 4px solid hsl(0 0% 100%) !important;
+  outline-offset: -4px !important;
 }
 /* Natively-focused tv-ring buttons must not also paint the generic
    `button:focus-visible` ice outline (index.css, components layer). */
