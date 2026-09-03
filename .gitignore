@@ -33,3 +33,11 @@ android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
 !android/app/src/main/assets/.gitkeep
 ios/App/App/public/
+
+# Gradle's per-machine build state. These were committed by accident and cause
+# real trouble: the .lock files are held by a running daemon, and fileHashes /
+# checksums are keyed to one machine's absolute paths, so a checkout on another
+# box can fail to build until they are deleted.
+android/.gradle/
+android/.idea/
+android/local.properties

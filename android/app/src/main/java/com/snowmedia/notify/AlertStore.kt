@@ -15,9 +15,29 @@ internal class AlertStore(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("smc_device_alerts", Context.MODE_PRIVATE)
 
+    /**
+     * ON by default — a service notice is no use sitting behind a switch
+     * nobody found. `configured` is what stops that default from meaning
+     * "ask again on every launch": see below.
+     */
     var enabled: Boolean
-        get() = prefs.getBoolean(KEY_ENABLED, false)
+        get() = prefs.getBoolean(KEY_ENABLED, true)
         set(v) = prefs.edit().putBoolean(KEY_ENABLED, v).apply()
+
+    /**
+     * True once enable() has run at least once on this device — the URL and key
+     * are stored, the channel exists, the poll is armed.
+     *
+     * The pairing with the default above is the whole point. `enabled` starts
+     * true so alerts work without anyone opting in, and the app auto-enables on
+     * first launch to arm the poll. `configured` records that this has happened,
+     * so a viewer who then switches alerts OFF is never quietly switched back on
+     * next launch — and a viewer who refused the Android 13 permission prompt is
+     * never asked again on every single launch.
+     */
+    var configured: Boolean
+        get() = prefs.getBoolean(KEY_CONFIGURED, false)
+        set(v) = prefs.edit().putBoolean(KEY_CONFIGURED, v).apply()
 
     var supabaseUrl: String?
         get() = prefs.getString(KEY_URL, null)
@@ -48,6 +68,7 @@ internal class AlertStore(context: Context) {
 
     private companion object {
         const val KEY_ENABLED = "enabled"
+        const val KEY_CONFIGURED = "configured"
         const val KEY_URL = "supabase_url"
         const val KEY_KEY = "supabase_key"
         const val KEY_SHOWN = "shown_ids"

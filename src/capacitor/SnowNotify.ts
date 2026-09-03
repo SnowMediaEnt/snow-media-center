@@ -14,8 +14,14 @@ import { registerPlugin, Capacitor } from '@capacitor/core';
  * callers never need to branch on the platform.
  */
 export interface SnowNotifyStatus {
-  /** The viewer has alerts switched on for this device. */
+  /** Alerts are on for this device. Defaults to TRUE on a fresh install. */
   enabled: boolean;
+  /**
+   * enable() has run at least once here. Until it has, the poll is not armed
+   * and the native side has no Supabase credentials — so `enabled && !configured`
+   * is the first-launch state the hook auto-enables from, exactly once.
+   */
+  configured?: boolean;
   /** 'granted' | 'denied' — Android 13+ only; always 'granted' below that. */
   permission: string;
   /** Notifications are off for the whole app in system settings. */
@@ -30,8 +36,8 @@ export interface SnowNotifyPlugin {
 }
 
 const unavailable: SnowNotifyPlugin = {
-  status: async () => ({ enabled: false, permission: 'denied', channelBlocked: true }),
-  enable: async () => ({ enabled: false, permission: 'denied' }),
+  status: async () => ({ enabled: false, configured: true, permission: 'denied', channelBlocked: true }),
+  enable: async () => ({ enabled: false, configured: true, permission: 'denied' }),
   disable: async () => ({ enabled: false }),
   pollNow: async () => ({ enabled: false }),
 };

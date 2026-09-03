@@ -515,8 +515,9 @@ const Settings = ({ onBack }: SettingsProps) => {
                     <div>
                       <h3 className="text-lg font-bold text-white">Alerts on this device</h3>
                       <p className="text-sm text-white/70 mt-1">
-                        Service notices pop up on screen even when Snow Media Center is closed.
-                        Press OK on one to open the app, or dismiss it and it stays gone.
+                        On by default. Service notices pop up on screen even when Snow Media Center
+                        is closed — press OK on one to open the app, or dismiss it and it stays
+                        gone. Turn this off to keep alerts inside the app only.
                       </p>
                       {deviceAlerts.status.channelBlocked && (
                         <p className="text-sm text-amber-300 mt-2">
