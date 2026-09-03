@@ -561,7 +561,7 @@ JustLinkedCard.displayName = 'JustLinkedCard';
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
+  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect, repairConnection } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
@@ -575,6 +575,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   );
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
+  // True when the last library fetch threw, so the empty state can tell the
+  // difference between "the server returned nothing" and "we could not ask".
+  const [libraryLoadFailed, setLibraryLoadFailed] = useState(false);
+  // One repair attempt per session — never loop.
+  const repairedRef = useRef(false);
   const [hidden, setHidden] = useState<string[]>([]);
   const [libIdx, setLibIdx] = useState(0);
   const [items, setItems] = useState<PlexItem[]>([]);
@@ -684,13 +689,30 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (status !== 'ready' || !conn) return;
     let cancelled = false;
     getPlexLibraries(conn.base, conn.token)
-      .then((libs) => { if (!cancelled) setLibraries(libs); })
-      // Keep whatever is already on screen: a transient PMS hiccup on a
-      // reconnect must not empty the tab strip. Only an initial failure (we
-      // have nothing yet) leaves the list empty.
-      .catch(() => { if (!cancelled) setLibraries((prev) => prev); });
+      .then((libs) => {
+        if (cancelled) return;
+        setLibraries(libs);
+        setLibraryLoadFailed(false);
+        // Self-heal: this server answered /identity but serves no libraries,
+        // which is what a bad cached base looks like. Forget it and rediscover
+        // once per session; a code fix alone cannot undo a base already
+        // written to device storage.
+        if (libs.length === 0 && !repairedRef.current) {
+          repairedRef.current = true;
+          void repairConnection();
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Keep whatever is already on screen — a transient hiccup on a
+        // reconnect must not empty the tab strip — but record the failure so
+        // the empty state can say what actually went wrong.
+        setLibraries((prev) => prev);
+        setLibraryLoadFailed(true);
+        if (!repairedRef.current) { repairedRef.current = true; void repairConnection(); }
+      });
     return () => { cancelled = true; };
-  }, [status, conn]);
+  }, [status, conn, repairConnection]);
 
   const visibleLibraries = useMemo(
     () => libraries.filter((l) => hidden.indexOf(l.key) < 0),
