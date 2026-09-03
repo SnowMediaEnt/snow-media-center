@@ -21,7 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 const PASSWORD_RESET_REDIRECT = 'https://snowmediaent.com/auth';
 import { trackEvent } from '@/lib/analytics';
 import { signInWithPlayerCredentials, looksLikeEmail } from '@/lib/playerLogin';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 
 type Step = 'email' | 'password' | 'create';
 type FocusEl =
@@ -439,10 +439,12 @@ const Auth = () => {
   return (
     <div
       className="fixed inset-0 text-white px-[5vw] py-[4vh] overflow-y-auto"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
     >
-      {/* Back Button — normal flow at the top-left of the page content */}
-      <div className={BACK_ROW}>
+      {/* Back Button — normal flow at the top-left of the page content.
+          Literal class string rather than BACK_ROW so the tighter bottom
+          margin is not fighting BACK_ROW's own mb-6 on source order. */}
+      <div className="flex items-center w-full justify-start mb-4">
         <BackButton
           id="auth-back"
           onClick={() => {
@@ -462,22 +464,21 @@ const Auth = () => {
 
 
 
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-1">
-            Snow Media Center
-          </h1>
-          <p className="text-base text-blue-200">Your Snow Media account</p>
-        </div>
+        {step === 'email' && (
+          <div className="text-center mb-3">
+            <h1 className="text-3xl font-bold leading-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Snow Media Center
+            </h1>
+            <p className="text-base text-blue-200">Your Snow Media account</p>
+          </div>
+        )}
 
         <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm p-5">
           {/* ===== STEP 1: EMAIL ===== */}
           {step === 'email' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                This is your Snow Media WEBSITE account — for purchases, support tickets, messages, and your profile. It is NOT your TV/streaming login (Dreamstreams, VibezTV). Your streaming service keeps working either way.
-              </p>
-              <p className="text-xs text-blue-200/70 px-1">
-                Looking for your streaming (Dreamstreams / Vibez) login? Press Back, then open My Account and choose "Sign in with Dreamstreams / Vibez".
+                This is your Snow Media WEBSITE account — purchases, support tickets, messages and your profile. It is NOT your streaming login, and your streaming service keeps working either way. For Dreamstreams / Vibez, press Back and pick "Sign in with Dreamstreams / Vibez".
               </p>
 
 
@@ -492,7 +493,7 @@ const Auth = () => {
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                     placeholder="Enter your email"
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
-                      focusedElement === 'email' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      focusedElement === 'email' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
                     required
                   />
@@ -505,7 +506,7 @@ const Auth = () => {
                 onClick={() => void handleContinue()}
                 disabled={checking || !loginForm.email.trim()}
                 className={`w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${
-                  focusedElement === 'continue' ? 'ring-4 ring-white/60 scale-105' : ''
+                  focusedElement === 'continue' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
                 {checking ? (
@@ -522,7 +523,7 @@ const Auth = () => {
                 variant="outline"
                 onClick={handleSkip}
                 className={`w-full bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
-                  focusedElement === 'skip' ? 'ring-4 ring-white/60 scale-105' : ''
+                  focusedElement === 'skip' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
                 Skip — continue as guest
@@ -532,7 +533,7 @@ const Auth = () => {
 
           {/* ===== STEP 2: PASSWORD ===== */}
           {step === 'password' && (
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-3">
               <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
                 Welcome back! Enter your password to sign in.
               </p>
@@ -561,7 +562,7 @@ const Auth = () => {
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     placeholder="Enter your password"
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
-                      focusedElement === 'password' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
                     required
                   />
@@ -580,7 +581,7 @@ const Auth = () => {
                 type="submit"
                 disabled={loading}
                 className={`w-full bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 ${
-                  focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
+                  focusedElement === 'submit' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
                 {loading ? (
@@ -597,7 +598,7 @@ const Auth = () => {
                 onClick={() => void handleForgotPassword()}
                 disabled={resetSent || loading}
                 className={`w-full text-sm text-blue-300 hover:text-blue-100 underline transition-all duration-200 disabled:opacity-60 disabled:no-underline ${
-                  focusedElement === 'forgot' ? 'ring-4 ring-white/60 scale-105 rounded' : ''
+                  focusedElement === 'forgot' ? 'ring-4 ring-white/60 rounded' : ''
                 }`}
               >
                 {resetSent ? 'Check your email for the reset link' : 'Forgot your password?'}
@@ -608,7 +609,7 @@ const Auth = () => {
                 type="button"
                 onClick={() => { setStep('email'); setFocusedElement('email'); }}
                 className={`w-full text-sm text-blue-300 hover:text-blue-100 underline transition-all duration-200 ${
-                  focusedElement === 'change-email' ? 'ring-4 ring-white/60 scale-105 rounded' : ''
+                  focusedElement === 'change-email' ? 'ring-4 ring-white/60 rounded' : ''
                 }`}
               >
                 Use a different email
@@ -618,11 +619,11 @@ const Auth = () => {
 
           {/* ===== STEP 3: CREATE ===== */}
           {step === 'create' && (
-            <form onSubmit={handleSignup} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-2.5">
               <div>
-                <h2 className="text-lg font-semibold text-white mb-2">Create your free website account</h2>
+                <h2 className="text-base font-semibold text-white mb-1.5">Create your free website account</h2>
                 <p className="text-xs text-blue-200/90 bg-blue-950/40 border border-blue-500/30 rounded-md p-3">
-                  No account found for {signupForm.email || loginForm.email}. Create a free Snow Media WEBSITE account to see your purchases, get support replies in-app, and manage your profile. This is not a streaming subscription — it won't change or replace your Dreamstreams / VibezTV login.
+                  No account found for {signupForm.email || loginForm.email}. A free WEBSITE account gets you your purchases, in-app support replies and your profile — it will not touch your Dreamstreams / VibezTV login.
                 </p>
               </div>
 
@@ -637,14 +638,14 @@ const Auth = () => {
                     onChange={(e) => setSignupForm({ ...signupForm, fullName: e.target.value })}
                     placeholder="Enter your full name"
                     className={`pl-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
-                      focusedElement === 'name' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      focusedElement === 'name' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="signup-password" className="text-white">Password</Label>
+                <Label htmlFor="signup-password" className="text-white">Password <span className="text-blue-300/80 font-normal">(6+ characters)</span></Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-blue-600 z-10" />
                   <Input
@@ -654,7 +655,7 @@ const Auth = () => {
                     onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
                     placeholder="Create a password"
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
-                      focusedElement === 'password' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      focusedElement === 'password' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
                     required
                   />
@@ -666,7 +667,6 @@ const Auth = () => {
                     {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-blue-300/80 mt-1">At least 6 characters</p>
               </div>
 
               <div>
@@ -680,7 +680,7 @@ const Auth = () => {
                     onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
                     placeholder="Confirm your password"
                     className={`pl-10 pr-10 bg-white/90 border-white/20 text-black placeholder:text-gray-600 transition-all duration-200 ${
-                      focusedElement === 'confirm' ? 'ring-4 ring-blue-400/60 scale-105' : ''
+                      focusedElement === 'confirm' ? 'ring-4 ring-blue-400/60' : ''
                     }`}
                     required
                   />
@@ -699,7 +699,7 @@ const Auth = () => {
                 type="submit"
                 disabled={loading}
                 className={`w-full bg-purple-600 hover:bg-purple-700 text-white transition-all duration-200 ${
-                  focusedElement === 'submit' ? 'ring-4 ring-white/60 scale-105' : ''
+                  focusedElement === 'submit' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
                 {loading ? (
@@ -710,17 +710,13 @@ const Auth = () => {
                 ) : 'Create Account'}
               </Button>
 
-              <p className="text-xs text-blue-300/80 text-center">
-                You'll get a confirmation email — open it on this device or your phone.
-              </p>
-
               <Button
                 id="auth-skip-2"
                 type="button"
                 variant="outline"
                 onClick={handleSkip}
                 className={`w-full bg-blue-600/20 hover:bg-blue-500/30 border-blue-400/50 text-white transition-all duration-200 ${
-                  focusedElement === 'skip' ? 'ring-4 ring-white/60 scale-105' : ''
+                  focusedElement === 'skip' ? 'ring-4 ring-white/60' : ''
                 }`}
               >
                 Skip — continue as guest

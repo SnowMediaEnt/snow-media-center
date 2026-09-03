@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
 import { Card } from '@/components/ui/card';
 import { Tv, Globe, Loader2 } from 'lucide-react';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { XtreamCreds } from '@/lib/xtream';
 
@@ -184,36 +184,42 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
   }
 
   return (
+    // Sized to FIT, not to scroll. The icon shares a row with the heading
+    // instead of stacking above it, the copy is trimmed to what a reader on a
+    // couch actually needs, and everything is measured against a short (540px
+    // CSS) TV viewport. overflow-y-auto stays only as a safety valve for an
+    // unusually small panel — at these sizes there is nothing to scroll.
     <div className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
-      <div className={BACK_ROW}>
+      <div className="flex items-center w-full justify-start mb-4">
         <BackButton onClick={onBack} label="Back to Home" focused={focusIndex === 0} />
       </div>
-      <div className="max-w-6xl mx-auto px-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-white mb-1">My Account</h1>
-          <p className="text-lg text-blue-200">Choose how you want to sign in</p>
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-5">
+          <h1 className="text-3xl font-bold text-white leading-tight">My Account</h1>
+          <p className="text-base text-blue-200">Choose how you want to sign in</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <Card
             tabIndex={0}
             data-focused={focusIndex === 1 ? 'true' : 'false'}
             onFocus={() => setFocusIndex(1)}
             onMouseEnter={() => setFocusIndex(1)}
             onClick={() => setMode('player')}
-            className={`tv-focusable cursor-pointer border-0 rounded-3xl p-6 [background:var(--gradient-navy)] outline-none transition-all duration-200 ${focusIndex === 1 ? FOCUS_RING : ''}`}
+            className={`tv-focusable cursor-pointer border-0 rounded-3xl p-5 [background:var(--gradient-navy)] outline-none transition-all duration-200 ${focusIndex === 1 ? FOCUS_RING : ''}`}
           >
-            <div className="w-12 h-12 rounded-2xl bg-brand-gold/20 flex items-center justify-center mb-4">
-              <Tv className="w-7 h-7 text-brand-gold" />
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 shrink-0 rounded-xl bg-brand-gold/20 flex items-center justify-center">
+                <Tv className="w-6 h-6 text-brand-gold" />
+              </div>
+              <h2 className="text-xl font-bold text-white leading-tight">Sign in with Dreamstreams / Vibez</h2>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Sign in with Dreamstreams / Vibez</h2>
-            <p className="text-brand-ice/80 font-nunito text-sm leading-relaxed">
+            <p className="text-brand-ice/80 font-nunito text-sm leading-snug">
               Your STREAMING login — the same username &amp; password you use in the Player.
-              Signing in here also signs you in to the Player, and shows your subscription,
-              expiration date and renewal reminders under My Account.
+              Signs you into the Player too, and shows your subscription and expiry date here.
             </p>
-            <p className="text-brand-ice/50 font-nunito text-xs mt-3">
-              Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
+            <p className="text-brand-ice/50 font-nunito text-xs mt-2">
+              Email usernames connect to Vibez, everything else to Dreamstreams.
             </p>
           </Card>
 
@@ -223,18 +229,19 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
             onFocus={() => setFocusIndex(2)}
             onMouseEnter={() => setFocusIndex(2)}
             onClick={() => navigate('/auth')}
-            className={`tv-focusable cursor-pointer rounded-3xl p-6 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 outline-none transition-all duration-200 ${focusIndex === 2 ? FOCUS_RING : ''}`}
+            className={`tv-focusable cursor-pointer rounded-3xl p-5 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 outline-none transition-all duration-200 ${focusIndex === 2 ? FOCUS_RING : ''}`}
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-4">
-              <Globe className="w-7 h-7 text-blue-300" />
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 shrink-0 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <Globe className="w-6 h-6 text-blue-300" />
+              </div>
+              <h2 className="text-xl font-bold text-white leading-tight">Snow Media website account</h2>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Snow Media website account</h2>
-            <p className="text-slate-300 font-nunito text-sm leading-relaxed">
-              Your WEBSITE account (email &amp; password) — purchases, support tickets, messages
-              and Snow Gems. This is NOT your streaming login; your streaming service keeps
-              working either way.
+            <p className="text-slate-300 font-nunito text-sm leading-snug">
+              Your WEBSITE account — purchases, support tickets, messages and Snow Gems.
+              NOT your streaming login; your service keeps working either way.
             </p>
-            <p className="text-slate-500 font-nunito text-xs mt-3">
+            <p className="text-slate-500 font-nunito text-xs mt-2">
               Sign in or create a free account.
             </p>
           </Card>
