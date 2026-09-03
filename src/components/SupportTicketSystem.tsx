@@ -6,23 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import SupportAttachment from '@/components/support/SupportAttachment';
+import { useAttachmentComposer } from '@/components/support/useAttachmentComposer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
-import { 
-  ArrowLeft, 
-  Plus, 
-  MessageCircle, 
-  Clock, 
-  Send,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  LogIn,
-  Bot,
-  Trash2
-} from 'lucide-react';
+import { ArrowLeft, Plus, MessageCircle, Clock, Send, AlertCircle, CheckCircle2, XCircle, LogIn, Bot, Trash2, ImageIcon, Mic, Square } from 'lucide-react';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -43,6 +33,7 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newSubject, setNewSubject] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const attach = useAttachmentComposer();
   const [guestEmail, setGuestEmail] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
   const [selectedAIConversationId, setSelectedAIConversationId] = useState<string | null>(null);
@@ -411,13 +402,23 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
 
 
   const handleSendReply = async () => {
-    if (!selectedTicketId || !replyMessage.trim()) return;
-    
+    if (!selectedTicketId) return;
+    if (!replyMessage.trim() && !attach.draft) return;
+
     try {
-      await sendMessage(selectedTicketId, replyMessage);
+      // Upload first, insert second. A row pointing at a file that never
+      // uploaded would render as a permanently broken attachment; a file with
+      // no row is just an orphan nobody sees.
+      const uploaded = await attach.commit(selectedTicketId);
+      await sendMessage(selectedTicketId, replyMessage, uploaded);
       setReplyMessage('');
     } catch (error) {
       console.error('Failed to send reply:', error);
+      toast({
+        title: 'Could not send that',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -664,7 +665,17 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                             {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
                           </span>
                         </div>
-                        <p className="text-slate-200 whitespace-pre-wrap">{message.message}</p>
+                        {message.message?.trim() ? (
+                          <p className="text-slate-200 whitespace-pre-wrap">{message.message}</p>
+                        ) : null}
+                        {message.attachment_path ? (
+                          <SupportAttachment
+                            path={message.attachment_path}
+                            kind={message.attachment_kind}
+                            mime={message.attachment_mime}
+                            durationMs={message.attachment_ms}
+                          />
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -681,15 +692,86 @@ const SupportTicketSystem = ({ onBack }: SupportTicketSystemProps) => {
                     data-tv-focus-id="ticket-reply"
                     className="bg-slate-700 border-slate-600 text-white "
                   />
-                  <Button 
-                    onClick={handleSendReply}
-                    disabled={!replyMessage.trim() || loading}
-                    data-tv-focus-id="ticket-send"
-                    className="bg-blue-600 hover:bg-blue-700 "
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Reply
-                  </Button>
+                  {attach.draft ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200">
+                      {attach.draft.kind === 'audio'
+                        ? <Mic className="h-4 w-4 text-brand-gold" />
+                        : <ImageIcon className="h-4 w-4 text-brand-gold" />}
+                      <span className="font-nunito">
+                        {attach.draft.kind === 'audio' ? 'Voice message ready to send' : 'Screenshot ready to send'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={attach.clearDraft}
+                        data-tv-focus-id="ticket-attach-clear"
+                        className="ml-auto text-slate-300"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      onClick={handleSendReply}
+                      disabled={(!replyMessage.trim() && !attach.draft) || loading || attach.busy}
+                      data-tv-focus-id="ticket-send"
+                      className="bg-blue-600 hover:bg-blue-700 "
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Reply
+                    </Button>
+                    {attach.canScreenshot && (
+                      <Button
+                        variant="outline"
+                        onClick={() => void attach.takeScreenshot()}
+                        disabled={attach.busy || attach.recordingMs !== null}
+                        data-tv-focus-id="ticket-attach-shot"
+                        className="border-slate-600 text-slate-200"
+                      >
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Attach screenshot
+                      </Button>
+                    )}
+                    {attach.canRecord && (
+                      attach.recordingMs === null ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => void attach.startRecording()}
+                          disabled={attach.busy}
+                          data-tv-focus-id="ticket-attach-voice"
+                          className="border-slate-600 text-slate-200"
+                        >
+                          <Mic className="h-4 w-4 mr-2" />
+                          Record a voice message
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            onClick={() => void attach.stopRecording()}
+                            data-tv-focus-id="ticket-attach-voice"
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            <Square className="h-4 w-4 mr-2" />
+                            Stop ({Math.floor(attach.recordingMs / 1000)}s)
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={attach.cancelRecording}
+                            className="text-slate-300"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      )
+                    )}
+                  </div>
+                  {!attach.canRecord && attach.canScreenshot && (
+                    <p className="text-xs font-nunito text-slate-400">
+                      Voice messages need a microphone, which TV remotes don't share with apps —
+                      you can still play any that support sends you.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -2766,6 +2766,11 @@ export type Database = {
       }
       support_messages: {
         Row: {
+          attachment_bytes: number | null
+          attachment_kind: string | null
+          attachment_mime: string | null
+          attachment_ms: number | null
+          attachment_path: string | null
           created_at: string
           edited_at: string | null
           id: string
@@ -2775,6 +2780,11 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          attachment_bytes?: number | null
+          attachment_kind?: string | null
+          attachment_mime?: string | null
+          attachment_ms?: number | null
+          attachment_path?: string | null
           created_at?: string
           edited_at?: string | null
           id?: string
@@ -2784,6 +2794,11 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          attachment_bytes?: number | null
+          attachment_kind?: string | null
+          attachment_mime?: string | null
+          attachment_ms?: number | null
+          attachment_path?: string | null
           created_at?: string
           edited_at?: string | null
           id?: string

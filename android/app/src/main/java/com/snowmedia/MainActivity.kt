@@ -10,6 +10,7 @@ import android.webkit.WebView
 import com.getcapacitor.BridgeActivity
 import com.getcapacitor.WebViewListener
 import com.snowmedia.appmanager.AppManagerPlugin
+import com.snowmedia.capture.SnowCapturePlugin
 import com.snowmedia.notify.SnowNotifyPlugin
 import com.snowmedia.player.SnowPlayerPlugin
 
@@ -19,6 +20,7 @@ class MainActivity : BridgeActivity() {
         registerPlugin(AppManagerPlugin::class.java)
         registerPlugin(SnowPlayerPlugin::class.java)
         registerPlugin(SnowNotifyPlugin::class.java)
+        registerPlugin(SnowCapturePlugin::class.java)
         bridgeBuilder.addWebViewListener(object : WebViewListener() {
             override fun onRenderProcessGone(webView: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Log.e("SMC-WebView", "Renderer process gone. didCrash=${detail.didCrash()} priority=${detail.rendererPriorityAtExit()}")
