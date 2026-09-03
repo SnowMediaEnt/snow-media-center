@@ -348,8 +348,13 @@
    exempted by enumerating each of its animated elements as a simple class
    (the .smc-loader root itself has no animation and is not listed). This
    list is the single authority for exemptions; snow-loader.css additionally
-   pins the loader's durations at (0,4,0) as belt-and-braces. */
-.native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-ball-spin) {
+   pins the loader's durations as belt-and-braces.
+
+   ADDING A NEW ANIMATED PART TO THE LOADER MEANS ADDING ITS CLASS HERE.
+   Miss one and that part is frozen on every Fire TV, and nowhere else — so
+   it will not show up in a browser. The last three are the hill story:
+   the scrolling slope, Able's run, and the snowball rolling away. */
+.native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-ball-spin):not(.smc-loader-slope-dashes):not(.smc-loader-runner):not(.smc-loader-ball-wrap) {
   animation-duration: 0.001ms !important;
   animation-delay: 0s !important;
   transition: none !important;
