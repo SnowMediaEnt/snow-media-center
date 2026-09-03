@@ -85,8 +85,13 @@ class SnowCapturePlugin : Plugin() {
                                     .put("mime", "image/jpeg")
                                     .put("bytes", bytes.size),
                             )
-                        } catch (e: Exception) {
-                            call.reject("Could not encode the screenshot: ${e.message}")
+                        } catch (t: Throwable) {
+                            // Throwable, not Exception: scaling and encoding a 4K
+                            // frame is exactly where OutOfMemoryError happens, and
+                            // an Error escaping a bare Thread takes the process
+                            // down AND leaves this call unsettled, so the UI waits
+                            // forever on a promise that can never settle.
+                            call.reject("Could not encode the screenshot: ${t.message}")
                         }
                     }.start()
                 }, Handler(Looper.getMainLooper()))
