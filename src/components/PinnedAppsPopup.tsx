@@ -99,6 +99,14 @@ const PinnedAppsPopup = ({
         // ring doesn't persist on the slot after we leave the popup.
         (document.activeElement as HTMLElement | null)?.blur?.();
         onExitFocus();
+      } else if (e.key === 'ArrowUp') {
+        // Consume it. Unhandled, this fell through to the Home screen's own
+        // handler, which moved focus up into the Content Bar while the popup
+        // was still logically open — so a later plain arrow press re-opened the
+        // popup out of nowhere. Up is simply the top edge here; Down and Back
+        // are the ways out.
+        e.preventDefault();
+        e.stopPropagation();
       } else if (isHardwareBackKey(e)) {
         e.preventDefault();
         e.stopPropagation();

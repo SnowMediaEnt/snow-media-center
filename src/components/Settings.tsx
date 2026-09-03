@@ -181,6 +181,24 @@ const Settings = ({ onBack }: SettingsProps) => {
         return;
       }
 
+      // Alerts and AI are one-way doors without this. Down from their tab moves
+      // focus into the panel, but the panel is not in the `tabs` array, so
+      // currentTabIdx is -1 and every arrow case below is a no-op — Up, Down,
+      // Left and Right all dead, with only Back working, which exits Settings
+      // entirely rather than returning to the tab. Updates already had this
+      // escape hatch; these two never got one.
+      if (focusedElement === 'alerts-content' || focusedElement === 'ai-content') {
+        const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4;
+        if (isBack || event.key === 'ArrowUp') {
+          event.preventDefault();
+          event.stopPropagation();
+          setFocusedElement(focusedElement === 'alerts-content' ? 'tab-alerts' : 'tab-ai');
+          return;
+        }
+        // Everything else belongs to the panel's own controls.
+        return;
+      }
+
       if (focusedElement === 'updates-content') {
         if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
           event.preventDefault();

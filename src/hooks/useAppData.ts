@@ -318,18 +318,32 @@ export const useAppData = () => {
   useEffect(() => {
     console.log('[AppData] mounting — deferring first fetch off boot path');
     let timedOut = false;
-    let shownFromCache = false;
+    // The cache load, as a PROMISE rather than a boolean.
+    //
+    // It used to be a `let shownFromCache = false` that the idle task assigned
+    // to. First interaction is a key press, which easily beats a 1200ms idle
+    // deferral, so the background sync was routinely told "nothing came from
+    // cache" while the cache load was still in flight — and a failed sync then
+    // replaced a perfectly good catalog with the two-item hardcoded fallback,
+    // banner and all. Awaiting the same promise removes the race instead of
+    // narrowing it.
+    let cachePromise: Promise<boolean> | null = null;
 
     // Phase 7: defer the FIRST Supabase select so the home cards have
     // a chance to paint and become focusable before any network work.
-    const cancelIdle = runWhenIdle(async () => {
-      shownFromCache = await loadFromCache();
+    const cancelIdle = runWhenIdle(() => {
+      if (!cachePromise) cachePromise = loadFromCache();
     }, 1200);
 
     // Push the expensive PHP-sync + refetch behind first interaction.
     // (Falls back to a 5s timer in onFirstInteraction if user never moves.)
     const cancelFirstInteraction = onFirstInteraction(() => {
-      void runBackgroundSyncAndRefresh(shownFromCache);
+      void (async () => {
+        // Beat the idle task to it? Then do the cache load now and wait for it.
+        if (!cachePromise) cachePromise = loadFromCache();
+        const shown = await cachePromise.catch(() => false);
+        await runBackgroundSyncAndRefresh(shown);
+      })();
     });
 
     // Safety fallback: if loading takes too long

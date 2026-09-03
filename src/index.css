@@ -891,7 +891,10 @@ html.no-flex-gap [data-home-card] {
   margin-left: 2.5vw; margin-right: 2.5vw;
   margin-left: clamp(1rem, 2.5vw, 3rem); margin-right: clamp(1rem, 2.5vw, 3rem);
 }
-html.no-flex-gap [data-home-bottom] > * + * { margin-top: clamp(0.75rem, 2vh, 1.5rem); }
+/* Plain value first: this whole block exists for engines missing modern CSS,
+   so writing the fallback itself in clamp() meant it never applied on the only
+   browsers that needed it — the home cards sat flush against the MediaBar. */
+html.no-flex-gap [data-home-bottom] > * + * { margin-top: 1rem; margin-top: clamp(0.75rem, 2vh, 1.5rem); }
 html.no-flex-gap [data-home-header] > * + * { margin-left: 0.5rem; }
 /* Generic Tailwind flex-gap emulation (exclude flex-col rows handled above;
    NEVER match grid — these selectors require .flex). */

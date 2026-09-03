@@ -81,6 +81,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(DEMO ? null : serverLabel);
   const serverAlertOpenRef = useRef(false);
   useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
+  // Same treatment for the expiry notice — see the keydown handler.
+  const expNoticeOpenRef = useRef(false);
 
   // ── Expiration awareness (in-Player dialog + Plex block) ──────────────
   const { account: playerAccount, days: playerDays } = usePlayerAccount();
@@ -98,6 +100,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   // Expiration dialog — once per day per state (warn|expired).
   const [expNoticeKind, setExpNoticeKind] = useState<'warn' | 'expired' | null>(null);
+  useEffect(() => { expNoticeOpenRef.current = !!expNoticeKind; }, [expNoticeKind]);
   useEffect(() => {
     if (!credsLoaded || !creds) return;
     if (playerDays === null) return;
@@ -319,6 +322,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Cheap: bumps a nonce that cache-busts player_api.php and tells the
   // visible section to refetch — does NOT eagerly load every category.
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Both timers below fire after the Player can be gone. Without these refs the
+  // "Updating channels…" / "Channels updated!" toasts popped up over the HOME
+  // screen for a Player that had already closed.
+  const refreshToastTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
+  }, []);
   const refreshChannels = useCallback(() => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -328,11 +338,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       description: 'Fetching the latest list from the server.',
     });
     bumpXtreamRefresh();
-    window.setTimeout(() => {
+    if (refreshToastTimerRef.current) window.clearTimeout(refreshToastTimerRef.current);
+    refreshToastTimerRef.current = window.setTimeout(() => {
+      refreshToastTimerRef.current = null;
       try { (updatingId as any)?.dismiss?.(); } catch { /* ignore */ }
       toast({ title: 'Channels updated!', description: 'You now have the latest channels.' });
       setIsRefreshing(false);
-    }, 1400);
+    }, 1400) as unknown as number;
   }, [isRefreshing, toast, serverLabel]);
 
 
@@ -342,7 +354,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (!creds || autoRefreshedRef.current) return;
     autoRefreshedRef.current = true;
     // Defer a tick so the child sections have mounted their listeners.
-    window.setTimeout(() => { refreshChannels(); }, 250);
+    const t = window.setTimeout(() => { refreshChannels(); }, 250);
+    return () => window.clearTimeout(t);
   }, [creds, refreshChannels]);
 
   const showCredsForm = !DEMO && mode === 'live' && (!creds || accountFormOpen);
@@ -379,6 +392,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       if (modeRef.current !== 'live' && !(DEMO && modeRef.current === 'movies')) return;
       // Player server-alert popup owns the keyboard while open.
       if (serverAlertOpenRef.current) return;
+      // So does the expiry notice. Without this, one Back press dismissed the
+      // dialog AND was handled here, throwing the viewer out of Live TV
+      // entirely — two actions from one press.
+      if (expNoticeOpenRef.current) return;
       if (showCredsFormRef.current) {
         if (e.defaultPrevented) return;
         const target = e.target as HTMLElement;
