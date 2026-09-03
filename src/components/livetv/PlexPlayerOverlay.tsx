@@ -261,7 +261,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
-      const isNav = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '].includes(e.key);
+      // keyCode 23 is DPAD_CENTER and 66 is ENTER. Some TV remotes deliver OK
+      // with those and an unhelpful e.key ('Unidentified' or ''), which would
+      // leave the viewer unable to open the control bar at all. StoreScreen
+      // already accepts 23 for the same reason.
+      const isNav = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '].includes(e.key)
+        || e.keyCode === 23 || e.keyCode === 66;
+      const isOk = e.key === 'Enter' || e.key === ' ' || e.keyCode === 23 || e.keyCode === 66;
 
       if (isBack) {
         if (menuRef.current === 'osdl') {
@@ -295,7 +301,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') {
+        else if (isOk) {
           if (i === fixIdx) {
             void (async () => {
               const p = await getPositionRef.current();
@@ -319,7 +325,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(total - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') {
+        else if (isOk) {
           if (i === getIdx) { void openOsdlRef.current(); return; }
           if (i === 0) controllerRef.current?.setSubtitleTrack(-1);
           else { const track = list[i - 1]; if (track) controllerRef.current?.setSubtitleTrack(track.id); }
@@ -333,7 +339,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') { const item = list[i]; if (item) void pickOsdlRef.current(item); }
+        else if (isOk) { const item = list[i]; if (item) void pickOsdlRef.current(item); }
         return;
       }
       if (menuRef.current === 'quality') {
@@ -341,7 +347,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') {
+        else if (isOk) {
           const p = list[i];
           if (p && p.key !== qualityKeyRef.current) {
             void (async () => {
@@ -361,7 +367,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         } else if (e.key === 'ArrowRight') {
           const next = Math.min(1, +(volumeRef.current + 0.1).toFixed(2));
           onChangeVolumeRef.current(next);
-        } else if (e.key === 'Enter' || e.key === ' ') {
+        } else if (isOk) {
           setMenu('none');
         }
         return;
@@ -370,7 +376,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         const i = menuIdxRef.current;
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(1, i + 1));
-        else if (e.key === 'Enter' || e.key === ' ') {
+        else if (isOk) {
           setMenu('none');
           if (i === 0) onOpenBufferingGuideRef.current?.();
           else onOpenSupportRef.current?.();
@@ -399,7 +405,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           setScrubPos(Math.min(max, Math.max(0, from + step)));
           return;
         }
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (isOk) {
           const target = scrubPosRef.current;
           setScrubPos(null);
           if (target != null && Math.abs(target - posRef.current) >= 1) {
@@ -416,7 +422,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       const idx = ROWS.indexOf(r);
       if (e.key === 'ArrowLeft') { if (idx > 0) setRow(ROWS[idx - 1]); }
       else if (e.key === 'ArrowRight') { if (idx < ROWS.length - 1) setRow(ROWS[idx + 1]); }
-      else if (e.key === 'Enter' || e.key === ' ') void doActionRef.current(r);
+      else if (isOk) void doActionRef.current(r);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);

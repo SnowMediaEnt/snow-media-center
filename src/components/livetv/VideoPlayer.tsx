@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { isFireTV } from '@/utils/platform';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -11,6 +12,9 @@ import {
   recordStreamThroughput,
   setBuffering,
 } from '@/lib/bufferDiagnostics';
+
+/** Browser build (Lovable preview, web demo) rather than the APK. */
+const IS_NATIVE = Capacitor.isNativePlatform();
 
 export interface VideoTrackInfo {
   id: number;
@@ -694,6 +698,13 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
         playsInline
         autoPlay
         muted={false}
+        // Browser controls, browser only. On a TV the native Android player
+        // handles playback and PlexPlayerOverlay draws the control bar, so this
+        // element is never the one on screen there. In a desktop browser — the
+        // Lovable preview, the web demo — nothing else offers pause or seek,
+        // and without this there is simply no way to stop what is playing.
+        controls={!IS_NATIVE}
+        controlsList="nodownload"
       />
       {loading && !fatal && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
