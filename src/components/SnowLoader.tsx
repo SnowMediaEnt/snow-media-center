@@ -2,9 +2,20 @@
  * SnowLoader — Snow Media's loading animation.
  *
  * "Able" (our yeti) pushes a snowball across the box; the snowball grows the
- * longer loading has been going on (1x at 0s, ~1.9x at 10s, ~2.5x at 20s,
- * asymptote 3.2x), so a stalled screen looks like it is *working* rather
+ * longer loading has been going on (1x at 0s, ~2.3x at 5s, ~2.9x at 10s,
+ * asymptote 3.4x), so a stalled screen looks like it is *working* rather
  * than frozen.
+ *
+ * THREE ACTS. A load that drags past EPIC_AFTER_MS stops being a flat roll
+ * and becomes a little story, on a loop:
+ *   1. CLIMB   — the ground tilts into a hill, the slope scrolls under his
+ *                feet, and the snowball swells from nothing to full size.
+ *   2. TUMBLE  — he loses it. The ball accelerates away down the hill,
+ *                spinning hard, and Able turns tail and bolts the other way.
+ *   3. RETURN  — he trudges back up to where he started, and act 1 begins
+ *                again with a fresh little snowball.
+ * Short loads never leave the flat roll, so the gag only ever plays for
+ * someone who is actually waiting.
  *
  *   <SnowLoader />                                  // 96px scene
  *   <SnowLoader size="lg" label="Buffering…" />     // fullscreen player
@@ -51,6 +62,11 @@ export interface SnowLoaderProps {
   className?: string;
   /** Show a small "12s" caption under the scene. */
   showElapsed?: boolean;
+  /**
+   * Play the three-act hill story once a load drags past ~9s. On by default
+   * at md and lg; off at sm, where a 56px scene is too small to read it.
+   */
+  epic?: boolean;
 }
 
 export interface AbleMascotProps {
@@ -66,12 +82,33 @@ const SCENE_HEIGHT_PX: Record<SnowLoaderSize, number> = { sm: 56, md: 96, lg: 15
 /** Snowball radius at 1x in viewBox units (ball diameter = 25% of scene height). */
 const BALL_R_UNITS = 25;
 const GROWTH_TICK_MS = 500;
-const GROWTH_MAX = 2.2;
-const GROWTH_TAU_MS = 18000;
+// Asymptote 3.4x: the ball is 25% of the scene height at 1x, so this tops out
+// at 85% of the scene — any bigger and it clips against the top of the box.
+const GROWTH_MAX = 2.4;
+const GROWTH_TAU_MS = 6500;
 
-/** s(t) = 1 + 2.2 * (1 - e^(-t/18000)); 1x at 0s, ~1.9x at 10s, ~2.5x at 20s, -> 3.2x. */
+/** s(t) = 1 + 2.4 * (1 - e^(-t/6500)); 1x at 0s, ~2.3x at 5s, ~2.9x at 10s, -> 3.4x. */
 const growthScale = (elapsedMs: number): number =>
   1 + GROWTH_MAX * (1 - Math.exp(-Math.max(0, elapsedMs) / GROWTH_TAU_MS));
+
+/* ------------------------------------------------------------------ */
+/* Acts                                                                */
+/* ------------------------------------------------------------------ */
+
+export type SnowLoaderAct = 'roll' | 'climb' | 'tumble' | 'return';
+
+/** How long a load has to drag on before the hill story starts. */
+const EPIC_AFTER_MS = 9000;
+const ACT_MS: Record<Exclude<SnowLoaderAct, 'roll'>, number> = {
+  climb: 5200,
+  tumble: 1900,
+  return: 1900,
+};
+const NEXT_ACT: Record<Exclude<SnowLoaderAct, 'roll'>, Exclude<SnowLoaderAct, 'roll'>> = {
+  climb: 'tumble',
+  tumble: 'return',
+  return: 'climb',
+};
 
 /**
  * How far LEFT Able must shift (px) so the hands keep touching the ball.
@@ -87,6 +124,12 @@ const sizeClass: Record<SnowLoaderSize, string> = {
   sm: 'smc-loader--sm',
   md: 'smc-loader--md',
   lg: 'smc-loader--lg',
+};
+const actClass: Record<SnowLoaderAct, string> = {
+  roll: 'smc-loader--roll',
+  climb: 'smc-loader--climb',
+  tumble: 'smc-loader--tumble',
+  return: 'smc-loader--return',
 };
 const labelClass: Record<SnowLoaderSize, string> = {
   sm: 'smc-loader-label font-quicksand font-semibold text-brand-ice text-xs text-center',
@@ -261,6 +304,7 @@ const SnowLoader = ({
   imageSrc,
   className,
   showElapsed = false,
+  epic,
 }: SnowLoaderProps) => {
   const uid = useId();
   // The painted Able ships with the app; the drawn SVG below is only a
@@ -282,9 +326,45 @@ const SnowLoader = ({
     return () => clearInterval(id);
   }, [start]);
 
-  const scale = growthScale(elapsedMs);
+  // Act state machine. Each act schedules the next one, so the cuts land on
+  // their real boundaries instead of being quantised to the 500ms growth
+  // tick. Nothing runs at all until the load has dragged past EPIC_AFTER_MS.
+  const epicEnabled = epic ?? size !== 'sm';
+  const [act, setAct] = useState<SnowLoaderAct>('roll');
+  const [actStartedAt, setActStartedAt] = useState(0);
+
+  useEffect(() => {
+    if (!epicEnabled) { setAct('roll'); return; }
+    let cancelled = false;
+    let timer: number | null = null;
+    const run = (a: Exclude<SnowLoaderAct, 'roll'>) => {
+      if (cancelled) return;
+      setAct(a);
+      setActStartedAt(Date.now());
+      timer = window.setTimeout(() => run(NEXT_ACT[a]), ACT_MS[a]);
+    };
+    timer = window.setTimeout(
+      () => run('climb'),
+      Math.max(0, EPIC_AFTER_MS - (Date.now() - start)),
+    );
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [start, epicEnabled]);
+
+  // How big the ball gets THIS climb. It still escalates with total elapsed
+  // time, so the tenth ball is more absurd than the first.
+  const peak = growthScale(elapsedMs);
+  const scale = act === 'climb'
+    // Swell from nothing to full size across the climb. The 500ms tick makes
+    // this a staircase; the CSS transition on .smc-loader-ball smooths it.
+    ? 1 + (peak - 1) * Math.min(1, (elapsedMs + start - actStartedAt) / ACT_MS.climb)
+    : act === 'tumble'
+      ? peak            // he loses it at full size
+      : act === 'return'
+        ? 1             // hidden anyway; reset so the next climb starts small
+        : peak;
   const ballRadiusPx = (SCENE_HEIGHT_PX[size] * BALL_R_UNITS) / 200;
-  const nudgePx = handNudgePx(scale, ballRadiusPx);
+  // Only reach for the ball while he actually has hold of it.
+  const nudgePx = act === 'tumble' || act === 'return' ? 0 : handNudgePx(scale, ballRadiusPx);
 
   const ableWrapStyle: CSSProperties = {
     transform: `translate3d(${(-nudgePx).toFixed(2)}px, 0, 0)`,
@@ -293,15 +373,29 @@ const SnowLoader = ({
     transform: `scale(${scale.toFixed(3)})`,
   };
 
-  const rootClass = ['smc-loader', sizeClass[size], className].filter(Boolean).join(' ');
+  const rootClass = ['smc-loader', sizeClass[size], actClass[act], className]
+    .filter(Boolean).join(' ');
   const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
 
   return (
     <div className={rootClass} role="status" aria-label={label ?? 'Loading'}>
       <div className="smc-loader-viewport">
+        {/* Everything that stands on the ground lives in here, and the WORLD
+            is what tilts into a hill. Inside it the layout is the same flat
+            scene as always — which is the only reliable way to keep his feet
+            exactly on the slope while the ball grows and both of them move. */}
+        <div className="smc-loader-world">
         <div className="smc-loader-ground" />
+        {/* The hill itself: dashes that scroll backwards under him. */}
+        <div className="smc-loader-slope">
+          <div className="smc-loader-slope-dashes" />
+        </div>
         <div className="smc-loader-track">
           <div className="smc-loader-scene">
+            {/* Outer wrapper takes the act motion (bolting away, trudging
+                back); the inner one keeps the JS-driven hand nudge, so the
+                two transforms never fight. */}
+            <div className="smc-loader-runner">
             <div className="smc-loader-able-wrap" style={ableWrapStyle}>
               {!artFailed ? (
                 <img
@@ -324,11 +418,17 @@ const SnowLoader = ({
                 </svg>
               )}
             </div>
-            <div className="smc-loader-ball" style={ballStyle}>
-              <SnowballBase />
-              <SnowballFlakes />
+            </div>
+            {/* Same split for the ball: the wrapper rolls it away down the
+                hill, the inner element carries the JS-driven size. */}
+            <div className="smc-loader-ball-wrap">
+              <div className="smc-loader-ball" style={ballStyle}>
+                <SnowballBase />
+                <SnowballFlakes />
+              </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
       {/* aria-hidden: the root's aria-label already names the status; the

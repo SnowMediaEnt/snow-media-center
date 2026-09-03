@@ -1008,31 +1008,47 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [zone]);
 
   // ── Row-height measurement (ResizeObserver on the scroll container) so
-  //    focus rings can't get occluded by an under-estimated row height.
+  //    posters can't overlap the row below them.
+  //
+  // ATTACHED VIA A CALLBACK REF, NOT AN EFFECT. The scroll container does not
+  // exist on the first commit — the warm-up gate near the bottom of this file
+  // returns the loader instead — so a `useEffect(..., [])` ran once against a
+  // null ref, bailed, and never ran again. rowH stayed at the 250px estimate
+  // for the life of the session while the real rows were 400-500px tall, and
+  // every row was drawn on top of the one above it. A callback ref fires the
+  // moment the node actually mounts, whenever that is.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [rowH, setRowH] = useState<number>(ROW_H_ESTIMATE);
   const rowHRef = useRef(rowH); useEffect(() => { rowHRef.current = rowH; }, [rowH]);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const calc = () => {
-      const cs = getComputedStyle(el);
-      const padL = parseFloat(cs.paddingLeft) || 0;
-      const padR = parseFloat(cs.paddingRight) || 0;
-      const gap = 12; // gap-3
-      const inner = Math.max(0, el.clientWidth - padL - padR);
-      const colW = (inner - gap * (COLS - 1)) / COLS;
-      const posterH = colW * 1.5; // aspect 2/3
-      const titleArea = 34;       // px 1.5 py 1 * text-[11px]
-      const rowGap = 12;
-      const next = Math.max(200, Math.ceil(posterH + titleArea + rowGap));
-      setRowH((prev) => (prev !== next ? next : prev));
-    };
-    calc();
-    const ro = new ResizeObserver(calc);
-    ro.observe(el);
-    return () => ro.disconnect();
+  const rowObserverRef = useRef<ResizeObserver | null>(null);
+
+  const measureRowH = useCallback((el: HTMLElement) => {
+    const cs = getComputedStyle(el);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const gap = 12; // gap-3, between columns
+    const inner = Math.max(0, el.clientWidth - padL - padR);
+    if (inner <= 0) return;   // not laid out yet; the observer will fire again
+    const colW = (inner - gap * (COLS - 1)) / COLS;
+    const posterH = colW * 1.5; // aspect-[2/3]
+    const titleArea = 30;       // text-sm (20px line) + py-1 (8) + card border (2)
+    const rowGap = 12;
+    const next = Math.max(200, Math.ceil(posterH + titleArea + rowGap));
+    setRowH((prev) => (prev !== next ? next : prev));
   }, []);
+
+  const attachScroll = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    rowObserverRef.current?.disconnect();
+    rowObserverRef.current = null;
+    if (!el) return;
+    measureRowH(el);
+    const ro = new ResizeObserver(() => measureRowH(el));
+    ro.observe(el);
+    rowObserverRef.current = ro;
+  }, [measureRowH]);
+
+  useEffect(() => () => { rowObserverRef.current?.disconnect(); }, []);
 
   const rows = Math.ceil(items.length / COLS);
   const rowVirtualizer = useVirtualizer({
@@ -1798,7 +1814,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         })}
       </div>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
+      <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4">
         {currentTab?.type === 'home' && conn ? (
           <HomePanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'search' && conn ? (
