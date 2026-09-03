@@ -128,18 +128,6 @@ export async function clearPlexToken(): Promise<void> {
   try { localStorage.removeItem(PLEX_TOKEN_KEY); localStorage.removeItem(PLEX_SERVER_KEY); } catch { /* ignore */ }
 }
 
-/** Forget the saved SERVER but keep the account token, so the next discover()
- *  re-probes every connection from scratch. Used to repair a cached base that
- *  answers /identity but is not actually usable — a code fix cannot undo a bad
- *  base that is already written to device storage. */
-export async function clearPlexServer(): Promise<void> {
-  try {
-    const { Preferences } = await import('@capacitor/preferences');
-    await Preferences.remove({ key: PLEX_SERVER_KEY });
-  } catch { /* not native */ }
-  try { localStorage.removeItem(PLEX_SERVER_KEY); } catch { /* ignore */ }
-}
-
 // ── server discovery ───────────────────────────────────────────────────────
 
 export interface PlexConnection {
@@ -294,8 +282,16 @@ export async function pickPlexConnectionDetailed(
   });
 }
 
-export async function getPlexIdentity(base: string, token: string): Promise<void> {
-  await plexReq('GET', `${base}/identity`, token, 5000);
+/** Returns the PMS machineIdentifier at `base`, or null if it did not report
+ *  one. Callers use it to prove the cached base is still the SAME server —
+ *  /identity answers without a token, so a bare "it responded" proves only
+ *  that some Plex server is listening, not that it is ours or that our token
+ *  works on it. */
+export async function getPlexIdentity(base: string, token: string): Promise<string | null> {
+  const data = await plexReq<{ MediaContainer?: { machineIdentifier?: string } }>(
+    'GET', `${base}/identity`, token, 5000,
+  );
+  return data?.MediaContainer?.machineIdentifier ?? null;
 }
 
 export interface PlexSavedServer { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; route?: PlexRoute; }

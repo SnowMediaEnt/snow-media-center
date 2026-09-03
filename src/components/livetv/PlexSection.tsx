@@ -321,6 +321,9 @@ interface ManagePanelProps {
   isActive: boolean;
   libraries: PlexLibrary[];
   hidden: string[];
+  /** Why the last library fetch failed, or null. Shown so an empty list on
+   *  the TV says what happened instead of just "none". */
+  librariesError: string | null;
   onToggle: (key: string) => void;
   onExitToTabs: () => void;
   serverName?: string;
@@ -328,7 +331,8 @@ interface ManagePanelProps {
   accountToken?: string;
   onSignOut: () => void;
 }
-const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs, serverName, owned, accountToken, onSignOut }: ManagePanelProps) => {
+const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggle, onExitToTabs, serverName, owned, accountToken, onSignOut }: ManagePanelProps) => {
+  const hiddenCount = libraries.filter((l) => hidden.indexOf(l.key) >= 0).length;
   const [cursor, setCursor] = useState(0);
   const [account, setAccount] = useState<{ username?: string; email?: string } | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -415,7 +419,38 @@ const ManagePanel = memo(({ isActive, libraries, hidden, onToggle, onExitToTabs,
         </div>
       )}
       {libraries.length === 0 ? (
-        <div className="text-brand-ice/70 font-nunito text-sm">No libraries found.</div>
+        <div className="font-nunito text-sm space-y-1">
+          <div className="text-brand-ice/70">
+            {librariesError ? 'Could not load your libraries.' : 'No libraries found on this server.'}
+          </div>
+          {librariesError && <div className="text-amber-300 text-xs">{librariesError}</div>}
+          <div className="text-brand-ice/70 text-xs">
+            {librariesError
+              ? 'The server answered, but this request failed. Check it is online and that this Plex account still has access.'
+              : 'This account has no movie or TV libraries shared on it. Music and photo libraries are not listed here.'}
+          </div>
+        </div>
+      ) : hiddenCount === libraries.length ? (
+        <div className="font-nunito text-sm space-y-2">
+          <div className="text-brand-ice/70">All {libraries.length} libraries are hidden, so no tabs appear.</div>
+          <div className="text-brand-ice/70 text-xs">Pick one below to show it again.</div>
+          <div className="text-xs uppercase tracking-wide text-brand-ice/70 pt-1">Show / hide libraries</div>
+          {libraries.map((lib, i) => {
+            const focused = isActive && cursor === i;
+            return (
+              <div key={lib.key}
+                onClick={() => { setCursor(i); onToggle(lib.key); }}
+                className={`tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'bg-brand-gold/20 scale-[1.02] z-10' : 'bg-black/40'}`}
+                data-focused={focused ? 'true' : 'false'}>
+                <div>
+                  <div className="font-quicksand text-white">{lib.title}</div>
+                  <div className="text-xs font-nunito text-brand-ice/70 uppercase">{lib.type}</div>
+                </div>
+                <span className="flex items-center gap-2 text-xs text-brand-ice/70"><EyeOff className="w-4 h-4" /> Hidden</span>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <>
           <div className="text-xs uppercase tracking-wide text-brand-ice/70 mb-1">Show / hide libraries</div>
@@ -561,7 +596,7 @@ JustLinkedCard.displayName = 'JustLinkedCard';
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect, repairConnection } = usePlexAuth();
+  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
@@ -575,11 +610,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   );
 
   const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
-  // True when the last library fetch threw, so the empty state can tell the
-  // difference between "the server returned nothing" and "we could not ask".
-  const [libraryLoadFailed, setLibraryLoadFailed] = useState(false);
-  // One repair attempt per session — never loop.
-  const repairedRef = useRef(false);
+  // Error from the last library fetch, or null. Rendered in Settings so a
+  // failure is readable on the TV instead of looking identical to a server
+  // that genuinely has no libraries.
+  const [librariesError, setLibrariesError] = useState<string | null>(null);
   const [hidden, setHidden] = useState<string[]>([]);
   const [libIdx, setLibIdx] = useState(0);
   const [items, setItems] = useState<PlexItem[]>([]);
@@ -650,7 +684,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         if (cancelled) return;
         setCachedHub(base, onDeckPath, od);
         setCachedHub(base, recentPath, ra);
-        setLibraries(libs);
+        // ONLY overwrite with a non-empty result. This fetch duplicates the
+        // library effect below, runs in parallel against the same PMS, and
+        // swallows its own failure into []. It also resolves LAST (it awaits
+        // three calls in a Promise.all), so on a Fire TV — small socket pool,
+        // cold start — a timeout here clobbered a list the other effect had
+        // already loaded successfully. That is an empty tab strip on a
+        // perfectly healthy server, and nothing ever corrected it.
+        if (libs.length) setLibraries(libs);
         // First ~12 rail poster URLs — https only; http URLs go through the
         // data-URI path and shouldn't block warm-up.
         const posters: string[] = [];
@@ -689,30 +730,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (status !== 'ready' || !conn) return;
     let cancelled = false;
     getPlexLibraries(conn.base, conn.token)
-      .then((libs) => {
-        if (cancelled) return;
-        setLibraries(libs);
-        setLibraryLoadFailed(false);
-        // Self-heal: this server answered /identity but serves no libraries,
-        // which is what a bad cached base looks like. Forget it and rediscover
-        // once per session; a code fix alone cannot undo a base already
-        // written to device storage.
-        if (libs.length === 0 && !repairedRef.current) {
-          repairedRef.current = true;
-          void repairConnection();
-        }
-      })
-      .catch(() => {
+      .then((libs) => { if (!cancelled) { setLibraries(libs); setLibrariesError(null); } })
+      .catch((e: unknown) => {
         if (cancelled) return;
         // Keep whatever is already on screen — a transient hiccup on a
-        // reconnect must not empty the tab strip — but record the failure so
-        // the empty state can say what actually went wrong.
-        setLibraries((prev) => prev);
-        setLibraryLoadFailed(true);
-        if (!repairedRef.current) { repairedRef.current = true; void repairConnection(); }
+        // reconnect must not empty the tab strip — and record WHY, so the
+        // empty state can say what happened instead of looking identical to a
+        // server that genuinely has no libraries. Deliberately NO auto-repair
+        // here: a throw is usually a Wi-Fi blip, and discarding the saved
+        // server over one would strand a box whose PMS is on the LAN while
+        // the internet is down.
+        setLibrariesError((e as Error)?.message || 'Could not reach the server');
       });
     return () => { cancelled = true; };
-  }, [status, conn, repairConnection]);
+  }, [status, conn]);
 
   const visibleLibraries = useMemo(
     () => libraries.filter((l) => hidden.indexOf(l.key) < 0),
@@ -1654,7 +1685,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         ) : currentTab?.type === 'request' ? (
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
-          <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
+          <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} librariesError={librariesError} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (
