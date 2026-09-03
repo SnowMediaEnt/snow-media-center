@@ -58,6 +58,8 @@ const PAGE_HTTPS = typeof window !== 'undefined' && window.location.protocol ===
 const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority = false, focusExempt = false }: Props) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
+  // Bumped to re-run the load ladder after a failure (see the re-arm below).
+  const [armNonce, setArmNonce] = useState(0);
   // Fallback ladder: 0 = raw thumb, 1 = photo-transcode, 2 = data-URI (native).
   const stepRef = useRef(0);
   // Deferred src while imageFocusMode is on and this image is not priority.
@@ -138,7 +140,20 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
     commitSrc(raw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, path, token, w, h, priority, focusExempt, inView]);
+  }, [base, path, token, w, h, priority, focusExempt, inView, armNonce]);
+
+  // One delayed re-arm after a failure, twice at most. Without it every poster
+  // on screen during a Wi-Fi blip stays a grey placeholder for the life of the
+  // component: nothing in the effect above re-runs when the network returns,
+  // and HomePanel rails and search results are not virtualized, so they never
+  // remount to recover either.
+  const rearmRef = useRef(0);
+  useEffect(() => { rearmRef.current = 0; }, [base, path]);
+  useEffect(() => {
+    if (!err || !path || rearmRef.current >= 2) return;
+    const t = window.setTimeout(() => { rearmRef.current += 1; setArmNonce((n) => n + 1); }, 6000);
+    return () => window.clearTimeout(t);
+  }, [err, path]);
 
   const onImgError = () => {
     if (!path || /^https?:\/\//i.test(path)) { setErr(true); return; }

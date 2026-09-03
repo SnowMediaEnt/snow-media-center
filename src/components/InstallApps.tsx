@@ -757,7 +757,12 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
   const focusRing = (id: string) => isFocused(id) ? 'scale-110 brightness-125 z-10' : '';
 
   const renderAppGrid = (categoryApps: AppData[]) => (
-    <div className="space-y-3 pb-10 px-2">
+    // Two columns on anything TV-sized. A single full-width column left most of
+    // a 4K screen empty and made the list twice as long to walk. D-pad movement
+    // between collapsed cards is handled by the spatial fallback in the keydown
+    // effect, which reads real bounding boxes — so left/right/up/down all work
+    // on the grid without a hard-coded index map.
+    <div className="grid md:grid-cols-2 gap-3 items-start pb-10 px-2">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;

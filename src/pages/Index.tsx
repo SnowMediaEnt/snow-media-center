@@ -301,20 +301,21 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; me
       </p>
     </div>
     {mediaBarEnabled && (
-      // Inset past the logo on the left so the first headline is not hidden
-      // behind it (it read as "elp!" instead of "Help!" on a 4K Fire TV), and
-      // sat lower than the header row so the account/settings buttons above
-      // do not crowd it.
+      // Full-bleed RSS strip, sitting below the header row so the account and
+      // settings buttons above do not crowd it. The old left inset cleared the
+      // corner logo, which at this vertical position it no longer touches —
+      // only the overscan margin is kept, inside the ticker, so the navy bar
+      // itself still reaches both screen edges.
       <div
         className="absolute z-20"
         style={{
           top: '46%',
           transform: 'translateY(-50%)',
-          left: 'calc(max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem)) + clamp(72px, 11vh, 140px) + 0.5rem)',
-          right: 'max(env(safe-area-inset-right, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+          left: 0,
+          right: 0,
         }}
       >
-        <NewsTicker compact />
+        <NewsTicker compact leadIn="max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem))" />
       </div>
     )}
   </div>

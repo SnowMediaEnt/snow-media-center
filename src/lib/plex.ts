@@ -185,6 +185,27 @@ export function plexRouteLabel(route: PlexRoute | undefined, base: string): stri
   return `Unknown route · ${proto}`;
 }
 
+// Set by PlexSection while a stream is on screen. Background probes read it and
+// stand down: nothing the app does in the background is worth competing with
+// playback for a Fire TV's small socket pool.
+let _playbackActive = false;
+export function setPlexPlaybackActive(v: boolean) { _playbackActive = v; }
+export function isPlexPlaybackActive(): boolean { return _playbackActive; }
+
+/** Route of a base URL we already trust, read straight off the server's own
+ *  connection list — no probing, no network. Lets a record saved before routes
+ *  were tracked learn its route without a round-trip, so the background upgrade
+ *  stops re-running on every single launch. */
+export function plexRouteOf(server: PlexServer, base: string): PlexRoute | null {
+  const norm = (u: string) => u.replace(/\/+$/, '').toLowerCase();
+  const want = norm(base);
+  for (const c of server.connections) {
+    if (norm(c.uri) !== want) continue;
+    return c.relay ? 'relay' : c.local ? 'lan' : 'direct';
+  }
+  return null;
+}
+
 export async function pickPlexConnection(
   server: PlexServer,
   timeoutMs = 3500,

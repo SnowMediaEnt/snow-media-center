@@ -49,9 +49,14 @@ const writeCachedNews = (items: string[]) => {
 
 interface NewsTickerProps {
   compact?: boolean;
+  /** Extra clear space at the LEFT edge, as a CSS length. The strip itself
+   *  still runs edge to edge; only the text, the fade and the LIVE badge start
+   *  after it. Used on Home to clear the corner logo, which used to sit on top
+   *  of the first word ("elp!" instead of "Help!"). */
+  leadIn?: string;
 }
 
-const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
+const NewsTicker = memo(({ compact = false, leadIn = '0px' }: NewsTickerProps) => {
   const cached = useMemo(readCachedNews, []);
   const [newsItems, setNewsItems] = useState<string[]>(cached?.items ?? INITIAL_NEWS);
   const isNative = useMemo(() => isNativePlatform(), []);
@@ -156,9 +161,9 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
 
   const trackHeight = compact ? 'h-8' : 'h-[3.75rem] py-1';
   const textSize = compact ? 'text-sm' : 'text-xl';
-  const padLeft = compact ? '80px' : '128px';
-  const maskStart = compact ? '60px' : '110px';
-  const maskEnd = compact ? '80px' : '128px';
+  const padLeft = `calc(${compact ? '80px' : '128px'} + ${leadIn})`;
+  const maskStart = `calc(${compact ? '60px' : '110px'} + ${leadIn})`;
+  const maskEnd = `calc(${compact ? '80px' : '128px'} + ${leadIn})`;
   const badgeMargin = compact ? 'ml-2' : 'ml-3';
 
   // Constant pixel-speed marquee: scale animation duration to content width
@@ -197,7 +202,7 @@ const NewsTicker = memo(({ compact = false }: NewsTickerProps) => {
         isolation: 'isolate',
       }}
     >
-      <div className={`relative flex items-center ${trackHeight}`}>
+      <div className={`relative flex items-center ${trackHeight}`} style={{ paddingLeft: leadIn }}>
         {/* Full-width scrolling track — NO mask-image. mask-image forces
             Android WebView to composite the animated layer on the main
             thread, which stalls on every D-pad style-recalc. */}

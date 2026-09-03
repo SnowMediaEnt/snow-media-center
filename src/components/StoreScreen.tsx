@@ -46,6 +46,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
 interface Focusable { key: string; onEnter: () => void }
 interface Focus { r: number; c: number }
 const GRID_COLS = 3;
+// Matches the `grid-cols-2` the device tiles render in — see the rows builder.
+const DEVICE_COLS = 2;
 
 interface Props { onBack: () => void }
 
@@ -201,13 +203,21 @@ const StoreScreen = memo(({ onBack }: Props) => {
     const tabsRow: Focusable[] = [...backRow, ...TABS.map((t) => ({ key: `tab:${t.id}`, onEnter: () => setTab(t.id) }))];
     if (tab === 'build') {
       const out: Focusable[][] = [tabsRow];
-      out.push(SERVICES.map((s) => ({ key: `svc:${s}`, onEnter: () => selectService(s) })));
+      // Services render in a three-column grid — same rule as the devices.
+      const svcCells: Focusable[] = SERVICES.map((s) => ({ key: `svc:${s}`, onEnter: () => selectService(s) }));
+      for (let i = 0; i < svcCells.length; i += GRID_COLS) out.push(svcCells.slice(i, i + GRID_COLS));
       if (connectionOptions.length > 1) out.push(connectionOptions.map((c) => ({ key: `conn:${c}`, onEnter: () => setConnections(c) })));
       out.push(durationOptions.map((d) => ({ key: `dur:${d}`, onEnter: () => setDuration(d) })));
-      out.push([
+      // The device tiles render in a TWO-COLUMN grid (dev:none is the first
+      // cell), so they must be modelled as one focus row per visual line. As a
+      // single row, Down from the top-left tile skipped the whole grid and
+      // landed on Checkout, and the only way to reach the second line was to
+      // keep pressing Right.
+      const deviceCells: Focusable[] = [
         { key: 'dev:none', onEnter: () => { setDeviceId(null); setModel(null); } },
         ...devices.map((d) => ({ key: `dev:${d.id}`, onEnter: () => { setDeviceId(d.id); setModel(null); } })),
-      ]);
+      ];
+      for (let i = 0; i < deviceCells.length; i += DEVICE_COLS) out.push(deviceCells.slice(i, i + DEVICE_COLS));
       if (models.length) out.push(models.map((m) => ({ key: `model:${m}`, onEnter: () => setModel(m) })));
       out.push([
         { key: 'build-checkout', onEnter: () => { if (quote.canCheckout) void openCheckout(quote.cart, plan?.slug, 'setup'); } },
