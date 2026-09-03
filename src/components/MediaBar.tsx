@@ -428,7 +428,10 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       data-media-bar
-      className="relative z-10 border-y border-primary/30"
+      // flex-shrink-0: this is a flex item in the home column; without it the
+      // bar is what gets squeezed when the page runs short of height and its
+      // own overflow:hidden then crops the tiles.
+      className="relative z-10 flex-shrink-0 border-y border-primary/30"
       style={{
         backgroundColor: 'hsl(var(--brand-navy) / 0.95)',
         contain: 'layout paint style',
@@ -490,12 +493,12 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                         </span>
                       )}
                     </div>
-                    <div className="px-3 py-2 min-w-0 w-full">
-                      <span className="block text-white text-sm font-semibold leading-tight line-clamp-1">
+                    <div className="px-3 py-2 min-w-0 w-full media-tile-text">
+                      <span className="text-white text-sm font-semibold leading-tight line-clamp-1">
                         {item.title}
                       </span>
                       {item.subtitle && (
-                        <span className="block text-brand-ice/70 text-xs leading-tight line-clamp-1">
+                        <span className="text-brand-ice/70 text-xs leading-tight line-clamp-1">
                           {item.subtitle}
                         </span>
                       )}

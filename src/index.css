@@ -843,7 +843,21 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
 /* MediaBar poster sizing — height fallback then clamp() for modern WebViews.
    Never rely on aspect-ratio (Chrome 88+) to establish poster height. */
 .media-poster { height: 120px; height: clamp(96px, 16vh, 180px); }
-[data-media-bar] { max-height: 40vh; overflow: hidden; }
+/* Tile caption: title + subtitle, each ONE line. Pinned so every tile in the
+   grid is the same height and the bar's total height is deterministic.
+
+   Why this exists: the spans carried `block line-clamp-1`, and Tailwind emits
+   `.block{display:block}` AFTER `.line-clamp-*` at equal (0,1,0) specificity —
+   so `block` won, `display:-webkit-box` never applied and the clamp silently
+   did nothing. Long titles wrapped to four lines, the grid row grew, and the
+   bar overflowed its own `overflow:hidden` box: cut off top and bottom on a
+   TV. `block` is now gone from those spans; this floor keeps the height
+   stable even when a tile has no subtitle. */
+.media-tile-text { min-height: calc(1.25rem + 1rem + 1rem); }
+/* Was max-height:40vh — on a 720px-tall WebView that cropped the tiles. The
+   bar's height is deterministic now, so cap it well clear of real content and
+   keep overflow hidden only as a last-resort guard. */
+[data-media-bar] { max-height: 60vh; overflow: hidden; }
 
 /* Quiet mode (src/utils/quietMode.ts): html.smc-quiet is set while a stream
    plays on a low-memory box. Today every player lives inside the LiveTV

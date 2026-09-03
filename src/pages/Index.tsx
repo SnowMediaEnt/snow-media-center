@@ -289,7 +289,7 @@ const HomeHeader = memo((props: HomeHeaderProps) => {
 HomeHeader.displayName = 'HomeHeader';
 
 const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; mediaBarEnabled: boolean }) => (
-  <div className="relative z-10 flex-shrink-0 flex items-center justify-center">
+  <div className="relative z-10 flex-shrink min-h-0 flex items-center justify-center">
     <div className="text-center home-watermark">
       <h1 className="text-shadow-strong leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 10rem)', opacity: 0.35 }}>
         <span className="font-snow-media text-brand-ice">SNOW MEDIA</span>
@@ -301,9 +301,18 @@ const WatermarkTitle = memo(({ tagline, mediaBarEnabled }: { tagline: string; me
       </p>
     </div>
     {mediaBarEnabled && (
+      // Inset past the logo on the left so the first headline is not hidden
+      // behind it (it read as "elp!" instead of "Help!" on a 4K Fire TV), and
+      // sat lower than the header row so the account/settings buttons above
+      // do not crowd it.
       <div
-        className="absolute left-0 right-0 z-20"
-        style={{ top: '38%', transform: 'translateY(-50%)' }}
+        className="absolute z-20"
+        style={{
+          top: '46%',
+          transform: 'translateY(-50%)',
+          left: 'calc(max(env(safe-area-inset-left, 0px), clamp(0.5rem, 1.5vw, 1rem)) + clamp(72px, 11vh, 140px) + 0.5rem)',
+          right: 'max(env(safe-area-inset-right, 0px), clamp(0.5rem, 1.5vw, 1rem))',
+        }}
       >
         <NewsTicker compact />
       </div>
@@ -1094,7 +1103,12 @@ const Index = () => {
             }}
           >
             {mediaBarEnabled && (
-              <Suspense fallback={<div className="h-[180px]" />}>
+              // flex-shrink-0: the bar is a flex item in a `flex-1 min-h-0`
+              // column. Without this it is the thing that gets squeezed when
+              // the page runs out of height, and its `overflow:hidden` then
+              // crops the tiles top and bottom. The decorative watermark above
+              // yields instead.
+              <Suspense fallback={<div className="h-[180px] flex-shrink-0" />}>
                 <MediaBar
                   active={isInMediaBar}
                   onExitDown={onMediaBarExitDown}
