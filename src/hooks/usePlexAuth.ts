@@ -3,7 +3,8 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
-  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, type PlexRoute,
+  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, plexRouteOf,
+  isPlexPlaybackActive, type PlexRoute,
 } from '@/lib/plex';
 import { runWhenIdle } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
@@ -48,6 +49,11 @@ export function usePlexAuth() {
   const connBaseRef = useRef<string | null>(null);
   // Cancels the deferred background connection upgrade (see discover()).
   const cancelUpgradeRef = useRef<(() => void) | null>(null);
+  // Bumped on sign-out. Deferred writers (the idle upgrade, the relay escape)
+  // re-check it after every await, so an in-flight task can never resurrect the
+  // saved server we just deleted — which would hand the NEXT account to sign in
+  // the previous account's base and token.
+  const sessionRef = useRef(0);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
@@ -96,35 +102,59 @@ export function usePlexAuth() {
           //     socket pool is small and the first-screen fetches lose.
           if (cached.base.startsWith('http://') || !cached.route || cached.route === 'relay') {
             const cachedIsHttps = cached.base.slice(0, 6).toLowerCase() === 'https:';
+            // A record saved before clientIdentifier was stored has no identity
+            // on it. Fall back to the machineIdentifier /identity just returned,
+            // so the lookup below can still pin itself to THIS server. Without
+            // an identity to match on, "the best https base on the account" is
+            // very often a DIFFERENT server, and we would silently move the
+            // user onto it eight seconds after launch.
+            const knownId = cached.clientIdentifier || machineId || null;
+            const session = sessionRef.current;
+            cancelUpgradeRef.current?.();
             cancelUpgradeRef.current = runWhenIdle(() => {
               void (async () => {
                 try {
                   const servers = await getPlexServers(accountToken);
-                  const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
-                  for (const s of owned) {
-                    if (cachedIsHttps !== cached.base.startsWith('https://')) return;
-                    if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
-                    // Rule 2: an https cache only ever probes https candidates.
-                    const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: cachedIsHttps, noRelay: true });
-                    if (!better) continue;
-                    if (better.base === cached.base) {
-                      // Rule 1: persist the learned route, do NOT touch state.
-                      if (cached.route !== better.route) await savePlexServer({ ...cached, route: better.route });
-                      return;
+                  const s = knownId ? servers.find((x) => x.clientIdentifier === knownId) ?? null : null;
+                  if (!s || sessionRef.current !== session) return;
+                  // Stamp the identity we learned so the mismatch guard above
+                  // goes live for this record from the next launch onward.
+                  const stamp = cached.clientIdentifier ? {} : { clientIdentifier: knownId as string };
+                  // Rule 2: an upgrade only ever probes https candidates. That
+                  // is the entire point when the cache is http://, and an https
+                  // cache must never be walked back to http.
+                  const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: true, noRelay: true });
+                  if (sessionRef.current !== session) return;
+                  const wantHttps = !cachedIsHttps;
+                  const improves = !!better && better.base !== cached.base
+                    && ((wantHttps && better.base.startsWith('https://'))
+                      || (cached.route === 'relay' && better.route !== 'relay'));
+                  if (!improves) {
+                    // Rule 1: no setConn. Learn the route of the base we are
+                    // ALREADY on — read off the server's own connection list,
+                    // not from the probe, which may have picked a different
+                    // base — so this block stops re-running on every launch.
+                    const route = plexRouteOf(s, cached.base)
+                      ?? (better && better.base === cached.base ? better.route : cached.route);
+                    if (route !== cached.route || !cached.clientIdentifier) {
+                      await savePlexServer({ ...cached, ...stamp, route });
                     }
-                    const wantHttps = !cachedIsHttps;
-                    const improves = (wantHttps && better.base.startsWith('https://'))
-                      || (cached.route === 'relay' && better.route !== 'relay');
-                    if (!improves) return;
-                    const upgraded: typeof cached = { ...cached, base: better.base, route: better.route, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
-                    await savePlexServer(upgraded);
-                    // Invalidate any queued image fetches BEFORE swapping the
-                    // conn so rail <img> tags re-commit on the new base.
-                    bumpPlexImageEpoch();
-                    connBaseRef.current = upgraded.base;
-                    setConn(upgraded);
                     return;
                   }
+                  const upgraded: typeof cached = {
+                    ...cached, ...stamp,
+                    base: better!.base, route: better!.route,
+                    token: s.accessToken || accountToken, name: s.name,
+                    clientIdentifier: s.clientIdentifier, owned: !!s.owned,
+                  };
+                  if (sessionRef.current !== session) return;
+                  await savePlexServer(upgraded);
+                  if (sessionRef.current !== session) return;
+                  // Invalidate any queued image fetches BEFORE swapping the
+                  // conn so rail <img> tags re-commit on the new base.
+                  bumpPlexImageEpoch();
+                  connBaseRef.current = upgraded.base;
+                  setConn(upgraded);
                 } catch { /* ignore — cached connection keeps working */ }
               })();
             }, 8000);
@@ -186,12 +216,21 @@ export function usePlexAuth() {
   useEffect(() => {
     if (demo || !conn || conn.route !== 'relay' || !accountToken) return;
     let stopped = false;
-    const attempt = async () => {
-      if (stopped || discoveringRef.current) return;
+    const session = sessionRef.current;
+    let delay = 45_000;
+    let timer: number | null = null;
+    // Returns false when nothing was tried, so a skipped tick does not count
+    // toward the backoff below.
+    const attempt = async (): Promise<boolean> => {
+      if (stopped || discoveringRef.current) return false;
+      // Never probe while a stream is on screen. This fans out across every
+      // candidate connection at once, and the relay the user is stuck on is
+      // already speed-capped — the probe would compete with their playback.
+      if (isPlexPlaybackActive()) return false;
       try {
         const servers = await getPlexServers(accountToken);
         const s = servers.find((x) => x.clientIdentifier === conn.clientIdentifier) ?? null;
-        if (!s || stopped) return;
+        if (!s || stopped) return true;
         // Deliberately NO httpsOnly here. Every Plex relay URI is https, so
         // deriving it from the current base would set it for 100% of relay
         // users; combined with noRelay that can empty the candidate set and
@@ -201,17 +240,31 @@ export function usePlexAuth() {
         // capacitor.config.ts sets allowMixedContent, and PlexImage has a
         // data-URI fallback for an http base.
         const better = await pickPlexConnectionDetailed(s, 3500, { noRelay: true });
-        if (!better || stopped) return;
+        if (!better || stopped || sessionRef.current !== session) return true;
         const upgraded: PlexConn = { ...conn, base: better.base, route: better.route, token: s.accessToken || conn.token };
+        // Re-check BEFORE the write, not just after it: the hook may have torn
+        // down, or the user may have signed out, while the probe was running.
+        if (stopped || sessionRef.current !== session) return true;
         await savePlexServer(upgraded);
-        if (stopped) return;   // re-check AFTER the await: the hook may have torn down
+        if (stopped || sessionRef.current !== session) return true;
         bumpPlexImageEpoch();
         connBaseRef.current = upgraded.base;
         setConn(upgraded);
       } catch { /* still on the relay — try again next tick */ }
+      return true;
     };
-    const iv = window.setInterval(() => { void attempt(); }, 45_000);
-    return () => { stopped = true; window.clearInterval(iv); };
+    // Back off after each real attempt (45 s → 90 s → … → 10 min). A box behind
+    // CGNAT may never get a direct path, and a fixed 45 s interval would probe
+    // every connection on the account for the whole session, forever.
+    const tick = () => {
+      void attempt().then((tried) => {
+        if (stopped) return;
+        if (tried) delay = Math.min(delay * 2, 600_000);
+        timer = window.setTimeout(tick, delay);
+      });
+    };
+    timer = window.setTimeout(tick, delay);
+    return () => { stopped = true; if (timer) window.clearTimeout(timer); };
   }, [conn, accountToken, demo]);
 
   const startLink = useCallback(async () => {
@@ -224,7 +277,18 @@ export function usePlexAuth() {
       setPinCode(pin.code);
       setStatus('linking');
       clearPoll();
+      const startedAt = Date.now();
       pollRef.current = window.setInterval(async () => {
+        // Plex PINs die after ~10 minutes. Without this the screen shows a dead
+        // code and "Waiting for you to sign in…" forever, polling a 404.
+        if (Date.now() - startedAt > 9.5 * 60_000) {
+          clearPoll();
+          startingRef.current = false;
+          setPinCode(null);
+          setError('That sign-in code expired. Choose Try again to get a new one.');
+          setStatus('error');
+          return;
+        }
         try {
           const token = await checkPlexPin(pin.id);
           if (token) {
@@ -252,6 +316,12 @@ export function usePlexAuth() {
   const signOut = useCallback(async () => {
     clearPoll();
     startingRef.current = false;
+    // Stop the deferred writers before clearing storage, and invalidate any
+    // that already started: an idle upgrade landing after this point would
+    // re-create the saved server with the outgoing account's token.
+    sessionRef.current += 1;
+    cancelUpgradeRef.current?.();
+    cancelUpgradeRef.current = null;
     await clearPlexToken(); // also removes the saved server (token + server prefs)
     // Drop in-memory catalog caches so the next account (even on the same
     // server base URL) never renders the previous account's rows/posters.

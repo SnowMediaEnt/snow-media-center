@@ -32,7 +32,8 @@ import {
   PLEX_QUALITY_PRESETS, loadPlexQuality, savePlexQuality,
   getPlexAccount,
   setPlexImageFocus, preloadImages,
-  type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel } from '@/lib/plex';
+  type PlexLibrary, type PlexItem, type PlexEpisode, plexRouteLabel,
+  setPlexPlaybackActive } from '@/lib/plex';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import {
   demoGetLibraries, demoGetLibraryItems, demoGetHub, demoSearchPlex,
@@ -116,23 +117,37 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePan
   const [row, setRow] = useState(0);
   const [col, setCol] = useState(0);
 
+  const [hubRetry, setHubRetry] = useState(0);
+  const hubRetryRef = useRef(0);
+
   useEffect(() => {
     let cancelled = false;
+    let retry: number | null = null;
     const cachedOd = getCachedHub(base, onDeckPath);
     const cachedRa = getCachedHub(base, recentPath);
     if (cachedOd && cachedRa) { setLoading(false); return; }
     setLoading(true);
+    // A failure resolves to null so it is NOT written to the 5-minute cache.
+    // getCachedHub returns the stored array, and [] is truthy, so a cached
+    // failure reads as a cache HIT and blocks every later refetch — Home stays
+    // an empty rail across remounts until the TTL runs out.
     Promise.all([
-      cachedOd ? Promise.resolve(cachedOd) : getPlexHub(base, token, onDeckPath).catch(() => [] as PlexItem[]),
-      cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => [] as PlexItem[]),
+      cachedOd ? Promise.resolve(cachedOd) : getPlexHub(base, token, onDeckPath).catch(() => null),
+      cachedRa ? Promise.resolve(cachedRa) : getPlexHub(base, token, recentPath).catch(() => null),
     ]).then(([od, ra]) => {
       if (cancelled) return;
-      setOnDeck(od); setCachedHub(base, onDeckPath, od);
-      setRecent(ra); setCachedHub(base, recentPath, ra);
+      if (od) { setOnDeck(od); setCachedHub(base, onDeckPath, od); }
+      if (ra) { setRecent(ra); setCachedHub(base, recentPath, ra); }
       setLoading(false);
+      // Nothing landed: re-arm once so a Wi-Fi blip during the first visit does
+      // not leave Home permanently empty.
+      if (!od && !ra && hubRetryRef.current < 3) {
+        hubRetryRef.current += 1;
+        retry = window.setTimeout(() => setHubRetry((v) => v + 1), 4000);
+      }
     });
-    return () => { cancelled = true; };
-  }, [base, token]);
+    return () => { cancelled = true; if (retry) window.clearTimeout(retry); };
+  }, [base, token, hubRetry]);
 
   const rows = useMemo(() => {
     const r: Array<{ title: string; items: PlexItem[] }> = [];
@@ -331,6 +346,14 @@ interface ManagePanelProps {
   accountToken?: string;
   onSignOut: () => void;
 }
+/** Playback failures where the bytes stopped arriving, as opposed to a codec
+ *  the device cannot decode. RECONNECT_EXHAUSTED comes from our own plugin;
+ *  ERROR_CODE_IO_* are ExoPlayer's own names, forwarded verbatim. */
+function isNetworkPlaybackError(code?: string): boolean {
+  if (!code) return false;
+  return code === 'RECONNECT_EXHAUSTED' || code.indexOf('ERROR_CODE_IO') === 0;
+}
+
 const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggle, onExitToTabs, serverName, owned, accountToken, onSignOut }: ManagePanelProps) => {
   const hiddenCount = libraries.filter((l) => hidden.indexOf(l.key) >= 0).length;
   const [cursor, setCursor] = useState(0);
@@ -339,6 +362,9 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
   const confirmTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(cursor); useEffect(() => { cursorRef.current = cursor; }, [cursor]);
   const libsRef = useRef(libraries); useEffect(() => { libsRef.current = libraries; }, [libraries]);
+  // The list can shrink under a stationary cursor (a library disappears from
+  // the server). Without this nothing is highlighted until the next D-pad press.
+  useEffect(() => { setCursor((c) => Math.min(c, libraries.length)); }, [libraries.length]);
   const onToggleRef = useRef(onToggle); useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
   const onSignOutRef = useRef(onSignOut); useEffect(() => { onSignOutRef.current = onSignOut; }, [onSignOut]);
@@ -418,6 +444,11 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
           {accountLine && <div className="text-xs font-nunito text-brand-ice/70 mt-1">{accountLine}</div>}
         </div>
       )}
+      {librariesError && libraries.length > 0 && (
+        <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 font-nunito text-xs text-amber-200">
+          This list may be out of date — the last refresh failed: {librariesError}
+        </div>
+      )}
       {libraries.length === 0 ? (
         <div className="font-nunito text-sm space-y-1">
           <div className="text-brand-ice/70">
@@ -439,6 +470,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
             const focused = isActive && cursor === i;
             return (
               <div key={lib.key}
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 onClick={() => { setCursor(i); onToggle(lib.key); }}
                 className={`tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'bg-brand-gold/20 scale-[1.02] z-10' : 'bg-black/40'}`}
                 data-focused={focused ? 'true' : 'false'}>
@@ -614,6 +646,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // failure is readable on the TV instead of looking identical to a server
   // that genuinely has no libraries.
   const [librariesError, setLibrariesError] = useState<string | null>(null);
+  const [libRetry, setLibRetry] = useState(0);
+  const libRetryRef = useRef(0);
   const [hidden, setHidden] = useState<string[]>([]);
   const [libIdx, setLibIdx] = useState(0);
   const [items, setItems] = useState<PlexItem[]>([]);
@@ -676,14 +710,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
     (async () => {
       try {
+        // A failure resolves to null, NOT []. An empty array is a legitimate
+        // answer ("this hub is empty") and gets cached for 5 minutes; caching a
+        // Wi-Fi blip that way left Home showing a bare heading over an empty
+        // rail, surviving even a full remount, until the TTL expired.
         const [libs, od, ra] = await Promise.all([
           getPlexLibraries(base, token).catch(() => [] as PlexLibrary[]),
-          (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => [] as PlexItem[])),
-          (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => [] as PlexItem[])),
+          (getCachedHub(base, onDeckPath) ? Promise.resolve(getCachedHub(base, onDeckPath) as PlexItem[]) : getPlexHub(base, token, onDeckPath).catch(() => null)),
+          (getCachedHub(base, recentPath) ? Promise.resolve(getCachedHub(base, recentPath) as PlexItem[]) : getPlexHub(base, token, recentPath).catch(() => null)),
         ]);
         if (cancelled) return;
-        setCachedHub(base, onDeckPath, od);
-        setCachedHub(base, recentPath, ra);
+        if (od) setCachedHub(base, onDeckPath, od);
+        if (ra) setCachedHub(base, recentPath, ra);
         // ONLY overwrite with a non-empty result. This fetch duplicates the
         // library effect below, runs in parallel against the same PMS, and
         // swallows its own failure into []. It also resolves LAST (it awaits
@@ -698,8 +736,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const httpsBase = /^https:\/\//i.test(base);
         if (httpsBase) {
           const feed: PlexItem[] = [];
-          for (const it of od) feed.push(it);
-          for (const it of ra) feed.push(it);
+          for (const it of od || []) feed.push(it);
+          for (const it of ra || []) feed.push(it);
           for (const it of feed) {
             if (posters.length >= 12) break;
             if (it.thumb) posters.push(`${base}${it.thumb}?X-Plex-Token=${encodeURIComponent(token)}`);
@@ -725,14 +763,41 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, [isActive]);
 
 
-  // Load libraries when connected.
+  // Switching to a DIFFERENT Plex server invalidates the section keys we are
+  // holding. Drop them so the tab strip cannot show the previous server's
+  // libraries while the new list loads. Keyed on clientIdentifier, not base, so
+  // a relay escape (same server, new address) leaves the strip alone.
+  const libServerRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = conn?.clientIdentifier ?? null;
+    if (id && libServerRef.current && libServerRef.current !== id) {
+      setLibraries([]); setLibrariesError(null); libRetryRef.current = 0;
+    }
+    if (id) libServerRef.current = id;
+  }, [conn]);
+
+  // Load libraries when connected. `libRetry` re-arms this on failure — see
+  // the catch below.
   useEffect(() => {
     if (status !== 'ready' || !conn) return;
     let cancelled = false;
+    let timer: number | null = null;
     getPlexLibraries(conn.base, conn.token)
-      .then((libs) => { if (!cancelled) { setLibraries(libs); setLibrariesError(null); } })
+      .then((libs) => {
+        if (cancelled) return;
+        setLibraries(libs); setLibrariesError(null); libRetryRef.current = 0;
+      })
       .catch((e: unknown) => {
         if (cancelled) return;
+        // RETRY. Without this a single throw was terminal: nothing in this
+        // effect's deps ever changes again, so the tab strip stayed at
+        // Home · Search · Request · Settings for the rest of the session on a
+        // server that came back online seconds later.
+        const n = libRetryRef.current;
+        if (n < 4) {
+          libRetryRef.current = n + 1;
+          timer = window.setTimeout(() => setLibRetry((v) => v + 1), 3000 * 2 ** n);
+        }
         // Keep whatever is already on screen — a transient hiccup on a
         // reconnect must not empty the tab strip — and record WHY, so the
         // empty state can say what happened instead of looking identical to a
@@ -742,8 +807,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // the internet is down.
         setLibrariesError((e as Error)?.message || 'Could not reach the server');
       });
-    return () => { cancelled = true; };
-  }, [status, conn]);
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [status, conn, libRetry]);
 
   const visibleLibraries = useMemo(
     () => libraries.filter((l) => hidden.indexOf(l.key) < 0),
@@ -765,8 +830,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
+  // Tab to stay on across a tabs-list change (see the pin effect below).
+  const wantTabKeyRef = useRef<string | null>(null);
 
   useEffect(() => { if (libIdx >= tabs.length) setLibIdx(tabs.length - 1); }, [tabs.length, libIdx]);
+
+  // Un-hiding a library from Settings INSERTS a tab before Request/Settings, so
+  // the same libIdx now points at a different tab and the user is silently
+  // dropped onto Request mid-keypress. (Hiding shrinks the strip and the clamp
+  // above happens to cover it — growth had no equivalent.) Pin by key across
+  // the change instead of trusting the index.
+  useEffect(() => {
+    const k = wantTabKeyRef.current;
+    if (!k) return;
+    wantTabKeyRef.current = null;
+    const i = tabs.findIndex((t) => t.key === k);
+    if (i >= 0 && i !== libIdx) setLibIdx(i);
+  }, [tabs, libIdx]);
 
   // ── Deep-link: ONE effect that opens the detail overlay directly. Works
   //    even when the target library is hidden/reordered or hasn't loaded.
@@ -1200,12 +1280,28 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
   }, [nativeActive]);
 
+  // Tell background probes to stand down while a stream is on screen. The relay
+  // escape fans out across every candidate connection at once, and the relay it
+  // is trying to escape is already speed-capped — that probe competing with
+  // playback is exactly the stutter it exists to prevent.
+  useEffect(() => {
+    setPlexPlaybackActive(fullscreen);
+    return () => setPlexPlaybackActive(false);
+  }, [fullscreen]);
+
   // Auto-fallback to Plex-side transcode when native playback errors — most
   // notably AUDIO_DECODE from the Media3 plugin (Fire TV rejected the direct
   // codec / offload path). Preserves the current playhead so switching feels
   // like a hiccup, not a restart.
   useEffect(() => {
     if (!(nativeActive && native.error && !useTranscode && playing && conn)) return;
+    // A network drop is NOT a codec problem. RECONNECT_EXHAUSTED and every
+    // ERROR_CODE_IO_* mean the bytes stopped arriving; switching to a
+    // server-side transcode cannot help, and if it happens to succeed the user
+    // is stuck transcoding — degraded picture, extra load on the PMS — for the
+    // rest of the film because of a Wi-Fi hiccup. Leave the URL alone and let
+    // the reconnect path below handle it.
+    if (isNetworkPlaybackError(native.error.code)) return;
     void (async () => {
       let resume: number | undefined;
       try {
@@ -1328,6 +1424,31 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Reset the auto-revert guard when a new title starts.
   useEffect(() => { autoRevertRef.current = null; }, [playing?.ratingKey]);
 
+  // Network-class failure while playing: retry by itself the moment the device
+  // reports connectivity again, instead of parking on "Playback Error" until
+  // someone finds the remote. One shot per error — a genuinely dead stream
+  // still surfaces the panel.
+  const netRetriesRef = useRef(0);
+  useEffect(() => { netRetriesRef.current = 0; }, [playing?.ratingKey]);
+  useEffect(() => {
+    if (!(nativeActive && native.error && isNetworkPlaybackError(native.error.code))) return;
+    if (netRetriesRef.current >= 6) return;   // ~2 min of trying, then it's the user's call
+    let done = false;
+    const kick = () => {
+      if (done) return;
+      done = true;
+      netRetriesRef.current += 1;
+      native.retry();
+    };
+    // Instant path: the OS told us the interface came back.
+    window.addEventListener('online', kick);
+    // Fallback path: Android reports navigator.onLine from the interface, which
+    // stays true when it is the internet beyond it that dropped. Back off so a
+    // genuinely dead stream is not hammered.
+    const t = window.setTimeout(kick, Math.min(60_000, 4000 * 2 ** netRetriesRef.current));
+    return () => { window.removeEventListener('online', kick); window.clearTimeout(t); };
+  }, [nativeActive, native.error, native, playing]);
+
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1354,6 +1475,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   }, []);
 
   const toggleHidden = useCallback((key: string) => {
+    wantTabKeyRef.current = tabsRef.current[libIdxRef.current]?.key ?? null;
     setHidden((prev) => {
       const has = prev.indexOf(key) >= 0;
       const next = has ? prev.filter((k) => k !== key) : [...prev, key];
