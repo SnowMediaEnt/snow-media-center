@@ -5,6 +5,7 @@ import {
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
   getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, type PlexRoute,
 } from '@/lib/plex';
+import { runWhenIdle } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
 
@@ -45,6 +46,8 @@ export function usePlexAuth() {
   const discoveringRef = useRef(false);
   const cancelledRef = useRef(false);
   const connBaseRef = useRef<string | null>(null);
+  // Cancels the deferred background connection upgrade (see discover()).
+  const cancelUpgradeRef = useRef<(() => void) | null>(null);
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
@@ -65,34 +68,56 @@ export function usePlexAuth() {
           //    stop being blocked by the WebView on https origins.
           //  • unknown route (saved before routes were tracked) → learn it.
           //  • relay → look for a direct path (Plex caps relay speed hard).
+          //
+          // THREE RULES, each of which cost us an outage or nearly did:
+          //  1. NEVER call setConn for a route-only change. A new `conn`
+          //     identity re-runs PlexSection's one-shot warm-up effect, whose
+          //     cleanup cancels the in-flight warm-up while the re-run bails on
+          //     its `warmedRef` guard — so `setWarmedUp(true)` never fires and
+          //     Plex sits on "Loading your library…" forever. The base and
+          //     token are identical here; only a label changed. Persist it and
+          //     let the next launch read it.
+          //  2. NEVER downgrade the scheme. A relay-cached https base probed
+          //     with httpsOnly:false can resolve to a plain http LAN candidate,
+          //     which the web build then blocks as mixed content — killing
+          //     every Plex call. Only accept an equal-or-better scheme.
+          //  3. Run it at IDLE, not on the critical path. This probe fans out
+          //     across every candidate connection in parallel; on a Fire TV the
+          //     socket pool is small and the first-screen fetches lose.
           if (cached.base.startsWith('http://') || !cached.route || cached.route === 'relay') {
-            void (async () => {
-              try {
-                const servers = await getPlexServers(accountToken);
-                const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
-                for (const s of owned) {
-                  if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
-                  const wantHttps = cached.base.startsWith('http://');
-                  const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: wantHttps, noRelay: true })
-                    ?? (wantHttps ? null : await pickPlexConnectionDetailed(s, 3500));
-                  if (!better) continue;
-                  if (better.base === cached.base) {
-                    if (cached.route !== better.route) { const learned = { ...cached, route: better.route }; await savePlexServer(learned); setConn(learned); }
+            const cachedIsHttps = cached.base.slice(0, 6).toLowerCase() === 'https:';
+            cancelUpgradeRef.current = runWhenIdle(() => {
+              void (async () => {
+                try {
+                  const servers = await getPlexServers(accountToken);
+                  const owned = [...servers].sort((a, b) => Number(b.owned) - Number(a.owned));
+                  for (const s of owned) {
+                    if (cachedIsHttps !== cached.base.startsWith('https://')) return;
+                    if (cached.clientIdentifier && s.clientIdentifier !== cached.clientIdentifier) continue;
+                    // Rule 2: an https cache only ever probes https candidates.
+                    const better = await pickPlexConnectionDetailed(s, 3500, { httpsOnly: cachedIsHttps, noRelay: true });
+                    if (!better) continue;
+                    if (better.base === cached.base) {
+                      // Rule 1: persist the learned route, do NOT touch state.
+                      if (cached.route !== better.route) await savePlexServer({ ...cached, route: better.route });
+                      return;
+                    }
+                    const wantHttps = !cachedIsHttps;
+                    const improves = (wantHttps && better.base.startsWith('https://'))
+                      || (cached.route === 'relay' && better.route !== 'relay');
+                    if (!improves) return;
+                    const upgraded: typeof cached = { ...cached, base: better.base, route: better.route, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
+                    await savePlexServer(upgraded);
+                    // Invalidate any queued image fetches BEFORE swapping the
+                    // conn so rail <img> tags re-commit on the new base.
+                    bumpPlexImageEpoch();
+                    connBaseRef.current = upgraded.base;
+                    setConn(upgraded);
                     return;
                   }
-                  const improves = (wantHttps && better.base.startsWith('https://')) || (cached.route === 'relay' && better.route !== 'relay');
-                  if (!improves) return;
-                  const upgraded: typeof cached = { ...cached, base: better.base, route: better.route, token: s.accessToken || accountToken, name: s.name, clientIdentifier: s.clientIdentifier, owned: !!s.owned };
-                  await savePlexServer(upgraded);
-                  // Invalidate any queued image fetches BEFORE swapping the
-                  // conn so rail <img> tags re-commit on the new base.
-                  bumpPlexImageEpoch();
-                  connBaseRef.current = upgraded.base;
-                  setConn(upgraded);
-                  return;
-                }
-              } catch { /* ignore — cached connection keeps working */ }
-            })();
+                } catch { /* ignore — cached connection keeps working */ }
+              })();
+            }, 8000);
           }
           return true;
         } catch { /* stale cache — rediscover */ }
@@ -139,7 +164,7 @@ export function usePlexAuth() {
       if (token) { setAccountToken(token); await discover(token); }
       else { setAccountToken(null); setStatus('signed-out'); }
     })();
-    return () => { cancelledRef.current = true; clearPoll(); };
+    return () => { cancelledRef.current = true; clearPoll(); cancelUpgradeRef.current?.(); };
   }, [discover, demo]);
 
 
