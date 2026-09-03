@@ -320,7 +320,6 @@
 [data-player-header-btn][data-focused="true"] {
   outline: 3px solid hsl(var(--brand-gold));
   outline-offset: 2px;
-  border-radius: inherit;
 }
 
 /* ============================================================
@@ -723,7 +722,6 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 [role="dialog"] :focus-visible:not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast) {
   outline: none;
   box-shadow: 0 0 0 4px hsl(var(--brand-gold)), 0 0 24px hsl(var(--brand-gold) / 0.7);
-  border-radius: inherit;
 }
 
 /* =========================================================================
@@ -751,6 +749,13 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
    source, so without the :not()s it would overwrite the inset ring (and make
    the red danger variant invisible). Simple :not() args only (Chromium 66).
    ========================================================================= */
+/* NO `border-radius: inherit` HERE (or in any of the focus rules below).
+   `inherit` on a real element takes the PARENT's radius, it does not preserve
+   the element's own — so a rounded button sitting in a plain <div> (the Back
+   button in its BACK_ROW, every Main Apps card in its grid) had its corners
+   squared off the moment it was focused, and the box-shadow ring followed
+   them. box-shadow already tracks the element's own border-radius, so the
+   declaration was never doing anything except that damage. */
 /* :focus-visible IS DELIBERATELY NOT IN THIS LIST — see the rule after it.
    One unsupported selector invalidates the WHOLE list, and :focus-visible only
    arrived in Chrome 86. Every Fire TV older than that was throwing this entire
@@ -770,7 +775,6 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   box-shadow:
     0 0 0 4px hsl(var(--brand-gold)),
     0 0 22px hsl(var(--brand-gold) / 0.6);
-  border-radius: inherit;
 }
 
 /* The :focus-visible arm of the rule above, on its own so that a browser which
@@ -782,7 +786,6 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
   box-shadow:
     0 0 0 4px hsl(var(--brand-gold)),
     0 0 22px hsl(var(--brand-gold) / 0.6);
-  border-radius: inherit;
 }
 
 /* Suppress the safety-net ring on form text fields when they're merely the

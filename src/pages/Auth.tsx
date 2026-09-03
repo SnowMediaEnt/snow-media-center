@@ -439,7 +439,7 @@ const Auth = () => {
   return (
     <div
       className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-[5vw] py-[4vh] overflow-y-auto"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6rem)' }}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
     >
       {/* Back Button — normal flow at the top-left of the page content */}
       <div className={BACK_ROW}>
@@ -458,18 +458,18 @@ const Auth = () => {
         />
       </div>
 
-      <div className="max-w-md mx-auto">
+      <div className="max-w-2xl mx-auto">
 
 
 
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-1">
             Snow Media Center
           </h1>
-          <p className="text-xl text-blue-200">Your Snow Media account</p>
+          <p className="text-base text-blue-200">Your Snow Media account</p>
         </div>
 
-        <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm p-6">
+        <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 backdrop-blur-sm p-5">
           {/* ===== STEP 1: EMAIL ===== */}
           {step === 'email' && (
             <div className="space-y-4">

@@ -128,21 +128,20 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
       if (isTyping) return;
       if (!NAV_KEYS.includes(e.key)) return;
       e.preventDefault();
+      // The two cards sit SIDE BY SIDE (md:grid-cols-2), so Down must not walk
+      // from one to the other — Right/Left cross the row, Up returns to Back.
       switch (e.key) {
         case 'ArrowDown':
           if (focusIndex === 0) setFocusIndex(1);
-          else if (focusIndex === 1) setFocusIndex(2);
           break;
         case 'ArrowUp':
           if (focusIndex === 1 || focusIndex === 2) setFocusIndex(0);
           break;
         case 'ArrowRight':
-          if (focusIndex === 0) setFocusIndex(1);
-          else if (focusIndex === 1) setFocusIndex(2);
+          if (focusIndex === 1) setFocusIndex(2);
           break;
         case 'ArrowLeft':
           if (focusIndex === 2) setFocusIndex(1);
-          else if (focusIndex === 1) setFocusIndex(0);
           break;
         case 'Enter':
         case ' ':
@@ -185,14 +184,14 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe min-h-dvh bg-neutral-900 text-white">
+    <div className="fixed inset-0 tv-scroll-container tv-safe bg-neutral-900 text-white overflow-y-auto overscroll-contain">
       <div className={BACK_ROW}>
         <BackButton onClick={onBack} label="Back to Home" focused={focusIndex === 0} />
       </div>
-      <div className="max-w-5xl mx-auto pb-16 px-4">
-        <div className="text-center mt-2 mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">My Account</h1>
-          <p className="text-xl text-blue-200">Choose how you want to sign in</p>
+      <div className="max-w-6xl mx-auto px-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-white mb-1">My Account</h1>
+          <p className="text-lg text-blue-200">Choose how you want to sign in</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -202,18 +201,18 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
             onFocus={() => setFocusIndex(1)}
             onMouseEnter={() => setFocusIndex(1)}
             onClick={() => setMode('player')}
-            className={`tv-focusable cursor-pointer border-0 rounded-3xl p-8 [background:var(--gradient-navy)] outline-none transition-all duration-200 ${focusIndex === 1 ? FOCUS_RING : ''}`}
+            className={`tv-focusable cursor-pointer border-0 rounded-3xl p-6 [background:var(--gradient-navy)] outline-none transition-all duration-200 ${focusIndex === 1 ? FOCUS_RING : ''}`}
           >
-            <div className="w-14 h-14 rounded-2xl bg-brand-gold/20 flex items-center justify-center mb-5">
-              <Tv className="w-8 h-8 text-brand-gold" />
+            <div className="w-12 h-12 rounded-2xl bg-brand-gold/20 flex items-center justify-center mb-4">
+              <Tv className="w-7 h-7 text-brand-gold" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Sign in with Dreamstreams / Vibez</h2>
-            <p className="text-brand-ice/80 font-nunito text-base">
+            <h2 className="text-xl font-bold text-white mb-2">Sign in with Dreamstreams / Vibez</h2>
+            <p className="text-brand-ice/80 font-nunito text-sm leading-relaxed">
               Your STREAMING login — the same username &amp; password you use in the Player.
               Signing in here also signs you in to the Player, and shows your subscription,
               expiration date and renewal reminders under My Account.
             </p>
-            <p className="text-brand-ice/50 font-nunito text-xs mt-4">
+            <p className="text-brand-ice/50 font-nunito text-xs mt-3">
               Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
             </p>
           </Card>
@@ -224,18 +223,18 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
             onFocus={() => setFocusIndex(2)}
             onMouseEnter={() => setFocusIndex(2)}
             onClick={() => navigate('/auth')}
-            className={`tv-focusable cursor-pointer rounded-3xl p-8 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 outline-none transition-all duration-200 ${focusIndex === 2 ? FOCUS_RING : ''}`}
+            className={`tv-focusable cursor-pointer rounded-3xl p-6 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 outline-none transition-all duration-200 ${focusIndex === 2 ? FOCUS_RING : ''}`}
           >
-            <div className="w-14 h-14 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-5">
-              <Globe className="w-8 h-8 text-blue-300" />
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-4">
+              <Globe className="w-7 h-7 text-blue-300" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Snow Media website account</h2>
-            <p className="text-slate-300 font-nunito text-base">
+            <h2 className="text-xl font-bold text-white mb-2">Snow Media website account</h2>
+            <p className="text-slate-300 font-nunito text-sm leading-relaxed">
               Your WEBSITE account (email &amp; password) — purchases, support tickets, messages
               and Snow Gems. This is NOT your streaming login; your streaming service keeps
               working either way.
             </p>
-            <p className="text-slate-500 font-nunito text-xs mt-4">
+            <p className="text-slate-500 font-nunito text-xs mt-3">
               Sign in or create a free account.
             </p>
           </Card>
