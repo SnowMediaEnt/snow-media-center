@@ -42,7 +42,9 @@ export function useAttachmentComposer() {
 
   const startRecording = useCallback(async () => {
     try {
-      recorderRef.current = await startVoiceRecording();
+      // When the 60-second cap fires, finish for them rather than leaving the
+      // counter running against a recorder that has already stopped.
+      recorderRef.current = await startVoiceRecording(() => { void stopRecordingRef.current(); });
       const startedAt = Date.now();
       setRecordingMs(0);
       tickRef.current = window.setInterval(() => setRecordingMs(Date.now() - startedAt), 250);
@@ -51,6 +53,9 @@ export function useAttachmentComposer() {
     }
   }, [toast]);
 
+  // startVoiceRecording needs to call this, and it is defined below — a ref
+  // keeps the reference stable without reordering the file.
+  const stopRecordingRef = useRef<() => Promise<void>>(async () => {});
   const stopRecording = useCallback(async () => {
     stopTick();
     setRecordingMs(null);
@@ -69,6 +74,8 @@ export function useAttachmentComposer() {
     }
     setDraft(result);
   }, [toast]);
+
+  useEffect(() => { stopRecordingRef.current = stopRecording; }, [stopRecording]);
 
   const cancelRecording = useCallback(() => {
     stopTick();

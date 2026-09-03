@@ -135,7 +135,7 @@ export interface VoiceRecorder {
   cancel: () => void;
 }
 
-export async function startVoiceRecording(): Promise<VoiceRecorder> {
+export async function startVoiceRecording(onAutoStop?: () => void): Promise<VoiceRecorder> {
   if (!canRecordVoice()) throw new Error('This device has no microphone available to apps.');
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true },
@@ -148,23 +148,44 @@ export async function startVoiceRecording(): Promise<VoiceRecorder> {
   recorder.start();
 
   const release = () => { for (const t of stream.getTracks()) t.stop(); };
-  // Hard stop, so a forgotten recording cannot run until the tab dies.
-  const cap = window.setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, MAX_VOICE_MS);
+
+  // onstop is assigned ONCE, here, not inside stop().
+  //
+  // It used to be assigned inside stop(), which meant the 60-second cap called
+  // recorder.stop() with no handler attached: the chunks were never assembled,
+  // and when the viewer finally pressed Stop the recorder was already inactive,
+  // so they got "Nothing was recorded" and lost the whole message. Anything
+  // that ends the recording now lands in the same place.
+  let settle: ((d: AttachmentDraft | null) => void) | null = null;
+  let finished: AttachmentDraft | null | undefined;   // undefined = still recording
+  recorder.onstop = () => {
+    release();
+    const type = recorder.mimeType || mime || 'audio/webm';
+    const blob = new Blob(chunks, { type });
+    // A silent stream (see canRecordVoice) still produces a tiny file. Sending
+    // it would give support an empty voice note to puzzle over.
+    const result: AttachmentDraft | null = blob.size < MIN_VOICE_BYTES
+      ? null
+      : { kind: 'audio', blob, mime: type, durationMs: Date.now() - startedAt };
+    if (settle) { settle(result); settle = null; } else { finished = result; }
+  };
+
+  // Hard stop, so a forgotten recording cannot run until the tab dies. The
+  // caller is told, so the counter stops at 60s instead of ticking up past a
+  // recorder that already ended.
+  const cap = window.setTimeout(() => {
+    if (recorder.state === 'recording') recorder.stop();
+    try { onAutoStop?.(); } catch { /* ignore */ }
+  }, MAX_VOICE_MS);
 
   return {
     stop: () =>
       new Promise<AttachmentDraft | null>((resolve) => {
         window.clearTimeout(cap);
+        // The cap already produced a recording — hand back that, not null.
+        if (finished !== undefined) { resolve(finished); return; }
         if (recorder.state === 'inactive') { release(); resolve(null); return; }
-        recorder.onstop = () => {
-          release();
-          const type = recorder.mimeType || mime || 'audio/webm';
-          const blob = new Blob(chunks, { type });
-          // A silent stream (see canRecordVoice) still produces a tiny file.
-          // Sending it would give support an empty voice note to puzzle over.
-          if (blob.size < MIN_VOICE_BYTES) { resolve(null); return; }
-          resolve({ kind: 'audio', blob, mime: type, durationMs: Date.now() - startedAt });
-        };
+        settle = resolve;
         recorder.stop();
       }),
     cancel: () => {

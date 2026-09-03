@@ -334,7 +334,10 @@ const StoreScreen = memo(({ onBack }: Props) => {
                 data-focused={isF(`tab:${t.id}`) ? 'true' : 'false'}
                 onClick={() => setTab(t.id)}
                 className={`tv-ring h-12 px-5 rounded-xl font-quicksand font-semibold text-base transition-transform duration-150 ease-out ${
-                  tab === t.id ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white'
+                  // The selected tab is a solid gold fill, and D-pad focus
+                  // lands on it first — a gold ring there is invisible, so the
+                  // highlight looked like it had vanished. White ring instead.
+                  tab === t.id ? 'tv-ring-contrast bg-brand-gold text-brand-navy' : 'bg-white/10 text-white'
                 } ${isF(`tab:${t.id}`) ? 'scale-105 z-10' : ''}`}
               >
                 {t.id === 'build' && <Sparkles className="w-4 h-4 inline mr-2 -mt-0.5" />}

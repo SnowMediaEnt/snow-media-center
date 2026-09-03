@@ -8,6 +8,17 @@ import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Where a password-reset link lands.
+ *
+ * NOT the app's snowmedia:// scheme: a reset link is opened from an inbox, on
+ * whatever device the person is holding, and a phone's mail client cannot open
+ * a custom scheme belonging to a TV app. The website's own reset page can
+ * handle it on any device — which is also where they would go if they had
+ * started from the site.
+ */
+const PASSWORD_RESET_REDIRECT = 'https://snowmediaent.com/auth';
 import { trackEvent } from '@/lib/analytics';
 import { signInWithPlayerCredentials, looksLikeEmail } from '@/lib/playerLogin';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -21,6 +32,7 @@ type FocusEl =
   | 'password'
   | 'submit'
   | 'change-email'
+  | 'forgot'
   | 'name'
   | 'confirm';
 
@@ -44,6 +56,10 @@ const Auth = () => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  // Set once a reset email has gone out, so the link stops inviting repeat
+  // presses — a second request invalidates the first link, which is exactly the
+  // thing that leaves someone with a dead link in their inbox.
+  const [resetSent, setResetSent] = useState(false);
   const [signupForm, setSignupForm] = useState({
     email: '',
     password: '',
@@ -68,6 +84,42 @@ const Auth = () => {
       /* ignore */
     }
     navigate('/');
+  };
+
+  /**
+   * Password reset, the same one the website offers.
+   *
+   * Supabase sends a link, so the actual reset happens in a browser or on a
+   * phone — a TV is a bad place to type a new password anyway. The redirect
+   * matches the app's own confirmation target so a device that CAN follow it
+   * lands back in SMC rather than nowhere.
+   */
+  const handleForgotPassword = async () => {
+    const email = loginForm.email.trim();
+    if (!email) {
+      toast({ title: 'Enter your email first', description: 'We need an address to send the reset link to.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: PASSWORD_RESET_REDIRECT,
+      });
+      if (error) throw error;
+      setResetSent(true);
+      toast({
+        title: 'Reset link sent',
+        description: `Check ${email} for a link to set a new password. It works on your phone or computer.`,
+      });
+    } catch (e) {
+      toast({
+        title: 'Could not send the reset link',
+        description: (e as Error)?.message || 'Please try again in a moment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleContinue = async () => {
@@ -149,7 +201,7 @@ const Auth = () => {
         step === 'email'
           ? ['back', 'email', 'continue', 'skip']
           : step === 'password'
-            ? ['back', 'password', 'submit', 'change-email']
+            ? ['back', 'password', 'submit', 'forgot', 'change-email']
             : ['back', 'name', 'password', 'confirm', 'submit', 'skip'];
 
       switch (event.key) {
@@ -178,6 +230,8 @@ const Auth = () => {
             void handleContinue();
           } else if (focusedElement === 'skip') {
             handleSkip();
+          } else if (focusedElement === 'forgot') {
+            void handleForgotPassword();
           } else if (focusedElement === 'change-email') {
             setStep('email');
             setFocusedElement('email');
@@ -213,6 +267,7 @@ const Auth = () => {
       'password': step === 'password' ? 'login-password' : 'signup-password',
       'submit': step === 'password' ? 'login-submit' : 'signup-submit',
       'change-email': 'auth-change-email',
+      'forgot': 'auth-forgot',
       'name': 'signup-name',
       'confirm': 'signup-confirm',
     };
@@ -535,6 +590,18 @@ const Auth = () => {
                   </span>
                 ) : 'Sign In'}
               </Button>
+
+              <button
+                id="auth-forgot"
+                type="button"
+                onClick={() => void handleForgotPassword()}
+                disabled={resetSent || loading}
+                className={`w-full text-sm text-blue-300 hover:text-blue-100 underline transition-all duration-200 disabled:opacity-60 disabled:no-underline ${
+                  focusedElement === 'forgot' ? 'ring-4 ring-white/60 scale-105 rounded' : ''
+                }`}
+              >
+                {resetSent ? 'Check your email for the reset link' : 'Forgot your password?'}
+              </button>
 
               <button
                 id="auth-change-email"
