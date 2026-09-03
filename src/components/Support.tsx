@@ -45,6 +45,20 @@ interface SupportProps {
 type Tab = 'help' | 'ai' | 'community';
 type HelpView = 'menu' | 'videos' | 'tickets' | 'remote';
 
+/** DOM order of the Help cards. The D-pad map below is derived from this plus
+ *  the live column count, so the two stay in step if a card is added. */
+const HELP_IDS = [
+  'help-howto',
+  'help-speedtest',
+  'help-guide',
+  'help-videos',
+  'help-tickets',
+  'help-remote',
+] as const;
+
+/** Matches the `md:` breakpoint the card grid switches columns at. */
+const HELP_TWO_COL = '(min-width: 768px)';
+
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const [tab, setTab] = useState<Tab>('help');
@@ -77,6 +91,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     try { return sessionStorage.getItem('smc-guide-origin'); } catch { return null; }
   });
   const [downloadingApp, setDownloadingApp] = useState<AppData | null>(null);
+  const [helpCols, setHelpCols] = useState<number>(() => {
+    try { return window.matchMedia(HELP_TWO_COL).matches ? 2 : 1; } catch { return 2; }
+  });
   const supportTopRef = useRef<HTMLDivElement>(null);
   const { apps } = useAppData();
   const { resolvePackageName, isPackageInstalled } = useDeviceInstalledApps();
@@ -172,24 +189,42 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return false;
   }, []);
 
-  const supportNavigation = useMemo<TVFocusNavigationMap>(() => ({
-    'support-back': { down: `tab-${tab}` },
-    'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-howto' },
-    'tab-ai': {
-      up: 'support-back', right: 'tab-community', left: 'tab-help',
-      down: () => { focusIntoChild('ai'); return null; },
-    },
-    'tab-community': {
-      up: 'support-back', right: 'tab-help', left: 'tab-ai',
-      down: () => { focusIntoChild('community'); return null; },
-    },
-    'help-howto': { up: 'tab-help', down: 'help-speedtest' },
-    'help-speedtest': { up: 'help-howto', down: 'help-guide' },
-    'help-guide': { up: 'help-speedtest', down: 'help-videos' },
-    'help-videos': { up: 'help-guide', down: 'help-tickets' },
-      'help-tickets': { up: 'help-videos', down: 'help-remote' },
-      'help-remote': { up: 'help-tickets' },
-  }), [tab, focusIntoChild]);
+  const supportNavigation = useMemo<TVFocusNavigationMap>(() => {
+    // The Help cards are laid out row-major in a `grid-cols-1 md:grid-cols-2`.
+    // The map used to be a flat chain (howto → speedtest → guide → …), which
+    // walked the SCREEN diagonally: Down from "How to use SMC" landed on
+    // Speedtest, the card to its RIGHT. Build the map from the real column
+    // count instead, so Down moves down a column and Right moves across a row.
+    const nav: TVFocusNavigationMap = {
+      'support-back': { down: `tab-${tab}` },
+      'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-howto' },
+      'tab-ai': {
+        up: 'support-back', right: 'tab-community', left: 'tab-help',
+        down: () => { focusIntoChild('ai'); return null; },
+      },
+      'tab-community': {
+        up: 'support-back', right: 'tab-help', left: 'tab-ai',
+        down: () => { focusIntoChild('community'); return null; },
+      },
+    };
+    const stay = () => null;
+    HELP_IDS.forEach((id, i) => {
+      const row = Math.floor(i / helpCols);
+      const col = i % helpCols;
+      const at = (r: number, c: number): string | undefined =>
+        c >= 0 && c < helpCols ? HELP_IDS[r * helpCols + c] : undefined;
+      const down = at(row + 1, col);
+      const left = at(row, col - 1);
+      const right = at(row, col + 1);
+      nav[id] = {
+        up: row === 0 ? 'tab-help' : at(row - 1, col),
+        down: down ?? stay,
+        left: left ?? stay,
+        right: right ?? stay,
+      };
+    });
+    return nav;
+  }, [tab, focusIntoChild, helpCols]);
 
   // When a sub-view (videos / tickets) or overlay (speedtest / guide / how-to) is open,
   // the child component owns D-pad + Back. Disabling the parent focus manager
@@ -205,6 +240,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     scrollBlock: 'nearest',
   });
 
+
+  useEffect(() => {
+    let mq: MediaQueryList;
+    try { mq = window.matchMedia(HELP_TWO_COL); } catch { return; }
+    const onChange = () => setHelpCols(mq.matches ? 2 : 1);
+    onChange();
+    // Chromium 66 (Fire TV) has no addEventListener on MediaQueryList.
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, []);
 
   const scrollSupportToRealTop = useCallback(() => {
     supportTopRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
@@ -322,6 +371,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           onClick={onBack}
           label="Back to Home"
           focusId="support-back"
+          focused={supportFocus.currentFocusId === 'support-back'}
           data-support-tv-focus-id="support-back"
         />
       </div>
@@ -378,11 +428,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-howto"
-                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="bg-emerald-700/60 border-emerald-400/70 text-white hover:bg-emerald-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <GraduationCap className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">How to use SMC</span>
-                <span className="text-sm text-emerald-100 justify-self-end">
+                <GraduationCap className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">How to use SMC</span>
+                <span className="col-start-2 text-sm text-emerald-100/90 font-normal truncate">
                   A simple tour of every screen
                 </span>
               </Button>
@@ -392,11 +442,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-speedtest"
-                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="bg-cyan-700/60 border-cyan-400/70 text-white hover:bg-cyan-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <Gauge className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">Speedtest</span>
-                <span className="text-sm text-cyan-100 justify-self-end">
+                <Gauge className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Speedtest</span>
+                <span className="col-start-2 text-sm text-cyan-100/90 font-normal truncate">
                   Test your internet speed
                 </span>
               </Button>
@@ -406,11 +456,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-guide"
-                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="bg-purple-700/60 border-purple-400/70 text-white hover:bg-purple-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <LifeBuoy className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">Buffering Guide</span>
-                <span className="text-sm text-purple-100 justify-self-end">
+                <LifeBuoy className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Buffering Guide</span>
+                <span className="col-start-2 text-sm text-purple-100/90 font-normal truncate">
                   Step-by-step buffering fixes
                 </span>
               </Button>
@@ -420,11 +470,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-videos"
-                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="bg-blue-700/60 border-blue-400/70 text-white hover:bg-blue-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <Video className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">Support Videos</span>
-                <span className="text-sm text-blue-100 justify-self-end">
+                <Video className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Support Videos</span>
+                <span className="col-start-2 text-sm text-blue-100/90 font-normal truncate">
                   Tutorials and walkthroughs
                 </span>
               </Button>
@@ -434,10 +484,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-tickets"
-                className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="relative bg-orange-700/60 border-orange-400/70 text-white hover:bg-orange-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <MessageCircle className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate flex items-center gap-3">
+                <MessageCircle className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate flex items-center gap-3">
                   Submit a Ticket
                   {unreadTicketCount > 0 && (
                     <span className="min-w-[1.75rem] h-7 px-2 rounded-full bg-destructive text-destructive-foreground text-sm font-bold inline-flex items-center justify-center ring-2 ring-white/70">
@@ -445,7 +495,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                     </span>
                   )}
                 </span>
-                <span className="text-sm text-orange-100 justify-self-end">
+                <span className="col-start-2 text-sm text-orange-100/90 font-normal truncate">
                   {unreadTicketCount > 0 ? 'New reply from Support' : 'Contact Snow Media Support'}
                 </span>
               </Button>
@@ -455,11 +505,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-remote"
-                className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left"
+                className="bg-rose-700/60 border-rose-400/70 text-white hover:bg-rose-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
-                <MonitorSmartphone className="w-7 h-7 justify-self-center" />
-                <span className="text-xl font-medium truncate">Remote Access</span>
-                <span className="text-sm text-rose-100 justify-self-end">
+                <MonitorSmartphone className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Remote Access</span>
+                <span className="col-start-2 text-sm text-rose-100/90 font-normal truncate">
                   A technician fixes your box live — $25
                 </span>
               </Button>

@@ -318,11 +318,21 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           const r = el.getBoundingClientRect();
           return { el, r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
         })
-        .filter(({ r }) => {
-          if (key === 'ArrowDown') return r.top > cur.top + 4;
-          if (key === 'ArrowUp') return r.bottom < cur.bottom - 4;
-          if (key === 'ArrowRight') return r.left > cur.left + 4;
-          if (key === 'ArrowLeft') return r.right < cur.right - 4;
+        // CENTRE-based, with a threshold proportional to the current element.
+        // The old test compared EDGES with a 4px tolerance, and the focused
+        // card carries `scale-[1.02]`: on a 700px-wide grid cell that grows it
+        // by ~14px, so its left edge moves 7px OUTWARD. The card directly
+        // BELOW then satisfied `r.left > cur.left + 4` and, being far closer,
+        // won the score — which is why Right from Cinema dropped to
+        // Dreamstreams and the second column was unreachable. A centre is
+        // invariant under scaling about the centre, so this cannot recur.
+        .filter(({ cx, cy }) => {
+          const hGap = Math.max(16, cur.width * 0.3);
+          const vGap = Math.max(12, cur.height * 0.3);
+          if (key === 'ArrowDown') return cy > curCy + vGap;
+          if (key === 'ArrowUp') return cy < curCy - vGap;
+          if (key === 'ArrowRight') return cx > curCx + hGap;
+          if (key === 'ArrowLeft') return cx < curCx - hGap;
           return false;
         });
 
@@ -332,8 +342,8 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
           const dy = cy - curCy;
           const score =
             (key === 'ArrowUp' || key === 'ArrowDown')
-              ? Math.abs(dy) + Math.abs(dx) * 2
-              : Math.abs(dx) + Math.abs(dy) * 2;
+              ? Math.abs(dy) + Math.abs(dx) * 3
+              : Math.abs(dx) + Math.abs(dy) * 3;
           return { el, score };
         })
         .sort((a, b) => a.score - b.score);

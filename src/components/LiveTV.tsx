@@ -21,6 +21,7 @@ import { capturePlayerSignin } from '@/lib/playerSigninCapture';
 import { runWhenIdle } from '@/utils/idle';
 import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
+import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
 import { trackEvent, trackAlertShown } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
@@ -86,6 +87,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   // ── Expiration awareness (in-Player dialog + Plex block) ──────────────
   const { account: playerAccount, days: playerDays } = usePlayerAccount();
+  const { version: appVersion } = useVersion();
   const acctServerLabel = playerAccount?.serverLabel || serverLabel || 'your';
   const plexBlocked =
     playerAccount !== null && playerDays !== null && playerDays < 0;
@@ -654,7 +656,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div data-player-chrome="" style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v1.6.6</div>
+      <div data-player-chrome="" style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v{appVersion}</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog

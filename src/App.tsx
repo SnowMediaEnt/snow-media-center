@@ -86,10 +86,20 @@ const App = () => {
   // ONE static brand background on every device (Android box, FireTV, preview).
   // Split solid fallback + image so legacy engines that drop the gradient still
   // paint brand navy instead of grey/white.
+  //
+  // The ramp walks the Snow Media palette rather than sitting in one blue:
+  // brand navy (#092145) → brand purple (#600468, heavily darkened so it reads
+  // as plum, not magenta) → brand ice (#a1d5dc, darkened to teal). Two soft
+  // blooms sit on top — gold high and purple low — for depth on the corners.
+  // Fire TV / low-memory boxes get the SAME ramp without the radial layers
+  // (index.css, `.native-low-memory [data-app-scroll-root]`): radial gradients
+  // are what blew the tile-memory budget, multi-stop linears are cheap.
   const rootBackgroundStyle = {
     backgroundColor: '#092145',
     backgroundImage:
-      'radial-gradient(ellipse at 50% 35%, hsla(39, 31%, 60%, 0.16), rgba(0,0,0,0) 60%), linear-gradient(160deg, #092145 0%, #0d2f55 45%, #1c4e63 78%, #23606f 100%)',
+      'radial-gradient(ellipse at 50% 22%, hsla(39, 31%, 60%, 0.18), rgba(0,0,0,0) 58%), '
+      + 'radial-gradient(ellipse at 8% 92%, hsla(296, 89%, 20%, 0.42), rgba(0,0,0,0) 62%), '
+      + 'linear-gradient(157deg, #071b3a 0%, #0e2550 24%, #2b1550 48%, #143f5c 74%, #1e6070 100%)',
   } as const;
 
   return (
