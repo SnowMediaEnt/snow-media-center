@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { UploadedAttachment } from '@/lib/supportAttachments';
 import { useToast } from '@/hooks/use-toast';
 import { User } from '@supabase/supabase-js';
 
@@ -21,8 +22,16 @@ export interface SupportMessage {
   ticket_id: string;
   user_id?: string;
   sender_type: 'user' | 'admin';
+  /** Empty when the message is an attachment on its own. */
   message: string;
   created_at: string;
+  /** Storage path in the private support-attachments bucket, or null. */
+  attachment_path?: string | null;
+  attachment_kind?: string | null;
+  attachment_mime?: string | null;
+  attachment_bytes?: number | null;
+  /** Audio only, so the UI can label a voice note without downloading it. */
+  attachment_ms?: number | null;
 }
 
 export const useSupportTickets = (user: User | null) => {
@@ -153,9 +162,20 @@ export const useSupportTickets = (user: User | null) => {
   };
 
   // Send a message to an existing ticket
-  const sendMessage = async (ticketId: string, message: string) => {
+  /**
+   * `attachment` is an already-uploaded file (see uploadAttachment). Upload
+   * first, insert second: a row pointing at a file that failed to upload would
+   * render as a permanently broken attachment, and there is nothing to clean up
+   * if the insert is what fails.
+   */
+  const sendMessage = async (
+    ticketId: string,
+    message: string,
+    attachment?: UploadedAttachment | null,
+  ) => {
     try {
       if (!user) throw new Error('User not authenticated');
+      if (!message.trim() && !attachment) throw new Error('Nothing to send');
 
       const { error } = await supabase
         .from('support_messages')
@@ -163,15 +183,20 @@ export const useSupportTickets = (user: User | null) => {
           ticket_id: ticketId,
           user_id: user.id,
           sender_type: 'user',
-          message
+          message,
+          ...(attachment ?? {}),
         });
 
       if (error) throw error;
 
-      // Send email notification
+      // Send email notification. Attachment-only messages have no text, so say
+      // what arrived rather than emailing an empty body.
       const ticket = tickets.find(t => t.id === ticketId);
       if (ticket) {
-        await sendSupportEmail(ticketId, `Re: ${ticket.subject}`, message);
+        const body = message.trim() || (attachment?.attachment_kind === 'audio'
+          ? '[voice message]'
+          : '[screenshot]');
+        await sendSupportEmail(ticketId, `Re: ${ticket.subject}`, body);
       }
 
       // Refresh messages for this ticket
