@@ -58,9 +58,9 @@
   align-items: flex-end;
   flex: 0 0 auto;
   height: 100%;
-  /* Room for the ball's visual overhang (it grows up to 3.2x about its
+  /* Room for the ball's visual overhang (it grows up to 4.6x about its
      bottom-centre) so nothing pops in at the wrap edges. */
-  padding: 0 calc(var(--smc-h) * 0.3);
+  padding: 0 calc(var(--smc-h) * 0.5);
   animation: smc-loader-scene-roll 7s linear infinite;
 }
 @keyframes smc-loader-track-roll {
@@ -75,6 +75,13 @@
 /* Able. The outer wrapper takes the JS-driven x nudge (keeps the hands on
    the growing ball); the svg/img inside takes the bob so the two transforms
    never fight. */
+/* Wrapper: act motion only (bolting away, trudging back). */
+.smc-loader-runner {
+  flex: 0 0 auto;
+  display: block;
+  line-height: 0;
+  transform-origin: 50% 100%;
+}
 .smc-loader-able-wrap {
   flex: 0 0 auto;
   display: block;
@@ -120,6 +127,13 @@
 /* Snowball. Scale is set inline from JS (grows with elapsed time) about
    the bottom-centre so it grows up and out while staying on the ground.
    The flake layer on top spins about the ball's own centre. */
+/* Wrapper: act motion only (rolling away down the hill). Kept separate from
+   the ball itself, whose transform is the JS-driven size. */
+.smc-loader-ball-wrap {
+  flex: 0 0 auto;
+  display: block;
+  line-height: 0;
+}
 .smc-loader-ball {
   position: relative;
   flex: 0 0 auto;
@@ -127,6 +141,9 @@
   height: calc(var(--smc-h) * 0.25);
   margin-bottom: calc(var(--smc-h) * 0.1);
   transform-origin: 50% 100%;
+  /* Smooths the 500ms growth staircase. Fire TV kills transitions app-wide,
+     where it simply steps instead — no worse than it was before. */
+  transition: transform 0.5s linear;
 }
 .smc-loader-ball-base,
 .smc-loader-ball-spin {
@@ -147,6 +164,155 @@
   to   { transform: rotate(360deg); }
 }
 
+/* ============================================================
+   THE THREE ACTS
+   Nothing here uses a transition: Fire TV's low-memory mode sets
+   `transition: none !important` app-wide, so every beat below is a keyframe
+   animation on its own class, and each of those classes is exempted by name
+   in the :not() list in src/index.css. Miss one and it freezes on the TV.
+   ============================================================ */
+
+/* The hill: a straight rule through the middle of the viewport, rotated by
+   exactly the angle the scene is rotated by, so his feet land on it. Wider
+   than the viewport so the rotation leaves no gap at the corners. */
+/* The world. Flat by default — identical to how the loader has always laid
+   out — and tilted as one piece during the hill story, so the ground line and
+   his feet can never drift apart. Wider than the viewport so the rotation
+   never exposes a corner. */
+.smc-loader-world {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  transform-origin: 50% 90%;
+}
+.smc-loader-slope {
+  /* Overhangs both sides so the tilt still reaches the corners. Absolutely
+     positioned, so widening it cannot disturb the flat roll's geometry. */
+  position: absolute;
+  left: -25%;
+  right: -25%;
+  bottom: calc(var(--smc-h) * 0.1);
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.smc-loader-slope-dashes {
+  width: 200%;
+  height: 100%;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.28) 0,
+    rgba(255, 255, 255, 0.28) 10px,
+    rgba(255, 255, 255, 0) 10px,
+    rgba(255, 255, 255, 0) 24px
+  );
+}
+/* Ground rolling backwards under him = climbing. */
+@keyframes smc-loader-slope-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-24px, 0, 0); }
+}
+
+/* In any act, the flat ground gives way to the hill and the ticker-style
+   roll stops — he is climbing on the spot while the world moves. */
+.smc-loader--climb .smc-loader-ground,
+.smc-loader--tumble .smc-loader-ground,
+.smc-loader--return .smc-loader-ground { opacity: 0; }
+
+.smc-loader--climb .smc-loader-slope,
+.smc-loader--tumble .smc-loader-slope,
+.smc-loader--return .smc-loader-slope { opacity: 1; }
+
+.smc-loader--climb .smc-loader-slope-dashes {
+  animation: smc-loader-slope-scroll 0.85s linear infinite;
+}
+
+.smc-loader--climb .smc-loader-track,
+.smc-loader--tumble .smc-loader-track,
+.smc-loader--return .smc-loader-track {
+  justify-content: center;
+  animation: none;
+}
+.smc-loader--climb .smc-loader-scene,
+.smc-loader--tumble .smc-loader-scene,
+.smc-loader--return .smc-loader-scene {
+  animation: none;
+  transform: none;
+}
+/* The hill. One rotation, on the wrapper that holds both the ground line and
+   the actors. */
+.smc-loader--climb .smc-loader-world,
+.smc-loader--tumble .smc-loader-world,
+.smc-loader--return .smc-loader-world {
+  transform: rotate(-9deg);
+}
+
+/* Act 1 — the ball appears in his hands and swells (size is JS-driven). */
+@keyframes smc-loader-ball-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.smc-loader--climb .smc-loader-ball-wrap {
+  animation: smc-loader-ball-in 0.4s ease-out both;
+}
+
+/* Act 2 — he loses it. Uphill is to the RIGHT, so the ball comes back down
+   the way it went up: leftwards, accelerating, straight at him. */
+@keyframes smc-loader-tumble {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(calc(var(--smc-h) * -3.4), 0, 0); }
+}
+.smc-loader--tumble .smc-loader-ball-wrap {
+  animation: smc-loader-tumble 1.9s cubic-bezier(0.45, 0.12, 0.85, 0.65) both;
+}
+/* He bolts downhill ahead of it, facing where he is going. He gets a head
+   start; the ball is accelerating, so it closes on him and runs him down
+   just as they both leave the screen. */
+/* He runs at a steady clip while the ball starts from rest and accelerates,
+   so it closes on him the whole way down without ever quite catching him.
+   Shorter travel than the ball's, which keeps him in frame for most of the
+   act instead of vanishing in the first half. */
+@keyframes smc-loader-flee {
+  from { transform: translate3d(0, 0, 0) scaleX(-1); }
+  to   { transform: translate3d(calc(var(--smc-h) * -2.6), 0, 0) scaleX(-1); }
+}
+.smc-loader--tumble .smc-loader-runner {
+  animation: smc-loader-flee 1.9s cubic-bezier(0.3, 0.42, 0.7, 0.92) both;
+  /* In front of the boulder, so you watch him scamper with it bearing down
+     rather than watching a snowball with a yeti hidden behind it. */
+  position: relative;
+  z-index: 2;
+}
+
+/* Act 3 — the ball is gone; he trudges back up to where he started. Front
+   loaded so he is on screen for most of the act rather than most of it being
+   an empty hill. */
+.smc-loader--return .smc-loader-ball-wrap { opacity: 0; }
+@keyframes smc-loader-trudge {
+  from { transform: translate3d(calc(var(--smc-h) * -2.6), 0, 0); }
+  60%  { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+.smc-loader--return .smc-loader-runner {
+  animation: smc-loader-trudge 1.9s cubic-bezier(0.2, 0.7, 0.4, 1) both;
+}
+
+/* Legs and roll speed per act: a scramble uphill, a sprint away, a plod back. */
+.smc-loader--climb .smc-loader-able-img,
+.smc-loader--climb .smc-loader-able,
+.smc-loader--climb .smc-loader-feet { animation-duration: 0.42s; }
+.smc-loader--tumble .smc-loader-able-img,
+.smc-loader--tumble .smc-loader-able,
+.smc-loader--tumble .smc-loader-feet { animation-duration: 0.24s; }
+.smc-loader--return .smc-loader-able-img,
+.smc-loader--return .smc-loader-able,
+.smc-loader--return .smc-loader-feet { animation-duration: 0.8s; }
+.smc-loader--climb .smc-loader-ball-spin { animation-duration: 2.4s; }
+.smc-loader--tumble .smc-loader-ball-spin { animation-duration: 0.3s; }
+
 /* Captions */
 .smc-loader-label {
   margin-top: 8px;
@@ -166,9 +332,22 @@
   .smc-loader-able,
   .smc-loader-able-img,
   .smc-loader .smc-loader-feet,
-  .smc-loader-ball-spin {
+  .smc-loader-ball-spin,
+  .smc-loader-slope-dashes,
+  .smc-loader-runner,
+  .smc-loader-ball-wrap {
     animation: none;
   }
+  /* No hill, no tumble — just Able and his snowball, parked. */
+  .smc-loader-slope { opacity: 0; }
+  .smc-loader--climb .smc-loader-ground,
+  .smc-loader--tumble .smc-loader-ground,
+  .smc-loader--return .smc-loader-ground { opacity: 1; }
+  .smc-loader--climb .smc-loader-world,
+  .smc-loader--tumble .smc-loader-world,
+  .smc-loader--return .smc-loader-world { transform: none; }
+  .smc-loader--return .smc-loader-ball-wrap { opacity: 1; }
+  .smc-loader-ball { transition: none; }
 }
 
 /* Fire TV low-memory mode: src/index.css sets animation-duration:0.001ms
@@ -190,4 +369,41 @@
 }
 .native-low-memory .smc-loader .smc-loader-ball .smc-loader-ball-spin {
   animation-duration: 1.4s !important;
+}
+/* The three acts, same treatment. Each of these classes is also named in the
+   :not() exemption list in src/index.css — that is what actually keeps them
+   moving; these pins only restate the timing at a specificity that beats the
+   blanket rules above. */
+.native-low-memory .smc-loader .smc-loader-slope .smc-loader-slope-dashes {
+  animation-duration: 0.85s !important;
+}
+.native-low-memory .smc-loader .smc-loader-scene .smc-loader-runner,
+.native-low-memory .smc-loader .smc-loader-scene .smc-loader-ball-wrap {
+  animation-duration: 1.9s !important;
+}
+.native-low-memory .smc-loader--climb .smc-loader-scene .smc-loader-ball-wrap {
+  animation-duration: 0.4s !important;
+}
+/* Per-act leg speed. Five classes (0,5,0) so these beat the (0,4,0) pins
+   above, which would otherwise hold every act at the walking pace. */
+.native-low-memory .smc-loader--climb .smc-loader-able-wrap .smc-loader-able-img,
+.native-low-memory .smc-loader--climb .smc-loader-able-wrap .smc-loader-able,
+.native-low-memory .smc-loader--climb .smc-loader-able .smc-loader-feet {
+  animation-duration: 0.42s !important;
+}
+.native-low-memory .smc-loader--tumble .smc-loader-able-wrap .smc-loader-able-img,
+.native-low-memory .smc-loader--tumble .smc-loader-able-wrap .smc-loader-able,
+.native-low-memory .smc-loader--tumble .smc-loader-able .smc-loader-feet {
+  animation-duration: 0.24s !important;
+}
+.native-low-memory .smc-loader--return .smc-loader-able-wrap .smc-loader-able-img,
+.native-low-memory .smc-loader--return .smc-loader-able-wrap .smc-loader-able,
+.native-low-memory .smc-loader--return .smc-loader-able .smc-loader-feet {
+  animation-duration: 0.8s !important;
+}
+.native-low-memory .smc-loader--climb .smc-loader-ball .smc-loader-ball-spin {
+  animation-duration: 2.4s !important;
+}
+.native-low-memory .smc-loader--tumble .smc-loader-ball .smc-loader-ball-spin {
+  animation-duration: 0.3s !important;
 }
