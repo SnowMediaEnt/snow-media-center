@@ -890,9 +890,17 @@ const Index = () => {
           } else if (focusedButton === -1) {
             setFocusedButton(-2); // user/auth
           } else if (focusedButton === -2) {
-            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -3); // giveaway badge, else logo
+            // Slot -3 is the Admin button, which only exists for admins. The
+            // logo shares the slot but is deliberately aria-hidden and never
+            // draws a focus marker, so for everyone else -3 is an INVISIBLE
+            // stop: the highlight disappears from the whole screen, and Left
+            // has no case for -3 so the only way out is Right. Skip it.
+            if (giveawayBadgeOnRef.current) setFocusedButton(-4);
+            else if (isAdminRef.current) setFocusedButton(-3);
+            // else: -2 is already the leftmost reachable slot. Clamp, house style.
           } else if (focusedButton === -4) {
-            setFocusedButton(-3); // giveaway badge → logo (easter egg)
+            if (isAdminRef.current) setFocusedButton(-3); // giveaway badge → admin
+            // else clamp: nothing focusable to the left of the badge.
           }
           break;
 
@@ -900,7 +908,9 @@ const Index = () => {
           if (focusedButton >= 0 && focusedButton < maxButtons) {
             setFocusedButton(focusedButton + 1);
           } else if (focusedButton === maxButtons) {
-            setFocusedButton(-3); // wrap from last app → logo
+            // Wrap to the first VISIBLE header slot, never onto the invisible
+            // admin/logo slot.
+            setFocusedButton(isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : -2));
           } else if (focusedButton === -3) {
             setFocusedButton(giveawayBadgeOnRef.current ? -4 : -2); // logo → giveaway badge, else dashboard
           } else if (focusedButton === -4) {

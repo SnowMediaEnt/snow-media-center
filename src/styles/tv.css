@@ -155,11 +155,33 @@
 .tv-compact-head p { font-size: clamp(0.7rem, 1.4cqh, 0.9rem) !important; margin: 0 !important; }
 .tv-compact-head { margin-bottom: clamp(0.2rem, 0.8cqh, 0.6rem) !important; }
 /* Fluid playing card */
+/* PLAIN SIZE FIRST. Every dimension here used to come from aspect-ratio
+   (Chrome 88), clamp() (79) and cqh container units (105). An older WebView
+   drops all three at parse time, which left `position: relative; width: auto`
+   and NO height source at all — and the card's only child is `absolute
+   inset-0`, which contributes nothing to its parent's size. So every dealt
+   card computed to 0x0 and Blackjack, Video Poker and Hold'em rendered an
+   empty table: bet controls and a score, no cards.
+
+   A fixed 2:3 box first means the card always has a size; the modern rules
+   below still take over wherever they parse, so nothing changes on a current
+   engine. */
 .tv-game-card {
+  position: relative;
+  width: 84px;
+  height: 126px;
   aspect-ratio: 2/3;
   height: clamp(56px, 14cqh, 130px) !important;
   width: auto !important;
-  position: relative;
+}
+/* The !important pair above wins on a modern engine, so the fallback needs to
+   survive only where those declarations are dropped — which is exactly where
+   this @supports test also fails. */
+@supports not (height: 1cqh) {
+  .tv-game-card {
+    width: 84px !important;
+    height: 126px !important;
+  }
 }
 /* Keep D-pad focus from slamming controls against overscan edges
    (native .focus() triggers an implicit scrollIntoView). */
