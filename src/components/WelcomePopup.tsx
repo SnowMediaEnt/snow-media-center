@@ -11,6 +11,16 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7': [
+    '🎬 New screen-format button in the player — switch between Wide, Fill and Zoom so movies fill your TV properly',
+    '🔔 Alerts now reach you even when SMC is closed, and you can turn them off in Settings',
+    '📎 Send a screenshot or a short voice message with your support ticket',
+    '🎨 Fresh Snow Media background across the app',
+    '🕹️ Fixed left/right on the remote in Main Apps and Support, and the focus box is rounded again',
+    '🖥️ My Account and the sign-in screen now fit your TV properly',
+    '🔑 Forgot your website password? Reset it right from the sign-in screen',
+    'Plex loads faster, playback no longer restarts, and the games are playable again',
+  ],
   '1.6.9': [
     '🛍️ The Snow Media Store is back — browse items on your TV, scan a QR to check out on your phone',
     '🔑 Sign into My Account with your streaming login — your linked account loads automatically',

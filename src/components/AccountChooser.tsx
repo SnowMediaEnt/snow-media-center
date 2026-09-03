@@ -157,7 +157,7 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-neutral-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-brand-gold" />
       </div>
     );
@@ -184,7 +184,7 @@ const AccountChooser = ({ onBack, onPlayerSignedIn }: AccountChooserProps) => {
   }
 
   return (
-    <div className="fixed inset-0 tv-scroll-container tv-safe bg-neutral-900 text-white overflow-y-auto overscroll-contain">
+    <div className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       <div className={BACK_ROW}>
         <BackButton onClick={onBack} label="Back to Home" focused={focusIndex === 0} />
       </div>

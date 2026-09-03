@@ -438,7 +438,7 @@ const Auth = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white px-[5vw] py-[4vh] overflow-y-auto"
+      className="fixed inset-0 text-white px-[5vw] py-[4vh] overflow-y-auto"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}
     >
       {/* Back Button — normal flow at the top-left of the page content */}

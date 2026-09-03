@@ -388,7 +388,18 @@
    Declared here, well above the snowplayer-fullscreen block, so fullscreen's
    `background-image: none !important` still wins. */
 .native-low-memory [data-app-scroll-root] {
-  background-image: linear-gradient(160deg, #092145 0%, #1c4e63 100%) !important;
+  /* Same brand ramp as App.tsx, minus the two radial blooms. A multi-stop
+     LINEAR gradient is one cheap paint; it was the radial layers that blew the
+     tile-memory budget, so the Fire TV gets the full navy → plum → teal walk
+     rather than the flat two-stop blue it used to. */
+  background-image: linear-gradient(
+    157deg,
+    #071b3a 0%,
+    #0e2550 24%,
+    #2b1550 48%,
+    #143f5c 74%,
+    #1e6070 100%
+  ) !important;
 }
 
 /* ============================================================
