@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Gravity
+import android.graphics.Matrix
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +22,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -65,6 +67,14 @@ class SnowPlayerPlugin : Plugin() {
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         var firstFrameSeen: Boolean = false
+        // Screen format. The picture is drawn into a MATCH_PARENT TextureView,
+        // which ExoPlayer stretches to fill — so WITHOUT a correction matrix
+        // every video is distorted unless it happens to match the panel. These
+        // three remember what to correct to, and applyFormat() does the work.
+        var videoW: Int = 0
+        var videoH: Int = 0
+        var pixelRatio: Float = 1f
+        var format: String = "fit"   // literal: see FORMAT_* in the companion
         var watchdogRunnable: Runnable? = null
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
@@ -83,6 +93,12 @@ class SnowPlayerPlugin : Plugin() {
 
     companion object {
         private const val MAIN = "main"
+        // Screen format names, shared with the WebView (src/capacitor/SnowPlayer.ts).
+        const val FORMAT_FIT = "fit"
+        const val FORMAT_FILL = "fill"
+        const val FORMAT_ZOOM = "zoom"
+        const val FORMAT_WIDE = "wide"
+        val FORMATS = listOf(FORMAT_FIT, FORMAT_FILL, FORMAT_ZOOM, FORMAT_WIDE)
         private const val MAX_RECONNECTS = 20
         private const val RECONNECT_DELAY_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
@@ -304,6 +320,16 @@ class SnowPlayerPlugin : Plugin() {
         p.setVideoTextureView(s.textureView)
         p.volume = s.volume
         p.addListener(object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                s.videoW = videoSize.width
+                s.videoH = videoSize.height
+                // Anamorphic content has non-square pixels: 720x480 flagged as
+                // widescreen carries a ratio near 1.21, and ignoring it is the
+                // difference between a correct picture and a squashed one.
+                s.pixelRatio = if (videoSize.pixelWidthHeightRatio > 0f) videoSize.pixelWidthHeightRatio else 1f
+                applyFormat(s)
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && s.currentUrl != null) {
                     if (s.isLive) { reconnect(s, screenId); return }
@@ -615,6 +641,11 @@ class SnowPlayerPlugin : Plugin() {
                     parent.addView(c, parent.indexOfChild(wv))
                 }
             }
+            // The correction matrix is computed against the view's dimensions,
+            // so a new rect invalidates it. Post it rather than calling inline:
+            // the layout pass triggered above has not run yet, so the width and
+            // height would still be the old ones.
+            c.post { applyFormat(s) }
             call.resolve()
         }
     }
@@ -699,6 +730,85 @@ class SnowPlayerPlugin : Plugin() {
      * deselected and playback continues with no sound. This turns that
      * invisible state into something a customer can read out.
      */
+    /**
+     * Screen format. ExoPlayer draws into a MATCH_PARENT TextureView and
+     * stretches the picture to fill it, so the view is ALWAYS the full screen
+     * and the correction is a transform on top: scale the drawn content back to
+     * the shape it should be. Nothing here resizes the view, which keeps the
+     * subtitle layer and the touch/rect handling untouched.
+     *
+     *   fit     letterbox / pillarbox — whole picture, correct shape. Default.
+     *   fill    stretch to the panel, shape ignored. The old behaviour.
+     *   zoom    correct shape, cropped to fill — no black bars, edges lost.
+     *   wide    force 16:9 whatever the source claims. The escape hatch for a
+     *           stream flagged with the wrong ratio, which is the case that
+     *           looks "full when it should be wide".
+     */
+    @PluginMethod
+    fun setResizeMode(call: PluginCall) {
+        val mode = (call.getString("mode") ?: FORMAT_FIT).lowercase()
+        if (mode !in FORMATS) {
+            call.reject("Unknown mode '$mode'. Expected one of: ${FORMATS.joinToString(", ")}")
+            return
+        }
+        val s = slot(call)
+        s.format = mode
+        activity?.runOnUiThread {
+            applyFormat(s)
+            call.resolve(JSObject().put("mode", mode))
+        }
+    }
+
+    @PluginMethod
+    fun getResizeMode(call: PluginCall) {
+        call.resolve(JSObject().put("mode", slot(call).format))
+    }
+
+    /** Recompute and apply the correction matrix. Safe to call at any time. */
+    private fun applyFormat(s: PlayerSlot) {
+        val tv = s.textureView ?: return
+        val vw = tv.width
+        val vh = tv.height
+        // Before the first layout there is nothing to scale against; the
+        // listener and setRect both call this again once there is.
+        if (vw <= 0 || vh <= 0) return
+
+        if (s.format == FORMAT_FILL) {
+            // Identity — let it stretch, which is what "fill" means.
+            tv.setTransform(Matrix())
+            tv.invalidate()
+            return
+        }
+
+        // The picture's true shape. `wide` deliberately ignores what the stream
+        // says, which is the whole point of offering it.
+        val srcAspect = when {
+            s.format == FORMAT_WIDE -> 16f / 9f
+            s.videoW > 0 && s.videoH > 0 -> (s.videoW * s.pixelRatio) / s.videoH
+            else -> return   // nothing decoded yet
+        }
+        if (srcAspect <= 0f || !srcAspect.isFinite()) return
+
+        val viewAspect = vw.toFloat() / vh.toFloat()
+        // Fit shrinks the long axis to bring the shape back; zoom grows the
+        // short one until the frame is covered.
+        val scaleX: Float
+        val scaleY: Float
+        if (s.format == FORMAT_ZOOM) {
+            if (srcAspect > viewAspect) { scaleX = srcAspect / viewAspect; scaleY = 1f }
+            else { scaleX = 1f; scaleY = viewAspect / srcAspect }
+        } else {
+            if (srcAspect > viewAspect) { scaleX = 1f; scaleY = viewAspect / srcAspect }
+            else { scaleX = srcAspect / viewAspect; scaleY = 1f }
+        }
+
+        val m = Matrix()
+        // Pivot at the centre so the bars land evenly on both sides.
+        m.setScale(scaleX, scaleY, vw / 2f, vh / 2f)
+        tv.setTransform(m)
+        tv.invalidate()
+    }
+
     @PluginMethod
     fun getDecoderInfo(call: PluginCall) {
         val available = try { FfmpegLibrary.isAvailable() } catch (t: Throwable) { false }

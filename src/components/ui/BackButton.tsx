@@ -31,8 +31,16 @@ export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
       data-focused={focused ? 'true' : 'false'}
       {...rest}
       className={cn(
-        'tv-focusable transition-all duration-150',
-        focused && 'ring-4 ring-brand-gold scale-105 shadow-[0_0_22px_rgba(185,162,121,0.75)] brightness-110',
+        // tv-ring-contrast, not tv-ring: variant="gold" is a solid gold fill,
+        // and a gold ring on it is invisible. This variant draws white.
+        //
+        // The old style was `ring-4 ring-brand-gold shadow-[0_0_22px_...]`.
+        // Tailwind's ring and shadow-[…] are both box-shadow, and the
+        // low-memory rules strip box-shadow from anything whose class contains
+        // `shadow-[` — so on a Fire TV this button had no ring of its own and
+        // fell through to the browser's default focus outline.
+        'tv-ring tv-ring-contrast transition-all duration-150',
+        focused && 'scale-105 brightness-110',
         className
       )}
     >

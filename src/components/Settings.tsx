@@ -364,15 +364,25 @@ const Settings = ({ onBack }: SettingsProps) => {
 
 
   const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
-  const backFocusRing = (id: string) => isFocused(id)
-    ? 'relative z-30 scale-110 ring-4 ring-brand-gold ring-offset-2 ring-offset-slate-950 shadow-[0_0_28px_rgba(255,200,80,0.9)] brightness-125'
-    : '';
-  const focusRing = (id: string) => isFocused(id)
-    ? 'relative z-30 scale-105 ring-4 ring-brand-gold ring-offset-2 ring-offset-slate-950 shadow-[0_0_28px_rgba(255,200,80,0.9)] brightness-125'
-    : '';
+  /**
+   * The focus highlight, on the app's standard contract.
+   *
+   * It used to be built from `ring-4 ring-offset-2 shadow-[0_0_28px_...]`.
+   * Tailwind compiles ring, ring-offset and shadow-[…] into the SAME
+   * box-shadow declaration, and index.css strips box-shadow outright from any
+   * element whose class contains `shadow-[` under native-low-memory — so on a
+   * Fire TV every highlight on this screen was deleted, and the only cue left
+   * was a 5% scale-up. `tv-ring` + data-focused is the contract that survives
+   * there, because the low-memory rules are written around it.
+   *
+   * Nothing here says `relative z-30` any more either: `.tv-ring` sets
+   * position itself, and z-30 on a focused Card was lifting it over the tab
+   * strip.
+   */
+  const focusRing = (id: string) => (isFocused(id) ? 'scale-105' : '');
   const settingsFocusAttrs = (id: SettingsFocus) => ({
-    'data-settings-focus': id,
-    'data-settings-focused': isFocused(id) ? 'true' : 'false',
+    'data-settings-focus': id,          // queried by the scroll effects
+    'data-focused': isFocused(id) ? 'true' : 'false',
   });
 
   const handleMediaManagerBack = () => {
@@ -409,7 +419,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               {...settingsFocusAttrs('tab-media')}
               onFocus={() => setFocusedElement('tab-media')}
               value="media"
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-media')}`}
             >
               <Image className="w-4 h-4 mr-2" />
               {t('settings.tabs.media')}
@@ -418,7 +428,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               {...settingsFocusAttrs('tab-ui')}
               onFocus={() => setFocusedElement('tab-ui')}
               value="ui"
-              className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
+              className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ui')}`}
             >
               <Sliders className="w-4 h-4 mr-2" />
               {t('settings.tabs.ui')}
@@ -428,7 +438,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-updates')}
                 onFocus={() => setFocusedElement('tab-updates')}
                 value="updates"
-                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-updates')}`}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 {t('settings.tabs.updates')}
@@ -439,7 +449,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-alerts')}
                 onFocus={() => setFocusedElement('tab-alerts')}
                 value="alerts"
-                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-alerts')}`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 {t('settings.tabs.alerts')}
@@ -450,7 +460,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 {...settingsFocusAttrs('tab-ai')}
                 onFocus={() => setFocusedElement('tab-ai')}
                 value="ai"
-                className={`data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ai')}`}
+                className={`tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold text-center transition-all duration-200 ${focusRing('tab-ai')}`}
               >
                 <Bot className="w-4 h-4 mr-2" />
                 {t('settings.tabs.ai')}
@@ -478,7 +488,7 @@ const Settings = ({ onBack }: SettingsProps) => {
               aria-pressed={mediaBarEnabled}
               onFocus={() => setFocusedElement('ui-content-bar-toggle')}
               onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
-              className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-content-bar-toggle')}`}
+              className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-content-bar-toggle')}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -507,7 +517,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 aria-pressed={deviceAlerts.status.enabled}
                 onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
                 onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
-                className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-device-alerts-toggle')}`}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-device-alerts-toggle')}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -546,7 +556,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 aria-pressed={playerEnabled}
                 onFocus={() => setFocusedElement('ui-player-toggle')}
                 onClick={() => void togglePlayer(!playerEnabled)}
-                className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-player-toggle')}`}
+                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-player-toggle')}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -597,7 +607,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                         }}
                         tabIndex={0}
                         dir={lang.code === 'ar' ? 'rtl' : 'ltr'}
-                        className={`tv-focusable flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:scale-[1.04] ${focusRing(`ui-language-${lang.code}`)} ${
+                        className={`tv-ring flex items-center justify-between gap-2 px-4 py-3 rounded-md border text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
                           selected
                             ? 'bg-brand-gold/20 border-brand-gold text-white'
                             : 'bg-slate-800 border-slate-500/60 text-slate-100 hover:bg-slate-700'
@@ -617,7 +627,7 @@ const Settings = ({ onBack }: SettingsProps) => {
           <TabsContent value="updates" className="mt-6 space-y-4">
             <Card
               {...settingsFocusAttrs('updates-content')}
-              className={`bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
+              className={`tv-ring bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
             >
               <AppUpdater />
             </Card>
@@ -628,14 +638,14 @@ const Settings = ({ onBack }: SettingsProps) => {
 
           {isAdmin && (
             <TabsContent value="alerts" className="mt-6">
-              <Card {...settingsFocusAttrs('alerts-content')} className={`bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
+              <Card {...settingsFocusAttrs('alerts-content')} className={`tv-ring bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
                 <AppAlertsManager />
               </Card>
             </TabsContent>
           )}
           {isAdmin && (
             <TabsContent value="ai" className="mt-6">
-              <div {...settingsFocusAttrs('ai-content')} className={`transition-all duration-150 ${focusRing('ai-content')}`}>
+              <div {...settingsFocusAttrs('ai-content')} className={`tv-ring transition-all duration-150 ${focusRing('ai-content')}`}>
                 <AdminAIPanel />
               </div>
             </TabsContent>

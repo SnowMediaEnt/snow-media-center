@@ -145,8 +145,7 @@
      where it simply steps instead — no worse than it was before. */
   transition: transform 0.5s linear;
 }
-.smc-loader-ball-base,
-.smc-loader-ball-spin {
+.smc-loader-ball-base {
   position: absolute;
   top: 0;
   left: 0;
@@ -154,14 +153,6 @@
   height: 100%;
   display: block;
   overflow: visible;
-}
-.smc-loader-ball-spin {
-  transform-origin: 50% 50%;
-  animation: smc-loader-spin 1.4s linear infinite;
-}
-@keyframes smc-loader-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
 }
 
 /* ============================================================
@@ -310,8 +301,6 @@
 .smc-loader--return .smc-loader-able-img,
 .smc-loader--return .smc-loader-able,
 .smc-loader--return .smc-loader-feet { animation-duration: 0.8s; }
-.smc-loader--climb .smc-loader-ball-spin { animation-duration: 2.4s; }
-.smc-loader--tumble .smc-loader-ball-spin { animation-duration: 0.3s; }
 
 /* Captions */
 .smc-loader-label {
@@ -332,7 +321,6 @@
   .smc-loader-able,
   .smc-loader-able-img,
   .smc-loader .smc-loader-feet,
-  .smc-loader-ball-spin,
   .smc-loader-slope-dashes,
   .smc-loader-runner,
   .smc-loader-ball-wrap {
@@ -367,9 +355,6 @@
 .native-low-memory .smc-loader .smc-loader-able .smc-loader-feet {
   animation-duration: 0.55s !important;
 }
-.native-low-memory .smc-loader .smc-loader-ball .smc-loader-ball-spin {
-  animation-duration: 1.4s !important;
-}
 /* The three acts, same treatment. Each of these classes is also named in the
    :not() exemption list in src/index.css — that is what actually keeps them
    moving; these pins only restate the timing at a specificity that beats the
@@ -400,10 +385,4 @@
 .native-low-memory .smc-loader--return .smc-loader-able-wrap .smc-loader-able,
 .native-low-memory .smc-loader--return .smc-loader-able .smc-loader-feet {
   animation-duration: 0.8s !important;
-}
-.native-low-memory .smc-loader--climb .smc-loader-ball .smc-loader-ball-spin {
-  animation-duration: 2.4s !important;
-}
-.native-low-memory .smc-loader--tumble .smc-loader-ball .smc-loader-ball-spin {
-  animation-duration: 0.3s !important;
 }

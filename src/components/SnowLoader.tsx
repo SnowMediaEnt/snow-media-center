@@ -6,16 +6,16 @@
  * asymptote 3.4x), so a stalled screen looks like it is *working* rather
  * than frozen.
  *
- * THREE ACTS. A load that drags past EPIC_AFTER_MS stops being a flat roll
- * and becomes a little story, on a loop:
+ * THREE ACTS, from the first frame. There is no flat pass — the push and the
+ * tumble are the loading indicator:
  *   1. CLIMB   — the ground tilts into a hill, the slope scrolls under his
  *                feet, and the snowball swells from nothing to full size.
  *   2. TUMBLE  — he loses it. The ball accelerates away down the hill,
  *                spinning hard, and Able turns tail and bolts the other way.
  *   3. RETURN  — he trudges back up to where he started, and act 1 begins
  *                again with a fresh little snowball.
- * Short loads never leave the flat roll, so the gag only ever plays for
- * someone who is actually waiting.
+ * A load short enough to finish inside act 1 simply shows him pushing, which
+ * is the right picture for "working on it" anyway.
  *
  *   <SnowLoader />                                  // 96px scene
  *   <SnowLoader size="lg" label="Buffering…" />     // fullscreen player
@@ -97,8 +97,9 @@ const growthScale = (elapsedMs: number): number =>
 
 export type SnowLoaderAct = 'roll' | 'climb' | 'tumble' | 'return';
 
-/** How long a load has to drag on before the hill story starts. */
-const EPIC_AFTER_MS = 9000;
+/** The hill starts immediately: the push and the tumble ARE the loading
+ *  indicator, so there is no flat pass to wait through. */
+const EPIC_AFTER_MS = 0;
 const ACT_MS: Record<Exclude<SnowLoaderAct, 'roll'>, number> = {
   climb: 5200,
   tumble: 1900,
@@ -259,7 +260,6 @@ export const AbleMascot = ({ className, style }: AbleMascotProps) => {
 /* ------------------------------------------------------------------ */
 
 const SNOW_SHADE = '#E3ECF5';
-const FLAKE = '#C9DBEA';
 
 /** Static white ball with a soft shadow crescent at the lower-left. */
 const SnowballBase = () => (
@@ -272,24 +272,6 @@ const SnowballBase = () => (
   >
     <circle cx="25" cy="25" r="24" fill={SNOW_SHADE} />
     <circle cx="27" cy="22.5" r="21.5" fill="#FFFFFF" />
-  </svg>
-);
-
-/** Rotating flake dots so the roll is visible. */
-const SnowballFlakes = () => (
-  <svg
-    className="smc-loader-ball-spin"
-    viewBox="0 0 50 50"
-    aria-hidden="true"
-    focusable="false"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <g fill={FLAKE}>
-      <circle cx="16" cy="14" r="2.2" />
-      <circle cx="33" cy="18" r="1.8" />
-      <circle cx="20" cy="32" r="2" />
-      <circle cx="34" cy="33" r="1.6" />
-    </g>
   </svg>
 );
 
@@ -424,7 +406,6 @@ const SnowLoader = ({
             <div className="smc-loader-ball-wrap">
               <div className="smc-loader-ball" style={ballStyle}>
                 <SnowballBase />
-                <SnowballFlakes />
               </div>
             </div>
           </div>

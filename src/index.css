@@ -200,10 +200,17 @@
   }
 
   /* TV Focus States */
+  /* NO border-radius here. It used to force 8px, and its focus ring is a
+     box-shadow, which follows whatever radius the element has — so anything
+     using .tv-focusable WITHOUT a rounded-* class of its own got an 8px ring
+     regardless of its real shape. On a pill or a rounded-2xl card that reads
+     as a rectangle with barely-softened corners, which is exactly the
+     "rectangle on a rounded button" people notice. Elements that want a radius
+     declare one; Tailwind's utilities layer beats this rule anyway, which is
+     why only the ones with no class of their own were affected. */
   .tv-focusable {
     outline: none;
     transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
-    border-radius: 8px;
   }
 
   .tv-focusable:focus {
@@ -354,7 +361,7 @@
    Miss one and that part is frozen on every Fire TV, and nowhere else — so
    it will not show up in a browser. The last three are the hill story:
    the scrolling slope, Able's run, and the snowball rolling away. */
-.native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-ball-spin):not(.smc-loader-slope-dashes):not(.smc-loader-runner):not(.smc-loader-ball-wrap) {
+.native-low-memory *:not(.news-ticker):not(.news-ticker-track):not(.animate-spin):not(.smc-loader-track):not(.smc-loader-scene):not(.smc-loader-able):not(.smc-loader-able-img):not(.smc-loader-feet):not(.smc-loader-slope-dashes):not(.smc-loader-runner):not(.smc-loader-ball-wrap) {
   animation-duration: 0.001ms !important;
   animation-delay: 0s !important;
   transition: none !important;
@@ -430,15 +437,39 @@
    border box so it cannot drift outside a scaled card. Chromium 66 draws
    it square on rounded corners — accepted; the dev-box branch above keeps
    the rounded inset + glow. */
-.native-low-memory .tv-ring[data-focused="true"] {
-  box-shadow: none !important;
-  outline: 4px solid hsl(var(--brand-gold)) !important;
-  outline-offset: -4px !important;
-}
+/* A BORDER ON A PSEUDO-ELEMENT, not an outline.
+   The reason this branch exists at all is that an INSET box-shadow paints
+   below the element's children, so any tile whose image fills it edge to edge
+   (PosterCard, Plex posters, PlexDetail seasons/cast, MediaBar) hid the ring
+   entirely. `outline` fixed that — it paints above descendants — but older
+   Chromium draws outlines SQUARE on rounded corners.
+   A border on ::after has both properties: it follows border-radius on every
+   engine ever shipped, because it is a border, and it sits above the image.
+   `inset` shorthand is deliberately not used (Chrome 87+). */
+.tv-ring,
+.tv-ring-danger,
+.tv-ring-contrast { position: relative; }
+
+.native-low-memory .tv-ring[data-focused="true"],
 .native-low-memory .tv-ring-danger[data-focused="true"] {
   box-shadow: none !important;
-  outline: 4px solid hsl(0 84% 60%) !important;
-  outline-offset: -4px !important;
+  outline: none !important;
+}
+.native-low-memory .tv-ring[data-focused="true"]::after,
+.native-low-memory .tv-ring-danger[data-focused="true"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border: 4px solid hsl(var(--brand-gold));
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+}
+.native-low-memory .tv-ring-danger[data-focused="true"]::after {
+  border-color: hsl(0 84% 60%);
 }
 /* Gold-on-gold: a gold ring on a solid gold fill (Play / Retry CTAs,
    Button variant=gold) is invisible, so those focusables also carry
@@ -454,11 +485,24 @@
     inset 0 0 0 3px hsl(0 0% 100% / 0.98),
     0 0 22px 2px hsl(0 0% 100% / 0.55);
 }
+/* Same treatment for the white-on-gold variant — see the note above. */
 .native-low-memory .tv-ring-contrast[data-focused="true"],
 .native-low-memory .tv-ring[data-focused="true"][class*="--gradient-gold"] {
   box-shadow: none !important;
-  outline: 4px solid hsl(0 0% 100%) !important;
-  outline-offset: -4px !important;
+  outline: none !important;
+}
+.native-low-memory .tv-ring-contrast[data-focused="true"]::after,
+.native-low-memory .tv-ring[data-focused="true"][class*="--gradient-gold"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border: 4px solid hsl(0 0% 100%);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
 }
 /* Natively-focused tv-ring buttons must not also paint the generic
    `button:focus-visible` ice outline (index.css, components layer). */

@@ -47,6 +47,29 @@ export interface SnowPlayerLoadOpts {
 
 export interface SnowScreenOpts { screenId?: string }
 
+
+/**
+ * Screen format. The picture is drawn into a full-screen surface, so "fit" is
+ * a correction, not a preference — without it every video is stretched to the
+ * panel and anything that is not 16:9 comes out the wrong shape.
+ *
+ * `wide` deliberately ignores what the stream says its shape is. That is the
+ * escape hatch for a badly flagged or anamorphic file, which is the case that
+ * looks "full when it should be wide".
+ */
+export type ScreenFormat = 'fit' | 'fill' | 'zoom' | 'wide';
+
+export const SCREEN_FORMATS: Array<{ id: ScreenFormat; label: string; hint: string }> = [
+  { id: 'fit',  label: 'Fit',       hint: 'Whole picture, correct shape' },
+  { id: 'zoom', label: 'Zoom',      hint: 'Fills the screen, edges cropped' },
+  { id: 'wide', label: 'Wide 16:9', hint: 'Force widescreen' },
+  { id: 'fill', label: 'Stretch',   hint: 'Fills the screen, shape ignored' },
+];
+
+/** Where the choice is remembered, so it survives leaving the player. */
+export const SCREEN_FORMAT_KEY = 'smc-screen-format-v1';
+
+
 export interface SnowPlayerPlugin {
   load(opts: SnowPlayerLoadOpts): Promise<void>;
   play(opts?: SnowScreenOpts): Promise<void>;
@@ -61,6 +84,9 @@ export interface SnowPlayerPlugin {
   /** Position/size the native video surface in DEVICE px (CSS rect * devicePixelRatio). w/h<=0 = fullscreen. */
   setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string }): Promise<void>;
   setVolume(opts: { volume: number; screenId?: string }): Promise<void>;
+  /** Screen format — see SCREEN_FORMATS. Native only; a no-op on web. */
+  setResizeMode(opts: { mode: ScreenFormat; screenId?: string }): Promise<{ mode: string }>;
+  getResizeMode(opts?: { screenId?: string }): Promise<{ mode: string }>;
   /** Disable audio decoding entirely on a slot (cheaper than volume 0 on Fire TV). */
   setAudioEnabled(opts: { enabled: boolean; screenId?: string }): Promise<void>;
   getAudioTracks(opts?: SnowScreenOpts): Promise<{ tracks: SnowTrack[] }>;
@@ -89,6 +115,8 @@ const webFallback: SnowPlayerPlugin = {
   async getPosition() { return { position: 0, duration: 0, playing: false }; },
   async setRect() {},
   async setVolume() {},
+  async setResizeMode() { return { mode: 'fit' }; },
+  async getResizeMode() { return { mode: 'fit' }; },
   async setAudioEnabled() {},
   async getAudioTracks() { return { tracks: [] }; },
   async setAudioTrack() {},
