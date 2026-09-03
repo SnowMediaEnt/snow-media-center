@@ -103,10 +103,23 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
   const [retryNonce, setRetryNonce] = useState(0);
 
   // Stable controller handle — emitted once on mount.
+  // EVERY callback prop goes through a ref, and onError/onEnded are not
+  // optional extras here — they were in the attach effect's dependency array,
+  // and all three parents (MoviesSection, SeriesSection, LiveSection) pass
+  // onError as an inline arrow, so its identity changed on every parent render.
+  // Each change re-ran the effect: teardownEngine(), video.load(), a fresh
+  // hls.js instance, video.src = src. Nothing carried currentTime across, so
+  // the title restarted FROM ZERO — reliably about four seconds in, when the
+  // title card auto-hides and re-renders the parent, and again on every volume
+  // press. memo() does not help: the inline arrow fails its shallow compare.
   const onTracksChangedRef = useRef(onTracksChanged);
   const onPlayStateRef = useRef(onPlayStateChange);
+  const onErrorRef = useRef(onError);
+  const onEndedRef = useRef(onEnded);
   useEffect(() => { onTracksChangedRef.current = onTracksChanged; }, [onTracksChanged]);
   useEffect(() => { onPlayStateRef.current = onPlayStateChange; }, [onPlayStateChange]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
 
   const controllerRef = useRef<VideoController | null>(null);
   if (!controllerRef.current) {
@@ -462,19 +475,19 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
                     hls.recoverMediaError();
                   } else if (data.fatal) {
                     // Recovery exhausted — surface + retry/destroy path.
-                    onError?.(`HLS ${data.type}: ${data.details}`);
+                    onErrorRef.current?.(`HLS ${data.type}: ${data.details}`);
                     scheduleRetry();
                   }
                 } catch {
                   if (data.fatal) {
-                    onError?.(`HLS ${data.type}: ${data.details}`);
+                    onErrorRef.current?.(`HLS ${data.type}: ${data.details}`);
                     scheduleRetry();
                   }
                 }
                 return;
               }
               if (data.fatal) {
-                onError?.(`HLS ${data.type}: ${data.details}`);
+                onErrorRef.current?.(`HLS ${data.type}: ${data.details}`);
                 scheduleRetry();
               }
             });
@@ -529,12 +542,12 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             setFatal("This title's format may not be supported on this device.");
             diagBuffering(false);
             try { endStream(); } catch { /* ignore */ }
-            onError?.("This title's format may not be supported on this device.");
+            onErrorRef.current?.("This title's format may not be supported on this device.");
             try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
           }
         }, 12000);
       } catch (e) {
-        onError?.((e as Error).message || 'Playback error');
+        onErrorRef.current?.((e as Error).message || 'Playback error');
         scheduleRetry();
       }
     };
@@ -569,7 +582,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
           } catch { /* ignore */ }
         });
         player.on(mpegts.Events.ERROR, (errType: string, errDetail: string) => {
-          onError?.(`TS ${errType}: ${errDetail}`);
+          onErrorRef.current?.(`TS ${errType}: ${errDetail}`);
           scheduleRetry();
         });
         teardownRef.current = () => {
@@ -595,7 +608,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
             setFatal('Stream unavailable on this device.');
             diagBuffering(false);
             try { endStream(); } catch { /* ignore */ }
-            onError?.('Stream unavailable on this device.');
+            onErrorRef.current?.('Stream unavailable on this device.');
             teardownEngine();
           },
         );
@@ -646,7 +659,7 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
       if (lastDiagTime >= 0 && ct > lastDiagTime) diagBuffering(false);
       lastDiagTime = ct;
     };
-    const onEndedInner = () => { markStreaming(false); diagBuffering(false); onEnded?.(); };
+    const onEndedInner = () => { markStreaming(false); diagBuffering(false); onEndedRef.current?.(); };
     const onLoadedMeta = () => { try { onTracksChangedRef.current?.(); } catch { /* ignore */ } };
     video.addEventListener('playing', onPlaying);
     video.addEventListener('play', onPlay);
@@ -681,8 +694,11 @@ const VideoPlayer = memo(({ src, volume = 0.8, muted, className, maxRetries = 5,
     // `volume` is intentionally not a dep: it's consumed at attach time only
     // (autoplay-mute then restore). The separate effect above keeps live volume
     // changes in sync without forcing a full engine teardown.
+    // onError / onEnded are DELIBERATELY absent too — see the refs above.
+    // Adding a callback prop back into this array restarts playback on every
+    // parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, maxRetries, onError, onEnded, retryNonce]);
+  }, [src, maxRetries, retryNonce]);
 
   const handleRetry = useCallback(() => {
     retriesRef.current = 0;

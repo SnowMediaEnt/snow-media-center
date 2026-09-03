@@ -3,17 +3,19 @@
 // hidden, this component renders nothing — PlexSection's own Back handler
 // exits playback. Native-only (uses SnowPlayer position/tracks).
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
 import { PLEX_QUALITY_PRESETS } from '@/lib/plex';
+import { SCREEN_FORMATS, type ScreenFormat } from '@/capacitor/SnowPlayer';
+import { useScreenFormat } from '@/hooks/useScreenFormat';
 import { useToast } from '@/hooks/use-toast';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
-type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'volume' | 'buffering';
-const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'volume', 'buffering'];
+type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'format' | 'volume' | 'buffering';
+const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering'];
 // Scrub step (seconds) by acceleration level; every 4 quick presses (< 700 ms
 // apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
@@ -76,7 +78,7 @@ const fmtTime = (sec: number) => {
 const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio }: Props) => {
   const [visible, setVisible] = useState(false);
   const [row, setRow] = useState<Row>('play');
-  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'volume' | 'help'>('none');
+  const [menu, setMenu] = useState<'none' | 'audio' | 'subs' | 'osdl' | 'quality' | 'format' | 'volume' | 'help'>('none');
   const [menuIdx, setMenuIdx] = useState(0);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
@@ -213,6 +215,16 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     setMenuIdx(idx >= 0 ? idx : 0);
   }, [qualityKey]);
 
+  // Screen format. 'fit' is the default because the picture is drawn into a
+  // full-screen surface — without a correction every video is stretched to the
+  // panel, which is why 4:3 looked fat and scope films looked squeezed.
+  const screen = useScreenFormat(active);
+  const openFormat = useCallback(() => {
+    setMenu('format');
+    const idx = SCREEN_FORMATS.findIndex((f) => f.id === screenFormatRef.current);
+    setMenuIdx(idx < 0 ? 0 : idx);
+  }, []);
+
   const doAction = useCallback(async (r: Row) => {
     if (!controller && r !== 'volume' && r !== 'buffering') return;
     if (r === 'play') controller?.togglePlay();
@@ -221,6 +233,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'audio') { setMenu('audio'); setMenuIdx(Math.max(0, auds.findIndex((a) => a.active))); }
     else if (r === 'subs') { openSubs(); }
     else if (r === 'quality') { openQuality(); }
+    else if (r === 'format') { openFormatRef.current(); }
     else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
     else if (r === 'buffering') { setMenu('help'); setMenuIdx(0); }
   }, [controller, getPosition, seekTo, auds, openSubs, openQuality]);
@@ -246,6 +259,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const openSubsRef = useRef(openSubs); useEffect(() => { openSubsRef.current = openSubs; }, [openSubs]);
   const pickOsdlRef = useRef(pickOsdl); useEffect(() => { pickOsdlRef.current = pickOsdl; }, [pickOsdl]);
   const qualityKeyRef = useRef(qualityKey); useEffect(() => { qualityKeyRef.current = qualityKey; }, [qualityKey]);
+  const screenFormatRef = useRef(screen.format); useEffect(() => { screenFormatRef.current = screen.format; }, [screen.format]);
+  const setScreenFormatRef = useRef(screen.setFormat); useEffect(() => { setScreenFormatRef.current = screen.setFormat; }, [screen.setFormat]);
+  const openFormatRef = useRef(openFormat); useEffect(() => { openFormatRef.current = openFormat; }, [openFormat]);
   const onChangeQualityRef = useRef(onChangeQuality); useEffect(() => { onChangeQualityRef.current = onChangeQuality; }, [onChangeQuality]);
   const getPositionRef = useRef(getPosition); useEffect(() => { getPositionRef.current = getPosition; }, [getPosition]);
   const toastRef = useRef(toast); useEffect(() => { toastRef.current = toast; }, [toast]);
@@ -340,6 +356,21 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
         else if (isOk) { const item = list[i]; if (item) void pickOsdlRef.current(item); }
+        return;
+      }
+      if (menuRef.current === 'format') {
+        const list = SCREEN_FORMATS;
+        const i = menuIdxRef.current;
+        if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
+        else if (e.key === 'ArrowDown') setMenuIdx(Math.min(list.length - 1, i + 1));
+        else if (isOk) {
+          const f = list[i];
+          if (f) {
+            void setScreenFormatRef.current(f.id as ScreenFormat);
+            try { toastRef.current({ title: `Screen format: ${f.label}` }); } catch { /* ignore */ }
+          }
+          setMenu('none');
+        }
         return;
       }
       if (menuRef.current === 'quality') {
@@ -442,6 +473,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     menu === 'audio' ? 'audio'
       : menu === 'subs' || menu === 'osdl' ? 'subs'
         : menu === 'quality' ? 'quality'
+        : menu === 'format' ? 'format'
           : menu === 'volume' ? 'volume'
             : menu === 'help' ? 'buffering'
               : null;
@@ -500,6 +532,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             <button type="button" data-focused={btnFocused('audio')} className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label="Audio"><AudioLines className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('subs')} className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label="Subtitles"><Subtitles className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label="Quality"><Gauge className="w-6 h-6" /></button>
+            <button type="button" data-focused={btnFocused('format')} className={`${btnBase} w-12 h-12 ${focusVis('format')}`} aria-label="Screen format"><Maximize className="w-6 h-6" /></button>
             <div className="flex flex-col items-center gap-1">
               <button
                 type="button"
@@ -571,6 +604,27 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         </div>
       )}
 
+
+      {menu === 'format' && (
+        <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">Screen format</p>
+            <span className="text-xs text-brand-ice/60 font-nunito">▲▼ · OK · Back</span>
+          </div>
+          <div className="space-y-1">
+            {SCREEN_FORMATS.map((f, i) => (
+              <div key={f.id} data-focused={menuIdx === i ? 'true' : 'false'}
+                className={`tv-ring px-3 py-2 rounded-xl font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="truncate">{f.label}</span>
+                  {f.id === screen.format && <span className="text-brand-gold text-xs">●</span>}
+                </div>
+                <div className="text-[11px] text-brand-ice/60">{f.hint}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {menu === 'quality' && (
         <div className="absolute right-8 bottom-40 z-30 w-72 rounded-2xl bg-black/90 border border-white/15 p-2 overflow-visible animate-fade-in pointer-events-auto">

@@ -762,7 +762,7 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     // between collapsed cards is handled by the spatial fallback in the keydown
     // effect, which reads real bounding boxes — so left/right/up/down all work
     // on the grid without a hard-coded index map.
-    <div className="grid md:grid-cols-2 gap-3 items-start pb-10 px-2">
+    <div className="grid gap-3 items-start pb-10 px-2 md:grid-cols-2 2xl:grid-cols-3">
       {categoryApps.map((app) => {
         const status = appStatuses.get(app.id) || { installed: false };
         const isInstalled = status.installed;
@@ -976,7 +976,11 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
 
   return (
     <div className="tv-scroll-container tv-safe">
-        <div className="max-w-2xl mx-auto pb-16">
+        {/* Was max-w-2xl — 672px in the middle of a 1920px panel, with roughly
+            620px wasted on each side. That constraint is a leftover from a
+            phone-shaped layout; on a TV it squeezed the app grid into the
+            middle third. */}
+        <div className="mx-auto w-full max-w-[100rem] pb-16">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center w-full justify-between">
           <BackButton

@@ -366,7 +366,12 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
 
 
           <TabsContent value="help" className="mt-0">
-            <div className="grid grid-cols-1 gap-4 max-w-2xl mx-auto">
+            {/* Was a single 672px column inside a 1152px page, so most of a TV
+                screen sat empty and the list scrolled twice as far as it needed
+                to. Two columns at the page width instead. The cards are h-20
+                with a grid-cols-[2.5rem_1fr_auto] interior, so they take the
+                narrower column without reflowing. */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Button
                 onClick={() => setShowHowTo(true)}
                 variant="outline"

@@ -50,8 +50,31 @@ internal object AlertNotifier {
     /** Stable, collision-resistant notification id for an alert's UUID. */
     fun notificationId(alertId: String): Int = alertId.hashCode()
 
-    fun post(context: Context, alert: Alert) {
+    /**
+     * @return true only if the notification was actually handed to the system.
+     *
+     * This MATTERS to the caller. notify() does not throw when notifications
+     * are switched off for the app or for this channel — it drops the
+     * notification and returns normally. The poller records what it has posted
+     * so it does not post twice, so a silent drop recorded as a success meant
+     * every alert raised while notifications were off was burnt into that set
+     * and never appeared, even after the viewer turned notifications back on.
+     */
+    fun post(context: Context, alert: Alert): Boolean {
         ensureChannel(context)
+
+        val mgr = NotificationManagerCompat.from(context)
+        // Off for the whole app. On API 33+ this also covers a refused or
+        // revoked POST_NOTIFICATIONS.
+        if (!mgr.areNotificationsEnabled()) return false
+        // Off for THIS channel only — the app-level check above is still true in
+        // that case, and it is the obvious thing for someone to do who wants
+        // Snow Media but not these alerts.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            mgr.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE
+        ) {
+            return false
+        }
 
         // Tapping opens SMC. SINGLE_TOP so an app already running comes to the
         // front instead of starting a second copy behind the first.
@@ -88,11 +111,14 @@ internal object AlertNotifier {
             .setAutoCancel(alert.severity != SEVERITY_CRITICAL)
             .setOnlyAlertOnce(true)
 
-        try {
-            NotificationManagerCompat.from(context).notify(notificationId(alert.id), builder.build())
+        return try {
+            mgr.notify(notificationId(alert.id), builder.build())
+            true
         } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS refused on Android 13+. Nothing to do — the
-            // in-app alert banner still covers this viewer.
+            // POST_NOTIFICATIONS refused on Android 13+. The in-app alert banner
+            // still covers this viewer; report the failure so the poller does
+            // not mark the alert handled.
+            false
         }
     }
 

@@ -2,11 +2,40 @@
    The scroll-padding is critical: scrollIntoView({ block: "nearest" })
    should reveal the real top/bottom safe area, not stop with the first
    button flush against the viewport edge. */
+/* PLAIN VALUES FIRST, and they are not decoration — they are what a Fire TV
+   actually gets if anything below is unsupported.
+   
+   The previous version defined these ONLY as
+   `max(env(...), clamp(1.25rem, 5dvh, 5rem))`. Three of those pieces are newer
+   than the WebView on plenty of Fire TV boxes: min()/max()/clamp() arrived in
+   Chrome 79 and the dvh/dvw units in Chrome 108. A custom property accepts any
+   token stream, so it "sets" fine either way — but the moment it is substituted
+   into `padding: var(--tv-safe-block)` on a browser that cannot parse it, the
+   padding declaration becomes invalid at computed-value time and falls back to
+   its INITIAL value, which is zero. Not to an earlier declaration. Zero.
+
+   So on those boxes every .tv-safe screen — roughly two dozen of them — had no
+   overscan inset at all, and the Back button, the titles and the first row of
+   content sat hard against the physical bezel where a TV crops them.
+
+   Keeping the values in this order means the custom properties ALWAYS hold a
+   real length, so the padding can never collapse. The @supports gate below is
+   evaluated properly by every browser back to Chrome 28, and dvh/dvw are gone
+   entirely — vh/vw are supported everywhere clamp() is, and the difference only
+   shows on a phone with a retracting URL bar, which a TV does not have. */
 :root {
-  --tv-safe-block: max(env(safe-area-inset-top), clamp(1.25rem, 5dvh, 5rem));
-  --tv-safe-inline: max(env(safe-area-inset-left), clamp(1.25rem, 5dvw, 6rem));
-  --tv-focus-scroll-margin-block: clamp(0.75rem, 2dvh, 2.5rem);
-  --tv-focus-scroll-margin-inline: clamp(0.75rem, 2dvw, 2.5rem);
+  --tv-safe-block: 2.5rem;
+  --tv-safe-inline: 3rem;
+  --tv-focus-scroll-margin-block: 1.25rem;
+  --tv-focus-scroll-margin-inline: 1.25rem;
+}
+@supports (padding: max(1rem, env(safe-area-inset-top, 0px))) and (padding: clamp(1rem, 5vh, 5rem)) {
+  :root {
+    --tv-safe-block: max(env(safe-area-inset-top, 0px), clamp(1.25rem, 5vh, 5rem));
+    --tv-safe-inline: max(env(safe-area-inset-left, 0px), clamp(1.25rem, 5vw, 6rem));
+    --tv-focus-scroll-margin-block: clamp(0.75rem, 2vh, 2.5rem);
+    --tv-focus-scroll-margin-inline: clamp(0.75rem, 2vw, 2.5rem);
+  }
 }
 
 .tv-safe { 
@@ -59,6 +88,12 @@
 
 /* TV scroll container - fills viewport with proper safe areas */
 .tv-scroll-container {
+  /* vh first: a declaration a browser cannot parse is DROPPED, so the earlier
+     one stands. dvh is Chrome 108+, and this is the scroll root of most of the
+     app — losing its height entirely on an older WebView is not a small thing.
+     (This is a different failure mode from the custom properties at the top of
+     the file: there, an unparseable value poisons the substitution instead.) */
+  min-height: 100vh;
   min-height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
@@ -120,11 +155,33 @@
 .tv-compact-head p { font-size: clamp(0.7rem, 1.4cqh, 0.9rem) !important; margin: 0 !important; }
 .tv-compact-head { margin-bottom: clamp(0.2rem, 0.8cqh, 0.6rem) !important; }
 /* Fluid playing card */
+/* PLAIN SIZE FIRST. Every dimension here used to come from aspect-ratio
+   (Chrome 88), clamp() (79) and cqh container units (105). An older WebView
+   drops all three at parse time, which left `position: relative; width: auto`
+   and NO height source at all — and the card's only child is `absolute
+   inset-0`, which contributes nothing to its parent's size. So every dealt
+   card computed to 0x0 and Blackjack, Video Poker and Hold'em rendered an
+   empty table: bet controls and a score, no cards.
+
+   A fixed 2:3 box first means the card always has a size; the modern rules
+   below still take over wherever they parse, so nothing changes on a current
+   engine. */
 .tv-game-card {
+  position: relative;
+  width: 84px;
+  height: 126px;
   aspect-ratio: 2/3;
   height: clamp(56px, 14cqh, 130px) !important;
   width: auto !important;
-  position: relative;
+}
+/* The !important pair above wins on a modern engine, so the fallback needs to
+   survive only where those declarations are dropped — which is exactly where
+   this @supports test also fails. */
+@supports not (height: 1cqh) {
+  .tv-game-card {
+    width: 84px !important;
+    height: 126px !important;
+  }
 }
 /* Keep D-pad focus from slamming controls against overscan edges
    (native .focus() triggers an implicit scrollIntoView). */
