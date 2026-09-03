@@ -14,6 +14,13 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // 2. src/hooks/useAuth.ts - waits for storage restoration before checking session
 // This ensures tokens survive app restarts even when Android WebView clears localStorage.
 
+// Re-exported for the native alert poller, which needs the same project and
+// key but cannot reach into the JS client. Both values already ship in the
+// bundle; the anon key is public by design and row-level policies decide what
+// an anonymous reader can see.
+export { SUPABASE_URL };
+export const SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY;
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,

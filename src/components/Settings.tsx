@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -14,6 +14,7 @@ import AdminAIPanel from '@/components/AdminAIPanel';
 import PlayerAccountCard from '@/components/PlayerAccountCard';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { useDeviceAlerts } from '@/hooks/useDeviceAlerts';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
@@ -35,6 +36,7 @@ type SettingsFocus =
   | 'media-content'
   | 'ui-content-bar-toggle'
   | 'ui-player-toggle'
+  | 'ui-device-alerts-toggle'
   | 'updates-content'
   | 'alerts-content'
   | 'ai-content'
@@ -49,6 +51,7 @@ const Settings = ({ onBack }: SettingsProps) => {
   const isAdmin = hasAdminRole && !demo;
   const showUpdates = !demo;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
+  const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
   const { toast } = useToast();
   const [currentLang, setCurrentLang] = useState<string>(i18n.language || 'en');
@@ -61,6 +64,30 @@ const Settings = ({ onBack }: SettingsProps) => {
     i18n.changeLanguage(code);
     try { localStorage.setItem(LANG_STORAGE_KEY, code); } catch { /* ignore */ }
   };
+  const toggleDeviceAlerts = async (next: boolean) => {
+    try {
+      const result = await deviceAlerts.setEnabled(next);
+      if (next && !result.enabled) {
+        // Android 13+ and the viewer said no. Nothing was switched on, so say
+        // that rather than leaving a toggle that looks on but shows nothing.
+        toast({
+          title: 'Notifications are blocked',
+          description: 'Allow notifications for Snow Media Center in your device settings, then try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: next ? 'Alerts on for this device' : 'Alerts off for this device',
+        description: next
+          ? 'Service notices will pop up even when Snow Media Center is closed.'
+          : 'Alerts will only show inside the app.',
+      });
+    } catch (e) {
+      toast({ title: 'Could not change alerts', description: (e as Error).message, variant: 'destructive' });
+    }
+  };
+
   const togglePlayer = async (next: boolean) => {
     try {
       await setFeatureFlag('player_enabled', next);
@@ -97,6 +124,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
       const getUiFocusOrder = (): SettingsFocus[] => {
         const order: SettingsFocus[] = ['ui-content-bar-toggle'];
+        if (deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (isAdmin) {
           order.push('ui-player-toggle');
           order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
@@ -139,6 +167,7 @@ const Settings = ({ onBack }: SettingsProps) => {
         }
         if (event.key === 'Enter' || event.key === ' ') {
           if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
+          else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
           else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
           else if (focusedElement.startsWith('ui-language-')) {
             handleLanguageSelect(focusedElement.replace('ui-language-', ''));
@@ -301,7 +330,7 @@ const Settings = ({ onBack }: SettingsProps) => {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -469,6 +498,44 @@ const Settings = ({ onBack }: SettingsProps) => {
                 />
               </div>
             </Card>
+
+            {deviceAlerts.supported && (
+              <Card
+                {...settingsFocusAttrs('ui-device-alerts-toggle')}
+                tabIndex={0}
+                role="button"
+                aria-pressed={deviceAlerts.status.enabled}
+                onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
+                onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
+                className={`bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('ui-device-alerts-toggle')}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Bell className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Alerts on this device</h3>
+                      <p className="text-sm text-white/70 mt-1">
+                        Service notices pop up on screen even when Snow Media Center is closed.
+                        Press OK on one to open the app, or dismiss it and it stays gone.
+                      </p>
+                      {deviceAlerts.status.channelBlocked && (
+                        <p className="text-sm text-amber-300 mt-2">
+                          Notifications are switched off for this app in your device settings, so
+                          nothing will show until you turn them back on there.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={deviceAlerts.status.enabled}
+                    disabled={deviceAlerts.busy}
+                    onCheckedChange={toggleDeviceAlerts}
+                    aria-label="Alerts on this device"
+                    className="mt-1"
+                  />
+                </div>
+              </Card>
+            )}
 
             {isAdmin && (
               <Card

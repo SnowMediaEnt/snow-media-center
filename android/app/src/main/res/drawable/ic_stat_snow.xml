@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar icon for Snow Media alerts.
+
+  Android treats a notification's small icon as a MASK: every non-transparent
+  pixel is painted the system's tint colour and the rest is dropped. So this is
+  a flat white silhouette with no colour and no detail. Handing it the launcher
+  mipmap instead — which the first draft did — renders as a white blob on most
+  versions of Android.
+
+  Three bars crossed at 60 degrees: a snowflake, and simple enough that there is
+  nothing in the path data to get wrong.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11,2 L13,2 L13,22 L11,22 Z" />
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:rotation="60">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M11,2 L13,2 L13,22 L11,22 Z" />
+    </group>
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:rotation="120">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M11,2 L13,2 L13,22 L11,22 Z" />
+    </group>
+</vector>

@@ -53,6 +53,8 @@ dependencies {
     // Software Dolby/DTS decoding (AC-3/E-AC-3/DTS/TrueHD) via FFmpeg — activates
     // the EXTENSION_RENDERER_MODE_PREFER path already set in SnowPlayerPlugin.
     implementation "org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1"
+    // Background alert poll (see com.snowmedia.notify.AlertPollWorker).
+    implementation "androidx.work:work-runtime-ktx:2.9.1"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
