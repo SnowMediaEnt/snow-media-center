@@ -620,7 +620,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const warmedRef = useRef(false);
   useEffect(() => {
     if (status !== 'ready' || !conn) return;
-    if (warmedRef.current) return;
+    // Fail-safe, NOT just an early return: if warm-up already ran we must still
+    // OPEN the gate. This effect keys on the `conn` object, so any reconnect —
+    // even one that resolves to the identical base — runs this cleanup
+    // (cancelled = true) on the in-flight warm-up and then re-enters here. A
+    // bare `return` left `warmedUp` false forever and parked Plex on
+    // "Loading your library…" with no libraries and no way out. The separate
+    // library effect below re-fetches on its own, so revealing early is safe.
+    if (warmedRef.current) { setWarmedUp(true); return; }
     warmedRef.current = true;
     if (deeplinkRef.current) { setWarmedUp(true); return; }
     let cancelled = false;
@@ -678,7 +685,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     let cancelled = false;
     getPlexLibraries(conn.base, conn.token)
       .then((libs) => { if (!cancelled) setLibraries(libs); })
-      .catch(() => { if (!cancelled) setLibraries([]); });
+      // Keep whatever is already on screen: a transient PMS hiccup on a
+      // reconnect must not empty the tab strip. Only an initial failure (we
+      // have nothing yet) leaves the list empty.
+      .catch(() => { if (!cancelled) setLibraries((prev) => prev); });
     return () => { cancelled = true; };
   }, [status, conn]);
 
