@@ -707,18 +707,33 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
    source, so without the :not()s it would overwrite the inset ring (and make
    the red danger variant invisible). Simple :not() args only (Chromium 66).
    ========================================================================= */
+/* :focus-visible IS DELIBERATELY NOT IN THIS LIST — see the rule after it.
+   One unsupported selector invalidates the WHOLE list, and :focus-visible only
+   arrived in Chrome 86. Every Fire TV older than that was throwing this entire
+   rule away, which is why data-settings-focused elements (the whole Settings
+   screen) had no focus ring at all. Adding a selector here that any target
+   browser cannot parse silently deletes the app's focus safety net. */
 [data-focused="true"]:not(.home-focus-surface):not(.tv-ring):not(.tv-ring-danger):not(.tv-ring-contrast),
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
-[data-focus-id]:focus-visible,
 [data-tv-focus-id]:focus,
-[data-tv-focus-id]:focus-visible,
 .tv-focusable:focus,
-.tv-focusable:focus-visible,
 .tv-focus-highlight:focus,
 .tv-focus-highlight.focused,
 .focus-highlight:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 4px hsl(var(--brand-gold)),
+    0 0 22px hsl(var(--brand-gold) / 0.6);
+  border-radius: inherit;
+}
+
+/* The :focus-visible arm of the rule above, on its own so that a browser which
+   cannot parse it drops ONLY this and keeps the safety net. Same declarations. */
+[data-focus-id]:focus-visible,
+[data-tv-focus-id]:focus-visible,
+.tv-focusable:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 4px hsl(var(--brand-gold)),
