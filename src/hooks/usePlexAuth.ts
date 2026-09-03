@@ -3,7 +3,7 @@ import {
   requestPlexPin, checkPlexPin,
   loadPlexToken, savePlexToken, clearPlexToken,
   getPlexServers, pickPlexConnectionDetailed, loadPlexServer, savePlexServer,
-  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, clearPlexServer, type PlexRoute,
+  getPlexIdentity, bumpPlexImageEpoch, clearPlexCaches, type PlexRoute,
 } from '@/lib/plex';
 import { runWhenIdle } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
@@ -30,7 +30,6 @@ const DEMO_AUTH = {
   cancelLink: noop,
   signOut: asyncNoop,
   retryConnect: asyncNoop,
-  repairConnection: asyncNoop,
 };
 
 export function usePlexAuth() {
@@ -60,7 +59,17 @@ export function usePlexAuth() {
       const cached = await loadPlexServer();
       if (cached?.base && cached?.token) {
         try {
-          await getPlexIdentity(cached.base, cached.token);
+          // /identity answers WITHOUT a token, so "it responded" proves only
+          // that some Plex server is listening at this address — not that it
+          // is the one we saved. Compare the machineIdentifier: on a mismatch
+          // the cache is stale and we fall through to full rediscovery below,
+          // which is the only thing that can undo a bad base already written
+          // to device storage. This is a one-shot check at connect: no loop,
+          // no extra state, and nothing fires while the user is watching.
+          const machineId = await getPlexIdentity(cached.base, cached.token);
+          if (cached.clientIdentifier && machineId && machineId !== cached.clientIdentifier) {
+            throw new Error('cached Plex base points at a different server');
+          }
           if (connBaseRef.current && connBaseRef.current !== cached.base) bumpPlexImageEpoch();
           connBaseRef.current = cached.base;
           setConn(cached); setStatus('ready');
@@ -183,12 +192,19 @@ export function usePlexAuth() {
         const servers = await getPlexServers(accountToken);
         const s = servers.find((x) => x.clientIdentifier === conn.clientIdentifier) ?? null;
         if (!s || stopped) return;
-        // Same rule as the background upgrade: never drop from https to a
-        // plain http candidate — the web build blocks it as mixed content.
-        const better = await pickPlexConnectionDetailed(s, 3500, { noRelay: true, httpsOnly: /^https:\/\//i.test(conn.base) });
+        // Deliberately NO httpsOnly here. Every Plex relay URI is https, so
+        // deriving it from the current base would set it for 100% of relay
+        // users; combined with noRelay that can empty the candidate set and
+        // pin them to the relay's speed cap forever — the exact problem this
+        // escape exists to solve. The mixed-content worry does not apply on
+        // the device: native calls go through CapacitorHttp, not the WebView,
+        // capacitor.config.ts sets allowMixedContent, and PlexImage has a
+        // data-URI fallback for an http base.
+        const better = await pickPlexConnectionDetailed(s, 3500, { noRelay: true });
         if (!better || stopped) return;
         const upgraded: PlexConn = { ...conn, base: better.base, route: better.route, token: s.accessToken || conn.token };
         await savePlexServer(upgraded);
+        if (stopped) return;   // re-check AFTER the await: the hook may have torn down
         bumpPlexImageEpoch();
         connBaseRef.current = upgraded.base;
         setConn(upgraded);
@@ -246,25 +262,6 @@ export function usePlexAuth() {
     setConn(null); setPinCode(null); setError(null); setJustLinked(false); setStatus('signed-out');
   }, []);
 
-  /**
-   * Forget the saved server and rediscover from scratch. A connection can
-   * answer /identity while still being the wrong one to use — an earlier bug
-   * in the route work could persist such a base, and no code change undoes
-   * what is already written to device storage. PlexSection calls this once
-   * when a connected server returns zero libraries.
-   */
-  const repairConnection = useCallback(async () => {
-    const token = await loadPlexToken();
-    if (!token) { setStatus('signed-out'); return; }
-    try { await clearPlexServer(); } catch { /* ignore */ }
-    clearPlexCaches();
-    bumpPlexImageEpoch();
-    connBaseRef.current = null;
-    discoveringRef.current = false;
-    setError(null);
-    await discover(token);
-  }, [discover]);
-
   const retryConnect = useCallback(async () => {
     const token = await loadPlexToken();
     if (!token) { setStatus('signed-out'); return; }
@@ -276,5 +273,5 @@ export function usePlexAuth() {
 
   if (demo) return DEMO_AUTH;
 
-  return { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect, repairConnection };
+  return { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
 }
