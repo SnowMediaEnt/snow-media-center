@@ -128,6 +128,18 @@ export async function clearPlexToken(): Promise<void> {
   try { localStorage.removeItem(PLEX_TOKEN_KEY); localStorage.removeItem(PLEX_SERVER_KEY); } catch { /* ignore */ }
 }
 
+/** Forget the saved SERVER but keep the account token, so the next discover()
+ *  re-probes every connection from scratch. Used to repair a cached base that
+ *  answers /identity but is not actually usable — a code fix cannot undo a bad
+ *  base that is already written to device storage. */
+export async function clearPlexServer(): Promise<void> {
+  try {
+    const { Preferences } = await import('@capacitor/preferences');
+    await Preferences.remove({ key: PLEX_SERVER_KEY });
+  } catch { /* not native */ }
+  try { localStorage.removeItem(PLEX_SERVER_KEY); } catch { /* ignore */ }
+}
+
 // ── server discovery ───────────────────────────────────────────────────────
 
 export interface PlexConnection {
