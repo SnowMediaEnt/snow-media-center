@@ -9,7 +9,7 @@
  *   <SnowLoader />                                  // 96px scene
  *   <SnowLoader size="lg" label="Buffering…" />     // fullscreen player
  *   <SnowLoader size="sm" startedAt={t0} showElapsed />
- *   <SnowLoader imageSrc="/able.png" />             // raster mascot instead of SVG
+ *   <SnowLoader imageSrc={otherArt} />              // override the mascot art
  *   <AbleMascot className="w-24 h-24" />            // the character alone
  *
  * LOW-MEMORY EXEMPTION (Fire TV): src/main.tsx puts `native-low-memory` on
@@ -23,15 +23,18 @@
  * uses <filter>, blur, backdrop blur or `shadow-[…]`, so none of the
  * low-memory strip rules bite either.
  *
- * SWAPPING IN A RASTER ABLE: pass `imageSrc` (PNG/WebP with transparent
- * background, feet on the bottom edge). It renders in the same box as the
- * SVG (height = 75% of the scene, feet on the ground line) and the snowball
- * still grows / rolls / stays glued to the hands.
+ * THE ARTWORK: src/assets/able-loader.png is the painted Able, trimmed so the
+ * character touches all four edges — the CSS puts the image's bottom edge on
+ * the ground line, so any transparent margin would leave him hovering. It is
+ * a 512px-tall copy of the master src/assets/able.png (untouched, 1350x1236).
+ * To swap the art, pass `imageSrc` with the same convention: transparent
+ * background, no empty margin, feet on the bottom edge.
  *
  * Perf: the only React state is one number updated every 500ms (elapsed
  * ms); all continuous motion is CSS transforms on their own elements.
  */
 import { memo, useEffect, useId, useState, type CSSProperties } from 'react';
+import ableArt from '@/assets/able-loader.png';
 import './snow-loader.css';
 
 export type SnowLoaderSize = 'sm' | 'md' | 'lg';
@@ -260,6 +263,11 @@ const SnowLoader = ({
   showElapsed = false,
 }: SnowLoaderProps) => {
   const uid = useId();
+  // The painted Able ships with the app; the drawn SVG below is only a
+  // fallback for the (unexpected) case where the image cannot be decoded, so
+  // a loading screen is never blank.
+  const [artFailed, setArtFailed] = useState(false);
+  const mascotSrc = imageSrc ?? ableArt;
   const [mountedAt] = useState(() => Date.now());
   const start = startedAt ?? mountedAt;
   // The ONLY state: elapsed ms, refreshed every 500ms.
@@ -295,13 +303,14 @@ const SnowLoader = ({
         <div className="smc-loader-track">
           <div className="smc-loader-scene">
             <div className="smc-loader-able-wrap" style={ableWrapStyle}>
-              {imageSrc ? (
+              {!artFailed ? (
                 <img
                   className="smc-loader-able-img"
-                  src={imageSrc}
+                  src={mascotSrc}
                   alt=""
                   draggable={false}
                   decoding="async"
+                  onError={() => setArtFailed(true)}
                 />
               ) : (
                 <svg
