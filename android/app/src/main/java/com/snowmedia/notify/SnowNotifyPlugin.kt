@@ -42,6 +42,7 @@ class SnowNotifyPlugin : Plugin() {
         call.resolve(
             JSObject()
                 .put("enabled", store.enabled)
+                .put("configured", store.configured)
                 .put("permission", permissionLabel())
                 .put("channelBlocked", !NotificationManagerCompat.from(context).areNotificationsEnabled()),
         )
@@ -63,6 +64,10 @@ class SnowNotifyPlugin : Plugin() {
         val store = AlertStore(context)
         store.supabaseUrl = url
         store.supabaseKey = key
+        // Set BEFORE the permission prompt, not after. If the viewer refuses,
+        // this is what stops the app auto-enabling — and re-prompting — on
+        // every single launch from then on.
+        store.configured = true
 
         if (needsRuntimePermission()) {
             // Ask, then finish in the callback below.
@@ -75,9 +80,14 @@ class SnowNotifyPlugin : Plugin() {
     @PermissionCallback
     private fun permissionResult(call: PluginCall) {
         if (needsRuntimePermission()) {
-            // Refused. Say so plainly rather than switching on something that
-            // will never show anything.
-            call.resolve(JSObject().put("enabled", false).put("permission", "denied"))
+            // Refused. Record it, so nothing claims to be on that can never
+            // show anything, and so the poll does not run for no reason.
+            val store = AlertStore(context)
+            store.enabled = false
+            AlertPollScheduler.stop(context)
+            call.resolve(
+                JSObject().put("enabled", false).put("configured", true).put("permission", "denied"),
+            )
             return
         }
         finishEnable(call)
@@ -88,7 +98,7 @@ class SnowNotifyPlugin : Plugin() {
         store.enabled = true
         AlertNotifier.ensureChannel(context)
         AlertPollScheduler.start(context)
-        call.resolve(JSObject().put("enabled", true).put("permission", permissionLabel()))
+        call.resolve(JSObject().put("enabled", true).put("configured", true).put("permission", permissionLabel()))
     }
 
     /** Turn alerts off and clear anything already on screen. */
@@ -99,7 +109,8 @@ class SnowNotifyPlugin : Plugin() {
         for (id in store.shown) AlertNotifier.cancel(context, id)
         store.clearPosted()
         AlertPollScheduler.stop(context)
-        call.resolve(JSObject().put("enabled", false))
+        // configured stays true: an explicit "off" must survive the next launch.
+        call.resolve(JSObject().put("enabled", false).put("configured", true))
     }
 
     /**
