@@ -1611,7 +1611,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       }
 
       const t = tabsRef.current[libIdxRef.current];
-      if (zoneRef.current === 'grid' && t && (t.type === 'home' || t.type === 'search' || t.type === 'request' || t.type === 'manage')) return;
+      // Hand the content area to whichever panel owns it. A library tab in
+      // ROWS mode is owned by PlexLibraryRows exactly the way Home/Search/
+      // Request/Manage own theirs — without this the grid branch below also
+      // runs, against an items array that rows mode deliberately never fills.
+      // Up would bounce the user back to the tab strip and Down/Left/Right
+      // would do nothing, and because both listeners are window-capture the
+      // winner depends on which effect re-registered last — so it looked
+      // intermittent.
+      if (zoneRef.current === 'grid' && t) {
+        if (t.type === 'home' || t.type === 'search' || t.type === 'request' || t.type === 'manage') return;
+        if (
+          (t.type === 'movie' || t.type === 'show') && t.libKey
+          && (libraryModeRef.current[t.libKey] ?? 'rows') === 'rows'
+        ) return;
+      }
 
       if (inInput) return;
 

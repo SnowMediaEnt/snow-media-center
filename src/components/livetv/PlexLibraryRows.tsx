@@ -86,18 +86,25 @@ const PlexLibraryRows = memo(({
   }, [specs, loaded]);
 
   // ── focus, tracked by stable id ──────────────────────────────────────────
-  const [focusedRowId, setFocusedRowId] = useState<string>(specs[0]?.id ?? 'browseAll');
+  // NULL means "wherever the top is". That matters because at first paint the
+  // only row that exists is "Browse all" — the rails have not loaded yet. If
+  // focus were pinned to a concrete id here it would latch onto that bar, and
+  // when the rails arrived a moment later focus would still be on the BOTTOM
+  // of the screen with unmounted placeholders above it. Staying null until the
+  // user actually moves keeps focus on the first row as the rows fill in.
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [col, setCol] = useState(0);
 
   const row = useMemo(() => {
+    if (focusedRowId == null) return 0;
     const i = rows.findIndex((r) => r.spec.id === focusedRowId);
     return i >= 0 ? i : 0;
   }, [rows, focusedRowId]);
 
-  // If the row holding focus disappears (a filter emptied it), fall back to a
-  // real neighbour rather than leaving the id dangling.
+  // If the row holding focus disappears, fall back to a real neighbour rather
+  // than leaving the id dangling. Only when focus was explicitly placed.
   useEffect(() => {
-    if (rows.length === 0) return;
+    if (rows.length === 0 || focusedRowId == null) return;
     if (!rows.some((r) => r.spec.id === focusedRowId)) {
       setFocusedRowId(rows[0].spec.id);
       setCol(0);
