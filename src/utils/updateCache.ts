@@ -58,7 +58,18 @@ export async function findCachedSmcApk(info: SmcUpdateInfo): Promise<PreparedUpd
     const nameOk = apkInfo.versionName
       ? apkInfo.versionName === info.version
       : true;
-    if (!codeOk && !nameOk) return null;
+    // BOTH must hold. This was `!codeOk && !nameOk`, i.e. either one was
+    // enough — and since the cache file is named after the version string, a
+    // stale APK with the right name but the wrong versionCode was reused on
+    // every retry, so re-downloading could never fix anything.
+    if (!codeOk || !nameOk) {
+      console.warn(
+        `[update] Ignoring cached APK: it reports v${apkInfo.versionName}/${apkInfo.versionCode}, ` +
+        `expected v${info.version}/${info.versionCode}`,
+      );
+      try { await Filesystem.deleteFile({ path: `apk/${target}`, directory: Directory.Cache }); } catch { /* ignore */ }
+      return null;
+    }
     return {
       filePath,
       apkVersionName: apkInfo.versionName,
@@ -125,8 +136,20 @@ export async function installPreparedUpdate(prepared: PreparedUpdate): Promise<v
     installed.versionCode &&
     prepared.apkVersionCode <= installed.versionCode
   ) {
+    // Android enforces versionCode, and it reads it from the APK's OWN
+    // manifest — not from update.json and not from the file name. When those
+    // disagree it is almost always because the APK was built from a checkout
+    // that predates the version bump, so the file is named for the new release
+    // while its manifest still carries the old code. Say all of that, because
+    // "not newer than installed" sends you looking in the wrong place.
     throw new Error(
-      `Downloaded APK is not newer than installed v${installed.versionName || installed.versionCode}.`,
+      `The downloaded APK reports versionCode ${prepared.apkVersionCode}` +
+      `${prepared.apkVersionName ? ` (v${prepared.apkVersionName})` : ''}, but this ` +
+      `device already has ${installed.versionCode}` +
+      `${installed.versionName ? ` (v${installed.versionName})` : ''}. ` +
+      `Android only installs a HIGHER versionCode over an existing app. ` +
+      `The APK on the server was most likely built before the version bump — ` +
+      `rebuild it from the current source and re-upload.`,
     );
   }
   await AppManager.installApk({ filePath: prepared.filePath });
