@@ -5,6 +5,26 @@ import { CapacitorHttp, type PluginListenerHandle } from "@capacitor/core";
 const MB = (bytes: number) => `${(bytes / 1048576).toFixed(1)}MB`;
 
 /**
+ * Headers for APK fetches.
+ *
+ * WHY: the in-app download previously identified itself as bare `Dalvik/…`
+ * with no Referer and no Accept. Hotlink protection, bot rules and WAFs on
+ * shared hosting routinely allow a browser and block exactly that — which is
+ * how you get "the same URL installs fine from Downloader but the in-app
+ * update never works". Downloader and a browser send a full UA (and a
+ * Referer); this makes our request look like the one that already succeeds.
+ */
+const APK_REQUEST_HEADERS: Record<string, string> = {
+  'User-Agent':
+    'Mozilla/5.0 (Linux; Android 9; AFTKA Build/PS7233) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/120.0.0.0 Safari/537.36',
+  Accept: 'application/vnd.android.package-archive,application/octet-stream,*/*',
+  Referer: 'https://snowmediaapps.com/',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
+};
+
+/**
  * Ask the server what it intends to send before we pull tens of megabytes onto
  * a TV box, so a truncated transfer can be recognised later.
  *
@@ -24,6 +44,7 @@ async function preflightApk(url: string): Promise<{ expected: number | null; sta
     const res = await CapacitorHttp.request({
       url,
       method: 'HEAD',
+      headers: APK_REQUEST_HEADERS,
       connectTimeout: 15000,
       readTimeout: 15000,
     });
@@ -106,9 +127,10 @@ export async function cleanupOldApks(keepFilename?: string): Promise<void> {
 
 // Download APK using native Filesystem.downloadFile (bypasses CORS entirely)
 export async function downloadApkToCache(
-  url: string, 
-  filename: string, 
-  onProgress?: (progress: number) => void
+  url: string,
+  filename: string,
+  onProgress?: (progress: number) => void,
+  { cacheBust = false }: { cacheBust?: boolean } = {},
 ): Promise<string> {
   const isNative = isNativePlatform();
   
@@ -129,14 +151,26 @@ export async function downloadApkToCache(
     downloadUrl = `https://${downloadUrl}`;
   }
 
-  // Cache-bust the APK URL so Cloudflare / Hostwinds / WebView cache can't
-  // hand us yesterday's binary when the publisher just replaced the file.
-  try {
-    const u = new URL(downloadUrl);
-    u.searchParams.set('ts', String(Date.now()));
-    downloadUrl = u.toString();
-  } catch {
-    downloadUrl += (downloadUrl.includes('?') ? '&' : '?') + 'ts=' + Date.now();
+  // Cache-busting is OPT-IN, and deliberately off by default.
+  //
+  // This used to append `?ts=<epoch>` unconditionally, which meant the app
+  // requested a DIFFERENT URL than the one a browser or Downloader requests.
+  // Plenty of hosts treat a static .apk with an unexpected query string
+  // differently — hotlink rules keyed on the query, WAF bot rules, or a plain
+  // 404 for a path that no longer matches. That alone reproduces "installing
+  // the same link by hand works, the in-app update never does".
+  //
+  // The caller retries WITH the buster only if the first, byte-identical
+  // request produced something that is not a valid APK. `Cache-Control:
+  // no-cache` in the headers already covers the ordinary stale-CDN case.
+  if (cacheBust) {
+    try {
+      const u = new URL(downloadUrl);
+      u.searchParams.set('ts', String(Date.now()));
+      downloadUrl = u.toString();
+    } catch {
+      downloadUrl += (downloadUrl.includes('?') ? '&' : '?') + 'ts=' + Date.now();
+    }
   }
 
   console.log('[APK] Final download URL:', downloadUrl);
@@ -192,6 +226,7 @@ export async function downloadApkToCache(
       url: downloadUrl,
       path,
       directory: Directory.Cache,
+      headers: APK_REQUEST_HEADERS,
       progress: true,
     });
 

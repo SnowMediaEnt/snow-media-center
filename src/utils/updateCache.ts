@@ -100,18 +100,42 @@ export async function prepareSmcUpdate(
     return cached;
   }
   const fileName = apkFileName(info.version);
-  const filePath = await downloadApkToCache(info.downloadUrl, fileName, onProgress);
-  let apkInfo: { versionName?: string; versionCode?: number; packageName?: string } = {};
-  try {
-    apkInfo = await AppManager.getApkInfo({ filePath });
-  } catch { /* ignore - install will surface real errors */ }
-  return {
-    filePath,
-    apkVersionName: apkInfo.versionName,
-    apkVersionCode: apkInfo.versionCode,
-    apkPackageName: apkInfo.packageName,
-    fromCache: false,
-  };
+
+  // Two attempts, and the FIRST is byte-identical to the request a browser or
+  // Downloader makes — bare URL, no query string. Only if that yields
+  // something that is not a parseable APK do we retry with the cache-buster.
+  //
+  // The validation is the native package parser (getPackageArchiveInfo), and a
+  // failure here is now FATAL. It used to be swallowed, which meant a hotlink
+  // block page or a 404 body was written to the cache, left apkVersionCode and
+  // apkPackageName undefined, sailed past BOTH guards in installPreparedUpdate
+  // (they are gated on those very values) and was handed to the Android
+  // installer, which silently did nothing. That is exactly the reported
+  // "update.json says there's an update but it installs the same old version".
+  let lastErr: string | null = null;
+  for (const cacheBust of [false, true]) {
+    const filePath = await downloadApkToCache(info.downloadUrl, fileName, onProgress, { cacheBust });
+    try {
+      const apkInfo = await AppManager.getApkInfo({ filePath });
+      if (!apkInfo?.packageName) throw new Error('APK has no package name');
+      return {
+        filePath,
+        apkVersionName: apkInfo.versionName,
+        apkVersionCode: apkInfo.versionCode,
+        apkPackageName: apkInfo.packageName,
+        fromCache: false,
+      };
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+      console.warn(`[update] Downloaded file is not a valid APK (cacheBust=${cacheBust}): ${lastErr}`);
+      try { await Filesystem.deleteFile({ path: `apk/${fileName}`, directory: Directory.Cache }); } catch { /* ignore */ }
+    }
+  }
+  throw new Error(
+    `The update server did not return an installable APK. ${lastErr ?? ''} ` +
+    `Open ${info.downloadUrl} in a browser — if it downloads the app, the server is ` +
+    `treating this device's request differently (hotlink protection or a bot rule).`,
+  );
 }
 
 /**
