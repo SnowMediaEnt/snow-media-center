@@ -26,6 +26,30 @@ if (keystorePropsFile.exists()) {
     keystorePropsFile.withInputStream { keystoreProps.load(it) }
 }
 def hasReleaseKeystore = keystorePropsFile.exists() && keystoreProps['storeFile']
+// LOUD, because the silent version of this already cost a full reinstall of
+// every install in the field. With no keystore.properties the release build
+// falls back to the machine-local DEBUG key — which is auto-generated per
+// machine, has a public password, expires after a year, and lives in a hidden
+// folder nobody backs up. Ship on it and the day that file disappears is the
+// day you can no longer update your own app.
+if (!hasReleaseKeystore) {
+    logger.warn(
+        "\n" +
+        "################################################################\n" +
+        "#  NO RELEASE KEYSTORE — this build will be signed with the    #\n" +
+        "#  machine-local DEBUG key. DO NOT DISTRIBUTE IT.              #\n" +
+        "#                                                              #\n" +
+        "#  Create android/keystore.properties:                         #\n" +
+        "#    storeFile=/absolute/path/to/snowmedia-release.jks         #\n" +
+        "#    storePassword=...                                         #\n" +
+        "#    keyAlias=...                                              #\n" +
+        "#    keyPassword=...                                           #\n" +
+        "#                                                              #\n" +
+        "#  Then back that .jks up in three places. It is the only      #\n" +
+        "#  thing that can ever update the installs already out there.  #\n" +
+        "################################################################\n")
+}
+
 
 android {
     namespace "com.snowmedia"
