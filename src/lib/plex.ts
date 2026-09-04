@@ -364,6 +364,16 @@ export interface PlexItem {
   ratingKey: string; title: string; type: string;
   thumb?: string; art?: string; year?: number; summary?: string; duration?: number;
   videoResolution?: string;
+  /** Section this item belongs to. ALWAYS a string — Plex sends a JSON number
+   *  and every key in this file is normalised through String(), so comparing
+   *  a raw number against a libKey string would silently never match. */
+  librarySectionID?: string;
+  /** Resume position in ms. Present on Continue Watching items. */
+  viewOffset?: number;
+  /** Episode context (Continue Watching on a TV section returns episodes). */
+  grandparentTitle?: string;
+  parentIndex?: number;
+  index?: number;
 }
 
 /** Extract videoResolution from Media[0] if present. */
@@ -704,6 +714,11 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
     summary: m.summary as string | undefined,
     duration: m.duration as number | undefined,
     videoResolution: mediaRes(m),
+    librarySectionID: m.librarySectionID != null ? String(m.librarySectionID) : undefined,
+    viewOffset: typeof m.viewOffset === 'number' ? m.viewOffset : undefined,
+    grandparentTitle: m.grandparentTitle as string | undefined,
+    parentIndex: typeof m.parentIndex === 'number' ? m.parentIndex : undefined,
+    index: typeof m.index === 'number' ? m.index : undefined,
   }));
 }
 
@@ -712,6 +727,186 @@ export async function getPlexHub(base: string, token: string, path: string): Pro
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}`, token);
   const items = data?.MediaContainer?.Metadata || [];
   return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
+}
+
+// ── library rows + facets ─────────────────────────────────────────────────
+//
+// Everything below drives the row-based library view. Every request is served
+// by the Plex server, so a 4000-title library costs the same as a 40-title one.
+//
+// The API details here were each verified against python-plexapi and Kometa
+// rather than guessed, because several of them are counter-intuitive:
+//   • /onDeck has a CAPITAL D. Lowercase 404s.
+//   • On a SHOW section the bare field name resolves to the SHOW's field, so
+//     `originallyAvailableAt` is the series premiere, not the episode air
+//     date. Recently-Aired must say `episode.originallyAvailableAt`.
+//   • `unwatched` does not exist for the show libtype. The show-level field is
+//     `unwatchedLeaves`. Sending `unwatched` to a TV section either errors or
+//     silently falls back to `episode.unwatched`, which matches nearly every
+//     show and makes the row useless.
+//   • `firstCharacter` is NOT a query param on /all — it is its own path.
+//     Plex ignores unknown query params, so getting this wrong returns the
+//     whole unfiltered library while looking like it worked.
+
+/** Plex libtype numbers. 1 movie, 2 show, 4 episode. */
+export const PLEX_TYPE = { movie: 1, show: 2, episode: 4 } as const;
+
+export interface PlexSortOption { key: string; title: string; defaultDirection?: string }
+export interface PlexFilterOption { filter: string; key: string; title: string; filterType?: string }
+export interface PlexSectionMeta {
+  totalSize: number;
+  sorts: PlexSortOption[];
+  filters: PlexFilterOption[];
+}
+
+/** A row of items from a section, by raw query string (no leading ?). */
+export async function getPlexSectionRow(
+  base: string,
+  token: string,
+  sectionKey: string,
+  query: string,
+  limit = 15,
+): Promise<PlexItem[]> {
+  const sep = query ? '&' : '';
+  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}includeGuids=0`
+    + `&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
+  const items = data?.MediaContainer?.Metadata || [];
+  return mapMetadata(items).filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode');
+}
+
+/** Continue Watching for ONE section. Capital D in onDeck is mandatory. */
+export async function getPlexSectionOnDeck(
+  base: string,
+  token: string,
+  sectionKey: string,
+): Promise<PlexItem[]> {
+  const url = `${base}/library/sections/${sectionKey}/onDeck`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', url, token);
+  const items = data?.MediaContainer?.Metadata || [];
+  // This endpoint declares no Container-Start/Size, so the response length is
+  // whatever the server feels like. Cap it here.
+  return mapMetadata(items)
+    .filter((it) => it.type === 'movie' || it.type === 'show' || it.type === 'episode')
+    .slice(0, 20);
+}
+
+/**
+ * The section's own sort + filter vocabulary, and its true item count.
+ *
+ * Container-Size=0 returns zero rows but a real totalSize, so this doubles as
+ * the free "Browse all N" count. Deliberately NOT /library/sections/{k}/filters
+ * or /sorts: Plex's own docs say not to use those, and both are admin-token
+ * only — a user browsing a SHARED library would get 401.
+ */
+export async function getPlexSectionMeta(
+  base: string,
+  token: string,
+  sectionKey: string,
+): Promise<PlexSectionMeta> {
+  const url = `${base}/library/sections/${sectionKey}/all?includeMeta=1&includeAdvanced=1`
+    + `&X-Plex-Container-Start=0&X-Plex-Container-Size=0`;
+  const data = await plexReq<{
+    MediaContainer?: {
+      totalSize?: number; size?: number;
+      Meta?: unknown;
+    };
+  }>('GET', url, token);
+  const c = data?.MediaContainer;
+  const totalSize = Number(c?.totalSize ?? c?.size ?? 0) || 0;
+
+  // Meta arrives as an object on some server versions and a one-element array
+  // on others. Normalise both.
+  const rawMeta = c?.Meta;
+  const meta = (Array.isArray(rawMeta) ? rawMeta[0] : rawMeta) as
+    | { Type?: Array<{ type?: string; Sort?: unknown; Filter?: unknown }> }
+    | undefined;
+  const types = meta?.Type || [];
+  const t = types.find((x) => x?.type === 'movie' || x?.type === 'show') || types[0];
+
+  const sorts: PlexSortOption[] = (Array.isArray(t?.Sort) ? t!.Sort : [])
+    .map((x) => x as Record<string, unknown>)
+    .filter((x) => x?.key && x?.title)
+    .map((x) => ({
+      key: String(x.key),
+      title: String(x.title),
+      defaultDirection: x.defaultDirection ? String(x.defaultDirection) : undefined,
+    }));
+
+  const filters: PlexFilterOption[] = (Array.isArray(t?.Filter) ? t!.Filter : [])
+    .map((x) => x as Record<string, unknown>)
+    .filter((x) => x?.filter && x?.key && x?.title)
+    .map((x) => ({
+      filter: String(x.filter),
+      key: String(x.key),
+      title: String(x.title),
+      filterType: x.filterType ? String(x.filterType) : undefined,
+    }));
+
+  return { totalSize, sorts, filters };
+}
+
+export interface PlexFilterValue { key: string; title: string }
+
+/**
+ * The selectable values for one filter (genres, years, content ratings…).
+ * `keyPath` comes from PlexSectionMeta.filters[].key and is server-relative.
+ */
+export async function getPlexFilterValues(
+  base: string,
+  token: string,
+  keyPath: string,
+): Promise<PlexFilterValue[]> {
+  const path = keyPath.startsWith('/') ? keyPath : `/${keyPath}`;
+  const data = await plexReq<{ MediaContainer?: { Directory?: Array<Record<string, unknown>> } }>(
+    'GET', `${base}${path}`, token,
+  );
+  const dirs = data?.MediaContainer?.Directory || [];
+  return dirs
+    .filter((d) => d?.key != null && d?.title != null)
+    .map((d) => ({ key: String(d.key), title: String(d.title) }));
+}
+
+/**
+ * Items whose title starts with `letter`. This has its OWN path — applying a
+ * letter as a query param on /all is silently ignored and returns everything.
+ */
+export async function getPlexByFirstCharacter(
+  base: string,
+  token: string,
+  sectionKey: string,
+  letter: string,
+  query = '',
+  start = 0,
+  size = 60,
+): Promise<PlexLibraryPage> {
+  const sep = query ? '&' : '';
+  const url = `${base}/library/sections/${sectionKey}/firstCharacter/${encodeURIComponent(letter)}`
+    + `?${query}${sep}X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>>; totalSize?: number; size?: number } }>('GET', url, token);
+  const c = data?.MediaContainer;
+  const items = c?.Metadata || [];
+  const totalSize = Number(c?.totalSize ?? c?.size ?? items.length) || items.length;
+  return { items: mapMetadata(items), totalSize };
+}
+
+/** Filtered/sorted page of a section — the grid's server-side query. */
+export async function getPlexLibraryQuery(
+  base: string,
+  token: string,
+  sectionKey: string,
+  query: string,
+  start = 0,
+  size = 60,
+): Promise<PlexLibraryPage> {
+  const sep = query ? '&' : '';
+  const url = `${base}/library/sections/${sectionKey}/all?${query}${sep}includeGuids=0`
+    + `&X-Plex-Container-Start=${start}&X-Plex-Container-Size=${size}`;
+  const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>>; totalSize?: number; size?: number } }>('GET', url, token);
+  const c = data?.MediaContainer;
+  const items = c?.Metadata || [];
+  const totalSize = Number(c?.totalSize ?? c?.size ?? items.length) || items.length;
+  return { items: mapMetadata(items), totalSize };
 }
 
 /** Universal search across all libraries. Returns movies + shows only. */

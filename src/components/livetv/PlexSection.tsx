@@ -41,6 +41,7 @@ import {
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
+import PlexLibraryRows from './PlexLibraryRows';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
@@ -653,6 +654,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [items, setItems] = useState<PlexItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [zone, setZone] = useState<'tabs' | 'grid'>('tabs');
+  // What a library tab shows: the new row view, or the old A-Z grid reached
+  // through "Browse all". Keyed by libKey so switching libraries cannot carry
+  // one library's mode into another — the panels all render in the SAME slot
+  // of the ternary below, so React reconciles by position and nothing resets
+  // on its own.
+  const [libraryMode, setLibraryMode] = useState<Record<string, 'rows' | 'grid'>>({});
+  const currentMode = (k?: string) => (k ? libraryMode[k] ?? 'rows' : 'rows');
+  const libraryModeRef = useRef(libraryMode);
+  useEffect(() => { libraryModeRef.current = libraryMode; }, [libraryMode]);
   const [cursor, setCursor] = useState(0);
 
   const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
@@ -969,6 +979,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
   useEffect(() => {
     if (zone !== 'grid') return;
+    // Rows mode never needs the whole section paged into memory — that preload
+    // is what made opening a large library slow, and it exists only to feed
+    // the A-Z grid. Read through the ref so this does not become a dependency
+    // of an effect that must only re-run on zone changes.
+    {
+      // Read the tab through the same refs the keydown handler uses, so this
+      // effect keeps its [zone]-only dependency list.
+      const lk = tabsRef.current[libIdxRef.current]?.libKey;
+      if (lk && (libraryModeRef.current[lk] ?? 'rows') !== 'grid') return;
+    }
     if (!conn || !currentTab || (currentTab.type !== 'movie' && currentTab.type !== 'show') || !currentTab.libKey) return;
     const cached = getCachedLibrary(conn.base, currentTab.libKey);
     if (cached && isLibraryCacheFresh(cached) && cached.complete) return;
@@ -1061,6 +1081,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   useEffect(() => {
     if (zone !== 'grid') return;
+    // Rows mode never needs the whole section paged into memory — that preload
+    // is what made opening a large library slow, and it exists only to feed
+    // the A-Z grid. Read through the ref so this does not become a dependency
+    // of an effect that must only re-run on zone changes.
+    {
+      // Read the tab through the same refs the keydown handler uses, so this
+      // effect keeps its [zone]-only dependency list.
+      const lk = tabsRef.current[libIdxRef.current]?.libKey;
+      if (lk && (libraryModeRef.current[lk] ?? 'rows') !== 'grid') return;
+    }
     const row = Math.floor(cursor / COLS);
     rowVirtualizer.scrollToIndex(row, { align: 'auto' });
   }, [cursor, zone, rowVirtualizer]);
@@ -1561,6 +1591,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
       if (isBack) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Inside a library's A-Z grid, Back returns to that library's rows
+        // rather than jumping to the Home tab. Gated on zone === 'grid' so it
+        // cannot eat Back while the user is up on the tab strip — from there
+        // Back must still be one press to leave, exactly as it is on every
+        // other tab type.
+        const bt = tabsRef.current[libIdxRef.current];
+        if (
+          zoneRef.current === 'grid' && bt && bt.libKey
+          && (bt.type === 'movie' || bt.type === 'show')
+          && libraryModeRef.current[bt.libKey] === 'grid'
+        ) {
+          setLibraryMode((m) => ({ ...m, [bt.libKey!]: 'rows' }));
+          return;
+        }
         if (libIdxRef.current !== homeIdx) goHome();
         else onExitLeft?.();
         return;
@@ -1824,6 +1868,26 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem} onExitToTabs={() => setZone('tabs')} />
         ) : currentTab?.type === 'manage' ? (
           <ManagePanel isActive={isActive && zone === 'grid' && !detailItem} libraries={libraries} hidden={hidden} librariesError={librariesError} onToggle={toggleHidden} onExitToTabs={() => setZone('tabs')} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
+        ) : (currentTab?.type === 'movie' || currentTab?.type === 'show')
+             && currentTab.libKey && conn && currentMode(currentTab.libKey) === 'rows' ? (
+          // key: the panels share one slot in this ternary, so without an
+          // explicit key React reconciles Movies -> TV Shows to the SAME
+          // instance and every piece of row state, cursor and cache seed
+          // carries over. isActive matches every sibling panel exactly — with
+          // a bare isActive the panel's capture handler stays live on the tab
+          // strip and eats the arrows that move between tabs.
+          <PlexLibraryRows
+            key={currentTab.libKey}
+            isActive={isActive && zone === 'grid' && !detailItem}
+            base={conn.base}
+            token={conn.token}
+            libKey={currentTab.libKey}
+            libTitle={currentTab.title}
+            sectionType={currentTab.type === 'show' ? 'show' : 'movie'}
+            onOpen={openDetail}
+            onBrowseAll={() => setLibraryMode((m) => ({ ...m, [currentTab.libKey!]: 'grid' }))}
+            onExitToTabs={() => setZone('tabs')}
+          />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
         ) : items.length === 0 ? (
