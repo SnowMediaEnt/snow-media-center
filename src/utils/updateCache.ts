@@ -1,4 +1,5 @@
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Preferences } from '@capacitor/preferences';
 import { isNativePlatform } from '@/utils/platform';
 import { AppManager } from '@/capacitor/AppManager';
 import { downloadApkToCache, cleanupOldApks } from '@/utils/downloadApk';
@@ -18,6 +19,44 @@ export interface PreparedUpdate {
 }
 
 const apkFileName = (version: string) => `snow_media_center_${version}.apk`;
+
+/**
+ * Records the version we last handed to the Android installer.
+ *
+ * WHY: the cache is keyed on the version STRING, so `snow_media_center_1.7.apk`
+ * means "some build that called itself 1.7" and nothing more. If a bad 1.7 is
+ * published and then CORRECTED at the same URL, every device that already
+ * downloaded the bad one keeps serving it from cache forever — the metadata
+ * still matches, so the hit is accepted and the server is never contacted
+ * again. Re-uploading a fix cannot reach those devices.
+ *
+ * We cannot simply delete the file right after installApk(): that call returns
+ * as soon as the installer Intent is fired, and the installer still needs to
+ * read the file through the FileProvider URI. So instead we leave a marker. If
+ * we are still running the OLD version next time an update for that same
+ * version is prepared, the previous attempt demonstrably did not take — so the
+ * cached bytes are suspect and get thrown away and re-fetched.
+ */
+const ATTEMPT_KEY = 'smc-update-install-attempt';
+
+async function readAttemptMarker(): Promise<string | null> {
+  try { return (await Preferences.get({ key: ATTEMPT_KEY })).value ?? null; } catch { return null; }
+}
+
+async function writeAttemptMarker(version: string): Promise<void> {
+  try { await Preferences.set({ key: ATTEMPT_KEY, value: version }); } catch { /* ignore */ }
+}
+
+export async function clearAttemptMarker(): Promise<void> {
+  try { await Preferences.remove({ key: ATTEMPT_KEY }); } catch { /* ignore */ }
+}
+
+/** Remove a cached APK by version, so the next prepare re-downloads it. */
+export async function deleteCachedApk(version: string): Promise<void> {
+  try {
+    await Filesystem.deleteFile({ path: `apk/${apkFileName(version)}`, directory: Directory.Cache });
+  } catch { /* not there — fine */ }
+}
 
 /**
  * Look for a previously-downloaded SMC APK in the cache that matches the
@@ -94,10 +133,21 @@ export async function prepareSmcUpdate(
   if (!isNativePlatform()) {
     throw new Error('APK downloads are only available on Android devices');
   }
-  const cached = await findCachedSmcApk(info);
-  if (cached) {
-    onProgress?.(100);
-    return cached;
+  // If we already handed this exact version to the installer and we are STILL
+  // running, that install did not take. The cached bytes are the prime suspect
+  // (wrong signature, corrupt, or a superseded upload at the same URL), so bin
+  // them and go back to the server rather than replaying the same failure.
+  const lastAttempt = await readAttemptMarker();
+  if (lastAttempt === info.version) {
+    console.warn(`[update] Previous install of v${info.version} did not take — discarding the cached APK and re-downloading`);
+    await deleteCachedApk(info.version);
+    await clearAttemptMarker();
+  } else {
+    const cached = await findCachedSmcApk(info);
+    if (cached) {
+      onProgress?.(100);
+      return cached;
+    }
   }
   const fileName = apkFileName(info.version);
 
@@ -176,6 +226,10 @@ export async function installPreparedUpdate(prepared: PreparedUpdate): Promise<v
       `rebuild it from the current source and re-upload.`,
     );
   }
+  // Marker BEFORE the hand-off: if the install succeeds this process is
+  // replaced and the marker is irrelevant; if it fails we are still here and
+  // the next prepare will treat the cached file as suspect.
+  if (prepared.apkVersionName) await writeAttemptMarker(prepared.apkVersionName);
   await AppManager.installApk({ filePath: prepared.filePath });
 }
 
