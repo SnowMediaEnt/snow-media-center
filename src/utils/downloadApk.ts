@@ -5,12 +5,21 @@ import { CapacitorHttp, type PluginListenerHandle } from "@capacitor/core";
 const MB = (bytes: number) => `${(bytes / 1048576).toFixed(1)}MB`;
 
 /**
- * Ask the server what it intends to send before we pull tens of megabytes
- * onto a TV box. A non-2xx here names the real cause (403/404/5xx) instead of
- * letting it surface as the plugin's generic "Error downloading file".
- * Returns the advertised Content-Length when the server is willing to serve.
+ * Ask the server what it intends to send before we pull tens of megabytes onto
+ * a TV box, so a truncated transfer can be recognised later.
+ *
+ * This is ADVISORY ONLY and must never abort the download. It used to throw on
+ * any non-2xx, which made the whole update fail whenever the host did not
+ * answer HEAD the same way it answers GET — hotlink protection, a WAF, and
+ * plain `.apk` files behind some static hosts all commonly return 403/404/405
+ * to HEAD while serving the file perfectly over GET. That produced exactly the
+ * report "a fresh install from the same link works, the in-app update never
+ * does", because a browser or Downloader only ever issues a GET.
+ *
+ * The GET below is the real test. The status is returned so that if the GET
+ * *also* fails, the error can still mention what the server said.
  */
-async function preflightApk(url: string): Promise<number | null> {
+async function preflightApk(url: string): Promise<{ expected: number | null; status: number | null }> {
   try {
     const res = await CapacitorHttp.request({
       url,
@@ -19,21 +28,20 @@ async function preflightApk(url: string): Promise<number | null> {
       readTimeout: 15000,
     });
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Update server returned HTTP ${res.status}`);
+      console.warn(`[APK] Preflight HEAD returned ${res.status} — continuing, GET is authoritative`);
+      return { expected: null, status: res.status };
     }
     const headers = (res.headers || {}) as Record<string, string>;
     const raw = headers['content-length'] ?? headers['Content-Length'];
     const len = raw ? Number(raw) : NaN;
     const expected = Number.isFinite(len) && len > 0 ? len : null;
     console.log('[APK] Preflight OK, expected size:', expected);
-    return expected;
+    return { expected, status: res.status };
   } catch (e) {
-    // A thrown HTTP status is a real answer — propagate it.
-    if (e instanceof Error && e.message.startsWith('Update server returned')) throw e;
-    // Anything else (no HEAD support, transient DNS) shouldn't block the
-    // download; the GET below is the real test.
+    // No HEAD support, transient DNS, blocked method — none of these should
+    // stop us trying the actual download.
     console.warn('[APK] Preflight inconclusive:', e);
-    return null;
+    return { expected: null, status: null };
   }
 }
 
@@ -138,7 +146,7 @@ export async function downloadApkToCache(
 
   // Confirm the server will serve this before committing to the transfer, and
   // remember the advertised size so a truncated download can be identified.
-  const expectedBytes = await preflightApk(downloadUrl);
+  const { expected: expectedBytes, status: preflightStatus } = await preflightApk(downloadUrl);
 
   // Ensure apk directory exists
   const path = `apk/${filename}`;
@@ -219,7 +227,12 @@ export async function downloadApkToCache(
     console.error('[APK] Native download failed:', error);
     // Already a specific, actionable message — don't bury it in a second wrapper.
     if (error instanceof Error && error.message.startsWith('Download incomplete')) throw error;
-    throw new Error(await describeDownloadFailure(path, expectedBytes, error));
+    let msg = await describeDownloadFailure(path, expectedBytes, error);
+    // If HEAD was also refused, name the status — it usually IS the cause.
+    if (preflightStatus !== null && (preflightStatus < 200 || preflightStatus >= 300)) {
+      msg += ` (the server also answered HTTP ${preflightStatus} to a HEAD request for this URL)`;
+    }
+    throw new Error(msg);
   } finally {
     try { await progressListener?.remove(); } catch {}
   }

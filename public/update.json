@@ -3,7 +3,7 @@
   "versionCode": 29,
   "releaseDate": "2026-09-03",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/guesswhat/download.php?file=snowmediacenter.apk&k=tJIso9tAokZ937fFcnpWT6YL0oJQ",
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.apk",
   "changelog": "Screen format button in the player — Wide, Fill and Zoom, so movies fill your TV properly.\nAlerts now reach you even when SMC is closed, and can be turned off in Settings.\nSend a screenshot or a short voice message with your support ticket.\nFresh Snow Media background across the app.\nLeft/right on the remote fixed in Main Apps and Support; the focus box is rounded again.\nMy Account and the website sign-in screen now fit your TV.\nForgot-password link on the sign-in screen.\nPlex loads faster, playback no longer restarts, and the games are playable again.",
   "releaseNotes": "Version 1.7 is mostly about the remote and the screen. The player gets a screen-format control, alerts keep working with the app closed, tickets take screenshots and voice notes, and a batch of D-pad and layout bugs are gone."
 }

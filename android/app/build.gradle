@@ -1,6 +1,32 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// RELEASE SIGNING.
+// This project had NO signing configuration at all, which is why an in-app
+// update could fail while a fresh install worked: `assembleRelease` produced an
+// unsigned APK, and anything built through Android Studio's Run button is
+// signed with the machine-local DEBUG key. Android refuses to install an update
+// whose signing key differs from the copy already on the device — and reports
+// it only as a bare "App not installed".
+//
+// Put your real keystore details in android/keystore.properties (gitignored):
+//
+//   storeFile=/absolute/path/to/snowmedia-release.jks
+//   storePassword=...
+//   keyAlias=...
+//   keyPassword=...
+//
+// With that file present every release build is signed with the SAME key, so
+// updates install over each other. Without it the build still works (falling
+// back to the debug key) but updates will only ever install over other builds
+// from the same machine.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasReleaseKeystore = keystorePropsFile.exists() && keystoreProps['storeFile']
+
 android {
     namespace "com.snowmedia"
     compileSdkVersion rootProject.ext.compileSdkVersion
@@ -23,8 +49,23 @@ android {
              ignoreAssetsPattern "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~"
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseKeystore) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Never ship an UNSIGNED release again — an unsigned APK cannot be
+            // installed at all. Falls back to the debug key so a checkout with
+            // no keystore.properties still builds.
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

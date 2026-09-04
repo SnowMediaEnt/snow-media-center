@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -236,6 +237,56 @@ class AppManagerPlugin : Plugin() {
     return file
   }
 
+  /**
+   * The signing certificates of an APK on disk, as hex SHA-256-ish strings
+   * (Signature.hashCode is not stable enough to compare across builds, so the
+   * raw cert bytes are used).
+   */
+  private fun apkSignatures(path: String): Set<String>? {
+    val pm = context.packageManager
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val info = pm.getPackageArchiveInfo(path, PackageManager.GET_SIGNING_CERTIFICATES) ?: return null
+        val si = info.signingInfo ?: return null
+        val sigs: Array<Signature> =
+          if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
+        sigs.map { it.toCharsString() }.toSet()
+      } else {
+        @Suppress("DEPRECATION")
+        val info = pm.getPackageArchiveInfo(path, PackageManager.GET_SIGNATURES) ?: return null
+        @Suppress("DEPRECATION")
+        val sigs = info.signatures ?: return null
+        sigs.map { it.toCharsString() }.toSet()
+      }
+    } catch (t: Throwable) {
+      Log.w(TAG, "Could not read APK signatures", t)
+      null
+    }
+  }
+
+  /** The signing certificates of an INSTALLED package, same encoding. */
+  private fun installedSignatures(pkg: String): Set<String>? {
+    val pm = context.packageManager
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+        val si = info.signingInfo ?: return null
+        val sigs: Array<Signature> =
+          if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
+        sigs.map { it.toCharsString() }.toSet()
+      } else {
+        @Suppress("DEPRECATION")
+        val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES)
+        @Suppress("DEPRECATION")
+        val sigs = info.signatures ?: return null
+        sigs.map { it.toCharsString() }.toSet()
+      }
+    } catch (t: Throwable) {
+      Log.w(TAG, "Could not read installed signatures for $pkg", t)
+      null
+    }
+  }
+
   @PluginMethod
   fun installApk(call: PluginCall) {
     val path = call.getString("filePath")
@@ -260,6 +311,44 @@ class AppManagerPlugin : Plugin() {
 
       val file = resolveApkFile(path)
       if (file == null || !file.exists()) { call.reject("APK file not found"); return }
+
+      // WHY THIS EXISTS: when an update APK is signed with a different key than
+      // the copy already on the box, Android refuses it and the installer shows
+      // a bare "App not installed" with no reason. That is indistinguishable
+      // from a corrupt download, and it is why "a fresh install works but the
+      // in-app update doesn't" — a fresh install has no existing signature to
+      // conflict with. Check it up front and say so.
+      val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+      val apkPkg = archive?.packageName
+      if (apkPkg != null && apkPkg == context.packageName) {
+        val installed = installedSignatures(apkPkg)
+        val incoming = apkSignatures(file.absolutePath)
+        if (installed != null && incoming != null && installed.intersect(incoming).isEmpty()) {
+          call.reject(
+            "This update is signed with a different key than the copy installed on " +
+            "this device, so Android will refuse it. Uninstall Snow Media Center " +
+            "first and then install this version, or rebuild the update with the " +
+            "original signing key."
+          )
+          return
+        }
+        // A same-or-lower versionCode is the other silent refusal.
+        val installedCode = try {
+          val pi = context.packageManager.getPackageInfo(apkPkg, 0)
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode
+          else @Suppress("DEPRECATION") pi.versionCode.toLong()
+        } catch (t: Throwable) { -1L }
+        val incomingCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+          archive.longVersionCode else @Suppress("DEPRECATION") archive.versionCode.toLong()
+        if (installedCode >= 0 && incomingCode in 0..installedCode) {
+          call.reject(
+            "This device already has version code $installedCode and the update " +
+            "is $incomingCode. Android only installs a HIGHER version code over " +
+            "an existing app."
+          )
+          return
+        }
+      }
 
       val uri = FileProvider.getUriForFile(
         context, context.packageName + ".fileprovider", file
