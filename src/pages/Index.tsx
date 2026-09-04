@@ -410,7 +410,11 @@ type LaunchableApp = {
 };
 
 const Index = () => {
-  const [focusedButton, setFocusedButton] = useState(0); // -3: logo, -2: auth/user, -1: settings, 0-3: main apps
+  // Header slots, left to right:
+  //   -5 logo (INVISIBLE — see LogoButton), -4 giveaway badge, -3 admin,
+  //   -2 auth/user, -1 settings, then 0-3 the main app cards.
+  // -5 is always present; -4 and -3 are conditional.
+  const [focusedButton, setFocusedButton] = useState(0);
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const [popupFocusIndex, setPopupFocusIndex] = useState(-1); // -1: not in popup, 0-6: pinned app slots
@@ -713,7 +717,7 @@ const Index = () => {
 
   const onOpenSettings = useCallback(() => navigateToRef.current('settings'), []);
   const onOpenDashboardFromBanner = useCallback(() => navigateToRef.current('user'), []);
-  const onLogoFocus = useCallback(() => setFocusedButton(-3), []);
+  const onLogoFocus = useCallback(() => setFocusedButton(-5), []);
   // Home gift badge → Giveaway section (tracked)
   const onOpenGiveaway = useCallback(() => {
     try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
@@ -890,18 +894,16 @@ const Index = () => {
           } else if (focusedButton === -1) {
             setFocusedButton(-2); // user/auth
           } else if (focusedButton === -2) {
-            // Slot -3 is the Admin button, which only exists for admins. The
-            // logo shares the slot but is deliberately aria-hidden and never
-            // draws a focus marker, so for everyone else -3 is an INVISIBLE
-            // stop: the highlight disappears from the whole screen, and Left
-            // has no case for -3 so the only way out is Right. Skip it.
             if (giveawayBadgeOnRef.current) setFocusedButton(-4);
             else if (isAdminRef.current) setFocusedButton(-3);
-            // else: -2 is already the leftmost reachable slot. Clamp, house style.
+            else setFocusedButton(-5); // the logo
           } else if (focusedButton === -4) {
             if (isAdminRef.current) setFocusedButton(-3); // giveaway badge → admin
-            // else clamp: nothing focusable to the left of the badge.
+            else setFocusedButton(-5);
+          } else if (focusedButton === -3) {
+            setFocusedButton(-5); // admin → logo
           }
+          // -5 is the far left. Clamp, house style.
           break;
 
         case 'ArrowRight':
@@ -911,8 +913,15 @@ const Index = () => {
             // Wrap to the first VISIBLE header slot, never onto the invisible
             // admin/logo slot.
             setFocusedButton(isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : -2));
+          } else if (focusedButton === -5) {
+            // Out of the invisible logo slot, to whatever is actually to its
+            // right. This is the ONLY way out sideways, which is why Down must
+            // also work from here (it does — ArrowDown handles focusedButton < 0).
+            setFocusedButton(
+              isAdminRef.current ? -3 : (giveawayBadgeOnRef.current ? -4 : -2),
+            );
           } else if (focusedButton === -3) {
-            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -2); // logo → giveaway badge, else dashboard
+            setFocusedButton(giveawayBadgeOnRef.current ? -4 : -2); // admin → giveaway badge, else dashboard
           } else if (focusedButton === -4) {
             setFocusedButton(-2); // giveaway badge → dashboard/user
           } else if (focusedButton === -2) {
@@ -951,9 +960,12 @@ const Index = () => {
 
         case 'Enter':
         case ' ':
-          if (focusedButton === -3) {
+          if (focusedButton === -5) {
+            // The logo. Seven presses reveals the egg; the counter resets after
+            // two seconds of inactivity, same as clicking it.
+            handleLogoActivateRef.current();
+          } else if (focusedButton === -3) {
             // Slot -3 = Admin button (only reachable/visible when isAdmin).
-            // Easter egg is click/tap-only on the logo — never Enter/D-pad.
             if (isAdminRef.current) navigateToRef.current('admin-support');
           } else if (focusedButton === -2) {
             // Website user OR Player-signed-in → dashboard; web demo → /auth
@@ -1075,7 +1087,7 @@ const Index = () => {
 
           {/* SME logo top-left — secret 7-click easter egg */}
           <LogoButton
-            isFocused={focusedButton === -3}
+            isFocused={focusedButton === -5}
             onActivate={handleLogoActivate}
             onFocus={onLogoFocus}
           />
