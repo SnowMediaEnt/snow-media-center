@@ -485,6 +485,14 @@ const AppAlertsManager = () => {
                         PPV
                       </Badge>
                     )}
+                    {(alert.app_match || '').trim().toLowerCase() === 'all' &&
+                      alert.source !== 'player_server' &&
+                      alert.source !== 'pre_event' && (
+                        <Badge variant="outline" className="border-red-400/50 text-red-300">
+                          all devices
+                        </Badge>
+                      )}
+
                     {!alert.active && (
                       <Badge variant="outline" className="border-slate-600 text-slate-400">
                         inactive
