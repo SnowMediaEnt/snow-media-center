@@ -510,7 +510,8 @@ const PlexLibraryRows = memo(({
 
   // ── render ───────────────────────────────────────────────────────────────
   // A WINDOW around the focus, not a growing prefix: at most three rails are
-  // ever mounted, which bounds live posters at ~45 instead of ~100.
+  // ever mounted. Paired with the horizontal cap below that bounds mounted
+  // posters at about twenty, against ~100 for a growing prefix of full rails.
   const mountFrom = Math.max(0, row - 1);
   const mountTo = Math.min(rows.length - 1, row + 1);
 
