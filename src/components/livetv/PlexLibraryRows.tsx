@@ -484,6 +484,10 @@ const PlexLibraryRows = memo(({
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Nothing has loaded yet: the content zone is empty, so Down has to
+        // put focus somewhere real. Without this the user sits on an empty
+        // screen with Down doing nothing until the first row lands.
+        if (list.length === 0) { setZone('bar'); return; }
         if (r < list.length - 1) { setFocusedRowId(list[r + 1].spec.id); setCol(0); }
         return;
       }
@@ -509,6 +513,14 @@ const PlexLibraryRows = memo(({
   // ever mounted, which bounds live posters at ~45 instead of ~100.
   const mountFrom = Math.max(0, row - 1);
   const mountTo = Math.min(rows.length - 1, row + 1);
+
+  // HORIZONTAL window, per rail. The vertical window above bounds us to three
+  // rails, but each rail still rendered all 15 tiles — ~45 posters mounted at
+  // once, against a PMS that is also serving three row queries. Only about six
+  // are ever on screen. Off-screen rails get a fixed head; the focused rail
+  // extends ahead of the cursor so arrowing right never hits an empty gap.
+  const RAIL_HEAD = 7;
+  const railCount = (ri: number) => (ri === row ? Math.max(RAIL_HEAD, col + 4) : RAIL_HEAD);
 
   const sortTitle = sortOptions.find((o) => o.key === filters.sort)?.title;
 
@@ -671,7 +683,7 @@ const PlexLibraryRows = memo(({
           <div key={r.spec.id}>
             <div className="text-xl font-quicksand font-semibold text-white/90 mb-3">{r.spec.title}</div>
             <div className="flex gap-4 overflow-x-auto py-3 px-2 -mx-2">
-              {r.items.map((it, ci) => {
+              {r.items.slice(0, railCount(ri)).map((it, ci) => {
                 const tileFocused = focused && ci === col;
                 const label = resolutionLabel(it.videoResolution);
                 const cap = tileCaption(it);
