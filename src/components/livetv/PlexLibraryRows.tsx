@@ -2,8 +2,8 @@
 //
 // Opening Movies used to page the ENTIRE section into memory and render one
 // A-Z grid, with no way to change the order. This is what you land on instead:
-// Continue Watching, Recently Released, Recently Added, then more rows, and a
-// "Browse all" bar at the bottom that opens the old grid.
+// a sort/filter bar, then Continue Watching, Recently Released, Recently
+// Added, then more rows. Sort: A-Z with no filter is the whole library, paged.
 //
 // Several details here are defensive for reasons that are not obvious; each is
 // commented where it appears. The load-bearing ones:
@@ -11,10 +11,16 @@
 //     arrive asynchronously and rows are dropped when empty, so an index
 //     cursor drifts under a stationary user — the ring jumps and OK activates
 //     something they did not aim at.
-//   • "Browse all" is a real entry in the rows array, so index 0 always exists
-//     and the D-pad works from the first frame. With an empty array, a handler
-//     that preventDefaults before checking for a current row swallows every
-//     key — including the escape — for as long as the first fetches take.
+//   • Wave 1 is PREFETCHED while the tab is merely current — the same 400ms
+//     tab dwell the old grid used — not when the user enters the content. The
+//     old grid had its first page in hand before the user pressed Down; the
+//     first cut of this panel keyed on isActive, which is false the whole time
+//     the user is on the tab strip, so nothing loaded until they arrived and
+//     then it waited its own 400ms on top. That was the "Plex got slower".
+//   • The rows array can be EMPTY while loading (there is no placeholder row).
+//     Vertical and escape keys are handled before any current-row lookup, and
+//     the chip bar takes focus while there are no rows, so the remote never
+//     dead-ends.
 //   • Rails mount in a WINDOW around the focus, not a growing prefix. A prefix
 //     ends with every rail mounted at once: ~100 poster GETs and 7 composited
 //     scroll layers on a 1GB stick.
@@ -41,15 +47,18 @@ interface LoadedRow {
 }
 
 export interface PlexLibraryRowsProps {
+  /** The remote is ours: the section is active, the user is in the content
+   *  zone, no detail page is open. Drives the keyboard and the focus ring. */
   isActive: boolean;
+  /** This library's tab is the current one, whether or not the user has come
+   *  down into the content. Drives PREFETCH only. */
+  isCurrent: boolean;
   base: string;
   token: string;
   libKey: string;
   libTitle: string;
   sectionType: PlexSectionType;
-  totalSize?: number;
   onOpen: (it: PlexItem) => void;
-  onBrowseAll: () => void;
   onExitToTabs: () => void;
 }
 
@@ -60,8 +69,8 @@ const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
     : `/library/sections/${libKey}/all?${spec.query}`;
 
 const PlexLibraryRows = memo(({
-  isActive, base, token, libKey, libTitle, sectionType, totalSize,
-  onOpen, onBrowseAll, onExitToTabs,
+  isActive, isCurrent, base, token, libKey, libTitle, sectionType,
+  onOpen, onExitToTabs,
 }: PlexLibraryRowsProps) => {
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
@@ -71,19 +80,17 @@ const PlexLibraryRows = memo(({
   const [loaded, setLoaded] = useState<Record<string, PlexItem[]>>(() => {
     const seed: Record<string, PlexItem[]> = {};
     for (const s of specs) {
-      if (s.kind === 'browseAll') continue;
       const c = getCachedHub(base, rowCachePath(libKey, s));
       if (c && c.length) seed[s.id] = c;
     }
     return seed;
   });
 
-  // Rows actually shown: a spec appears once it has items, except browseAll
-  // which is always present so there is never an empty rows array.
+  // Rows actually shown: a spec appears once it has items. Empty until the
+  // first fetch lands — see the header on why that is safe.
   const rows = useMemo<LoadedRow[]>(() => {
     const out: LoadedRow[] = [];
     for (const s of specs) {
-      if (s.kind === 'browseAll') { out.push({ spec: s, items: [] }); continue; }
       const items = loaded[s.id];
       if (items && items.length) out.push({ spec: s, items });
     }
@@ -91,12 +98,10 @@ const PlexLibraryRows = memo(({
   }, [specs, loaded]);
 
   // ── focus, tracked by stable id ──────────────────────────────────────────
-  // NULL means "wherever the top is". That matters because at first paint the
-  // only row that exists is "Browse all" — the rails have not loaded yet. If
-  // focus were pinned to a concrete id here it would latch onto that bar, and
-  // when the rails arrived a moment later focus would still be on the BOTTOM
-  // of the screen with unmounted placeholders above it. Staying null until the
-  // user actually moves keeps focus on the first row as the rows fill in.
+  // NULL means "wherever the top is". Rows arrive asynchronously and in any
+  // order; pinning a concrete id before the user has moved would latch focus
+  // onto whichever row happened to land first. Staying null until they
+  // actually move keeps focus on the first row as the rows fill in.
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [col, setCol] = useState(0);
 
@@ -119,7 +124,7 @@ const PlexLibraryRows = memo(({
   // Keep the column inside the current row.
   useEffect(() => {
     const r = rows[row];
-    if (r && r.spec.kind !== 'browseAll' && col > r.items.length - 1) {
+    if (r && col > r.items.length - 1) {
       setCol(Math.max(0, r.items.length - 1));
     }
   }, [rows, row, col]);
@@ -136,12 +141,16 @@ const PlexLibraryRows = memo(({
   const [metaTried, setMetaTried] = useState(false);
   const [values, setValues] = useState<Record<string, PlexFilterValue[]>>({});
   const [menu, setMenu] = useState<{ chip: string; options: PlexFilterValue[]; idx: number } | null>(null);
-  const [results, setResults] = useState<{ items: PlexItem[]; total: number } | null>(null);
+  // `query` is the identity of the result set. A load-more page that returns
+  // after the filters changed underneath it must be dropped, and comparing
+  // lengths is not enough — a fresh first page is the same size as the old one.
+  const [results, setResults] = useState<{ query: string; items: PlexItem[]; total: number } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [gridCursor, setGridCursor] = useState(0);
 
   const filtering = hasAnyFilter(filters);
   const GRID_COLS = 6;
+  const PAGE = 120;
 
   // The section's own sort/filter vocabulary, fetched LAZILY the first time the
   // bar is entered — so it costs nothing for anyone who never filters.
@@ -194,9 +203,13 @@ const PlexLibraryRows = memo(({
   // ── fetching ─────────────────────────────────────────────────────────────
   const fetchedRef = useRef<Set<string>>(new Set());
   const [wave2, setWave2] = useState(false);
+  // Which rows have ANSWERED (with items, empty, or an error). Distinct from
+  // fetchedRef, which is the in-flight/dedupe set: a failed row leaves that
+  // so it can retry, but it still counts as settled for the empty state —
+  // otherwise one failed request would show "Loading…" forever.
+  const [settled, setSettled] = useState<Record<string, true>>({});
 
   const fetchRow = useCallback(async (spec: LibraryRowSpec) => {
-    if (spec.kind === 'browseAll') return;
     if (fetchedRef.current.has(spec.id)) return;
     fetchedRef.current.add(spec.id);
     const path = rowCachePath(libKey, spec);
@@ -213,26 +226,47 @@ const PlexLibraryRows = memo(({
       // Leave it absent — the row simply does not appear. A failed row must
       // never block the others.
       fetchedRef.current.delete(spec.id);
+    } finally {
+      setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }
   }, [base, token, libKey]);
 
-  // Wave 1, behind the same 400ms dwell the grid loader uses. The panel mounts
-  // as soon as its tab becomes current — including while the user is still
-  // arrow-scrubbing across the tab strip — so firing immediately would put
-  // three uncancellable native requests on every tab they pass through.
+  // Wave 1 — prefetched on isCurrent, NOT isActive (see the header). Behind
+  // the same 400ms dwell the old grid used: the panel mounts as soon as its
+  // tab becomes current, including while the user is still arrow-scrubbing
+  // across the strip, and firing immediately would put three uncancellable
+  // native requests on every tab they pass through. Coming down into the
+  // content before the dwell elapses fires it at once.
+  const wave1Ref = useRef(false);
   useEffect(() => {
-    if (!isActive) return;
-    const t = window.setTimeout(() => {
+    if (!isCurrent || wave1Ref.current) return;
+    const fire = () => {
+      if (wave1Ref.current) return;
+      wave1Ref.current = true;
       specs.filter((s) => s.wave === 1).forEach((s) => { void fetchRow(s); });
-    }, 400);
+    };
+    if (isActive) { fire(); return; }
+    const t = window.setTimeout(fire, 400);
     return () => window.clearTimeout(t);
-  }, [isActive, specs, fetchRow]);
+  }, [isCurrent, isActive, specs, fetchRow]);
 
-  // Wave 2 once the user moves down past the first rows — never at tab-enter.
+  // Wave 2 once the user reaches the last loaded row — never at tab-enter.
   useEffect(() => {
-    if (wave2 || !isActive) return;
-    if (row >= 2) setWave2(true);
-  }, [row, wave2, isActive]);
+    if (wave2 || !isActive || rows.length === 0) return;
+    if (row >= rows.length - 1) setWave2(true);
+  }, [row, rows.length, wave2, isActive]);
+
+  // …or straight away if wave 1 answered with nothing at all. A library with
+  // no Continue Watching, nothing released in two years and nothing recently
+  // added still has a Top Rated row; leaving it blank until the user pressed
+  // Down into nothing would look broken.
+  useEffect(() => {
+    if (wave2) return;
+    const w1 = specs.filter((s) => s.wave === 1);
+    if (w1.every((s) => settled[s.id]) && rows.length === 0) setWave2(true);
+  }, [wave2, specs, settled, rows.length]);
+
+  const allSettled = useMemo(() => specs.every((s) => settled[s.id]), [specs, settled]);
 
   useEffect(() => {
     if (!wave2) return;
@@ -248,15 +282,39 @@ const PlexLibraryRows = memo(({
     setResultsLoading(true);
     setGridCursor(0);
     const q = buildLibraryQuery(sectionType, filters);
-    void getPlexLibraryQuery(base, token, libKey, q, 0, 120)
+    void getPlexLibraryQuery(base, token, libKey, q, 0, PAGE)
       .then((page) => {
         if (cancelled) return;
-        setResults({ items: page.items, total: page.totalSize });
+        setResults({ query: q, items: page.items, total: page.totalSize });
       })
-      .catch(() => { if (!cancelled) setResults({ items: [], total: 0 }); })
+      .catch(() => { if (!cancelled) setResults({ query: q, items: [], total: 0 }); })
       .finally(() => { if (!cancelled) setResultsLoading(false); });
     return () => { cancelled = true; };
   }, [filtering, filters, sectionType, base, token, libKey]);
+
+  // Load more as the cursor nears the end, so Sort: A-Z with no filter is a
+  // real walk through the whole library and not the first 120 of it. The
+  // in-flight guard is a REF, not state: as a dependency it would re-run this
+  // effect the moment it was set, and an effect cleanup here would cancel the
+  // very request it had just started.
+  const loadingMoreRef = useRef(false);
+  useEffect(() => {
+    if (!filtering || !results || loadingMoreRef.current) return;
+    if (results.items.length >= results.total) return;
+    if (gridCursor < results.items.length - GRID_COLS * 3) return;
+    loadingMoreRef.current = true;
+    const q = results.query;
+    const start = results.items.length;
+    void getPlexLibraryQuery(base, token, libKey, q, start, PAGE)
+      .then((page) => {
+        setResults((r) => {
+          if (!r || r.query !== q || r.items.length !== start) return r; // stale
+          return { query: q, items: r.items.concat(page.items), total: page.totalSize || r.total };
+        });
+      })
+      .catch(() => { /* the count line still says how many are missing */ })
+      .finally(() => { loadingMoreRef.current = false; });
+  }, [filtering, results, gridCursor, base, token, libKey]);
 
   // Open a chip's menu, fetching its vocabulary once.
   const openMenu = useCallback(async (chip: string) => {
@@ -314,7 +372,6 @@ const PlexLibraryRows = memo(({
   const rowIdxRef = useRef(row); useEffect(() => { rowIdxRef.current = row; }, [row]);
   const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
   const onOpenRef = useRef(onOpen); useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
-  const onBrowseAllRef = useRef(onBrowseAll); useEffect(() => { onBrowseAllRef.current = onBrowseAll; }, [onBrowseAll]);
   const onExitRef = useRef(onExitToTabs); useEffect(() => { onExitRef.current = onExitToTabs; }, [onExitToTabs]);
 
   const zoneRef = useRef(zone); useEffect(() => { zoneRef.current = zone; }, [zone]);
@@ -377,8 +434,12 @@ const PlexLibraryRows = memo(({
 
       if (!keys.includes(e.key)) return;
 
-      // THE CHIP BAR
-      if (zoneRef.current === 'bar') {
+      // THE CHIP BAR. Also the effective zone while there are no rows yet —
+      // there is no placeholder row any more, so without this the user would
+      // be "in the content" with nothing under focus and Down/OK doing
+      // nothing. Up still exits to the tab strip from here.
+      const noRows = !filteringRef.current && rowsRef.current.length === 0;
+      if (zoneRef.current === 'bar' || noRows) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         const cs = chipsRef.current;
         const ci = chipIdxRef.current;
@@ -432,10 +493,6 @@ const PlexLibraryRows = memo(({
 
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
 
-      if (current.spec.kind === 'browseAll') {
-        if (e.key === 'Enter' || e.key === ' ') onBrowseAllRef.current();
-        return; // left/right do nothing on a full-width bar
-      }
       if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); return; }
       if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
       if (e.key === 'Enter' || e.key === ' ') {
@@ -453,9 +510,10 @@ const PlexLibraryRows = memo(({
   const mountFrom = Math.max(0, row - 1);
   const mountTo = Math.min(rows.length - 1, row + 1);
 
-  const anyLoaded = Object.keys(loaded).length > 0;
-
   const sortTitle = sortOptions.find((o) => o.key === filters.sort)?.title;
+
+  // Mirrors the handler: the bar holds focus while there is nothing else.
+  const barHasFocus = zone === 'bar' || (!filtering && rows.length === 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -463,7 +521,7 @@ const PlexLibraryRows = memo(({
           emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66. */}
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((chip, i) => {
-          const focused = isActive && zone === 'bar' && i === chipIdx && !menu;
+          const focused = isActive && barHasFocus && i === chipIdx && !menu;
           const open = menu?.chip === chip.id;
           return (
             <div
@@ -540,7 +598,9 @@ const PlexLibraryRows = memo(({
             </div>
             {results ? (
               <div className="text-sm font-nunito text-brand-ice/60">
-                {results.total} {results.total === 1 ? 'title' : 'titles'}
+                {results.items.length < results.total
+                  ? `${results.items.length} of ${results.total} titles`
+                  : `${results.total} ${results.total === 1 ? 'title' : 'titles'}`}
               </div>
             ) : null}
           </div>
@@ -558,7 +618,9 @@ const PlexLibraryRows = memo(({
                 const cap = tileCaption(it);
                 return (
                   <div
-                    key={it.ratingKey}
+                    // Index-suffixed: a server sort with ties is not stable
+                    // across pages, so the same title can appear twice.
+                    key={`${it.ratingKey}-${i}`}
                     ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
                     onClick={() => { setZone('content'); setGridCursor(i); onOpen(it); }}
                     data-focused={f ? 'true' : 'false'}
@@ -583,29 +645,16 @@ const PlexLibraryRows = memo(({
         </div>
       ) : (
       <>
-      {!anyLoaded && (
-        <div className="text-brand-ice/70 font-nunito text-sm px-2">Loading {libTitle}…</div>
+      {rows.length === 0 && (
+        <div className="text-brand-ice/70 font-nunito text-sm px-2">
+          {allSettled
+            ? `Nothing to show in ${libTitle} yet. Use Sort above to browse everything.`
+            : `Loading ${libTitle}…`}
+        </div>
       )}
 
       {rows.map((r, ri) => {
-        const focused = isActive && ri === row;
-
-        if (r.spec.kind === 'browseAll') {
-          return (
-            <div
-              key={r.spec.id}
-              ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
-              onClick={onBrowseAll}
-              data-focused={focused ? 'true' : 'false'}
-              className={`tv-ring cursor-pointer rounded-2xl border border-white/15 bg-white/5 px-6 py-4 flex items-center justify-between ${focused ? 'scale-[1.01] z-10' : ''}`}
-            >
-              <span className={`text-lg font-quicksand font-semibold ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
-                Browse all {totalSize ? `${totalSize} ` : ''}{libTitle} A–Z
-              </span>
-              <span className="text-sm text-brand-ice/60 font-nunito">OK</span>
-            </div>
-          );
-        }
+        const focused = isActive && !barHasFocus && ri === row;
 
         // Outside the mount window: keep the heading so the page height and the
         // scroll position stay stable, but drop the posters.
