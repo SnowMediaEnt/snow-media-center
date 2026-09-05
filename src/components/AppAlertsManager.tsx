@@ -148,7 +148,7 @@ const AppAlertsManager = () => {
   };
 
   const handleCreate = async () => {
-    if (selectedApps.length === 0) {
+    if (!broadcastMode && selectedApps.length === 0) {
       toast({ title: 'Pick at least one app', variant: 'destructive' });
       return;
     }
@@ -157,15 +157,17 @@ const AppAlertsManager = () => {
       return;
     }
     setSubmitting(true);
-    const rows = selectedApps.map((name) => ({
-      app_match: name,
+    const base = {
       title: title.trim() || 'Heads up',
       message: message.trim(),
       severity,
       active: true,
       source: 'admin',
       created_by: user?.id ?? null,
-    }));
+    };
+    const rows = broadcastMode
+      ? [{ ...base, app_match: 'all' }]
+      : selectedApps.map((name) => ({ ...base, app_match: name }));
     const { error } = await supabase.from('app_alerts').insert(rows);
     setSubmitting(false);
     if (error) {
@@ -173,16 +175,22 @@ const AppAlertsManager = () => {
       return;
     }
     toast({
-      title: `Alert posted for ${selectedApps.length} app${selectedApps.length === 1 ? '' : 's'}`,
-      description: 'Users will see the popup the next time they open the app.',
+      title: broadcastMode
+        ? 'Broadcast alert posted'
+        : `Alert posted for ${selectedApps.length} app${selectedApps.length === 1 ? '' : 's'}`,
+      description: broadcastMode
+        ? 'Every device sees this popup the next time the app opens.'
+        : 'Users will see the popup the next time they open the app.',
     });
     setSelectedApps([]);
+    setBroadcastMode(false);
     setMessage('');
     setTitle('Heads up');
     setSeverity('warning');
     await fetchAll();
     await refetch();
   };
+
 
   const handleToggleActive = async (alert: AppAlert) => {
     const { error } = await supabase
