@@ -355,9 +355,18 @@ const AppAlertsManager = () => {
           <Plus className="w-5 h-5" /> New alert
         </h3>
 
-        <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-slate-800/60 border border-slate-700">
+          <div>
+            <Label className="text-slate-200">Send to ALL devices instead of specific apps</Label>
+            <p className="text-xs text-slate-400">Shown as a popup when the app opens, for everyone.</p>
+          </div>
+          <Switch checked={broadcastMode} onCheckedChange={setBroadcastMode} />
+        </div>
+
+        <div className={`space-y-2 ${broadcastMode ? 'opacity-50 pointer-events-none' : ''}`}>
           <Label className="text-slate-200">Select apps (one or more)</Label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-3 rounded-md bg-slate-800/60 border border-slate-700">
+
             {sortedApps.length === 0 && (
               <p className="text-slate-400 text-sm col-span-full">No apps loaded yet.</p>
             )}
