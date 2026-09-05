@@ -3757,6 +3757,7 @@ export type Database = {
           retired_at: string
         }[]
       }
+      owns_support_ticket: { Args: { ticket: string }; Returns: boolean }
       plex_spend_credits: {
         Args: { p_amount: number; p_reseller_id: string }
         Returns: number
