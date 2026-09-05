@@ -35,6 +35,8 @@ const AppAlertsManager = () => {
 
   // Form state
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [broadcastMode, setBroadcastMode] = useState(false);
+
   const [title, setTitle] = useState('Heads up');
   const [message, setMessage] = useState('');
   const [severity, setSeverity] = useState<AppAlert['severity']>('warning');
