@@ -1245,6 +1245,15 @@ const Index = () => {
         </Suspense>
       )}
 
+      {/* Admin broadcast alert (app_match = 'all') — queues behind other boot
+          popups via its own modal-presence polling. */}
+      {deferredOverlaysReady && currentView === 'home' && !preEventOpen && broadcastAlert && (
+        <Suspense fallback={null}>
+          <BroadcastAlertPopup alert={broadcastAlert} onDismiss={dismissBroadcast} />
+        </Suspense>
+      )}
+
+
 
       {/* First-run opt-in prompt for the home content bar. Only shows after
           the welcome popup is dismissed and only if the bar is currently OFF. */}
