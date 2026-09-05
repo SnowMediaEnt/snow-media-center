@@ -105,7 +105,13 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       }
     }, { rootMargin: '200px' });
     io.observe(el);
-    return () => { io.disconnect(); };
+    // Safety net. A box with no laid-out height never intersects, and a poster
+    // frame sized only by `aspect-ratio` is exactly that on a WebView older
+    // than Chrome 88 — which the oldest boxes here are. Rather than leave those
+    // permanently blank, admit them late, once the on-screen posters have had
+    // the network to themselves.
+    const late = window.setTimeout(() => setInView(true), 1500);
+    return () => { io.disconnect(); window.clearTimeout(late); };
   }, [priority]);
 
   useEffect(() => {
@@ -137,6 +143,18 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       return () => { cancelled = true; };
     }
     // Server-relative: raw tokenized thumb URL is the primary source.
+    //
+    // VIEWPORT-GATED, exactly like the data-URI branch above. This branch used
+    // to commit immediately, so every mounted tile fetched its poster whether
+    // or not it was on screen. That was invisible while the only caller was a
+    // virtualized grid — it mounts just the visible rows — but the library
+    // rows screen mounts whole horizontal rails, most of each one off-screen.
+    // Opening Movies fired dozens of poster GETs at a PMS that was already
+    // serving the row queries, and the rows arrived late as a result.
+    //
+    // `loading="lazy"` on the <img> does NOT cover this: it landed in Chrome 76
+    // and the oldest boxes here run Chromium 66, where the attribute is inert.
+    if (!inView) return;
     const raw = `${base}${path}?X-Plex-Token=${encodeURIComponent(token)}`;
     commitSrc(raw);
     // eslint-disable-next-line react-hooks/exhaustive-deps
