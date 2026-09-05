@@ -105,12 +105,21 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       }
     }, { rootMargin: '200px' });
     io.observe(el);
-    // Safety net. A box with no laid-out height never intersects, and a poster
+    // Safety net. A box with no laid-out size never intersects, and a poster
     // frame sized only by `aspect-ratio` is exactly that on a WebView older
-    // than Chrome 88 — which the oldest boxes here are. Rather than leave those
-    // permanently blank, admit them late, once the on-screen posters have had
-    // the network to themselves.
-    const late = window.setTimeout(() => setInView(true), 1500);
+    // than Chrome 88 — which the oldest boxes here are. Left alone those would
+    // now stay blank forever.
+    //
+    // MEASURE, don't blanket-admit. The first version of this just set a timer
+    // and admitted every pending image when it fired, which hands the whole
+    // burst back a moment later — the exact thing the gate exists to prevent.
+    // Checking the box instead admits only the images whose container genuinely
+    // cannot report visibility, and leaves the ordinary off-screen ones waiting
+    // for the user to reach them.
+    const late = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) setInView(true);
+    }, 400);
     return () => { io.disconnect(); window.clearTimeout(late); };
   }, [priority]);
 
