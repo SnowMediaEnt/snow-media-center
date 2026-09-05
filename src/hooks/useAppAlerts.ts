@@ -139,15 +139,18 @@ export const useAppAlerts = () => {
     (appName: string): AppAlert | null => {
       if (!appName) return null;
       const lower = appName.toLowerCase();
+      // Broadcast rows (app_match = 'all') are boot popups only — never per-app.
+      const notBroadcast = (a: AppAlert) => (a.app_match || '').trim().toLowerCase() !== 'all';
       // Service alerts take precedence (they're personal + critical)
-      const svc = serviceAlerts.find((a) => lower.includes(a.app_match.toLowerCase()));
+      const svc = serviceAlerts.filter(notBroadcast).find((a) => lower.includes(a.app_match.toLowerCase()));
       if (svc) return svc;
       return (
-        alerts.find((a) => lower.includes(a.app_match.toLowerCase())) || null
+        alerts.filter(notBroadcast).find((a) => lower.includes(a.app_match.toLowerCase())) || null
       );
     },
     [alerts, serviceAlerts]
   );
+
 
   return { alerts, loading, getAlertForApp, refetch: fetchAlerts };
 };
