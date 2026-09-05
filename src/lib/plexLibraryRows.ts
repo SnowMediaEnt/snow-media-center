@@ -20,7 +20,7 @@ export interface LibraryRowSpec {
   id: string;
   title: string;
   /** 'onDeck' uses the dedicated endpoint; 'query' uses /all with this query. */
-  kind: 'onDeck' | 'query' | 'browseAll';
+  kind: 'onDeck' | 'query';
   query?: string;
   /** Rows in wave 2 are fetched only once the user moves toward them. */
   wave: 1 | 2;
@@ -113,11 +113,10 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
     });
   }
 
-  // Always last, always present. This is what makes index 0 safe to focus
-  // before any network call resolves — without a real row here, an empty rows
-  // array traps the D-pad while the first three requests are in flight.
-  rows.push({ id: 'browseAll', title: 'Browse all', kind: 'browseAll', wave: 1 });
-
+  // There is deliberately no "Browse all" row. It sat under the rails while
+  // they loaded, so it was the only thing to land on — people pressed Down
+  // into it and opened the old grid by accident. The whole library is still
+  // one press away: Sort: A-Z on the bar above, which pages.
   return rows;
 }
 

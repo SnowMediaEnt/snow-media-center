@@ -1893,13 +1893,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           <PlexLibraryRows
             key={currentTab.libKey}
             isActive={isActive && zone === 'grid' && !detailItem}
+            // isCurrent is NOT gated on zone: it drives prefetch, and the
+            // point of prefetch is to run while the user is still up on the
+            // tab strip, exactly as the old grid's dwell loader did.
+            isCurrent={isActive}
             base={conn.base}
             token={conn.token}
             libKey={currentTab.libKey}
             libTitle={currentTab.title}
             sectionType={currentTab.type === 'show' ? 'show' : 'movie'}
             onOpen={openDetail}
-            onBrowseAll={() => setLibraryMode((m) => ({ ...m, [currentTab.libKey!]: 'grid' }))}
             onExitToTabs={() => setZone('tabs')}
           />
         ) : itemsLoading && items.length === 0 ? (
