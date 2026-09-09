@@ -322,29 +322,11 @@ export const useTVFocus = ({
       // Ask the platform for the keyboard on the field that is already focused.
       // Nothing is blurred first: that destroyed the input connection Android
       // had just built and was why the keyboard never appeared on TV.
-      //
-      // The request being accepted is NOT recorded as the keyboard being up —
-      // only keyboardDidShow or real editing does that — so if a device ignores
-      // the request, pressing OK again simply asks again.
-      const el = currentEl;
-      imeElRef.current = el;
-      void focusTextInputForDpad(el).then((requested) => {
-        // Never touch state or focus for a screen the viewer has left.
-        if (!mountedRef.current || document.activeElement !== el) return;
-        if (!requested) {
-          if (imeElRef.current === el) imeElRef.current = null;
-          return;
-        }
-        // Deliberately NOT marked as "keyboard up" here, on any platform: an
-        // accepted request is not a visible keyboard. Confirmation comes from
-        // keyboardDidShow or from the viewer actually typing (beforeinput /
-        // composition). Until then OK stays retryable and can never be read as
-        // the keyboard's Done and submit an empty form.
-      });
+      void openKeyboardOn(currentEl);
       return;
     }
     currentEl.click();
-  }, [findManagedElement, getElements, getId]);
+  }, [findManagedElement, getElements, getId, openKeyboardOn]);
 
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;
