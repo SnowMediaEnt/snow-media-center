@@ -93,21 +93,8 @@ or published here.
 
 ## Technical notes
 
-The unresolved acceptance criteria are: (a) a visible on-screen keyboard appears in the Lovable sandbox when a text field is selected, and (b) it is operable with a D-pad remote.
-
-The smallest change that meets both, independent of the sandbox's host browser/device behavior, is an in-app key grid:
-
-- Render a key grid overlay when OK/Enter is pressed on a managed text field.
-- D-pad arrows move between keys, OK types the selected key, Back/Done closes the grid, and text is written into the focused field.
-- Show it when `Capacitor.getPlatform() === 'web'` or when the platform's own keyboard cannot be observed, so installed TV apps keep using the system keyboard path they already have.
-- Wire it through the existing `useTVFocus` focus system so Player sign-in, billing, support, and chat forms receive it without per-screen changes.
-
-I have not implemented this. Before planning it, I should clarify the exact sandbox device/browser where the owner expects to see the keyboard (desktop Chromium preview, Android mobile browser, etc.).
-
-## Technical notes
-
-- Reproduction path: `http://localhost:8080` → Player → Live TV; fields `#lt-user` / `#lt-pass`; after OK the field is `document.activeElement`, `data-tv-focused="true"`, `readOnly` false, no `inputmode` trap, and zero fixed-position overlays present.
-- Web path today: `focusTextInputForDpad` focuses the element then returns immediately on non-native (`if (!Capacitor.isNativePlatform()) return`). Native path: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback. No renderer is drawn in either path.
+- Reproduction path: `http://localhost:8080` -> Player -> Live TV; fields `#lt-user` / `#lt-pass`. Before this change, after OK the field was `document.activeElement`, `data-tv-focused="true"`, `readOnly` false, no `inputmode` trap, and zero fixed-position overlays present.
+- Old web path: `focusTextInputForDpad` focused the element then returned immediately on non-native. It now also calls `openScreenKeyboard(element)`. Native path unchanged: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback.
 - History checked: `git log --all` for deleted/renamed keyboard files (none), `-S 'simple-keyboard'` (none), `package.json` keyboard deps (`@capacitor/keyboard` only, added in `92976700`).
-- Pending clarification: exact Lovable sandbox device/browser the owner is using to reproduce the missing keyboard.
-- No edits, no build, no publish, no logins, no data operations were performed.
+- Sandbox confirmed by the owner: MacBook Pro, in the Lovable app plus Chrome and Safari.
+- The billing sign-up form (`#ba-email` / `#ba-pass` / `#ba-first` / `#ba-last`) sits behind the account/billing flow, so its Next ordering is covered by the real-DOM regression test rather than a browser walkthrough; "New here? Get started" from Live TV leads to a phone/QR handoff screen with no text fields.
