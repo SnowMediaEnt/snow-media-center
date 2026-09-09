@@ -54,34 +54,23 @@ const isArrowKey = (e: KeyboardEvent) =>
   e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
 
 /**
- * Keep the on-screen keyboard shut while a field is merely HIGHLIGHTED.
+ * HIGHLIGHT IS NOT FOCUS.
  *
- * On a TV, moving the D-pad onto a field is not the same as wanting to type in
- * it — but in an Android WebView any .focus() on an input raises the IME, and
- * focusById() calls .focus() on every move. That is what made the keyboard
- * appear on arrival at the Player sign-in, cover the form, and come straight
- * back after Back: anything that restored focus re-raised it.
+ * On a TV, moving the D-pad onto a text field is not the same as wanting to
+ * type in it — but in an Android WebView, giving an input DOM focus raises the
+ * on-screen keyboard. So a field that is merely highlighted never receives DOM
+ * focus at all: focusById() draws the ring (data-tv-focused) and records the id,
+ * and leaves focus loose. Pressing OK is what focuses it — a real, fresh focus,
+ * which is exactly the path that has opened the Fire TV keyboard reliably for
+ * every version of this app — and "typing" is simply "a text field is
+ * document.activeElement", which the DOM answers truthfully.
  *
- * inputmode="none" is the standard way to say "I will provide my own input
- * method"; Chrome has honoured it since 66, which is the floor for Fire TV. The
- * original value is parked on the element so activate() can hand it back. On a
- * WebView that ignores the attribute we are no worse off than before.
+ * This replaces an inputmode="none" scheme that tried to keep a FOCUSED field's
+ * keyboard shut and then hand it back on OK. Android builds the keyboard's
+ * input connection when a field gains focus and reads inputmode then; toggling
+ * the attribute on an already-focused field never reached it, and the keyboard
+ * could not be opened at all.
  */
-const suppressIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  if (el.dataset.tvInputMode === undefined) {
-    el.dataset.tvInputMode = el.getAttribute('inputmode') ?? '';
-  }
-  el.setAttribute('inputmode', 'none');
-};
-
-/** The viewer pressed Enter on the field: give it its real keyboard back. */
-const allowIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  const original = el.dataset.tvInputMode;
-  if (original) el.setAttribute('inputmode', original);
-  else el.removeAttribute('inputmode');
-};
 
 const isVisible = (el: HTMLElement) =>
   !el.hasAttribute('disabled') &&
@@ -105,12 +94,6 @@ export const useTVFocus = ({
   // an accurate record — and Back needs it: keying off "focus is in an input"
   // instead would trap the viewer on the screen, since the field keeps focus
   // after the keyboard closes.
-  const imeOpenRef = useRef(false);
-  // The element whose keyboard is open. focusById suppresses the IME on
-  // whatever it focuses — and every managed element's onFocus calls focusById,
-  // so opening the keyboard re-entered focusById and shut it again before it
-  // could appear. This is the one element it must leave alone.
-  const imeElRef = useRef<HTMLElement | null>(null);
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which
@@ -156,10 +139,15 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Highlight only. Enter is what asks for the keyboard — and the field it
-    // asked for keeps it.
-    if (target !== imeElRef.current) suppressIme(target);
-    target.focus({ preventScroll: true });
+    if (isTextInput(target)) {
+      // Ring only — see HIGHLIGHT IS NOT FOCUS. Drop whatever was focused so the
+      // key handler falls back to currentIdRef, and so any open keyboard closes.
+      // If the field already has focus (OK, or a real click), leave it be.
+      const active = document.activeElement as HTMLElement | null;
+      if (active && active !== target && active !== document.body) active.blur();
+    } else {
+      target.focus({ preventScroll: true });
+    }
     // When focusing a top-of-page "back" control, snap the nearest scroll
     // container to absolute top so the safe-area padding isn't clipped.
     const isBackTop = /(^|-)back($|-)/i.test(id);
@@ -230,28 +218,10 @@ export const useTVFocus = ({
       ?? getElements().find((el) => getId(el) === currentIdRef.current);
     if (!currentEl) return;
     if (isTextInput(currentEl)) {
-      allowIme(currentEl);
-      imeOpenRef.current = true;
-      imeElRef.current = currentEl;
-      // Android builds the IME's input connection when a field GAINS focus, and
-      // reads inputmode at that moment. The field is already focused here — it
-      // is the highlighted one — so clearing the attribute now changes nothing
-      // the IME can see, and Keyboard.show() is answered with the connection
-      // built while inputmode was still "none". No keyboard, however many times
-      // you press OK. Blur and refocus on the next frame to force a fresh
-      // connection that reads the restored inputmode.
-      currentEl.blur();
-      requestAnimationFrame(() => {
-        void focusTextInputForDpad(currentEl).then((opened) => {
-          if (opened) return;
-          // It did not open. Say so, rather than leaving the hook believing a
-          // keyboard is up: otherwise the next OK is read as the keyboard's
-          // Next key, walks down the form and submits it empty.
-          imeOpenRef.current = false;
-          imeElRef.current = null;
-          suppressIme(currentEl);
-        });
-      });
+      // The field is highlighted but not focused, so this is a real focus
+      // transition: Android builds a fresh input connection and shows the
+      // keyboard for it.
+      void focusTextInputForDpad(currentEl);
       return;
     }
     currentEl.click();
@@ -293,25 +263,18 @@ export const useTVFocus = ({
         ?? null;
       if (!managedTarget) return;
 
+      // Ground truth: a text field has DOM focus, so the keyboard is up.
       const typing = isTextInput(target) || isTextInput(active) || !!target?.isContentEditable;
-      // Close the keyboard but keep the field highlighted, so Back reads as
-      // "done typing" rather than "the screen reset itself". Re-suppressing
-      // first means the re-focus cannot raise it again.
-      const closeIme = (el: HTMLElement | null) => {
-        imeOpenRef.current = false;
-        imeElRef.current = null;
-        suppressIme(el);
-        // Blur and leave focus off the field. The ring is drawn from
-        // data-tv-focused, which focusById already set, and the handler below
-        // falls back to currentIdRef when focus is loose — so navigation still
-        // works. Re-focusing the input here risked the WebView raising the
-        // keyboard again on the spot.
-        void hideKeyboardForDpad(el);
-      };
+      const field = isTextInput(active) ? active : (isTextInput(target) ? target : null);
+      // Blur + Keyboard.hide(). The ring stays (data-tv-focused), and the
+      // handler falls back to currentIdRef once focus is loose, so the viewer
+      // is left on the same field, keyboard shut.
+      const closeKeyboard = () => { void hideKeyboardForDpad(field ?? active ?? target); };
+
       const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack';
       if (isBack) {
         // Backspace is a delete key while the keyboard is up, not a Back.
-        if (event.key === 'Backspace' && imeOpenRef.current) return;
+        if (event.key === 'Backspace' && typing) return;
         event.preventDefault();
         event.stopPropagation();
         const now = Date.now();
@@ -320,94 +283,44 @@ export const useTVFocus = ({
         lastBackRef.current = now;
         // Tell the app's other Back listeners this press is spoken for.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
-        if (imeOpenRef.current) {
-          closeIme(active ?? target);
-          return;
-        }
+        if (typing) { closeKeyboard(); return; }
         onBackRef.current?.();
         return;
       }
 
-      // A field whose keyboard shows Next means the field below, even when the
-      // field is marked allow-enter so Enter can submit a form. Password on the
-      // create-account form is both: it carries allow-enter for the sign-in
-      // layout, where it is the last field, but in register mode the keyboard
-      // says Next and First name is below it. Enter fell straight through to
-      // the form, which submitted half-filled and answered "enter a first name".
-      const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
-      const wantsNext = enterField?.getAttribute('enterkeyhint') === 'next';
-
-      // OK on a HIGHLIGHTED field means "let me type here". Only once the
-      // keyboard is up does Enter carry the keyboard's own Next/Done meaning.
-      //
-      // Password carries data-tv-allow-enter so its Done key can submit the
-      // form, but that ran on the plain highlight too: OK on Password submitted
-      // with an empty password ("Please enter your username and password")
-      // rather than opening the keyboard. The field could never be filled in,
-      // and Back then had no keyboard to close so it left the screen instead.
-      if (isEnterKey(event) && enterField && !imeOpenRef.current) {
+      if (typing && isEnterKey(event) && field) {
+        // The keyboard's own Next / Done key arrives as Enter.
+        //   Next  -> the field below, opening its keyboard if it is a field.
+        //   Done  -> submit when the field allows it, otherwise just close.
+        // A field marked allow-enter (Password) only submits when its keyboard
+        // says Done: in register mode it says Next and First name is below it,
+        // and letting Enter through submitted the form half-filled.
+        const wantsNext = field.getAttribute('enterkeyhint') === 'next';
+        if (!wantsNext && managedTarget.dataset.tvAllowEnter === 'true') return;
         event.preventDefault();
         event.stopPropagation();
-        activate();
-        return;
-      }
-
-      if (typing && isEnterKey(event) && managedTarget.dataset.tvAllowEnter === 'true' && !wantsNext) return;
-
-      // The keyboard's own Next / Done key arrives as Enter. Next means the
-      // field below — not "open this field again", which is what activate()
-      // did, and why Next appeared to do nothing at all. With no field below,
-      // this is Done and the keyboard simply closes.
-      if (isEnterKey(event) && enterField && imeOpenRef.current) {
-        event.preventDefault();
-        event.stopPropagation();
-        const from = enterField;
-        imeOpenRef.current = false;
-        imeElRef.current = null;
-        suppressIme(from);
-        void hideKeyboardForDpad(from).then(() => {
+        void hideKeyboardForDpad(field).then(() => {
+          if (!wantsNext) return;
           const before = currentIdRef.current;
           move('down');
           if (currentIdRef.current === before) return;
           const landed = getAllElements().find((el) => getId(el) === currentIdRef.current) ?? null;
-          if (!isTextInput(landed)) return;
-          // move() focused this field through focusById, which suppressed it —
-          // so it is focused with inputmode="none" and its input connection is
-          // already built. Clearing the attribute and calling focus() again
-          // would be a no-op on an already-focused element, and the keyboard
-          // would never appear on the second field. Force a real transition,
-          // exactly as activate() does.
-          allowIme(landed);
-          imeElRef.current = landed;
-          landed.blur();
-          requestAnimationFrame(() => {
-            void focusTextInputForDpad(landed).then((opened) => {
-              imeOpenRef.current = opened;
-              if (opened) return;
-              imeElRef.current = null;
-              suppressIme(landed);
-            });
-          });
+          // focusById only drew the ring, so this is a fresh focus too.
+          if (isTextInput(landed)) void focusTextInputForDpad(landed);
         });
         return;
       }
-      // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
-      // to type spaces. Also let Enter pass through unless arrow navigation is needed.
-      if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
-      if (typing && !isArrowKey(event) && !isEnterKey(event)) return;
-      if (!isArrowKey(event) && !isOkKey(event)) return;
 
+      // While typing, every other key belongs to the keyboard — letters,
+      // Space, everything — except the arrows, which leave the field.
+      if (typing && !isArrowKey(event)) return;
+      if (!isArrowKey(event) && !isOkKey(event)) return;
 
       event.preventDefault();
       event.stopPropagation();
-      // Moving off a field closes the keyboard; the field we land on is
-      // suppressed by focusById, so it cannot pop straight back up.
-      if (typing && isArrowKey(event)) {
-        imeOpenRef.current = false;
-        imeElRef.current = null;
-        suppressIme(active ?? target);
-        void hideKeyboardForDpad(active ?? target);
-      }
+      // Moving off a field closes its keyboard; the field we land on is only
+      // highlighted, so nothing pops back up.
+      if (typing && isArrowKey(event)) closeKeyboard();
 
       if (isOkKey(event)) activate();
       if (event.key === 'ArrowUp') move('up');
@@ -417,7 +330,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, move]);
+  }, [activate, enabled, findManagedElement, getAllElements, getId, move]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
