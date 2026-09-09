@@ -352,6 +352,9 @@ export const useTVFocus = ({
     if (!enabled) return;
     const handler = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
+      // Mid-composition keys (Android word suggestions, CJK IMEs) arrive as
+      // Enter/keyCode 229 and must never submit a form or move the highlight.
+      if (event.isComposing || event.keyCode === 229) return;
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
       const isLooseTarget = (el: HTMLElement | null) =>
@@ -368,8 +371,9 @@ export const useTVFocus = ({
       // Close the keyboard but keep the field highlighted, so Back reads as
       // "done typing" rather than "the screen reset itself".
       const closeIme = (el: HTMLElement | null) => {
-        imeVisibleRef.current = false;
-        imeElRef.current = null;
+        // clearIme also bumps the request generation, so any show still in
+        // flight is abandoned instead of re-opening what we just closed.
+        clearIme();
         // Blur and leave focus off the field. The ring is drawn from
         // data-tv-focused, which focusById already set, and the handler below
         // falls back to currentIdRef when focus is loose — so remote navigation
