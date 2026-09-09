@@ -38,9 +38,13 @@ const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextA
  * Once OK became the way to open it, an OK that never arrives means a field
  * that can never be typed in.
  */
+// NOT keyCode 66: in Android that is KEYCODE_ENTER, but in the DOM it is the
+// letter B — matching it would swallow every 'b' the viewer types. 23 is
+// unassigned in the DOM, so it is safe to read as DPAD_CENTER.
 const isEnterKey = (e: KeyboardEvent) =>
   e.key === 'Enter' || e.key === 'Select'
-  || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66;
+  || e.code === 'Enter' || e.code === 'NumpadEnter'
+  || e.keyCode === 13 || e.keyCode === 23;
 
 /** Enter, or Space — both activate a focused control when not typing. */
 const isOkKey = (e: KeyboardEvent) =>
@@ -107,6 +111,12 @@ export const useTVFocus = ({
   // so opening the keyboard re-entered focusById and shut it again before it
   // could appear. This is the one element it must leave alone.
   const imeElRef = useRef<HTMLElement | null>(null);
+  // Held in a ref, not read from the closure: callers pass an inline arrow, so
+  // listing onBack in the listener's deps re-appended the window listener on
+  // every render. That reshuffled it behind LiveTV's own capture handler, which
+  // then got first refusal on every remote key.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
   // One press of the remote's Back can reach us twice: the WebView delivers the
   // real key (keyCode 4), and LiveTV's Capacitor backButton listener
   // synthesizes an Escape on top of it. Handled separately that is two Backs —
@@ -231,7 +241,17 @@ export const useTVFocus = ({
       // you press OK. Blur and refocus on the next frame to force a fresh
       // connection that reads the restored inputmode.
       currentEl.blur();
-      requestAnimationFrame(() => { void focusTextInputForDpad(currentEl); });
+      requestAnimationFrame(() => {
+        void focusTextInputForDpad(currentEl).then((opened) => {
+          if (opened) return;
+          // It did not open. Say so, rather than leaving the hook believing a
+          // keyboard is up: otherwise the next OK is read as the keyboard's
+          // Next key, walks down the form and submits it empty.
+          imeOpenRef.current = false;
+          imeElRef.current = null;
+          suppressIme(currentEl);
+        });
+      });
       return;
     }
     currentEl.click();
@@ -304,7 +324,7 @@ export const useTVFocus = ({
           closeIme(active ?? target);
           return;
         }
-        onBack?.();
+        onBackRef.current?.();
         return;
       }
 
@@ -351,10 +371,23 @@ export const useTVFocus = ({
           if (currentIdRef.current === before) return;
           const landed = getAllElements().find((el) => getId(el) === currentIdRef.current) ?? null;
           if (!isTextInput(landed)) return;
+          // move() focused this field through focusById, which suppressed it —
+          // so it is focused with inputmode="none" and its input connection is
+          // already built. Clearing the attribute and calling focus() again
+          // would be a no-op on an already-focused element, and the keyboard
+          // would never appear on the second field. Force a real transition,
+          // exactly as activate() does.
           allowIme(landed);
-          imeOpenRef.current = true;
           imeElRef.current = landed;
-          void focusTextInputForDpad(landed);
+          landed.blur();
+          requestAnimationFrame(() => {
+            void focusTextInputForDpad(landed).then((opened) => {
+              imeOpenRef.current = opened;
+              if (opened) return;
+              imeElRef.current = null;
+              suppressIme(landed);
+            });
+          });
         });
         return;
       }
@@ -384,7 +417,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, move, onBack]);
+  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, move]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
