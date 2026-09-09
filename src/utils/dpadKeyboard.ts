@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { markKeyboardHidden } from '@/utils/keyboardVisibility';
+import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
 
 export const hideKeyboardForDpad = async (
   element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
