@@ -111,3 +111,6 @@ export const editableSiblings = (el: EditableField): EditableField[] => {
   return Array.from(scope.querySelectorAll<EditableField>('input, textarea'))
     .filter((f) => isEditableField(f) && f.offsetParent !== null);
 };
+
+/** True while the app-drawn keyboard owns the remote keys. */
+export const isScreenKeyboardOpen = () => target !== null;
