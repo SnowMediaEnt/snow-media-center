@@ -31,23 +31,23 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 vi.mock('@capacitor/keyboard', () => {
-  if (state.showMode === 'missing') throw new Error('Keyboard plugin not available');
-  return {
-    Keyboard: {
-      show: async () => {
-        state.showCalls += 1;
-        if (state.showMode === 'reject') throw new Error('show rejected');
-        if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
-      },
-      hide: async () => {
-        state.hideCalls += 1;
-      },
-      addListener: async (event: string, cb: () => void) => {
-        (event === 'keyboardDidShow' ? state.didShow : state.didHide).push(cb);
-        return { remove: () => {} };
-      },
+  const Keyboard = {
+    show: async () => {
+      state.showCalls += 1;
+      if (state.showMode === 'reject') throw new Error('show rejected');
+      if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
+    },
+    hide: async () => {
+      state.hideCalls += 1;
+    },
+    addListener: async (event: string, cb: () => void) => {
+      (event === 'keyboardDidShow' ? state.didShow : state.didHide).push(cb);
+      return { remove: () => {} };
     },
   };
+  // 'missing' models a device where the plugin never registered: the import
+  // succeeds but there is no Keyboard to call.
+  return { get Keyboard() { return state.showMode === 'missing' ? undefined : Keyboard; } };
 });
 
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';

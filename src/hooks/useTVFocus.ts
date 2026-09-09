@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
+import { isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -99,13 +99,25 @@ export const useTVFocus = ({
   const pendingElRef = useRef<HTMLElement | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
-  const keyboardOpen = useCallback(() => imeVisibleRef.current && !!imeElRef.current, []);
   /** True only for an editable field inside THIS hook's container. */
   const ownsElement = useCallback(
     (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
       isTextInput(el) && !!containerRef.current?.contains(el),
     [],
   );
+  const keyboardOpen = useCallback(() => {
+    if (imeVisibleRef.current && !!imeElRef.current) return true;
+    // The platform keyboard can already be up from the field we just left:
+    // moving between editable fields deliberately does not hide it, so no fresh
+    // keyboardDidShow arrives for the new field. If the platform still reports a
+    // keyboard and the focused field is the one we asked for, it is ours.
+    const active = document.activeElement as HTMLElement | null;
+    if (imeElRef.current && imeElRef.current === active && ownsElement(active) && isNativeKeyboardVisible()) {
+      imeVisibleRef.current = true;
+      return true;
+    }
+    return false;
+  }, [ownsElement]);
   const clearIme = useCallback(() => {
     imeVisibleRef.current = false;
     imeElRef.current = null;
