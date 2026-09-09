@@ -42,6 +42,15 @@ export const focusTextInputForDpad = async (
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
     await Keyboard.show();
+    // Fire TV and some Android TV launchers ignore Keyboard.show() because it
+    // uses a non-forced IME request. Follow it with the native fallback; phones
+    // normally already have the keyboard open, so this is harmless there.
+    try {
+      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+      await SnowKeyboard.show();
+    } catch (error) {
+      console.warn('[DPadKeyboard] Forced keyboard fallback unavailable:', error);
+    }
     return true;
   } catch (error) {
     // A missing plugin registration lands here, and used to be swallowed into a
