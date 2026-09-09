@@ -406,8 +406,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         // leaveMode(), dropping the viewer out of the Player mid-purchase.
         if (credsChildOpenRef.current) return;
         if (e.defaultPrevented) return;
-        const target = e.target as HTMLElement;
-        const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+        // Ask the DOM where focus actually is, not where the event says it came
+        // from. Our own Capacitor backButton listener synthesizes this Escape on
+        // document.body, so e.target is BODY even while the viewer is typing in
+        // the sign-in form — and this handler concluded "not typing" and called
+        // leaveMode(), tearing the form down on the first Back.
+        const isField = (n: HTMLElement | null) =>
+          !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable);
+        const typing = isField(e.target as HTMLElement | null)
+          || isField(document.activeElement as HTMLElement | null);
         const isBack = e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace';
         if (isBack && typing) {
           // Don't act, but don't let Index's bubble handler pop the Player either.
