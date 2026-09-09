@@ -264,22 +264,28 @@ describe('Next / Done sequence', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it('a late didHide from the field we left does not silence the field we moved to', async () => {
-    const { getByLabelText } = render(<Harness />);
+  it('Next transfers fields without requesting a hide, and a native didHide afterwards is honoured', async () => {
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
     const email = getByLabelText('email') as HTMLInputElement;
     await tap(email);
     await fireDidShow();
     await ok(email);                    // Next -> password
     const password = getByLabelText('password') as HTMLInputElement;
     expect(document.activeElement).toBe(password);
-    await fireDidShow();                // the platform confirms for the new field
-    const onBack = vi.fn();
-    // Back now closes the keyboard rather than leaving, proving state belongs
-    // to the field we moved to.
+    expect(state.hideCalls).toBe(0);    // no hide was ever asked for
+    // The platform keyboard stayed up through the transfer, so Back closes it
+    // rather than leaving the form.
     await back(password);
     expect(state.hideCalls).toBe(1);
     expect(onBack).not.toHaveBeenCalled();
+    // A real didHide now arrives; the next Back leaves the screen.
+    await fireDidHide();
+    await act(async () => { vi.setSystemTime(Date.now() + 600); });
+    await back(document.body);
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
+
 
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();
