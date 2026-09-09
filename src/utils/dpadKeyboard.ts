@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { markKeyboardHidden } from '@/utils/keyboardVisibility';
+import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
 import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
 
 export const hideKeyboardForDpad = async (
@@ -69,7 +69,6 @@ export const focusTextInputForDpad = async (
     return !cancelled();
   }
 
-
   let requested = false;
   if (cancelled()) return false;
   try {
@@ -78,22 +77,30 @@ export const focusTextInputForDpad = async (
     await Keyboard.show();
     requested = true;
   } catch (error) {
-    // A missing plugin registration lands here. Do not give up: the forced
-    // native fallback below can still raise the keyboard on TV devices.
+    // A missing plugin registration lands here. Do not give up: the native
+    // fallback below can still raise the keyboard on TV devices.
     console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
   }
 
-  // Fire TV and some Android TV launchers ignore Keyboard.show() because it
-  // uses a non-forced IME request. Follow it with the forced native fallback;
-  // phones normally already have the keyboard open, so this is harmless there.
+  // Fire TV and some Android TV launchers accept Keyboard.show() and raise
+  // nothing at all, so a fallback is needed — but ONLY then. Asking twice when
+  // the first request already worked is what put a second, generic keyboard on
+  // screen instead of the usual one. Give the platform a moment to report
+  // keyboardDidShow before deciding.
   if (cancelled()) return false;
-  try {
-    const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+  if (!isNativeKeyboardVisible()) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
     if (cancelled()) return false;
-    await SnowKeyboard.show();
-    requested = true;
-  } catch (error) {
-    console.warn('[DPadKeyboard] Forced keyboard fallback unavailable:', error);
+    if (!isNativeKeyboardVisible()) {
+      try {
+        const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+        if (cancelled()) return false;
+        await SnowKeyboard.show();
+        requested = true;
+      } catch (error) {
+        console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
+      }
+    }
   }
 
   return requested && !cancelled();
