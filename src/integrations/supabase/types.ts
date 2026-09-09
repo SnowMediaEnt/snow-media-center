@@ -2051,54 +2051,6 @@ export type Database = {
         }
         Relationships: []
       }
-      signup_links: {
-        Row: {
-          active: boolean
-          connections: number | null
-          created_at: string
-          currency: string
-          id: string
-          kind: string
-          label: string | null
-          price: number | null
-          service: string
-          sort: number
-          term_months: number | null
-          updated_at: string
-          url: string
-        }
-        Insert: {
-          active?: boolean
-          connections?: number | null
-          created_at?: string
-          currency?: string
-          id: string
-          kind: string
-          label?: string | null
-          price?: number | null
-          service: string
-          sort?: number
-          term_months?: number | null
-          updated_at?: string
-          url: string
-        }
-        Update: {
-          active?: boolean
-          connections?: number | null
-          created_at?: string
-          currency?: string
-          id?: string
-          kind?: string
-          label?: string | null
-          price?: number | null
-          service?: string
-          sort?: number
-          term_months?: number | null
-          updated_at?: string
-          url?: string
-        }
-        Relationships: []
-      }
       player_favorites: {
         Row: {
           favorites: Json
@@ -2754,6 +2706,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      signup_links: {
+        Row: {
+          active: boolean
+          connections: number | null
+          created_at: string
+          currency: string
+          id: string
+          kind: string
+          label: string | null
+          price: number | null
+          service: string
+          sort: number
+          term_months: number | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          connections?: number | null
+          created_at?: string
+          currency?: string
+          id: string
+          kind: string
+          label?: string | null
+          price?: number | null
+          service: string
+          sort?: number
+          term_months?: number | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          connections?: number | null
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: string
+          label?: string | null
+          price?: number | null
+          service?: string
+          sort?: number
+          term_months?: number | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
       smc_news: {
         Row: {
@@ -3827,6 +3827,20 @@ export type Database = {
         }[]
       }
       owns_support_ticket: { Args: { ticket: string }; Returns: boolean }
+      player_favorites_read: {
+        Args: { p_host: string; p_username: string }
+        Returns: Json
+      }
+      player_favorites_upsert_cas: {
+        Args: {
+          p_base_version: number
+          p_favorites: Json
+          p_host: string
+          p_username: string
+        }
+        Returns: Json
+      }
+      player_favorites_version: { Args: { p_ts: string }; Returns: number }
       plex_spend_credits: {
         Args: { p_amount: number; p_reseller_id: string }
         Returns: number
@@ -3860,20 +3874,6 @@ export type Database = {
         Args: { p_device_id: string; p_reason?: string }
         Returns: Json
       }
-      player_favorites_upsert_cas: {
-        Args: {
-          p_base_version: number | null
-          p_favorites: Json
-          p_host: string
-          p_username: string
-        }
-        Returns: Json
-      }
-      player_favorites_read: {
-        Args: { p_host: string; p_username: string }
-        Returns: Json
-      }
-      player_favorites_version: { Args: { p_ts: string }; Returns: number }
       run_refresh_player_signins: { Args: never; Returns: undefined }
       set_tenant_giveaway: {
         Args: { p_code: string; p_enabled: boolean }
