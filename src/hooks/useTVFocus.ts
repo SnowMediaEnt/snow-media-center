@@ -27,20 +27,16 @@ const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextA
 /**
  * The remote's OK button.
  *
- * A Fire TV remote sends KEYCODE_DPAD_CENTER (23), and some remotes send
- * ENTER (66). Depending on the WebView build those reach JavaScript with
- * event.key of 'Enter', 'Unidentified' or '' — so testing event.key alone
- * misses the press entirely. PlexPlayerOverlay, BufferingGuide, StoreScreen,
- * HowToGuide, ClaimAccountCard and RenewQR all accept 23/66 for exactly this
- * reason; this hook was the one place that did not.
+ * A Fire TV remote sends KEYCODE_DPAD_CENTER (23), which reaches JavaScript
+ * with event.key of 'Enter', 'Unidentified' or '' depending on the WebView
+ * build — so testing event.key alone can miss the press. PlexPlayerOverlay,
+ * BufferingGuide, StoreScreen, HowToGuide, ClaimAccountCard and RenewQR all
+ * accept 23; this hook was the one place that did not.
  *
- * That was survivable while focusing a field opened the keyboard by itself.
- * Once OK became the way to open it, an OK that never arrives means a field
- * that can never be typed in.
+ * Deliberately NOT keyCode 66: in Android that is KEYCODE_ENTER, but in the
+ * DOM it is the letter B, and matching it swallows every 'b' the viewer types.
+ * 23 is unassigned in the DOM, so it is safe.
  */
-// NOT keyCode 66: in Android that is KEYCODE_ENTER, but in the DOM it is the
-// letter B — matching it would swallow every 'b' the viewer types. 23 is
-// unassigned in the DOM, so it is safe to read as DPAD_CENTER.
 const isEnterKey = (e: KeyboardEvent) =>
   e.key === 'Enter' || e.key === 'Select'
   || e.code === 'Enter' || e.code === 'NumpadEnter'
