@@ -174,7 +174,16 @@ export const useTVFocus = ({
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
     // Highlight only. Enter is what asks for the keyboard — and the field it
     // asked for keeps it.
-    if (target !== imeElRef.current) suppressIme(target);
+    if (isTextInput(target) && focusCameFromPointer()) {
+      // Tapped, not arrowed onto: let the device raise its own keyboard, and
+      // record that it is up so Backspace deletes a character instead of
+      // being read as Back and leaving the screen.
+      allowIme(target);
+      imeOpenRef.current = true;
+      imeElRef.current = target;
+    } else if (target !== imeElRef.current) {
+      suppressIme(target);
+    }
     target.focus({ preventScroll: true });
     // When focusing a top-of-page "back" control, snap the nearest scroll
     // container to absolute top so the safe-area padding isn't clipped.
