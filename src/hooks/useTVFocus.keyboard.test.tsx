@@ -242,7 +242,7 @@ describe('native visibility association', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('a keyboard raised for another hook\'s field does not count as open here', async () => {
+  it('a keyboard raised for another hook\'s field is ignored until focus is on this hook\'s own field', async () => {
     const onBackA = vi.fn();
     const { getByTestId } = render(
       <div>
@@ -257,10 +257,24 @@ describe('native visibility association', () => {
     await fireDidShow();                 // belongs to the disabled hook's field
     await act(async () => { typeEvidence(bField); });
 
+    // While the other hook's field holds focus, hook A neither claims the
+    // keyboard nor acts on Back at all.
+    await back(bField);
+    expect(onBackA).not.toHaveBeenCalled();
+    expect(state.hideCalls).toBe(0);
+
+    // Focus moves onto hook A's own field with the keyboard still on screen, so
+    // it is now A's to close; only the press after that leaves the screen.
     await tap(aField);
-    await back(aField);                  // hook A must treat this as Back, not "close keyboard"
+    await back(aField);
+    expect(state.hideCalls).toBe(1);
+    expect(onBackA).not.toHaveBeenCalled();
+    await fireDidHide();
+    await act(async () => { vi.setSystemTime(Date.now() + 600); });
+    await back(document.body);
     expect(onBackA).toHaveBeenCalledTimes(1);
   });
+
 });
 
 describe('Next / Done sequence', () => {
