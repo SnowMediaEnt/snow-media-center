@@ -143,9 +143,12 @@
         <!-- Home-screen news widget. Only launchers that expose a widget picker
              will ever bind this (generic Android boxes); the stock Android TV /
              Google TV and Fire TV launchers ignore it entirely. -->
+        <!-- Must be exported: launchers discover widget providers and deliver
+             APPWIDGET_UPDATE from another process, so a non-exported receiver
+             never appears in the widget picker and never refreshes. -->
         <receiver
             android:name="com.snowmedia.widget.SmcNewsWidget"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

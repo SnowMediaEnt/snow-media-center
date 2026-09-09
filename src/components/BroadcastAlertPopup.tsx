@@ -3,6 +3,7 @@ import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
+import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
 import type { BroadcastAlert } from '@/hooks/useBroadcastAlert';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
@@ -36,6 +37,7 @@ const BroadcastAlertPopup = ({ alert, onDismiss }: Props) => {
       if (Date.now() - mountedAtRef.current < MIN_DELAY_MS) return false;
       try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return false; }
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
+      if (!claimBootPopup('broadcast-alert')) return false;
       setOpen(true);
       try { trackEvent('broadcast_alert_popup_shown', 'alerts', { alert_id: alert.id, severity: alert.severity }); } catch { void 0; }
       return true;
@@ -45,9 +47,12 @@ const BroadcastAlertPopup = ({ alert, onDismiss }: Props) => {
     return () => { cancelled = true; window.clearInterval(id); };
   }, [alert.id]);
 
+  useEffect(() => () => releaseBootPopup('broadcast-alert'), []);
+
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'broadcast', action: 'ok', title: alert.title, severity: alert.severity }); } catch { void 0; }
     setOpen(false);
+    releaseBootPopup('broadcast-alert');
     onDismiss();
   };
 

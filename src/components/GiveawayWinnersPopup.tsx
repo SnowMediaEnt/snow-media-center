@@ -3,6 +3,7 @@ import { PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
+import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
 import type { AnnouncedGiveaway } from '@/hooks/useGiveawayWinners';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
@@ -35,6 +36,7 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
       if (Date.now() - mountedAtRef.current < MIN_DELAY_MS) return false;
       try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return false; }
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
+      if (!claimBootPopup('giveaway-winners')) return false;
       setOpen(true);
       try { trackEvent('giveaway_winners_popup_shown', 'giveaway', { giveaway_id: giveaway.giveawayId }); } catch { void 0; }
       return true;
@@ -44,9 +46,12 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
     return () => { cancelled = true; window.clearInterval(id); };
   }, [giveaway.giveawayId]);
 
+  useEffect(() => () => releaseBootPopup('giveaway-winners'), []);
+
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'giveaway_winners', action: 'ok', giveaway_id: giveaway.giveawayId }); } catch { void 0; }
     setOpen(false);
+    releaseBootPopup('giveaway-winners');
     onDismiss();
   };
 
