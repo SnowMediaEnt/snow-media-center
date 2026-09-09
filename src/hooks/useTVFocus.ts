@@ -432,7 +432,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, move]);
+  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, keyboardOpen, move]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
