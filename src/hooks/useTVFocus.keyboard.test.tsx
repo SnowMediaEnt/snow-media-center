@@ -78,18 +78,24 @@ const Harness = ({ enabled = true, onBack, onSubmit, withTextarea }: HarnessProp
     onBack,
   });
   return (
-    <div ref={containerRef}>
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit?.(); }}>
-        <input aria-label="email" inputMode="email" enterKeyHint="next" {...focusProps('f-email')} />
-        <input aria-label="password" enterKeyHint="next" {...focusProps('f-pass')} />
-        <input aria-label="first" enterKeyHint="next" {...focusProps('f-first')} />
-        <input aria-label="last" enterKeyHint="done" data-tv-allow-enter="true" {...focusProps('f-last')} />
-        {withTextarea && <textarea aria-label="notes" {...focusProps('f-notes')} />}
-        <button type="submit" {...focusProps('f-submit')}>Go</button>
-      </form>
-    </div>
+    <>
+      <div ref={containerRef}>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit?.(); }}>
+          <input aria-label="email" inputMode="email" enterKeyHint="next" {...focusProps('f-email')} />
+          <input aria-label="password" enterKeyHint="next" {...focusProps('f-pass')} />
+          <input aria-label="first" enterKeyHint="next" {...focusProps('f-first')} />
+          <input aria-label="last" enterKeyHint="done" data-tv-allow-enter="true" {...focusProps('f-last')} />
+          {withTextarea && <textarea aria-label="notes" {...focusProps('f-notes')} />}
+          <button type="submit" {...focusProps('f-submit')}>Go</button>
+        </form>
+      </div>
+      {/* Outside the hook's container: focus can land here without any hook
+          navigation, exactly as an unrelated widget would take it. */}
+      <button data-testid="outside">out</button>
+    </>
   );
 };
+
 
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
 
