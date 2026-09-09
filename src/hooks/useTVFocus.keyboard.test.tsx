@@ -368,6 +368,51 @@ describe('cancellation of in-flight requests', () => {
     expect(document.activeElement).not.toBe(email);
   });
 
+  it('focus lost to an unrelated element during a delayed show cancels the fallback and is not stolen back', async () => {
+    state.deferShow = true;
+    const { getByLabelText, getByTestId } = render(<Harness />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const outside = getByTestId('outside') as HTMLButtonElement;
+    await tap(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1);
+    // No hook navigation at all: something else simply took focus.
+    await act(async () => { outside.focus(); });
+    await act(async () => { state.pending.forEach((r) => r()); });
+    await flush();
+    expect(state.fallbackCalls).toBe(0);
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('disabling the hook during a delayed show cancels the fallback', async () => {
+    state.deferShow = true;
+    const { getByLabelText, rerender } = render(<Harness />);
+    const email = getByLabelText('email');
+    await tap(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1);
+    await act(async () => { rerender(<Harness enabled={false} />); });
+    await act(async () => { state.pending.forEach((r) => r()); });
+    await flush();
+    expect(state.fallbackCalls).toBe(0);
+  });
+
+  it('a show that never settles stops blocking retries once the request deadline lapses', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    state.deferShow = true;
+    const { getByLabelText } = render(<Harness />);
+    const email = getByLabelText('email');
+    await tap(email);
+    await ok(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1); // still pending: no duplicate request
+    await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+    await ok(email);
+    expect(state.showCalls).toBe(2); // retryable again
+  });
+
+
+
   it('OK pressed twice while a show is in flight makes only one native request', async () => {
     state.deferShow = true;
     const { getByLabelText } = render(<Harness />);
