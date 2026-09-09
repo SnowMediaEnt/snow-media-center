@@ -115,4 +115,33 @@ describe('browser on-screen keyboard', () => {
     unmount();
     await waitFor(() => expect(isScreenKeyboardOpen()).toBe(false));
   });
+
+  it('Next follows the registration field order Email -> Password -> First -> Last and Done does not submit', () => {
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <>
+        <form onSubmit={onSubmit}>
+          <input id="ba-email" aria-label="Email" type="email" inputMode="email" defaultValue="" />
+          <input id="ba-pass" aria-label="Password" type="password" defaultValue="" />
+          <input id="ba-first" aria-label="First name" defaultValue="" />
+          <input id="ba-last" aria-label="Last name" defaultValue="" />
+          <button type="submit">Create account</button>
+        </form>
+        <ScreenKeyboard />
+      </>,
+    );
+    const ids = ['ba-email', 'ba-pass', 'ba-first', 'ba-last'];
+    act(() => { openScreenKeyboard(document.getElementById('ba-email')); });
+    ids.forEach((id, i) => {
+      expect(document.activeElement?.id).toBe(id);
+      fireEvent.click(keyEl('key t'));
+      if (i < ids.length - 1) fireEvent.click(keyEl('Next'));
+    });
+    ids.forEach((id) => expect((document.getElementById(id) as HTMLInputElement).value).toBe('t'));
+    // email keeps its own input mode; the keyboard never rewrote it
+    expect((document.getElementById('ba-email') as HTMLInputElement).inputMode).toBe('email');
+    fireEvent.click(keyEl('Done'));
+    expect(isScreenKeyboardOpen()).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });
