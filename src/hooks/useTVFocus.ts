@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
