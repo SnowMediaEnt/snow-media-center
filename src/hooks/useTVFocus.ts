@@ -209,21 +209,32 @@ export const useTVFocus = ({
   const openKeyboardOn = useCallback(async (el: HTMLInputElement | HTMLTextAreaElement) => {
     if (pendingElRef.current === el) return;
     const gen = ++requestGenRef.current;
+    clearPendingTimer();
     pendingElRef.current = el;
     imeElRef.current = el;
+    // Bounded deadline: a native show that never settles used to hold this
+    // field's pending slot forever, so OK could never be retried.
+    pendingTimerRef.current = setTimeout(() => {
+      pendingTimerRef.current = null;
+      if (pendingElRef.current === el) pendingElRef.current = null;
+    }, REQUEST_DEADLINE_MS);
     const isCancelled = () =>
       !mountedRef.current || !enabledRef.current || gen !== requestGenRef.current
       || !el.isConnected || el.disabled || !containerRef.current?.contains(el);
     try {
       await focusTextInputForDpad(el, { isCancelled });
     } finally {
-      if (pendingElRef.current === el) pendingElRef.current = null;
+      if (pendingElRef.current === el) {
+        clearPendingTimer();
+        pendingElRef.current = null;
+      }
       if (gen === requestGenRef.current && imeElRef.current === el && !imeVisibleRef.current
         && (!el.isConnected || !enabledRef.current)) {
         imeElRef.current = null;
       }
     }
-  }, []);
+  }, [clearPendingTimer]);
+
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which
