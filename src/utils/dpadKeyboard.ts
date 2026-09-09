@@ -1,13 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
-import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
 
 export const hideKeyboardForDpad = async (
   element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
 ) => {
-  // Browser preview: the keyboard is drawn by the app, so closing it is a
-  // local state change. No-op on native and when it was never open.
-  closeScreenKeyboard();
   element?.blur();
   markKeyboardHidden();
 
@@ -60,14 +56,8 @@ export const focusTextInputForDpad = async (
   element.focus({ preventScroll: true });
   focused = true;
 
-  if (!Capacitor.isNativePlatform()) {
-    if (cancelled()) return false;
-    // Desktop preview has no system IME to summon: draw our own keyboard so
-    // OK on a text bar visibly opens something that can be typed on with a
-    // remote. Gated inside openScreenKeyboard (never native, never mobile).
-    openScreenKeyboard(element);
-    return !cancelled();
-  }
+  // A browser has a real keyboard already; there is nothing to summon.
+  if (!Capacitor.isNativePlatform()) return !cancelled();
 
   let requested = false;
   if (cancelled()) return false;
