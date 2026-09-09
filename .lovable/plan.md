@@ -37,13 +37,16 @@ The history search found nothing for option 2. If the owner saw a keyboard in th
 
 ## Recommended next step (not yet implemented)
 
-The smallest change that gives a visible, remote-operable keyboard in the sandbox:
+The unresolved acceptance criteria are: (a) a visible on-screen keyboard appears in the Lovable sandbox when a text field is selected, and (b) it is operable with a D-pad remote.
 
-- Add one small in-app key grid that opens when OK is pressed on a text field, arrows move between keys, OK types, and Back closes it, writing straight into the field that opened it.
-- Show it only where the device's own keyboard is not available (the browser/preview), so the installed TV app keeps using the real system keyboard it already asks for and nothing about current TV behaviour changes.
-- Wire it through the existing focus system so every form (Player sign-in, billing, support, chat) gets it at once, with no per-screen edits.
+The smallest change that meets both, independent of the sandbox's host browser/device behavior, is an in-app key grid:
 
-I have not written any of this. Say the word and I will plan it properly, including whether you also want it on the TV app itself as a fallback for boxes whose system keyboard misbehaves.
+- Render a key grid overlay when OK/Enter is pressed on a managed text field.
+- D-pad arrows move between keys, OK types the selected key, Back/Done closes the grid, and text is written into the focused field.
+- Show it when `Capacitor.getPlatform() === 'web'` or when the platform's own keyboard cannot be observed, so installed TV apps keep using the system keyboard path they already have.
+- Wire it through the existing `useTVFocus` focus system so Player sign-in, billing, support, and chat forms receive it without per-screen changes.
+
+I have not implemented this. Before planning it, I should clarify the exact sandbox device/browser where the owner expects to see the keyboard (desktop Chromium preview, Android mobile browser, etc.).
 
 ## Technical notes
 
