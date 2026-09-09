@@ -150,8 +150,9 @@ export const useTVFocus = ({
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    return () => { mountedRef.current = false; clearPendingTimer(); };
+  }, [clearPendingTimer]);
+
 
   useEffect(() => {
     if (!enabled) { clearIme(); return; }
