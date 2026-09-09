@@ -323,7 +323,7 @@ export const useTVFocus = ({
       const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack';
       if (isBack) {
         // Backspace is a delete key while the keyboard is up, not a Back.
-        if (event.key === 'Backspace' && imeOpenRef.current) return;
+        if (event.key === 'Backspace' && (imeOpenRef.current || typing)) return;
         event.preventDefault();
         event.stopPropagation();
         const now = Date.now();
