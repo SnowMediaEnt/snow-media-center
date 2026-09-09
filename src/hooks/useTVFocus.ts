@@ -25,6 +25,31 @@ const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextA
   !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
 
 /**
+ * The remote's OK button.
+ *
+ * A Fire TV remote sends KEYCODE_DPAD_CENTER (23), and some remotes send
+ * ENTER (66). Depending on the WebView build those reach JavaScript with
+ * event.key of 'Enter', 'Unidentified' or '' — so testing event.key alone
+ * misses the press entirely. PlexPlayerOverlay, BufferingGuide, StoreScreen,
+ * HowToGuide, ClaimAccountCard and RenewQR all accept 23/66 for exactly this
+ * reason; this hook was the one place that did not.
+ *
+ * That was survivable while focusing a field opened the keyboard by itself.
+ * Once OK became the way to open it, an OK that never arrives means a field
+ * that can never be typed in.
+ */
+const isEnterKey = (e: KeyboardEvent) =>
+  e.key === 'Enter' || e.key === 'Select'
+  || e.keyCode === 13 || e.keyCode === 23 || e.keyCode === 66;
+
+/** Enter, or Space — both activate a focused control when not typing. */
+const isOkKey = (e: KeyboardEvent) =>
+  isEnterKey(e) || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space' || e.keyCode === 32;
+
+const isArrowKey = (e: KeyboardEvent) =>
+  e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+
+/**
  * Keep the on-screen keyboard shut while a field is merely HIGHLIGHTED.
  *
  * On a TV, moving the D-pad onto a field is not the same as wanting to type in
@@ -198,7 +223,15 @@ export const useTVFocus = ({
       allowIme(currentEl);
       imeOpenRef.current = true;
       imeElRef.current = currentEl;
-      void focusTextInputForDpad(currentEl);
+      // Android builds the IME's input connection when a field GAINS focus, and
+      // reads inputmode at that moment. The field is already focused here — it
+      // is the highlighted one — so clearing the attribute now changes nothing
+      // the IME can see, and Keyboard.show() is answered with the connection
+      // built while inputmode was still "none". No keyboard, however many times
+      // you press OK. Blur and refocus on the next frame to force a fresh
+      // connection that reads the restored inputmode.
+      currentEl.blur();
+      requestAnimationFrame(() => { void focusTextInputForDpad(currentEl); });
       return;
     }
     currentEl.click();
@@ -292,20 +325,20 @@ export const useTVFocus = ({
       // with an empty password ("Please enter your username and password")
       // rather than opening the keyboard. The field could never be filled in,
       // and Back then had no keyboard to close so it left the screen instead.
-      if (event.key === 'Enter' && enterField && !imeOpenRef.current) {
+      if (isEnterKey(event) && enterField && !imeOpenRef.current) {
         event.preventDefault();
         event.stopPropagation();
         activate();
         return;
       }
 
-      if (typing && event.key === 'Enter' && managedTarget.dataset.tvAllowEnter === 'true' && !wantsNext) return;
+      if (typing && isEnterKey(event) && managedTarget.dataset.tvAllowEnter === 'true' && !wantsNext) return;
 
       // The keyboard's own Next / Done key arrives as Enter. Next means the
       // field below — not "open this field again", which is what activate()
       // did, and why Next appeared to do nothing at all. With no field below,
       // this is Done and the keyboard simply closes.
-      if (event.key === 'Enter' && enterField && imeOpenRef.current) {
+      if (isEnterKey(event) && enterField && imeOpenRef.current) {
         event.preventDefault();
         event.stopPropagation();
         const from = enterField;
@@ -328,22 +361,22 @@ export const useTVFocus = ({
       // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
       // to type spaces. Also let Enter pass through unless arrow navigation is needed.
       if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
-      if (typing && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) return;
+      if (typing && !isArrowKey(event) && !isEnterKey(event)) return;
+      if (!isArrowKey(event) && !isOkKey(event)) return;
 
 
       event.preventDefault();
       event.stopPropagation();
       // Moving off a field closes the keyboard; the field we land on is
       // suppressed by focusById, so it cannot pop straight back up.
-      if (typing && event.key.startsWith('Arrow')) {
+      if (typing && isArrowKey(event)) {
         imeOpenRef.current = false;
         imeElRef.current = null;
         suppressIme(active ?? target);
         void hideKeyboardForDpad(active ?? target);
       }
 
-      if (event.key === 'Enter' || event.key === ' ') activate();
+      if (isOkKey(event)) activate();
       if (event.key === 'ArrowUp') move('up');
       if (event.key === 'ArrowDown') move('down');
       if (event.key === 'ArrowLeft') move('left');
