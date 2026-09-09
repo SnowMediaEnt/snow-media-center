@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -54,37 +55,15 @@ const isArrowKey = (e: KeyboardEvent) =>
   e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
 
 /**
- * The on-screen keyboard is left to the platform.
+ * The on-screen keyboard is left entirely to the platform.
  *
- * Focusing a field raises it on both TV WebViews and phones, which is what a
- * viewer expects when they land on Username. The app no longer tries to hold
- * it back with inputmode="none" — see suppressIme below.
+ * There is no suppression here any more: no inputmode="none", no readonly
+ * trap, no blur/refocus dance. Those all ended the same way — Android built
+ * the input connection while the field was suppressed, and the later
+ * Keyboard.show() was answered against that dead connection, so the keyboard
+ * never appeared however many times OK was pressed. Explicit inputmode values
+ * (email, numeric) set by the forms are left exactly as the forms wrote them.
  */
-
-
-
-/**
- * NO-OP on purpose.
- *
- * Blocking the keyboard until OK was pressed left viewers unable to type at
- * all: on several Fire TV / Android TV WebViews the later Keyboard.show() is
- * answered against an input connection built while inputmode was still
- * "none", so the keyboard never appeared however many times OK was pressed.
- * Landing on a field now simply lets the platform raise its own keyboard,
- * which is what every other TV app does.
- */
-const suppressIme = (_el: HTMLElement | null) => {
-  /* intentionally does nothing — see comment above */
-};
-
-
-/** The viewer pressed Enter on the field: give it its real keyboard back. */
-const allowIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  const original = el.dataset.tvInputMode;
-  if (original) el.setAttribute('inputmode', original);
-  else el.removeAttribute('inputmode');
-};
 
 const isVisible = (el: HTMLElement) =>
   !el.hasAttribute('disabled') &&
@@ -104,16 +83,43 @@ export const useTVFocus = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
   const didAutoFocusRef = useRef(false);
-  // Whether WE opened the keyboard. Focus alone no longer opens it, so this is
-  // an accurate record — and Back needs it: keying off "focus is in an input"
-  // instead would trap the viewer on the screen, since the field keeps focus
-  // after the keyboard closes.
-  const imeOpenRef = useRef(false);
-  // The element whose keyboard is open. focusById suppresses the IME on
-  // whatever it focuses — and every managed element's onFocus calls focusById,
-  // so opening the keyboard re-entered focusById and shut it again before it
-  // could appear. This is the one element it must leave alone.
+  // Whether the platform's on-screen keyboard is GENUINELY up, and for which
+  // field. Deliberately not "a field is focused" and not "we called
+  // Keyboard.show()": TV WebViews focus fields for D-pad navigation with no IME
+  // at all, and they accept show() requests they then ignore. Only a
+  // keyboardDidShow event, real editing evidence (input / composition), or a
+  // browser where a focused field is immediately editable sets this true.
+  // Everything that changes meaning once the keyboard is up — Enter as
+  // Next/Done, Back closing the keyboard first — reads it, so a phantom value
+  // is what silently submitted empty sign-in forms.
+  const imeVisibleRef = useRef(false);
   const imeElRef = useRef<HTMLElement | null>(null);
+  const mountedRef = useRef(true);
+  const keyboardOpen = useCallback(() => imeVisibleRef.current && !!imeElRef.current, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    // Platform lifecycle events, plus hard editing evidence for devices that
+    // raise a keyboard without ever firing keyboardDidShow.
+    const stop = onKeyboardVisibilityChange((open) => {
+      imeVisibleRef.current = open;
+      if (!open) imeElRef.current = null;
+    });
+    const evidence = (event: Event) => {
+      const el = event.target as HTMLElement | null;
+      if (!isTextInput(el)) return;
+      imeElRef.current = el;
+      imeVisibleRef.current = true;
+      markKeyboardVisible();
+    };
+    window.addEventListener('beforeinput', evidence, true);
+    window.addEventListener('compositionstart', evidence, true);
+    return () => {
+      mountedRef.current = false;
+      stop();
+      window.removeEventListener('beforeinput', evidence, true);
+      window.removeEventListener('compositionstart', evidence, true);
+    };
+  }, []);
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which
@@ -159,18 +165,13 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Focus alone does not prove that Android opened its keyboard. In
-    // particular, TV WebViews focus the field for D-pad navigation without
-    // creating an IME window. Keep the field selected, but leave imeOpen false
-    // until focusTextInputForDpad has actually asked Android to show it. This
-    // makes the first OK press open the keyboard instead of being mistaken for
-    // the keyboard's Next/Done key.
-    if (isTextInput(target)) {
-      allowIme(target);
-      imeOpenRef.current = false;
-      imeElRef.current = null;
-    } else {
-      imeOpenRef.current = false;
+    // Highlighting a field is NOT the keyboard opening. Leave the IME record
+    // alone when this is the very field whose keyboard we asked for — the
+    // element's own onFocus calls straight back in here, which used to wipe the
+    // record the moment the keyboard appeared. Otherwise clear it: the highlight
+    // has moved, so nothing is being edited.
+    if (target !== imeElRef.current) {
+      imeVisibleRef.current = false;
       imeElRef.current = null;
     }
 
@@ -245,27 +246,27 @@ export const useTVFocus = ({
       ?? getElements().find((el) => getId(el) === currentIdRef.current);
     if (!currentEl) return;
     if (isTextInput(currentEl)) {
-      allowIme(currentEl);
-      imeOpenRef.current = true;
-      imeElRef.current = currentEl;
-      // Android builds the IME's input connection when a field GAINS focus, and
-      // reads inputmode at that moment. The field is already focused here — it
-      // is the highlighted one — so clearing the attribute now changes nothing
-      // the IME can see, and Keyboard.show() is answered with the connection
-      // built while inputmode was still "none". No keyboard, however many times
-      // you press OK. Blur and refocus on the next frame to force a fresh
-      // connection that reads the restored inputmode.
-      currentEl.blur();
-      requestAnimationFrame(() => {
-        void focusTextInputForDpad(currentEl).then((opened) => {
-          if (opened) return;
-          // It did not open. Say so, rather than leaving the hook believing a
-          // keyboard is up: otherwise the next OK is read as the keyboard's
-          // Next key, walks down the form and submits it empty.
-          imeOpenRef.current = false;
-          imeElRef.current = null;
-          suppressIme(currentEl);
-        });
+      // Ask the platform for the keyboard on the field that is already focused.
+      // Nothing is blurred first: that destroyed the input connection Android
+      // had just built and was why the keyboard never appeared on TV.
+      //
+      // The request being accepted is NOT recorded as the keyboard being up —
+      // only keyboardDidShow or real editing does that — so if a device ignores
+      // the request, pressing OK again simply asks again.
+      const el = currentEl;
+      imeElRef.current = el;
+      void focusTextInputForDpad(el).then((requested) => {
+        // Never touch state or focus for a screen the viewer has left.
+        if (!mountedRef.current || document.activeElement !== el) return;
+        if (!requested) {
+          if (imeElRef.current === el) imeElRef.current = null;
+          return;
+        }
+        // Deliberately NOT marked as "keyboard up" here, on any platform: an
+        // accepted request is not a visible keyboard. Confirmation comes from
+        // keyboardDidShow or from the viewer actually typing (beforeinput /
+        // composition). Until then OK stays retryable and can never be read as
+        // the keyboard's Done and submit an empty form.
       });
       return;
     }
@@ -310,23 +311,21 @@ export const useTVFocus = ({
 
       const typing = isTextInput(target) || isTextInput(active) || !!target?.isContentEditable;
       // Close the keyboard but keep the field highlighted, so Back reads as
-      // "done typing" rather than "the screen reset itself". Re-suppressing
-      // first means the re-focus cannot raise it again.
+      // "done typing" rather than "the screen reset itself".
       const closeIme = (el: HTMLElement | null) => {
-        imeOpenRef.current = false;
+        imeVisibleRef.current = false;
         imeElRef.current = null;
-        suppressIme(el);
         // Blur and leave focus off the field. The ring is drawn from
         // data-tv-focused, which focusById already set, and the handler below
-        // falls back to currentIdRef when focus is loose — so navigation still
-        // works. Re-focusing the input here risked the WebView raising the
-        // keyboard again on the spot.
+        // falls back to currentIdRef when focus is loose — so remote navigation
+        // still works once the keyboard is gone.
         void hideKeyboardForDpad(el);
       };
       const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack';
       if (isBack) {
-        // Backspace is a delete key while the keyboard is up, not a Back.
-        if (event.key === 'Backspace' && (imeOpenRef.current || typing)) return;
+        // Backspace deletes whenever a field is being edited — however the
+        // viewer got into it, remote or tap — and is only Back otherwise.
+        if (event.key === 'Backspace' && (keyboardOpen() || typing)) return;
         event.preventDefault();
         event.stopPropagation();
         const now = Date.now();
@@ -335,7 +334,7 @@ export const useTVFocus = ({
         lastBackRef.current = now;
         // Tell the app's other Back listeners this press is spoken for.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
-        if (imeOpenRef.current) {
+        if (keyboardOpen()) {
           closeIme(active ?? target);
           return;
         }
@@ -347,65 +346,63 @@ export const useTVFocus = ({
       // field is marked allow-enter so Enter can submit a form. Password on the
       // create-account form is both: it carries allow-enter for the sign-in
       // layout, where it is the last field, but in register mode the keyboard
-      // says Next and First name is below it. Enter fell straight through to
-      // the form, which submitted half-filled and answered "enter a first name".
+      // says Next and First name is below it.
       const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
       const wantsNext = enterField?.getAttribute('enterkeyhint') === 'next';
+      const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
 
-      // OK on a HIGHLIGHTED field means "let me type here". Only once the
-      // keyboard is up does Enter carry the keyboard's own Next/Done meaning.
-      //
-      // Password carries data-tv-allow-enter so its Done key can submit the
-      // form, but that ran on the plain highlight too: OK on Password submitted
-      // with an empty password ("Please enter your username and password")
-      // rather than opening the keyboard. The field could never be filled in,
-      // and Back then had no keyboard to close so it left the screen instead.
-      if (isEnterKey(event) && enterField && !imeOpenRef.current) {
+      // OK on a HIGHLIGHTED field means "let me type here" — never "submit".
+      // While no keyboard is confirmed up this stays true on every press, so a
+      // device that ignored the first request can simply be asked again, and
+      // OK on Password can no longer submit an empty form.
+      if (isEnterKey(event) && enterField && !keyboardOpen()) {
         event.preventDefault();
         event.stopPropagation();
         activate();
         return;
       }
 
-      if (typing && isEnterKey(event) && managedTarget.dataset.tvAllowEnter === 'true' && !wantsNext) return;
-
-      // The keyboard's own Next / Done key arrives as Enter. Next means the
-      // field below — not "open this field again", which is what activate()
-      // did, and why Next appeared to do nothing at all. With no field below,
-      // this is Done and the keyboard simply closes.
-      if (isEnterKey(event) && enterField && imeOpenRef.current) {
+      // The keyboard's own Next / Done key arrives as Enter.
+      if (isEnterKey(event) && enterField && keyboardOpen()) {
         event.preventDefault();
         event.stopPropagation();
         const from = enterField;
-        imeOpenRef.current = false;
-        imeElRef.current = null;
-        suppressIme(from);
-        void hideKeyboardForDpad(from).then(() => {
+        closeIme(from);
+        // Done on the field the form marks as its submit key: submit, exactly
+        // as the platform's own Done would.
+        if (!wantsNext && allowEnter) {
+          const form = from.form;
+          const submitter = form?.querySelector<HTMLElement>('button[type="submit"], input[type="submit"]');
+          if (submitter) submitter.click();
+          else form?.requestSubmit?.();
+          return;
+        }
+        // Next means the field below — not "open this field again", which is
+        // why Next used to appear to do nothing at all.
+        void Promise.resolve().then(() => {
+          if (!mountedRef.current) return;
           const before = currentIdRef.current;
           move('down');
           if (currentIdRef.current === before) return;
           const landed = getAllElements().find((el) => getId(el) === currentIdRef.current) ?? null;
           if (!isTextInput(landed)) return;
-          // move() focused this field through focusById, which suppressed it —
-          // so it is focused with inputmode="none" and its input connection is
-          // already built. Clearing the attribute and calling focus() again
-          // would be a no-op on an already-focused element, and the keyboard
-          // would never appear on the second field. Force a real transition,
-          // exactly as activate() does.
-          allowIme(landed);
+          // Carry on typing straight through a registration form: open the next
+          // field's keyboard too, without needing another OK press.
           imeElRef.current = landed;
-          landed.blur();
-          requestAnimationFrame(() => {
-            void focusTextInputForDpad(landed).then((opened) => {
-              imeOpenRef.current = opened;
-              if (opened) return;
-              imeElRef.current = null;
-              suppressIme(landed);
-            });
+          void focusTextInputForDpad(landed).then((requested) => {
+            if (!mountedRef.current || document.activeElement !== landed) return;
+            if (!requested) {
+              if (imeElRef.current === landed) imeElRef.current = null;
+              return;
+            }
           });
         });
         return;
       }
+
+      // contentEditable and anything else that carries allow-enter: let Enter
+      // reach the form untouched.
+      if (typing && isEnterKey(event) && allowEnter && !wantsNext) return;
       // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
       // to type spaces. Also let Enter pass through unless arrow navigation is needed.
       if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
@@ -415,12 +412,11 @@ export const useTVFocus = ({
 
       event.preventDefault();
       event.stopPropagation();
-      // Moving off a field closes the keyboard; the field we land on is
-      // suppressed by focusById, so it cannot pop straight back up.
+      // Moving off a field closes the keyboard; the field we land on is only
+      // highlighted, not opened, so it cannot pop straight back up.
       if (typing && isArrowKey(event)) {
-        imeOpenRef.current = false;
+        imeVisibleRef.current = false;
         imeElRef.current = null;
-        suppressIme(active ?? target);
         void hideKeyboardForDpad(active ?? target);
       }
 
@@ -432,7 +428,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, move]);
+  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, keyboardOpen, move]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
