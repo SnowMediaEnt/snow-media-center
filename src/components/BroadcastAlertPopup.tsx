@@ -3,6 +3,7 @@ import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
+import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
 import type { BroadcastAlert } from '@/hooks/useBroadcastAlert';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
