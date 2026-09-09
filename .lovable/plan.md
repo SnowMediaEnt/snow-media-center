@@ -35,23 +35,66 @@ There are two different things:
 
 The history search found nothing for option 2. If the owner saw a keyboard in the sandbox before, it was most likely option 1 on a particular device/browser, but that is not established by the code. The only mechanism the codebase has ever contained asks the platform for its keyboard; it has never rendered its own.
 
-## Recommended next step (not yet implemented)
+## Resolution — implemented (2026-09-09)
 
-The unresolved acceptance criteria are: (a) a visible on-screen keyboard appears in the Lovable sandbox when a text field is selected, and (b) it is operable with a D-pad remote.
+The owner's sandbox is a MacBook Pro (Lovable app, Chrome, Safari), so option 2 was
+built: the app now draws its own keyboard in browser previews, while the installed
+Android / Fire TV app keeps asking Android for its system keyboard. No claim is made
+here about what the owner saw previously; history simply cannot establish it.
 
-The smallest change that meets both, independent of the sandbox's host browser/device behavior, is an in-app key grid:
+What was added / changed:
 
-- Render a key grid overlay when OK/Enter is pressed on a managed text field.
-- D-pad arrows move between keys, OK types the selected key, Back/Done closes the grid, and text is written into the focused field.
-- Show it when `Capacitor.getPlatform() === 'web'` or when the platform's own keyboard cannot be observed, so installed TV apps keep using the system keyboard path they already have.
-- Wire it through the existing `useTVFocus` focus system so Player sign-in, billing, support, and chat forms receive it without per-screen changes.
+- `src/lib/screenKeyboard.ts` — desktop-preview-only gate (not native, and
+  `(hover: hover) and (pointer: fine)` so phone/tablet browsers keep their own
+  keyboard and never get two), a single shared target store, React-controlled value
+  writes, caret preservation, and next-field lookup in DOM order within the form.
+- `src/components/ScreenKeyboard.tsx` — the visible key grid: digits, letters,
+  `@ . - _`, a symbols page, Shift, Space, Delete, Next, Done. One gold key highlight,
+  arrows move it, OK types it. Owns remote keys while open; Back/Escape closes.
+  Closes itself if the field or screen goes away.
+- `src/App.tsx` — mounted once, globally.
+- `src/utils/dpadKeyboard.ts` — opens it on the existing web focus path; the native
+  `Keyboard.show()` / `SnowKeyboard.show()` sequence is untouched.
+- `src/hooks/useTVFocus.ts` — yields every remote key while the overlay is open, so
+  background focus/back/submit handlers cannot fire. Always false on native.
 
-I have not implemented this. Before planning it, I should clarify the exact sandbox device/browser where the owner expects to see the keyboard (desktop Chromium preview, Android mobile browser, etc.).
+## Evidence actually observed (not mocks)
+
+Desktop Chromium preview, home → Player → Live TV, screenshots under `/tmp/browser/kb/`:
+
+- OK on Username: key grid visible with a single gold highlight on `q`; field value
+  still `''` — the opening OK types nothing (`A_open.png`).
+- Arrows + OK typed `s m c 7 -`, Shift gave `A`, symbols page gave `$`, Delete removed
+  it → `smc7-A` (`B_typed.png`).
+- Physical typing `zx` and physical Backspace still work; selecting the first two
+  characters and pressing a key replaced the selection.
+- Next moved to Password, kept the username, typed 2 characters, `type="password"`
+  stays masked; no value was ever logged (`C_password.png`).
+- Back closed the keyboard and stayed on the sign-in card; a second Back left it
+  (`D_back.png`, `E_second_back.png`). Reopening with OK worked, and clicking the
+  Password bar opened the keyboard on that bar.
+- No login attempt, no form submission, no network credential request was made.
+
+## Test / build results
+
+- `npx vitest run` → 29 passed: the 21 existing native-lifecycle tests unchanged, plus
+  8 new in `src/components/ScreenKeyboard.test.tsx` (renders only when asked, absent on
+  native, typing/Shift/Delete, single arrow highlight, Next keeps text and mask,
+  Back closes without bubbling, cleanup when the field disappears, and the
+  Email → Password → First name → Last name Next order where Done does not submit).
+- `npx tsgo --noEmit` → clean. `npm run build` → built in 27s (pre-existing chunk warning only).
+
+## Still unverified
+
+Fire TV / Android TV system keyboard behaviour on a real box. It needs
+`npm run build:android` then `npx cap run android`; the APK bundles `dist`, so preview
+changes do not reach an already-installed app. Nothing was compiled, signed, installed
+or published here.
 
 ## Technical notes
 
-- Reproduction path: `http://localhost:8080` → Player → Live TV; fields `#lt-user` / `#lt-pass`; after OK the field is `document.activeElement`, `data-tv-focused="true"`, `readOnly` false, no `inputmode` trap, and zero fixed-position overlays present.
-- Web path today: `focusTextInputForDpad` focuses the element then returns immediately on non-native (`if (!Capacitor.isNativePlatform()) return`). Native path: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback. No renderer is drawn in either path.
+- Reproduction path: `http://localhost:8080` -> Player -> Live TV; fields `#lt-user` / `#lt-pass`. Before this change, after OK the field was `document.activeElement`, `data-tv-focused="true"`, `readOnly` false, no `inputmode` trap, and zero fixed-position overlays present.
+- Old web path: `focusTextInputForDpad` focused the element then returned immediately on non-native. It now also calls `openScreenKeyboard(element)`. Native path unchanged: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback.
 - History checked: `git log --all` for deleted/renamed keyboard files (none), `-S 'simple-keyboard'` (none), `package.json` keyboard deps (`@capacitor/keyboard` only, added in `92976700`).
-- Pending clarification: exact Lovable sandbox device/browser the owner is using to reproduce the missing keyboard.
-- No edits, no build, no publish, no logins, no data operations were performed.
+- Sandbox confirmed by the owner: MacBook Pro, in the Lovable app plus Chrome and Safari.
+- The billing sign-up form (`#ba-email` / `#ba-pass` / `#ba-first` / `#ba-last`) sits behind the account/billing flow, so its Next ordering is covered by the real-DOM regression test rather than a browser walkthrough; "New here? Get started" from Live TV leads to a phone/QR handoff screen with no text fields.
