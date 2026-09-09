@@ -17,6 +17,16 @@ export const hideKeyboardForDpad = async (
   }
 };
 
+interface FocusOptions {
+  /**
+   * Checked before every stage that has a native side effect. Returning true
+   * abandons the request — the viewer has navigated, the hook was disabled, or
+   * the field went away, and raising a keyboard then is worse than not raising
+   * one at all.
+   */
+  isCancelled?: () => boolean;
+}
+
 /**
  * Focus a field and ask the platform for its on-screen keyboard.
  *
@@ -27,29 +37,26 @@ export const hideKeyboardForDpad = async (
  * and must stay able to retry when neither arrives.
  */
 export const focusTextInputForDpad = async (
-  element: HTMLInputElement | HTMLTextAreaElement | null | undefined
+  element: HTMLInputElement | HTMLTextAreaElement | null | undefined,
+  options: FocusOptions = {}
 ): Promise<boolean> => {
-  if (!element || element.disabled) return false;
+  const cancelled = () =>
+    !element || !element.isConnected || element.disabled || !!options.isCancelled?.();
+  if (!element || element.disabled || cancelled()) return false;
 
-  // No blur/refocus dance and no inputmode juggling: the app does not suppress
-  // the keyboard any more, so the input connection Android builds on focus is
-  // already the right one. Blurring first only tore that connection down and,
-  // on TV WebViews, left the keyboard unable to appear at all.
+  // No blur/refocus dance, no inputmode juggling, no synthetic click and no
+  // caret rewriting: the caller's inputMode and the viewer's own selection are
+  // left exactly as they are. Blurring first only tore down the input
+  // connection Android had just built, which is why the keyboard never came up.
   element.focus({ preventScroll: true });
-  element.click();
 
-  try {
-    const end = element.value?.length ?? 0;
-    element.setSelectionRange(end, end);
-  } catch {
-    // Some input types do not support selection ranges.
-  }
-
-  if (!Capacitor.isNativePlatform()) return true;
+  if (!Capacitor.isNativePlatform()) return !cancelled();
 
   let requested = false;
+  if (cancelled()) return false;
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
+    if (cancelled()) return false;
     await Keyboard.show();
     requested = true;
   } catch (error) {
@@ -61,13 +68,15 @@ export const focusTextInputForDpad = async (
   // Fire TV and some Android TV launchers ignore Keyboard.show() because it
   // uses a non-forced IME request. Follow it with the forced native fallback;
   // phones normally already have the keyboard open, so this is harmless there.
+  if (cancelled()) return false;
   try {
     const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+    if (cancelled()) return false;
     await SnowKeyboard.show();
     requested = true;
   } catch (error) {
     console.warn('[DPadKeyboard] Forced keyboard fallback unavailable:', error);
   }
 
-  return requested;
+  return requested && !cancelled();
 };
