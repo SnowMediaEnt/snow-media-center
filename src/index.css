@@ -777,7 +777,9 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
-[data-tv-focus-id]:focus,
+/* :not([data-tv-focused="false"]) — a field that still holds native focus after
+   the D-pad moved on must NOT also ring, or two fields look selected at once. */
+[data-tv-focus-id]:not([data-tv-focused="false"]):focus,
 .tv-focusable:focus,
 .tv-focus-highlight:focus,
 .tv-focus-highlight.focused,
@@ -791,7 +793,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 /* The :focus-visible arm of the rule above, on its own so that a browser which
    cannot parse it drops ONLY this and keeps the safety net. Same declarations. */
 [data-focus-id]:focus-visible,
-[data-tv-focus-id]:focus-visible,
+[data-tv-focus-id]:not([data-tv-focused="false"]):focus-visible,
 .tv-focusable:focus-visible {
   outline: none;
   box-shadow:

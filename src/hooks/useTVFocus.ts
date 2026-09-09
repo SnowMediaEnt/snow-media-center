@@ -54,42 +54,29 @@ const isArrowKey = (e: KeyboardEvent) =>
   e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
 
 /**
- * Keep the on-screen keyboard shut while a field is merely HIGHLIGHTED.
+ * The on-screen keyboard is left to the platform.
  *
- * On a TV, moving the D-pad onto a field is not the same as wanting to type in
- * it — but in an Android WebView any .focus() on an input raises the IME, and
- * focusById() calls .focus() on every move. That is what made the keyboard
- * appear on arrival at the Player sign-in, cover the form, and come straight
- * back after Back: anything that restored focus re-raised it.
- *
- * inputmode="none" is the standard way to say "I will provide my own input
- * method"; Chrome has honoured it since 66, which is the floor for Fire TV. The
- * original value is parked on the element so activate() can hand it back. On a
- * WebView that ignores the attribute we are no worse off than before.
+ * Focusing a field raises it on both TV WebViews and phones, which is what a
+ * viewer expects when they land on Username. The app no longer tries to hold
+ * it back with inputmode="none" — see suppressIme below.
  */
-/**
- * ...but ONLY when the field was reached with a remote. On a phone or tablet a
- * tap IS the request to type: suppressing the keyboard there left the sign-in,
- * billing, support and chat forms impossible to fill in at all. A pointer or
- * touch press immediately before the focus event is the reliable signal, since
- * these same screens run in both places.
- */
-let lastPointerAt = 0;
-if (typeof window !== 'undefined') {
-  const mark = () => { lastPointerAt = Date.now(); };
-  window.addEventListener('pointerdown', mark, true);
-  window.addEventListener('touchstart', mark, true);
-  window.addEventListener('mousedown', mark, true);
-}
-const focusCameFromPointer = () => Date.now() - lastPointerAt < 700;
 
-const suppressIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  if (el.dataset.tvInputMode === undefined) {
-    el.dataset.tvInputMode = el.getAttribute('inputmode') ?? '';
-  }
-  el.setAttribute('inputmode', 'none');
+
+
+/**
+ * NO-OP on purpose.
+ *
+ * Blocking the keyboard until OK was pressed left viewers unable to type at
+ * all: on several Fire TV / Android TV WebViews the later Keyboard.show() is
+ * answered against an input connection built while inputmode was still
+ * "none", so the keyboard never appeared however many times OK was pressed.
+ * Landing on a field now simply lets the platform raise its own keyboard,
+ * which is what every other TV app does.
+ */
+const suppressIme = (_el: HTMLElement | null) => {
+  /* intentionally does nothing — see comment above */
 };
+
 
 /** The viewer pressed Enter on the field: give it its real keyboard back. */
 const allowIme = (el: HTMLElement | null) => {
@@ -172,18 +159,18 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Highlight only. Enter is what asks for the keyboard — and the field it
-    // asked for keeps it.
-    if (isTextInput(target) && focusCameFromPointer()) {
-      // Tapped, not arrowed onto: let the device raise its own keyboard, and
-      // record that it is up so Backspace deletes a character instead of
-      // being read as Back and leaving the screen.
+    // Landing on a text field — by remote, tap or click — means the viewer can
+    // type in it. Record that the keyboard is up so Backspace deletes a
+    // character instead of being read as Back and leaving the screen.
+    if (isTextInput(target)) {
       allowIme(target);
       imeOpenRef.current = true;
       imeElRef.current = target;
-    } else if (target !== imeElRef.current) {
-      suppressIme(target);
+    } else {
+      imeOpenRef.current = false;
+      imeElRef.current = null;
     }
+
     target.focus({ preventScroll: true });
     // When focusing a top-of-page "back" control, snap the nearest scroll
     // container to absolute top so the safe-area padding isn't clipped.
@@ -336,7 +323,7 @@ export const useTVFocus = ({
       const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack';
       if (isBack) {
         // Backspace is a delete key while the keyboard is up, not a Back.
-        if (event.key === 'Backspace' && imeOpenRef.current) return;
+        if (event.key === 'Backspace' && (imeOpenRef.current || typing)) return;
         event.preventDefault();
         event.stopPropagation();
         const now = Date.now();
