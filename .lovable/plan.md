@@ -20,11 +20,11 @@ All of these only *ask the phone/TV's own Android keyboard to open*. None of the
 
 The one keyboard package in the project (`@capacitor/keyboard`) is an Android/iOS-only bridge. In a desktop browser it does nothing at all. Even the earliest version of the helper was explicitly wrapped in "only if running as an installed app".
 
-## Finding 2 — reproduced in this sandbox
+## Finding 2 — reproduced current behavior in this sandbox
 
-On the Live TV sign-in, selecting Username with OK highlights the field (gold) and puts the cursor in it, and nothing else appears — I confirmed there is no panel, overlay or popup drawn anywhere on the page. That is the current behaviour and, from the code history, it is also what every earlier release did in a browser.
+On the Live TV sign-in, selecting Username with OK highlights the field (gold) and puts the cursor in it, and nothing else appears — I confirmed there is no panel, overlay or popup drawn anywhere on the page. That is the current behavior in the desktop Chromium preview.
 
-So the honest conclusion: **the sandbox preview never showed a keyboard.** What it has always done is let you type with your computer's physical keyboard, which still works. The full-screen keyboard the owner remembers is the Fire TV / Android box's own system keyboard, which only exists inside the installed app — a desktop browser has no such thing to summon.
+What the history proves: no app-rendered keyboard component was found at any checked commit. What the history does **not** prove: whether the Lovable sandbox previously showed a keyboard. The owner reports it did, so the prior behavior is unresolved — it may have been a browser/device-level on-screen keyboard that the current preview/OS no longer raises, or a different path that has changed.
 
 ## Finding 3 — the important distinction
 
