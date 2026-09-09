@@ -206,6 +206,33 @@ describe('native visibility association', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it('tapping from one field to another while the keyboard stays up keeps Back on "close the keyboard"', async () => {
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+
+    await tap(email);
+    await fireDidShow();   // platform keyboard is up for Username
+    await tap(password);   // tap transfer: no typing, and no NEW didShow (true -> true)
+
+    await back(password);
+    expect(state.hideCalls).toBe(1);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('an OK sent as DPAD_CENTER (keyCode 23) opens the keyboard', async () => {
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const last = getByLabelText('last') as HTMLInputElement; // allow-enter + done
+    await tap(last);
+    await ok(last, { key: 'Select', keyCode: 23 });
+    expect(state.showCalls).toBe(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+
+
   it('Backspace edits while a field is being typed in and never leaves the screen', async () => {
     const onBack = vi.fn();
     const { getByLabelText } = render(<Harness onBack={onBack} />);
