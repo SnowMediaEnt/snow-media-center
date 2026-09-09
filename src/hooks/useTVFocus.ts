@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
+import { isScreenKeyboardOpen } from '@/lib/screenKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
