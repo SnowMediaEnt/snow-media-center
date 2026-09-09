@@ -777,7 +777,9 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 [data-tv-focused="true"],
 [data-settings-focused="true"],
 [data-focus-id]:focus,
-[data-tv-focus-id]:focus,
+/* :not([data-tv-focused="false"]) — a field that still holds native focus after
+   the D-pad moved on must NOT also ring, or two fields look selected at once. */
+[data-tv-focus-id]:not([data-tv-focused="false"]):focus,
 .tv-focusable:focus,
 .tv-focus-highlight:focus,
 .tv-focus-highlight.focused,
