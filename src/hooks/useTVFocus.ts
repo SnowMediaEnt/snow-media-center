@@ -54,37 +54,15 @@ const isArrowKey = (e: KeyboardEvent) =>
   e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight';
 
 /**
- * The on-screen keyboard is left to the platform.
+ * The on-screen keyboard is left entirely to the platform.
  *
- * Focusing a field raises it on both TV WebViews and phones, which is what a
- * viewer expects when they land on Username. The app no longer tries to hold
- * it back with inputmode="none" — see suppressIme below.
+ * There is no suppression here any more: no inputmode="none", no readonly
+ * trap, no blur/refocus dance. Those all ended the same way — Android built
+ * the input connection while the field was suppressed, and the later
+ * Keyboard.show() was answered against that dead connection, so the keyboard
+ * never appeared however many times OK was pressed. Explicit inputmode values
+ * (email, numeric) set by the forms are left exactly as the forms wrote them.
  */
-
-
-
-/**
- * NO-OP on purpose.
- *
- * Blocking the keyboard until OK was pressed left viewers unable to type at
- * all: on several Fire TV / Android TV WebViews the later Keyboard.show() is
- * answered against an input connection built while inputmode was still
- * "none", so the keyboard never appeared however many times OK was pressed.
- * Landing on a field now simply lets the platform raise its own keyboard,
- * which is what every other TV app does.
- */
-const suppressIme = (_el: HTMLElement | null) => {
-  /* intentionally does nothing — see comment above */
-};
-
-
-/** The viewer pressed Enter on the field: give it its real keyboard back. */
-const allowIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  const original = el.dataset.tvInputMode;
-  if (original) el.setAttribute('inputmode', original);
-  else el.removeAttribute('inputmode');
-};
 
 const isVisible = (el: HTMLElement) =>
   !el.hasAttribute('disabled') &&
