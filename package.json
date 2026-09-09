@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "build:android": "vite build && npx cap sync android",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview",
     "postinstall": "node scripts/fix-gradle-wrapper.mjs && node scripts/check-swc-binding.mjs"
   },

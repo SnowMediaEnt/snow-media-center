@@ -105,6 +105,10 @@ const back = async (el: HTMLElement) => {
   await flush();
 };
 
+/** Real editing evidence: a beforeinput on the focused field. */
+const typeEvidence = (el: HTMLElement) =>
+  el.dispatchEvent(new (window as unknown as { InputEvent: typeof InputEvent }).InputEvent('beforeinput', { bubbles: true, cancelable: true }));
+
 const tap = async (el: HTMLElement) => { await act(async () => { el.focus(); }); await flush(); };
 
 beforeEach(() => {
@@ -218,7 +222,7 @@ describe('native visibility association', () => {
 
     await tap(bField);
     await fireDidShow();                 // belongs to the disabled hook's field
-    await act(async () => { fireEvent.beforeInput(bField); });
+    await act(async () => { typeEvidence(bField); });
 
     await tap(aField);
     await back(aField);                  // hook A must treat this as Back, not "close keyboard"
@@ -359,7 +363,7 @@ describe('field state preservation', () => {
     for (const key of ['b', 'o', 'b', ' ', 'b']) {
       await act(async () => {
         fireEvent.keyDown(email, { key });
-        fireEvent.beforeInput(email);
+        typeEvidence(email);
         email.value += key;
         fireEvent.input(email);
       });
