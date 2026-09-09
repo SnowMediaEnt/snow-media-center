@@ -179,18 +179,18 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Highlight only. Enter is what asks for the keyboard — and the field it
-    // asked for keeps it.
-    if (isTextInput(target) && focusCameFromPointer()) {
-      // Tapped, not arrowed onto: let the device raise its own keyboard, and
-      // record that it is up so Backspace deletes a character instead of
-      // being read as Back and leaving the screen.
+    // Landing on a text field — by remote, tap or click — means the viewer can
+    // type in it. Record that the keyboard is up so Backspace deletes a
+    // character instead of being read as Back and leaving the screen.
+    if (isTextInput(target)) {
       allowIme(target);
       imeOpenRef.current = true;
       imeElRef.current = target;
-    } else if (target !== imeElRef.current) {
-      suppressIme(target);
+    } else {
+      imeOpenRef.current = false;
+      imeElRef.current = null;
     }
+
     target.focus({ preventScroll: true });
     // When focusing a top-of-page "back" control, snap the nearest scroll
     // container to absolute top so the safe-area padding isn't clipped.
