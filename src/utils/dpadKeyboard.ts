@@ -40,8 +40,13 @@ export const focusTextInputForDpad = async (
   element: HTMLInputElement | HTMLTextAreaElement | null | undefined,
   options: FocusOptions = {}
 ): Promise<boolean> => {
+  // Focus is only required to STAY on the field, never to be there already:
+  // the very first stage is what puts it there.
+  let focused = false;
   const cancelled = () =>
-    !element || !element.isConnected || element.disabled || !!options.isCancelled?.();
+    !element || !element.isConnected || element.disabled
+    || (focused && document.activeElement !== element)
+    || !!options.isCancelled?.();
   if (!element || element.disabled || cancelled()) return false;
 
   // No blur/refocus dance, no inputmode juggling, no synthetic click and no
@@ -49,8 +54,10 @@ export const focusTextInputForDpad = async (
   // left exactly as they are. Blurring first only tore down the input
   // connection Android had just built, which is why the keyboard never came up.
   element.focus({ preventScroll: true });
+  focused = true;
 
   if (!Capacitor.isNativePlatform()) return !cancelled();
+
 
   let requested = false;
   if (cancelled()) return false;
