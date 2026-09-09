@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -82,16 +84,43 @@ export const useTVFocus = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
   const didAutoFocusRef = useRef(false);
-  // Whether WE opened the keyboard. Focus alone no longer opens it, so this is
-  // an accurate record — and Back needs it: keying off "focus is in an input"
-  // instead would trap the viewer on the screen, since the field keeps focus
-  // after the keyboard closes.
-  const imeOpenRef = useRef(false);
-  // The element whose keyboard is open. focusById suppresses the IME on
-  // whatever it focuses — and every managed element's onFocus calls focusById,
-  // so opening the keyboard re-entered focusById and shut it again before it
-  // could appear. This is the one element it must leave alone.
+  // Whether the platform's on-screen keyboard is GENUINELY up, and for which
+  // field. Deliberately not "a field is focused" and not "we called
+  // Keyboard.show()": TV WebViews focus fields for D-pad navigation with no IME
+  // at all, and they accept show() requests they then ignore. Only a
+  // keyboardDidShow event, real editing evidence (input / composition), or a
+  // browser where a focused field is immediately editable sets this true.
+  // Everything that changes meaning once the keyboard is up — Enter as
+  // Next/Done, Back closing the keyboard first — reads it, so a phantom value
+  // is what silently submitted empty sign-in forms.
+  const imeVisibleRef = useRef(false);
   const imeElRef = useRef<HTMLElement | null>(null);
+  const mountedRef = useRef(true);
+  const keyboardOpen = useCallback(() => imeVisibleRef.current && !!imeElRef.current, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    // Platform lifecycle events, plus hard editing evidence for devices that
+    // raise a keyboard without ever firing keyboardDidShow.
+    const stop = onKeyboardVisibilityChange((open) => {
+      imeVisibleRef.current = open;
+      if (!open) imeElRef.current = null;
+    });
+    const evidence = (event: Event) => {
+      const el = event.target as HTMLElement | null;
+      if (!isTextInput(el)) return;
+      imeElRef.current = el;
+      imeVisibleRef.current = true;
+      markKeyboardVisible();
+    };
+    window.addEventListener('beforeinput', evidence, true);
+    window.addEventListener('compositionstart', evidence, true);
+    return () => {
+      mountedRef.current = false;
+      stop();
+      window.removeEventListener('beforeinput', evidence, true);
+      window.removeEventListener('compositionstart', evidence, true);
+    };
+  }, []);
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which
@@ -137,18 +166,13 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Focus alone does not prove that Android opened its keyboard. In
-    // particular, TV WebViews focus the field for D-pad navigation without
-    // creating an IME window. Keep the field selected, but leave imeOpen false
-    // until focusTextInputForDpad has actually asked Android to show it. This
-    // makes the first OK press open the keyboard instead of being mistaken for
-    // the keyboard's Next/Done key.
-    if (isTextInput(target)) {
-      allowIme(target);
-      imeOpenRef.current = false;
-      imeElRef.current = null;
-    } else {
-      imeOpenRef.current = false;
+    // Highlighting a field is NOT the keyboard opening. Leave the IME record
+    // alone when this is the very field whose keyboard we asked for — the
+    // element's own onFocus calls straight back in here, which used to wipe the
+    // record the moment the keyboard appeared. Otherwise clear it: the highlight
+    // has moved, so nothing is being edited.
+    if (target !== imeElRef.current) {
+      imeVisibleRef.current = false;
       imeElRef.current = null;
     }
 
