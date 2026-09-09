@@ -83,13 +83,20 @@ if (typeof window !== 'undefined') {
 }
 const focusCameFromPointer = () => Date.now() - lastPointerAt < 700;
 
-const suppressIme = (el: HTMLElement | null) => {
-  if (!isTextInput(el)) return;
-  if (el.dataset.tvInputMode === undefined) {
-    el.dataset.tvInputMode = el.getAttribute('inputmode') ?? '';
-  }
-  el.setAttribute('inputmode', 'none');
+/**
+ * NO-OP on purpose.
+ *
+ * Blocking the keyboard until OK was pressed left viewers unable to type at
+ * all: on several Fire TV / Android TV WebViews the later Keyboard.show() is
+ * answered against an input connection built while inputmode was still
+ * "none", so the keyboard never appeared however many times OK was pressed.
+ * Landing on a field now simply lets the platform raise its own keyboard,
+ * which is what every other TV app does.
+ */
+const suppressIme = (_el: HTMLElement | null) => {
+  /* intentionally does nothing — see comment above */
 };
+
 
 /** The viewer pressed Enter on the field: give it its real keyboard back. */
 const allowIme = (el: HTMLElement | null) => {
