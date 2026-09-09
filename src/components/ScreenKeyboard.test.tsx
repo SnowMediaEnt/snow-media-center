@@ -131,7 +131,11 @@ describe('browser on-screen keyboard', () => {
       </>,
     );
     const ids = ['ba-email', 'ba-pass', 'ba-first', 'ba-last'];
-    act(() => { openScreenKeyboard(document.getElementById('ba-email')); });
+    act(() => {
+      // the app focuses the bar first (focusTextInputForDpad), then opens the keyboard
+      (document.getElementById('ba-email') as HTMLInputElement).focus();
+      openScreenKeyboard(document.getElementById('ba-email'));
+    });
     ids.forEach((id, i) => {
       expect(document.activeElement?.id).toBe(id);
       fireEvent.click(keyEl('key t'));
