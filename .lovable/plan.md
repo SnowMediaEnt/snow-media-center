@@ -51,6 +51,7 @@ I have not implemented this. Before planning it, I should clarify the exact sand
 ## Technical notes
 
 - Reproduction path: `http://localhost:8080` → Player → Live TV; fields `#lt-user` / `#lt-pass`; after OK the field is `document.activeElement`, `data-tv-focused="true"`, `readOnly` false, no `inputmode` trap, and zero fixed-position overlays present.
-- Web path today: `focusTextInputForDpad` focuses the element then returns immediately on non-native (`if (!Capacitor.isNativePlatform()) return`). Native path: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback.
+- Web path today: `focusTextInputForDpad` focuses the element then returns immediately on non-native (`if (!Capacitor.isNativePlatform()) return`). Native path: `Keyboard.show()` then the forced `SnowKeyboard.show()` fallback. No renderer is drawn in either path.
 - History checked: `git log --all` for deleted/renamed keyboard files (none), `-S 'simple-keyboard'` (none), `package.json` keyboard deps (`@capacitor/keyboard` only, added in `92976700`).
+- Pending clarification: exact Lovable sandbox device/browser the owner is using to reproduce the missing keyboard.
 - No edits, no build, no publish, no logins, no data operations were performed.
