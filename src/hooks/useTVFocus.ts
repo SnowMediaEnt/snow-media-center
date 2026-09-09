@@ -67,6 +67,22 @@ const isArrowKey = (e: KeyboardEvent) =>
  * original value is parked on the element so activate() can hand it back. On a
  * WebView that ignores the attribute we are no worse off than before.
  */
+/**
+ * ...but ONLY when the field was reached with a remote. On a phone or tablet a
+ * tap IS the request to type: suppressing the keyboard there left the sign-in,
+ * billing, support and chat forms impossible to fill in at all. A pointer or
+ * touch press immediately before the focus event is the reliable signal, since
+ * these same screens run in both places.
+ */
+let lastPointerAt = 0;
+if (typeof window !== 'undefined') {
+  const mark = () => { lastPointerAt = Date.now(); };
+  window.addEventListener('pointerdown', mark, true);
+  window.addEventListener('touchstart', mark, true);
+  window.addEventListener('mousedown', mark, true);
+}
+const focusCameFromPointer = () => Date.now() - lastPointerAt < 700;
+
 const suppressIme = (el: HTMLElement | null) => {
   if (!isTextInput(el)) return;
   if (el.dataset.tvInputMode === undefined) {
