@@ -106,29 +106,53 @@ export const useTVFocus = ({
     [],
   );
   const keyboardOpen = useCallback(() => {
-    if (imeVisibleRef.current && !!imeElRef.current) return true;
-    // The platform keyboard can already be up from the field we just left:
-    // moving between editable fields deliberately does not hide it, so no fresh
-    // keyboardDidShow arrives for the new field. If the platform still reports a
-    // keyboard and the focused field is the one we asked for, it is ours.
     const active = document.activeElement as HTMLElement | null;
-    if (imeElRef.current && imeElRef.current === active && ownsElement(active) && isNativeKeyboardVisible()) {
+    const activeOwned = ownsElement(active);
+    if (imeVisibleRef.current && imeElRef.current) {
+      if (imeElRef.current === active) return true;
+      // The highlight has moved off the field we recorded. Trust the record only
+      // while focus is still somewhere on this hook's own screen — once
+      // activeElement has left the container (body after a blur, another view)
+      // an old field must never keep claiming the keyboard.
+      if (active && containerRef.current?.contains(active) && !activeOwned) return true;
+      if (!activeOwned) return false;
+    }
+    // Adoption. Tapping straight from one editable field to another does not
+    // hide the platform keyboard, and the platform coalesces true -> true, so no
+    // fresh keyboardDidShow arrives for the new field. If the platform still
+    // reports a keyboard up and the focused field is one we own, it is ours.
+    if (activeOwned && isNativeKeyboardVisible()) {
+      imeElRef.current = active;
       imeVisibleRef.current = true;
       return true;
     }
     return false;
   }, [ownsElement]);
+  // A native show that never settles must not hold the field hostage: after
+  // this long the field becomes retryable again. A lapsed deadline is NOT
+  // evidence of visibility — it only permits another request.
+  const REQUEST_DEADLINE_MS = 3000;
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearPendingTimer = useCallback(() => {
+    if (pendingTimerRef.current) {
+      clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+  }, []);
   const clearIme = useCallback(() => {
     imeVisibleRef.current = false;
     imeElRef.current = null;
     requestGenRef.current += 1;
+    clearPendingTimer();
     pendingElRef.current = null;
-  }, []);
+  }, [clearPendingTimer]);
+
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    return () => { mountedRef.current = false; clearPendingTimer(); };
+  }, [clearPendingTimer]);
+
 
   useEffect(() => {
     if (!enabled) { clearIme(); return; }
@@ -185,21 +209,32 @@ export const useTVFocus = ({
   const openKeyboardOn = useCallback(async (el: HTMLInputElement | HTMLTextAreaElement) => {
     if (pendingElRef.current === el) return;
     const gen = ++requestGenRef.current;
+    clearPendingTimer();
     pendingElRef.current = el;
     imeElRef.current = el;
+    // Bounded deadline: a native show that never settles used to hold this
+    // field's pending slot forever, so OK could never be retried.
+    pendingTimerRef.current = setTimeout(() => {
+      pendingTimerRef.current = null;
+      if (pendingElRef.current === el) pendingElRef.current = null;
+    }, REQUEST_DEADLINE_MS);
     const isCancelled = () =>
       !mountedRef.current || !enabledRef.current || gen !== requestGenRef.current
       || !el.isConnected || el.disabled || !containerRef.current?.contains(el);
     try {
       await focusTextInputForDpad(el, { isCancelled });
     } finally {
-      if (pendingElRef.current === el) pendingElRef.current = null;
+      if (pendingElRef.current === el) {
+        clearPendingTimer();
+        pendingElRef.current = null;
+      }
       if (gen === requestGenRef.current && imeElRef.current === el && !imeVisibleRef.current
         && (!el.isConnected || !enabledRef.current)) {
         imeElRef.current = null;
       }
     }
-  }, []);
+  }, [clearPendingTimer]);
+
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
   // every render. That reshuffled it behind LiveTV's own capture handler, which

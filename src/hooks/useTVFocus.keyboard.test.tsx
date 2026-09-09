@@ -78,18 +78,24 @@ const Harness = ({ enabled = true, onBack, onSubmit, withTextarea }: HarnessProp
     onBack,
   });
   return (
-    <div ref={containerRef}>
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit?.(); }}>
-        <input aria-label="email" inputMode="email" enterKeyHint="next" {...focusProps('f-email')} />
-        <input aria-label="password" enterKeyHint="next" {...focusProps('f-pass')} />
-        <input aria-label="first" enterKeyHint="next" {...focusProps('f-first')} />
-        <input aria-label="last" enterKeyHint="done" data-tv-allow-enter="true" {...focusProps('f-last')} />
-        {withTextarea && <textarea aria-label="notes" {...focusProps('f-notes')} />}
-        <button type="submit" {...focusProps('f-submit')}>Go</button>
-      </form>
-    </div>
+    <>
+      <div ref={containerRef}>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit?.(); }}>
+          <input aria-label="email" inputMode="email" enterKeyHint="next" {...focusProps('f-email')} />
+          <input aria-label="password" enterKeyHint="next" {...focusProps('f-pass')} />
+          <input aria-label="first" enterKeyHint="next" {...focusProps('f-first')} />
+          <input aria-label="last" enterKeyHint="done" data-tv-allow-enter="true" {...focusProps('f-last')} />
+          {withTextarea && <textarea aria-label="notes" {...focusProps('f-notes')} />}
+          <button type="submit" {...focusProps('f-submit')}>Go</button>
+        </form>
+      </div>
+      {/* Outside the hook's container: focus can land here without any hook
+          navigation, exactly as an unrelated widget would take it. */}
+      <button data-testid="outside">out</button>
+    </>
   );
 };
+
 
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
 
@@ -200,6 +206,33 @@ describe('native visibility association', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it('tapping from one field to another while the keyboard stays up keeps Back on "close the keyboard"', async () => {
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+
+    await tap(email);
+    await fireDidShow();   // platform keyboard is up for Username
+    await tap(password);   // tap transfer: no typing, and no NEW didShow (true -> true)
+
+    await back(password);
+    expect(state.hideCalls).toBe(1);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('an OK sent as DPAD_CENTER (keyCode 23) opens the keyboard', async () => {
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const last = getByLabelText('last') as HTMLInputElement; // allow-enter + done
+    await tap(last);
+    await ok(last, { key: 'Select', keyCode: 23 });
+    expect(state.showCalls).toBe(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+
+
   it('Backspace edits while a field is being typed in and never leaves the screen', async () => {
     const onBack = vi.fn();
     const { getByLabelText } = render(<Harness onBack={onBack} />);
@@ -209,7 +242,7 @@ describe('native visibility association', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('a keyboard raised for another hook\'s field does not count as open here', async () => {
+  it('a keyboard raised for another hook\'s field is ignored until focus is on this hook\'s own field', async () => {
     const onBackA = vi.fn();
     const { getByTestId } = render(
       <div>
@@ -224,10 +257,24 @@ describe('native visibility association', () => {
     await fireDidShow();                 // belongs to the disabled hook's field
     await act(async () => { typeEvidence(bField); });
 
+    // While the other hook's field holds focus, hook A neither claims the
+    // keyboard nor acts on Back at all.
+    await back(bField);
+    expect(onBackA).not.toHaveBeenCalled();
+    expect(state.hideCalls).toBe(0);
+
+    // Focus moves onto hook A's own field with the keyboard still on screen, so
+    // it is now A's to close; only the press after that leaves the screen.
     await tap(aField);
-    await back(aField);                  // hook A must treat this as Back, not "close keyboard"
+    await back(aField);
+    expect(state.hideCalls).toBe(1);
+    expect(onBackA).not.toHaveBeenCalled();
+    await fireDidHide();
+    await act(async () => { vi.setSystemTime(Date.now() + 600); });
+    await back(document.body);
     expect(onBackA).toHaveBeenCalledTimes(1);
   });
+
 });
 
 describe('Next / Done sequence', () => {
@@ -258,22 +305,28 @@ describe('Next / Done sequence', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it('a late didHide from the field we left does not silence the field we moved to', async () => {
-    const { getByLabelText } = render(<Harness />);
+  it('Next transfers fields without requesting a hide, and a native didHide afterwards is honoured', async () => {
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
     const email = getByLabelText('email') as HTMLInputElement;
     await tap(email);
     await fireDidShow();
     await ok(email);                    // Next -> password
     const password = getByLabelText('password') as HTMLInputElement;
     expect(document.activeElement).toBe(password);
-    await fireDidShow();                // the platform confirms for the new field
-    const onBack = vi.fn();
-    // Back now closes the keyboard rather than leaving, proving state belongs
-    // to the field we moved to.
+    expect(state.hideCalls).toBe(0);    // no hide was ever asked for
+    // The platform keyboard stayed up through the transfer, so Back closes it
+    // rather than leaving the form.
     await back(password);
     expect(state.hideCalls).toBe(1);
     expect(onBack).not.toHaveBeenCalled();
+    // A real didHide now arrives; the next Back leaves the screen.
+    await fireDidHide();
+    await act(async () => { vi.setSystemTime(Date.now() + 600); });
+    await back(document.body);
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
+
 
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();
@@ -328,6 +381,51 @@ describe('cancellation of in-flight requests', () => {
     expect(state.fallbackCalls).toBe(0);
     expect(document.activeElement).not.toBe(email);
   });
+
+  it('focus lost to an unrelated element during a delayed show cancels the fallback and is not stolen back', async () => {
+    state.deferShow = true;
+    const { getByLabelText, getByTestId } = render(<Harness />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const outside = getByTestId('outside') as HTMLButtonElement;
+    await tap(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1);
+    // No hook navigation at all: something else simply took focus.
+    await act(async () => { outside.focus(); });
+    await act(async () => { state.pending.forEach((r) => r()); });
+    await flush();
+    expect(state.fallbackCalls).toBe(0);
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('disabling the hook during a delayed show cancels the fallback', async () => {
+    state.deferShow = true;
+    const { getByLabelText, rerender } = render(<Harness />);
+    const email = getByLabelText('email');
+    await tap(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1);
+    await act(async () => { rerender(<Harness enabled={false} />); });
+    await act(async () => { state.pending.forEach((r) => r()); });
+    await flush();
+    expect(state.fallbackCalls).toBe(0);
+  });
+
+  it('a show that never settles stops blocking retries once the request deadline lapses', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    state.deferShow = true;
+    const { getByLabelText } = render(<Harness />);
+    const email = getByLabelText('email');
+    await tap(email);
+    await ok(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1); // still pending: no duplicate request
+    await act(async () => { await vi.advanceTimersByTimeAsync(3500); });
+    await ok(email);
+    expect(state.showCalls).toBe(2); // retryable again
+  });
+
+
 
   it('OK pressed twice while a show is in flight makes only one native request', async () => {
     state.deferShow = true;
