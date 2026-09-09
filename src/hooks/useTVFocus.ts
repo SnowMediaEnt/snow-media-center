@@ -421,40 +421,49 @@ export const useTVFocus = ({
         return;
       }
 
+      // A multiline box with no Next/Done behaviour asked for keeps ordinary
+      // editing: Enter inserts a newline.
+      const isMultiline = enterField?.tagName === 'TEXTAREA';
+      if (isEnterKey(event) && enterField && isMultiline && !wantsNext && !allowEnter) return;
+
       // The keyboard's own Next / Done key arrives as Enter.
       if (isEnterKey(event) && enterField && keyboardOpen()) {
         event.preventDefault();
         event.stopPropagation();
         const from = enterField;
-        closeIme(from);
         // Done on the field the form marks as its submit key: submit, exactly
         // as the platform's own Done would.
         if (!wantsNext && allowEnter) {
+          closeIme(from);
           const form = from.form;
           const submitter = form?.querySelector<HTMLElement>('button[type="submit"], input[type="submit"]');
           if (submitter) submitter.click();
           else form?.requestSubmit?.();
           return;
         }
-        // Next means the field below — not "open this field again", which is
-        // why Next used to appear to do nothing at all.
+        // Next follows the FORM's own field order — the next editable field in
+        // DOM order — not the spatial 'down' rule. On the billing register form
+        // 'down' from First name lands on Submit, which skipped Last name even
+        // though its keyboard said Next. Directional navigation is untouched.
+        const fields = getElements().filter((el): el is HTMLInputElement | HTMLTextAreaElement =>
+          isTextInput(el) && !el.disabled);
+        const fromIdx = fields.indexOf(from);
+        const nextField = fromIdx >= 0 ? fields[fromIdx + 1] ?? null : null;
+        if (nextField) {
+          // The keyboard is deliberately NOT hidden when moving between
+          // editable fields: hiding is asynchronous, and its didHide would land
+          // after the new field's didShow and wipe the new field's state.
+          focusById(getId(nextField));
+          void openKeyboardOn(nextField);
+          return;
+        }
+        // Nothing editable follows: close the keyboard and let the layout's own
+        // 'down' rule decide where the highlight goes (usually the submit
+        // button).
+        closeIme(from);
         void Promise.resolve().then(() => {
-          if (!mountedRef.current) return;
-          const before = currentIdRef.current;
+          if (!mountedRef.current || !enabledRef.current) return;
           move('down');
-          if (currentIdRef.current === before) return;
-          const landed = getAllElements().find((el) => getId(el) === currentIdRef.current) ?? null;
-          if (!isTextInput(landed)) return;
-          // Carry on typing straight through a registration form: open the next
-          // field's keyboard too, without needing another OK press.
-          imeElRef.current = landed;
-          void focusTextInputForDpad(landed).then((requested) => {
-            if (!mountedRef.current || document.activeElement !== landed) return;
-            if (!requested) {
-              if (imeElRef.current === landed) imeElRef.current = null;
-              return;
-            }
-          });
         });
         return;
       }
