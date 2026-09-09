@@ -263,13 +263,11 @@ export const useTVFocus = ({
           if (imeElRef.current === el) imeElRef.current = null;
           return;
         }
-        // In a browser — the Lovable preview, a phone browser — a focused field
-        // is editable immediately, so the request is proof enough. On native we
-        // wait for the platform to confirm.
-        if (!Capacitor.isNativePlatform()) {
-          imeElRef.current = el;
-          imeVisibleRef.current = true;
-        }
+        // Deliberately NOT marked as "keyboard up" here, on any platform: an
+        // accepted request is not a visible keyboard. Confirmation comes from
+        // keyboardDidShow or from the viewer actually typing (beforeinput /
+        // composition). Until then OK stays retryable and can never be read as
+        // the keyboard's Done and submit an empty form.
       });
       return;
     }
@@ -398,7 +396,6 @@ export const useTVFocus = ({
               if (imeElRef.current === landed) imeElRef.current = null;
               return;
             }
-            if (!Capacitor.isNativePlatform()) imeVisibleRef.current = true;
           });
         });
         return;
