@@ -83,7 +83,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
     'cf-start':  { up: 'cf-submit' },
   }), [hasCancel, showStart]);
 
-  const { containerRef, focusById } = useTVFocus({
+  const { containerRef, focusById, focusProps } = useTVFocus({
     enabled: !childOpen,
     navigation,
     initialFocusId: 'cf-user',
@@ -228,13 +228,13 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
             <Label htmlFor="lt-user" className="text-brand-ice font-nunito">Username</Label>
             <Input
               id="lt-user"
-              data-tv-focus-id="cf-user"
+              {...focusProps('cf-user')}
               placeholder="Username"
               enterKeyHint="next"
               aria-label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="rounded-xl h-12 bg-black/30 text-white border-white/20"
+              className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
               autoComplete="off"
               disabled={testing}
             />
@@ -243,7 +243,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
             <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">Password</Label>
             <Input
               id="lt-pass"
-              data-tv-focus-id="cf-pass"
+              {...focusProps('cf-pass')}
               data-tv-allow-enter="true"
               type="password"
               placeholder="Password"
@@ -251,7 +251,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
               aria-label="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-xl h-12 bg-black/30 text-white border-white/20"
+              className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
               autoComplete="off"
               disabled={testing}
             />
@@ -271,7 +271,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
           <Button
             type="submit"
             variant="gold"
-            data-tv-focus-id="cf-submit"
+            {...focusProps('cf-submit')}
             disabled={testing}
             className="flex-1 rounded-xl h-12 transition-transform duration-150 ease-out"
           >
@@ -283,7 +283,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
               type="button"
               variant="white"
               onClick={onCancel}
-              data-tv-focus-id="cf-cancel"
+              {...focusProps('cf-cancel')}
               disabled={testing}
               className="rounded-xl h-12 transition-transform duration-150 ease-out"
             >
@@ -297,7 +297,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
             type="button"
             variant="white"
             onClick={() => { openedFromRef.current = 'cf-start'; setChildOpen(true); }}
-            data-tv-focus-id="cf-start"
+            {...focusProps('cf-start')}
             disabled={testing}
             className="w-full mt-3 rounded-xl h-12 transition-transform duration-150 ease-out"
           >

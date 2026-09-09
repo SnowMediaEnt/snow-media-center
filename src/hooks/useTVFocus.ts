@@ -159,13 +159,16 @@ export const useTVFocus = ({
     });
     target.dataset.tvFocused = 'true';
     target.tabIndex = target.tabIndex < 0 ? 0 : target.tabIndex;
-    // Landing on a text field — by remote, tap or click — means the viewer can
-    // type in it. Record that the keyboard is up so Backspace deletes a
-    // character instead of being read as Back and leaving the screen.
+    // Focus alone does not prove that Android opened its keyboard. In
+    // particular, TV WebViews focus the field for D-pad navigation without
+    // creating an IME window. Keep the field selected, but leave imeOpen false
+    // until focusTextInputForDpad has actually asked Android to show it. This
+    // makes the first OK press open the keyboard instead of being mistaken for
+    // the keyboard's Next/Done key.
     if (isTextInput(target)) {
       allowIme(target);
-      imeOpenRef.current = true;
-      imeElRef.current = target;
+      imeOpenRef.current = false;
+      imeElRef.current = null;
     } else {
       imeOpenRef.current = false;
       imeElRef.current = null;
