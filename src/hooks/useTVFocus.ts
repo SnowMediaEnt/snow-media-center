@@ -87,38 +87,106 @@ export const useTVFocus = ({
   // field. Deliberately not "a field is focused" and not "we called
   // Keyboard.show()": TV WebViews focus fields for D-pad navigation with no IME
   // at all, and they accept show() requests they then ignore. Only a
-  // keyboardDidShow event, real editing evidence (input / composition), or a
-  // browser where a focused field is immediately editable sets this true.
-  // Everything that changes meaning once the keyboard is up — Enter as
-  // Next/Done, Back closing the keyboard first — reads it, so a phantom value
-  // is what silently submitted empty sign-in forms.
+  // keyboardDidShow event for a field THIS hook owns, or real editing evidence
+  // inside its own container, sets this true.
   const imeVisibleRef = useRef(false);
   const imeElRef = useRef<HTMLElement | null>(null);
   const mountedRef = useRef(true);
+  // Every keyboard request carries a generation. Moving the highlight,
+  // disabling the hook or unmounting bumps it, so a native show that resolves
+  // late can never raise a keyboard for a field the viewer has already left.
+  const requestGenRef = useRef(0);
+  const pendingElRef = useRef<HTMLElement | null>(null);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const keyboardOpen = useCallback(() => imeVisibleRef.current && !!imeElRef.current, []);
+  /** True only for an editable field inside THIS hook's container. */
+  const ownsElement = useCallback(
+    (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
+      isTextInput(el) && !!containerRef.current?.contains(el),
+    [],
+  );
+  const clearIme = useCallback(() => {
+    imeVisibleRef.current = false;
+    imeElRef.current = null;
+    requestGenRef.current += 1;
+    pendingElRef.current = null;
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
-    // Platform lifecycle events, plus hard editing evidence for devices that
-    // raise a keyboard without ever firing keyboardDidShow.
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) { clearIme(); return; }
+    const root = containerRef.current;
+    // keyboardDidShow says A keyboard is up — not which field it belongs to.
+    // Associate it with the editable field this hook owns and that is focused
+    // (or awaiting its own request). Without that, a field focused by tap never
+    // counted as open: Back left the screen and Next re-asked for a keyboard.
     const stop = onKeyboardVisibilityChange((open) => {
-      imeVisibleRef.current = open;
-      if (!open) imeElRef.current = null;
+      if (!enabledRef.current || !mountedRef.current) return;
+      if (!open) {
+        imeVisibleRef.current = false;
+        imeElRef.current = null;
+        return;
+      }
+      const active = document.activeElement as HTMLElement | null;
+      const el = ownsElement(active)
+        ? active
+        : (ownsElement(pendingElRef.current) ? pendingElRef.current : null);
+      // Someone else's field: not ours to claim.
+      if (!el) return;
+      imeElRef.current = el;
+      imeVisibleRef.current = true;
     });
+    // Hard editing evidence, for devices that raise a keyboard without ever
+    // firing keyboardDidShow. Scoped to this hook's own container so sibling
+    // hooks cannot contaminate each other's state.
     const evidence = (event: Event) => {
+      if (!enabledRef.current) return;
       const el = event.target as HTMLElement | null;
-      if (!isTextInput(el)) return;
+      if (!ownsElement(el)) return;
       imeElRef.current = el;
       imeVisibleRef.current = true;
       markKeyboardVisible();
     };
-    window.addEventListener('beforeinput', evidence, true);
-    window.addEventListener('compositionstart', evidence, true);
+    root?.addEventListener('beforeinput', evidence, true);
+    root?.addEventListener('compositionstart', evidence, true);
     return () => {
-      mountedRef.current = false;
       stop();
-      window.removeEventListener('beforeinput', evidence, true);
-      window.removeEventListener('compositionstart', evidence, true);
+      root?.removeEventListener('beforeinput', evidence, true);
+      root?.removeEventListener('compositionstart', evidence, true);
+      clearIme();
     };
+  }, [clearIme, enabled, ownsElement]);
+
+  /**
+   * Ask the platform for the keyboard on a field this hook owns.
+   *
+   * One pending request per field: two quick OK presses must not fire two
+   * native show calls. Once the request settles the field is retryable, so a
+   * device that ignored it can simply be asked again. An accepted request is
+   * never recorded as a visible keyboard.
+   */
+  const openKeyboardOn = useCallback(async (el: HTMLInputElement | HTMLTextAreaElement) => {
+    if (pendingElRef.current === el) return;
+    const gen = ++requestGenRef.current;
+    pendingElRef.current = el;
+    imeElRef.current = el;
+    const isCancelled = () =>
+      !mountedRef.current || !enabledRef.current || gen !== requestGenRef.current
+      || !el.isConnected || el.disabled || !containerRef.current?.contains(el);
+    try {
+      await focusTextInputForDpad(el, { isCancelled });
+    } finally {
+      if (pendingElRef.current === el) pendingElRef.current = null;
+      if (gen === requestGenRef.current && imeElRef.current === el && !imeVisibleRef.current
+        && (!el.isConnected || !enabledRef.current)) {
+        imeElRef.current = null;
+      }
+    }
   }, []);
   // Held in a ref, not read from the closure: callers pass an inline arrow, so
   // listing onBack in the listener's deps re-appended the window listener on
@@ -169,10 +237,15 @@ export const useTVFocus = ({
     // alone when this is the very field whose keyboard we asked for — the
     // element's own onFocus calls straight back in here, which used to wipe the
     // record the moment the keyboard appeared. Otherwise clear it: the highlight
-    // has moved, so nothing is being edited.
+    // has moved, so nothing is being edited, and any request still in flight
+    // for the old field is invalidated so it cannot raise a keyboard now.
     if (target !== imeElRef.current) {
       imeVisibleRef.current = false;
       imeElRef.current = null;
+      if (pendingElRef.current && pendingElRef.current !== target) {
+        requestGenRef.current += 1;
+        pendingElRef.current = null;
+      }
     }
 
     target.focus({ preventScroll: true });
