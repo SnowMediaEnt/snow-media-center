@@ -793,7 +793,7 @@ html.legacy-webview [aria-label="Snow Media Entertainment"] {
 /* The :focus-visible arm of the rule above, on its own so that a browser which
    cannot parse it drops ONLY this and keeps the safety net. Same declarations. */
 [data-focus-id]:focus-visible,
-[data-tv-focus-id]:focus-visible,
+[data-tv-focus-id]:not([data-tv-focused="false"]):focus-visible,
 .tv-focusable:focus-visible {
   outline: none;
   box-shadow:
