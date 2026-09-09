@@ -483,8 +483,7 @@ export const useTVFocus = ({
       // Moving off a field closes the keyboard; the field we land on is only
       // highlighted, not opened, so it cannot pop straight back up.
       if (typing && isArrowKey(event)) {
-        imeVisibleRef.current = false;
-        imeElRef.current = null;
+        clearIme();
         void hideKeyboardForDpad(active ?? target);
       }
 
@@ -496,7 +495,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, enabled, findManagedElement, focusById, getAllElements, getId, keyboardOpen, move]);
+  }, [activate, clearIme, enabled, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,
