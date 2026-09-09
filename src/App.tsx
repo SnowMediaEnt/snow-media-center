@@ -122,6 +122,9 @@ const App = () => {
           <Toaster />
 
           <Sonner />
+          {/* Browser-preview on-screen keyboard. Renders nothing on the
+              installed Android / Fire TV app, which uses the system keyboard. */}
+          <ScreenKeyboard />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
