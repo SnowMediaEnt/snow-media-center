@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
 import { initAnalytics } from "@/lib/analytics";
 import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
+import ScreenKeyboard from "@/components/ScreenKeyboard";
 
 // Kick off silent background analytics AFTER first interaction (or 3.5s idle
 // fallback) so it never competes with the boot/render path on weak boxes.
@@ -121,6 +122,9 @@ const App = () => {
           <Toaster />
 
           <Sonner />
+          {/* Browser-preview on-screen keyboard. Renders nothing on the
+              installed Android / Fire TV app, which uses the system keyboard. */}
+          <ScreenKeyboard />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
