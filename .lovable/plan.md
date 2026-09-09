@@ -30,10 +30,10 @@ What the history proves: no app-rendered keyboard component was found at any che
 
 There are two different things:
 
-1. **The TV's own keyboard** (Fire TV / Android box). Only the installed app can raise it. A browser cannot, by design — no code change can make Android's keyboard appear in a desktop browser.
-2. **A keyboard drawn by the app itself** — an on-screen key grid rendered as part of the app, driven by the remote's arrows and OK. This *would* show up in the sandbox and on TV alike.
+1. **The device/browser's own system keyboard** (Android/Fire TV OS keyboard, or a mobile/tablet browser's keyboard). An installed Android app can raise the OS keyboard; an Android browser can also display its own system keyboard in some contexts. A desktop Lovable preview cannot display the Android operating system's IME.
+2. **A keyboard drawn by the app itself** — an on-screen key grid rendered as part of the app, driven by the remote's arrows and OK. This would show up in any preview and on TV alike.
 
-Because option 1 is impossible in the preview, the only way to see and test a keyboard in the sandbox is option 2 — a keyboard the app draws itself. That is new work, not a restoration: there is nothing in the history to restore.
+The history search found nothing for option 2. If the owner saw a keyboard in the sandbox before, it was most likely option 1 on a particular device/browser, but that is not established by the code. The only mechanism the codebase has ever contained asks the platform for its keyboard; it has never rendered its own.
 
 ## Recommended next step (not yet implemented)
 
