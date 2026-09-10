@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Smartphone, Video, MessageCircle, Sparkles } from 'lucide-react';
@@ -200,10 +200,24 @@ const CHANGELOG: Record<string, string[]> = {
 
 const STORAGE_KEY = 'smc-welcome-shown-version';
 
-const WelcomePopup = () => {
+interface WelcomePopupProps {
+  /**
+   * Reports whether this is on screen. Index needs it: this popup takes the
+   * whole screen and has no gate of its own, so any other notice opening at
+   * the same time lands on top of it and the viewer can no longer reach
+   * "Let's go".
+   */
+  onOpenChange?: (open: boolean) => void;
+}
+
+const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
   const { version, isLoading } = useVersion();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'first' | 'whatsnew'>('first');
+
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => { onOpenChangeRef.current?.(open); }, [open]);
 
   useEffect(() => {
     if (isLoading) return;

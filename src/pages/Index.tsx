@@ -523,6 +523,11 @@ const Index = () => {
   // winners view; dismissal remembered per giveaway/draw in localStorage.
   const { current: winnersGiveaway, dismiss: dismissWinners } = useGiveawayWinners();
   const { alert: broadcastAlert, dismiss: dismissBroadcast } = useBroadcastAlert();
+  // ONE notice on screen at a time. Each of these covers the screen and has an
+  // OK button, and until now they gated on [aria-modal="true"] — which Radix
+  // dialogs never set — so every gate was blind and they stacked. Welcome has
+  // priority because it is the only one a first-run viewer must get through.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
 
   // Force the deferred native enumeration when the pinned-apps popup opens
@@ -1227,13 +1232,13 @@ const Index = () => {
           after first-frame idle so its effect chain doesn't pile onto boot. */}
       {deferredOverlaysReady && (
         <Suspense fallback={null}>
-          <WelcomePopup />
+          <WelcomePopup onOpenChange={setWelcomeOpen} />
         </Suspense>
       )}
 
       {/* Pre-Event Steps (PPV nights). Singleton row in app_alerts with
           source='pre_event'. Admin toggles via Settings → App Alerts. */}
-      {deferredOverlaysReady && preEventOpen && (
+      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && preEventOpen && (
         <Suspense fallback={null}>
           <PreEventStepsDialog
             open={preEventOpen}
@@ -1245,7 +1250,7 @@ const Index = () => {
 
       {/* Giveaway winners announced — queues behind other boot popups via its
           own modal-presence polling. */}
-      {deferredOverlaysReady && currentView === 'home' && !preEventOpen && winnersGiveaway && (
+      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && winnersGiveaway && (
         <Suspense fallback={null}>
           <GiveawayWinnersPopup giveaway={winnersGiveaway} onDismiss={dismissWinners} />
         </Suspense>
@@ -1253,9 +1258,9 @@ const Index = () => {
 
       {/* Admin broadcast alert (app_match = 'all') — queues behind other boot
           popups via its own modal-presence polling. */}
-      {deferredOverlaysReady && currentView === 'home' && !preEventOpen && broadcastAlert && (
+      {deferredOverlaysReady && currentView === 'home' && !welcomeOpen && !preEventOpen && broadcastAlert && (
         <Suspense fallback={null}>
-          <BroadcastAlertPopup alert={broadcastAlert} onDismiss={dismissBroadcast} />
+          <BroadcastAlertPopup open alert={broadcastAlert} onDismiss={dismissBroadcast} />
         </Suspense>
       )}
 

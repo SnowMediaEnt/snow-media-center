@@ -1,14 +1,9 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import NoticeLayer from '@/components/ui/notice-layer';
 import { trackEvent } from '@/lib/analytics';
-import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
 import type { BroadcastAlert } from '@/hooks/useBroadcastAlert';
-
-const WELCOME_KEY = 'smc-welcome-shown-version';
-// Extra settle time so we queue behind Welcome / pre-event / update popups.
-const MIN_DELAY_MS = 3000;
 
 const severityStyles: Record<
   BroadcastAlert['severity'],
@@ -20,76 +15,39 @@ const severityStyles: Record<
 };
 
 interface Props {
+  open: boolean;
   alert: BroadcastAlert;
   onDismiss: () => void;
 }
 
-const BroadcastAlertPopup = ({ alert, onDismiss }: Props) => {
-  const okRef = useRef<HTMLButtonElement>(null);
-  const mountedAtRef = useRef(Date.now());
-  const [open, setOpen] = useState(false);
-
-  // Sequence behind any other boot popup rather than stacking on top.
-  useEffect(() => {
-    let cancelled = false;
-    const tryOpen = (): boolean => {
-      if (cancelled) return true;
-      if (Date.now() - mountedAtRef.current < MIN_DELAY_MS) return false;
-      try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return false; }
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
-      if (!claimBootPopup('broadcast-alert')) return false;
-      setOpen(true);
-      try { trackEvent('broadcast_alert_popup_shown', 'alerts', { alert_id: alert.id, severity: alert.severity }); } catch { void 0; }
-      return true;
-    };
-    if (tryOpen()) return;
-    const id = window.setInterval(() => { if (tryOpen()) window.clearInterval(id); }, 800);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, [alert.id]);
-
-  useEffect(() => () => releaseBootPopup('broadcast-alert'), []);
-
+/**
+ * Admin broadcast alert (app_match = 'all'), shown on the home screen.
+ *
+ * Index decides `open`; this only renders. It used to decide for itself, with
+ * a 3s timer and an 800ms poll for "is another modal up" — a second way to be
+ * on screen at the wrong moment, and the poll looked for [aria-modal="true"],
+ * which Radix dialogs never set, so it was blind to every one of them.
+ */
+const BroadcastAlertPopup = ({ open, alert, onDismiss }: Props) => {
   const handleDismiss = () => {
     try { trackEvent('alert_popup_action', 'alerts', { alert: 'broadcast', action: 'ok', title: alert.title, severity: alert.severity }); } catch { void 0; }
-    setOpen(false);
-    releaseBootPopup('broadcast-alert');
     onDismiss();
   };
-
-  useEffect(() => {
-    if (open) setTimeout(() => okRef.current?.focus(), 50);
-  }, [open]);
-
-  // D-pad: Enter / OK / Back / Escape all dismiss (capture phase).
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDismiss();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [open]);
-
-  if (!open) return null;
 
   const style = severityStyles[alert.severity] || severityStyles.warning;
   const { Icon } = style;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
-      <DialogContent className={`max-w-lg w-full bg-slate-900 border-slate-700 text-white ring-2 ${style.ring}`}>
+    <NoticeLayer open={open} labelledBy="smc-broadcast-title" onDismiss={handleDismiss}>
+      <div className={`rounded-lg border border-slate-700 bg-slate-900 text-white ring-2 ${style.ring} p-6 shadow-xl`}>
         <div className="flex items-center gap-3 mb-1">
           <Icon className={`w-7 h-7 ${style.color}`} />
-          <h2 className="text-2xl font-bold text-white leading-tight">{alert.title}</h2>
+          <h2 id="smc-broadcast-title" className="text-2xl font-bold text-white leading-tight">{alert.title}</h2>
         </div>
         <p className="text-slate-300 text-base whitespace-pre-wrap">{alert.message}</p>
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-4">
           <Button
-            ref={okRef}
+            autoFocus
             variant="gold"
             onClick={handleDismiss}
             className="min-w-[140px] text-base font-semibold py-3 ring-4 ring-brand-ice/40 focus:ring-brand-ice focus:scale-105 transition"
@@ -97,8 +55,8 @@ const BroadcastAlertPopup = ({ alert, onDismiss }: Props) => {
             Got it
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </NoticeLayer>
   );
 };
 
