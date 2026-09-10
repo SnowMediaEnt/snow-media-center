@@ -373,7 +373,7 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'community' && <CommunityChat onBack={goBack} />}
     {currentView === 'credits' && <CreditStore onBack={goBack} />}
     {currentView === 'settings' && <Settings onBack={goBack} layoutMode={layoutMode} onLayoutChange={onLayoutChange} />}
-    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onManageMedia={() => navigateTo('media')} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
+    {currentView === 'user' && <UserDashboard onViewChange={(view) => navigateTo(view)} onViewSettings={() => navigateTo('settings')} onCommunityChat={() => navigateTo('community')} onCreditStore={() => navigateTo('credits')} onGames={() => navigateTo('games')} onGiveaway={() => navigateTo('giveaway')} />}
     {currentView === 'games' && <Games onBack={goBack} onOpenGame={(view) => navigateTo(view)} />}
     {currentView === 'giveaway' && <Giveaway onBack={goBack} />}
     {currentView === 'game-daily-spin' && <DailySpinGame onBack={goBack} />}

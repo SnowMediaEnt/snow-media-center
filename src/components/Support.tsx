@@ -39,7 +39,6 @@ const RemoteSupport = lazy(() => import('@/components/RemoteSupport'));
 interface SupportProps {
   onBack: () => void;
   onNavigate?: (section: string) => void;
-  onOpenMainApps?: () => void;
 }
 
 type Tab = 'help' | 'ai' | 'community';
