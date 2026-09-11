@@ -1,6 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
-import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
+import { markKeyboardHidden } from '@/utils/keyboardVisibility';
 import { SnowKeyboard } from '@/capacitor/SnowKeyboard';
 
 export const hideKeyboardForDpad = async (
@@ -8,7 +7,6 @@ export const hideKeyboardForDpad = async (
 ) => {
   element?.blur();
   markKeyboardHidden();
-  closeScreenKeyboard();
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -43,72 +41,33 @@ export const focusTextInputForDpad = async (
   element: HTMLInputElement | HTMLTextAreaElement | null | undefined,
   options: FocusOptions = {}
 ): Promise<boolean> => {
-  // Focus is only required to STAY on the field, never to be there already:
-  // the very first stage is what puts it there.
-  let focused = false;
-  const cancelled = () =>
-    !element || !element.isConnected || element.disabled
-    || (focused && document.activeElement !== element)
-    || !!options.isCancelled?.();
-  if (!element || element.disabled || cancelled()) return false;
+  if (!element || element.disabled || !element.isConnected) return false;
 
-  // No blur/refocus dance, no inputmode juggling, no synthetic click and no
-  // caret rewriting: the caller's inputMode and the viewer's own selection are
-  // left exactly as they are. Blurring first only tore down the input
-  // connection Android had just built, which is why the keyboard never came up.
+  // A real focus EVENT is what makes a platform raise its keyboard.
+  //
+  // The D-pad already focused this field when the highlight landed on it, and
+  // focus() on an element that is ALREADY focused fires nothing at all — no
+  // focusin, no new Android input connection, nothing for any platform to
+  // react to. Measured in a browser: pressing OK produced zero focus events.
+  // That is why OK did nothing, on every screen, on the device and in the
+  // browser alike. Blur first so the focus below is a genuine one.
+  if (document.activeElement === element) element.blur();
   element.focus({ preventScroll: true });
-  focused = true;
 
-  // Desktop browsers have no system IME to summon, so use the app-rendered
-  // keyboard. Phone/tablet browsers are excluded by its capability gate and
-  // continue using their own keyboard without a duplicate overlay.
-  if (!Capacitor.isNativePlatform()) return !cancelled() && openScreenKeyboard(element);
+  if (!Capacitor.isNativePlatform()) return true;
+  if (options.isCancelled?.()) return false;
 
-  let requested = false;
-  if (cancelled()) return false;
+  // Straight to the native request — no visibility poll, no waiting period, no
+  // second opinion. SnowKeyboardPlugin restarts the input connection so the IME
+  // reads THIS field, asks politely so the layout is the field's own, and
+  // forces only when that is refused, which is the normal answer on a TV in
+  // non-touch mode.
   try {
-    const { Keyboard } = await import('@capacitor/keyboard');
-    if (cancelled()) return false;
-    await Keyboard.show();
-    requested = true;
+    const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+    await SnowKeyboard.show();
+    return true;
   } catch (error) {
-    // A missing plugin registration lands here. Do not give up: the native
-    // fallback below can still raise the keyboard on TV devices.
-    console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
-    if (cancelled()) return false;
-    try {
-      if (cancelled()) return false;
-      await SnowKeyboard.show();
-      return !cancelled();
-    } catch (fallbackError) {
-      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', fallbackError);
-      return false;
-    }
+    console.warn('[DPadKeyboard] Unable to show the keyboard:', error);
+    return false;
   }
-
-  // Fire TV and some Android TV launchers accept Keyboard.show() and raise
-  // nothing at all, so a fallback is needed — but ONLY then. Asking twice when
-  // the first request already worked is what put a second, generic keyboard on
-  // screen instead of the usual one. Give the platform a moment to report
-  // keyboardDidShow before deciding.
-  if (cancelled()) return false;
-  const showFallback = async () => {
-    if (cancelled() || isNativeKeyboardVisible()) return false;
-    try {
-      if (cancelled()) return false;
-      await SnowKeyboard.show();
-      return true;
-    } catch (error) {
-      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
-      return false;
-    }
-  };
-
-  if (!isNativeKeyboardVisible()) {
-    // Do not keep the caller's request slot occupied during this grace period:
-    // an accepted-but-invisible show must remain immediately retryable.
-    window.setTimeout(() => { void showFallback(); }, 250);
-  }
-
-  return requested && !cancelled();
 };
