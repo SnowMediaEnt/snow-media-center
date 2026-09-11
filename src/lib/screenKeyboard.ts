@@ -13,7 +13,7 @@ export const canUseScreenKeyboard = () => {
   return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? true;
 };
 
-export const isScreenKeyboardOpen = () => !!target?.isConnected;
+export const isScreenKeyboardOpen = () => !Capacitor.isNativePlatform() && !!target?.isConnected;
 export const getScreenKeyboardTarget = () => target?.isConnected ? target : null;
 
 export const subscribeScreenKeyboard = (listener: Listener) => {

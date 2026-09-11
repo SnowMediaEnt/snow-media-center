@@ -64,10 +64,10 @@ const ScreenKeyboard = () => {
         { label: symbols ? 'ABC' : '#+=', action: 'symbols' },
         { label: 'Space', action: 'space' },
         { label: 'Delete', action: 'delete' },
-        { label: target?.enterKeyHint === 'next' ? 'Next' : 'Done', action: target?.enterKeyHint === 'next' ? 'next' : 'done' },
+        { label: target?.getAttribute('enterkeyhint') === 'next' ? 'Next' : 'Done', action: target?.getAttribute('enterkeyhint') === 'next' ? 'next' : 'done' },
       ],
     ];
-  }, [shift, symbols, target?.enterKeyHint]);
+  }, [shift, symbols, target]);
 
   useEffect(() => {
     if (!target) return;
