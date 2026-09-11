@@ -13,7 +13,6 @@ import ClaimAccount from "./pages/ClaimAccount";
 import AdminKnowledge from "./pages/AdminKnowledge";
 import NotFound from "./pages/NotFound";
 import Welcome from "./pages/Welcome";
-import ScreenKeyboard from "@/components/ScreenKeyboard";
 import { initAnalytics } from "@/lib/analytics";
 import { onFirstInteraction, runWhenIdle } from "@/utils/idle";
 
@@ -135,7 +134,6 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-          <ScreenKeyboard />
         </div>
       </div>
     </TooltipProvider>
