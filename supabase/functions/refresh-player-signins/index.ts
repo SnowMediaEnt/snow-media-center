@@ -258,11 +258,15 @@ async function fetchPanel(row: Row): Promise<
   // SSRF guard: this job runs unattended over stored rows, so it will only
   // ever reach hosts we put on the list.
   if (!ALLOWED_HOSTS.has(host)) return { kind: 'unreachable' };
+  // panel_password may be either a cleartext legacy value or an enc:v1:
+  // ciphertext; decryptMaybe handles both and returns null only when unusable.
+  const panelPassword = await decryptMaybe(row.panel_password);
+  if (!panelPassword) return { kind: 'unreachable' };
   const query =
     `/player_api.php?username=` +
     encodeURIComponent(row.panel_username) +
     `&password=` +
-    encodeURIComponent(row.panel_password);
+    encodeURIComponent(panelPassword);
   const deadline = Date.now() + TOTAL_BUDGET_MS;
   for (const base of candidateBases(host)) {
     for (const ua of PANEL_AGENTS) {
