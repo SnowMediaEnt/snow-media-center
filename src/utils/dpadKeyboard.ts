@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
 import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
+import { SnowKeyboard } from '@/capacitor/SnowKeyboard';
 
 export const hideKeyboardForDpad = async (
   element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
@@ -76,7 +77,6 @@ export const focusTextInputForDpad = async (
     console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
     if (cancelled()) return false;
     try {
-      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
       if (cancelled()) return false;
       await SnowKeyboard.show();
       return !cancelled();
@@ -95,7 +95,6 @@ export const focusTextInputForDpad = async (
   const showFallback = async () => {
     if (cancelled() || isNativeKeyboardVisible()) return false;
     try {
-      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
       if (cancelled()) return false;
       await SnowKeyboard.show();
       return true;
