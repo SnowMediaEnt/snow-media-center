@@ -67,6 +67,7 @@
             android:alwaysRetainTaskState="true"
             android:label="@string/app_name"
             android:name="com.snowmedia.MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/AppTheme.NoActionBar">
 
             <!-- Custom scheme deep link: snowmedia://sso?token=... -->

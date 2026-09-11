@@ -46,7 +46,6 @@ vi.mock('@capacitor/core', () => ({
       if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
     },
     hide: async () => { state.nativeHideCalls += 1; },
-    isVisible: async () => ({ visible: false }),
     addListener: async (event: string, cb: (s: { visible: boolean }) => void) => {
       if (event === 'keyboardVisibility') state.visibility.push(cb);
       return { remove: () => {} };
@@ -269,12 +268,49 @@ describe('native visibility association', () => {
     await fireDidShow();                 // a keyboard is genuinely up, and the page knows
     await fireNativeVisibility(false);   // Android closed it: no didHide, no JS key
 
-    // Nothing left to close, so this Back leaves the screen. Before
-    // SnowKeyboard reported visibility, this press was swallowed as "close the
-    // keyboard" and it took a second one to get out.
+    // Nothing left to close, so this Back LEAVES THE SCREEN rather than being
+    // swallowed as "close the keyboard" — which is what used to cost a second
+    // press. The fail-safe dismiss still fires on the way out (the field is
+    // focused); what matters is that the press was not consumed.
     await back(email);
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('Back dismisses even when NOTHING ever reported the keyboard (the Fire OS 7 case)', async () => {
+    // THE bug. @capacitor/keyboard detects the keyboard only through Android 11
+    // window-inset animations, and most Fire TV sticks are Fire OS 7, which is
+    // Android 9. There, keyboardDidShow never fires, so the page's "is a
+    // keyboard up?" gate answered no while the viewer was looking at one — and
+    // Back navigated away and left the keyboard sitting over the next screen.
+    // On every text field in the app.
+    //
+    // No fireDidShow and no fireNativeVisibility here on purpose: this is a
+    // device that reports nothing at all. Leaving the field must still dismiss.
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+
+    await tap(email);
+    await ok(email);          // keyboard is up on the device; nothing says so
+    await back(email);
+
+    expect(state.hideCalls).toBe(1);
+    expect(state.nativeHideCalls).toBe(1);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('Back on a non-field does not ask the keyboard to hide', async () => {
+    // The fail-safe above must not turn every Back in the app into a native
+    // call. Only leaving an editable field is a reason to dismiss.
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const submit = getByLabelText('email').parentElement!.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+    await tap(submit);
+    await back(submit);
     expect(state.hideCalls).toBe(0);
+    expect(state.nativeHideCalls).toBe(0);
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('Back still dismisses when @capacitor/keyboard was never registered', async () => {

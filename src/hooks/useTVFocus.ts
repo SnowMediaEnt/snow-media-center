@@ -444,6 +444,17 @@ export const useTVFocus = ({
           closeIme(active ?? target);
           return;
         }
+        // Fail-safe. Everything above depends on knowing a keyboard is up, and
+        // that knowledge has been wrong before: @capacitor/keyboard detects the
+        // keyboard only through Android 11 inset animations, so on a Fire OS 7
+        // stick (Android 9) keyboardDidShow never arrives and this gate was
+        // always false — Back navigated away and left the keyboard on screen
+        // over the next screen. SnowKeyboard now measures the window instead,
+        // and SnowWebView catches Back before the IME, so this should not be
+        // reachable with a keyboard up; ask anyway. Leaving a field is a fine
+        // moment to dismiss, and hiding a keyboard that is not there costs
+        // nothing, whereas stranding one has cost us days.
+        if (typing) void hideKeyboardForDpad(active ?? target);
         onBackRef.current?.();
         return;
       }

@@ -3,12 +3,11 @@ import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 interface SnowKeyboardPlugin {
   show(): Promise<void>;
   hide(): Promise<void>;
-  /** What Android last reported, for a web layer that has lost track. */
-  isVisible(): Promise<{ visible: boolean }>;
   /**
-   * Fires on every genuine change in keyboard visibility, including the ones
-   * the page did not ask for — Back closing a docked keyboard is handled
-   * inside Android and is never seen by JavaScript any other way.
+   * Fires on every genuine change in keyboard visibility. This is the only
+   * source that works on Fire OS 7 (Android 9): @capacitor/keyboard detects the
+   * keyboard through Android 11 inset animations, so keyboardDidShow never
+   * arrives there and the page could not tell whether one was up.
    */
   addListener(
     event: 'keyboardVisibility',
