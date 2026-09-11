@@ -23,6 +23,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { decryptMaybe } from '../_shared/panelcrypto.ts';
 
 const BATCH_SIZE = 50;
 const MAX_ROWS_PER_RUN = 300;
