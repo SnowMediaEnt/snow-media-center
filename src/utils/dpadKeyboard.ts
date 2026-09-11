@@ -8,13 +8,22 @@ export const hideKeyboardForDpad = async (
   element?.blur();
   markKeyboardHidden();
 
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const { Keyboard } = await import('@capacitor/keyboard');
-      await Keyboard.hide();
-    } catch (error) {
-      console.warn('[DPadKeyboard] Unable to hide native keyboard:', error);
-    }
+  if (!Capacitor.isNativePlatform()) return;
+
+  // Ask both ways. Capacitor's Keyboard.hide() is the ordinary route, and
+  // SnowKeyboard.hide() goes straight to InputMethodManager for the case the
+  // ordinary one does not cover: while the Fire TV keyboard is full-screen it
+  // consumes every key, so the press meant to close it never reaches the page.
+  try {
+    const { Keyboard } = await import('@capacitor/keyboard');
+    await Keyboard.hide();
+  } catch (error) {
+    console.warn('[DPadKeyboard] Unable to hide native keyboard:', error);
+  }
+  try {
+    await SnowKeyboard.hide();
+  } catch (error) {
+    console.warn('[DPadKeyboard] Native hide unavailable:', error);
   }
 };
 
