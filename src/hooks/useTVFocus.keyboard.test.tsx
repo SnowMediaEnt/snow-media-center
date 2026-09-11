@@ -11,32 +11,54 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   native: true,
-  showMode: 'resolve' as 'resolve' | 'reject' | 'missing',
+  /** How SnowKeyboard.show() behaves — resolving is not the same as a keyboard. */
+  showMode: 'resolve' as 'resolve' | 'reject',
   deferShow: false,
+  /** SnowKeyboard.show(): the ONLY way the app asks for a keyboard. */
   showCalls: 0,
+  /** @capacitor/keyboard's Keyboard.hide(). */
   hideCalls: 0,
-  fallbackCalls: 0,
+  /** SnowKeyboard.hide() — straight to InputMethodManager. */
+  nativeHideCalls: 0,
+  /**
+   * Models a device where @capacitor/keyboard never registered. Not
+   * hypothetical: the generated capacitor.settings.gradle in this repo has
+   * shipped without :capacitor-keyboard, so the import resolves and there is
+   * no Keyboard behind it.
+   */
+  keyboardPluginMissing: false,
   pending: [] as (() => void)[],
   didShow: [] as (() => void)[],
   didHide: [] as (() => void)[],
+  /** SnowKeyboard's keyboardVisibility listeners. */
+  visibility: [] as ((s: { visible: boolean }) => void)[],
 }));
 
+// SnowKeyboard. Since the D-pad keyboard work this is the primary route, not a
+// fallback: the app asks it for every keyboard and it reports back what
+// InputMethodManager actually did.
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => state.native },
   registerPlugin: () => ({
     show: async () => {
-      state.fallbackCalls += 1;
+      state.showCalls += 1;
+      if (state.showMode === 'reject') throw new Error('show refused');
+      if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
+    },
+    hide: async () => { state.nativeHideCalls += 1; },
+    isVisible: async () => ({ visible: false }),
+    addListener: async (event: string, cb: (s: { visible: boolean }) => void) => {
+      if (event === 'keyboardVisibility') state.visibility.push(cb);
+      return { remove: () => {} };
     },
   }),
 }));
 
+// @capacitor/keyboard is used for the lifecycle events and for one of the two
+// hide routes. It is NEVER used to raise a keyboard — a TV in non-touch mode
+// ignores that request, which is the whole reason SnowKeyboard exists.
 vi.mock('@capacitor/keyboard', () => {
   const Keyboard = {
-    show: async () => {
-      state.showCalls += 1;
-      if (state.showMode === 'reject') throw new Error('show rejected');
-      if (state.deferShow) await new Promise<void>((resolve) => state.pending.push(resolve));
-    },
     hide: async () => {
       state.hideCalls += 1;
     },
@@ -45,9 +67,7 @@ vi.mock('@capacitor/keyboard', () => {
       return { remove: () => {} };
     },
   };
-  // 'missing' models a device where the plugin never registered: the import
-  // succeeds but there is no Keyboard to call.
-  return { get Keyboard() { return state.showMode === 'missing' ? undefined : Keyboard; } };
+  return { get Keyboard() { return state.keyboardPluginMissing ? undefined : Keyboard; } };
 });
 
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
@@ -101,6 +121,14 @@ const flush = async () => { await act(async () => { await Promise.resolve(); awa
 
 const fireDidShow = async () => { await act(async () => { state.didShow.forEach((cb) => cb()); }); };
 const fireDidHide = async () => { await act(async () => { state.didHide.forEach((cb) => cb()); }); };
+/**
+ * Android reporting a change the page never asked for. Back closing a docked
+ * IME is handled entirely inside Android, so this is the ONLY way the page can
+ * learn the keyboard has gone.
+ */
+const fireNativeVisibility = async (visible: boolean) => {
+  await act(async () => { state.visibility.forEach((cb) => cb({ visible })); });
+};
 
 const ok = async (el: HTMLElement, init: KeyboardEventInit = {}) => {
   await act(async () => { fireEvent.keyDown(el, { key: 'Enter', keyCode: 13, ...init }); });
@@ -123,7 +151,8 @@ beforeEach(() => {
   state.deferShow = false;
   state.showCalls = 0;
   state.hideCalls = 0;
-  state.fallbackCalls = 0;
+  state.nativeHideCalls = 0;
+  state.keyboardPluginMissing = false;
   state.pending = [];
   markKeyboardHidden();
 });
@@ -165,24 +194,28 @@ describe('highlighting versus a real keyboard', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('falls back to the forced native keyboard when show rejects', async () => {
+  it('a refused native show leaves the field focused and immediately retryable', async () => {
     state.showMode = 'reject';
     const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email');
+    const email = getByLabelText('email') as HTMLInputElement;
     await tap(email);
     await ok(email);
+    // The rejection is swallowed, not propagated: a device that refuses the
+    // request must not cost the viewer the field.
     expect(state.showCalls).toBe(1);
-    expect(state.fallbackCalls).toBe(1);
+    expect(document.activeElement).toBe(email);
+    await ok(email);
+    expect(state.showCalls).toBe(2);
   });
 
-  it('falls back when the keyboard plugin is missing altogether', async () => {
-    state.showMode = 'missing';
+  it('on the web (no native platform) OK focuses the field and asks nothing of Android', async () => {
+    state.native = false;
     const { getByLabelText } = render(<Harness />);
-    const email = getByLabelText('email');
+    const email = getByLabelText('email') as HTMLInputElement;
     await tap(email);
     await ok(email);
     expect(state.showCalls).toBe(0);
-    expect(state.fallbackCalls).toBe(1);
+    expect(document.activeElement).toBe(email);
   });
 });
 
@@ -218,6 +251,46 @@ describe('native visibility association', () => {
 
     await back(password);
     expect(state.hideCalls).toBe(1);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('a keyboard Android closed by itself is reported, so the very next Back leaves the screen', async () => {
+    // The failure this pins down: with the IME docked, Back is handled inside
+    // Android — it hides the keyboard and swallows the key, and JavaScript sees
+    // nothing at all. Without SnowKeyboard's keyboardVisibility event the page
+    // went on believing a keyboard it could no longer see was up, so the next
+    // Back was spent "closing" it and the viewer had to press Back twice to
+    // leave the screen.
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+
+    await tap(email);
+    await fireDidShow();                 // a keyboard is genuinely up, and the page knows
+    await fireNativeVisibility(false);   // Android closed it: no didHide, no JS key
+
+    // Nothing left to close, so this Back leaves the screen. Before
+    // SnowKeyboard reported visibility, this press was swallowed as "close the
+    // keyboard" and it took a second one to get out.
+    await back(email);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(state.hideCalls).toBe(0);
+  });
+
+  it('Back still dismisses when @capacitor/keyboard was never registered', async () => {
+    // capacitor.settings.gradle has shipped without :capacitor-keyboard, so
+    // Keyboard.hide() is not merely slow — it is not there. SnowKeyboard.hide()
+    // is the route that has to survive that.
+    state.keyboardPluginMissing = true;
+    const onBack = vi.fn();
+    const { getByLabelText } = render(<Harness onBack={onBack} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+
+    await tap(email);
+    await fireDidShow();
+    await back(email);
+    expect(state.hideCalls).toBe(0);        // the plugin genuinely is not there
+    expect(state.nativeHideCalls).toBe(1);  // SnowKeyboard covered it
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -355,7 +428,7 @@ describe('Next / Done sequence', () => {
 });
 
 describe('cancellation of in-flight requests', () => {
-  it('unmounting during a delayed show never reaches the native fallback', async () => {
+  it('unmounting during a delayed show never asks for a second keyboard', async () => {
     state.deferShow = true;
     const { getByLabelText, unmount } = render(<Harness />);
     const email = getByLabelText('email');
@@ -365,7 +438,7 @@ describe('cancellation of in-flight requests', () => {
     unmount();
     await act(async () => { state.pending.forEach((r) => r()); });
     await flush();
-    expect(state.fallbackCalls).toBe(0);
+    expect(state.showCalls).toBe(1);
   });
 
   it('moving the highlight during a delayed show abandons that request', async () => {
@@ -378,7 +451,7 @@ describe('cancellation of in-flight requests', () => {
     await flush();
     await act(async () => { state.pending.forEach((r) => r()); });
     await flush();
-    expect(state.fallbackCalls).toBe(0);
+    expect(state.showCalls).toBe(1);
     expect(document.activeElement).not.toBe(email);
   });
 
@@ -394,7 +467,7 @@ describe('cancellation of in-flight requests', () => {
     await act(async () => { outside.focus(); });
     await act(async () => { state.pending.forEach((r) => r()); });
     await flush();
-    expect(state.fallbackCalls).toBe(0);
+    expect(state.showCalls).toBe(1);
     expect(document.activeElement).toBe(outside);
   });
 
@@ -408,7 +481,7 @@ describe('cancellation of in-flight requests', () => {
     await act(async () => { rerender(<Harness enabled={false} />); });
     await act(async () => { state.pending.forEach((r) => r()); });
     await flush();
-    expect(state.fallbackCalls).toBe(0);
+    expect(state.showCalls).toBe(1);
   });
 
   it('a show that never settles stops blocking retries once the request deadline lapses', async () => {

@@ -38,8 +38,24 @@ const subscribe = () => {
       await Keyboard.addListener('keyboardDidHide', () => emit(false));
     } catch (error) {
       // No keyboard plugin: visibility can still be inferred from real editing
-      // evidence via markKeyboardVisible below.
+      // evidence via markKeyboardVisible below, and from SnowKeyboard's own
+      // report just below this.
       console.warn('[Keyboard] Unable to observe keyboard lifecycle:', error);
+    }
+  })();
+  // SnowKeyboard reports what InputMethodManager actually DID with each show
+  // and hide request, plus the dismissals the page never asked for — Back
+  // closing a docked keyboard is handled entirely inside Android, and without
+  // this the page would still believe a keyboard it can no longer see is up.
+  // That was a real bug and not a cosmetic one: useTVFocus spends a Back press
+  // closing the keyboard it thinks is open, so the viewer had to press Back
+  // twice to leave the screen.
+  void (async () => {
+    try {
+      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+      await SnowKeyboard.addListener('keyboardVisibility', ({ visible }) => emit(!!visible));
+    } catch (error) {
+      console.warn('[Keyboard] Unable to observe native keyboard visibility:', error);
     }
   })();
 };

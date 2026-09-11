@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Overrides the layout of the same name inside @capacitor/android so that
+  BridgeActivity inflates SnowWebView instead of CapacitorWebView. Resources in
+  the app module win over identically named ones in a library, and Bridge binds
+  the view with `instanceof CapacitorWebView`, which a subclass satisfies — so
+  nothing about Capacitor's own setup changes.
+
+  Keep this in step with the Capacitor copy when upgrading @capacitor/android:
+  node_modules/@capacitor/android/capacitor/src/main/res/layout/capacitor_bridge_layout_main.xml
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.getcapacitor.BridgeActivity"
+    >
+
+    <com.snowmedia.keyboard.SnowWebView
+        android:id="@+id/webview"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
