@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
 import com.getcapacitor.CapacitorWebView
 
@@ -31,26 +32,37 @@ import com.getcapacitor.CapacitorWebView
  *
  * 2. BACK CLOSES THE KEYBOARD
  * ---------------------------
- * onKeyPreIme is the one hook that sees a key BEFORE the input method does.
- * That is the whole reason it exists on View, and it is the only place this can
- * be handled correctly, because every other candidate is too late or never
- * fires at all:
+ * Measured on the device: Amazon's Fire TV keyboard IGNORES both flags above.
+ * It overrides onEvaluateFullscreenMode() and goes full screen regardless, so
+ * its window keeps the input focus and NOTHING in this app is on the key path:
  *
- *  • The page cannot. On Fire TV, Back is not delivered to the WebView as a
- *    DOM keydown — the app's own useNavigation and LiveTV both say so — it
- *    arrives as a Capacitor App.backButton event instead.
- *  • App.backButton cannot. It is driven by the Activity's back dispatcher, and
- *    while an IME is showing the IME window gets the key first. If it keeps it,
- *    the Activity never hears the press at all.
- *  • The IME's own handling cannot be relied on. InputMethodService hides
- *    itself on Back by default, but a TV IME that has repurposed Back for its
- *    own navigation simply does not.
+ *  • The page never sees Back. On Fire TV it is not delivered to the WebView as
+ *    a DOM keydown at all — useNavigation and LiveTV both say so.
+ *  • App.backButton never fires. It runs off the Activity's back dispatcher,
+ *    and the Activity does not have the focus.
+ *  • onKeyPreIme never fires either, for the same reason. It is the documented
+ *    answer to this problem and it is useless against an IME that will not
+ *    give up the focus.
  *
- * Consuming it here gives exactly the behaviour a viewer expects, with no
- * coordination anywhere else: the first Back closes the keyboard and goes no
- * further, and because the key never reaches the Activity there is no
- * backButton event for the rest of the app to double-handle. The second Back
- * finds no keyboard, is not consumed, and leaves the screen normally.
+ * What IS still ours is the InputConnection. The IME is editing OUR text field
+ * through it, so it is the one channel that has to be live, and two things
+ * happen here because of that:
+ *
+ *  a. IME_FLAG_NAVIGATE_NEXT / _PREVIOUS are cleared. Chromium sets these
+ *     whenever the focused field has siblings in the form, and they are what
+ *     put PREVIOUS / NEXT in the full-screen editor — the buttons Back was
+ *     being spent on ("it moves the cursor to previous and then back to next").
+ *     With nothing to navigate, Back falls through to InputMethodService's own
+ *     handling, which is to hide. The action key is untouched: enterkeyhint
+ *     still drives IME_ACTION_NEXT, so username -> password still works.
+ *
+ *  b. sendKeyEvent is intercepted. It is how an IME hands a key it did not use
+ *     back to the app, and it arrives through the connection rather than the
+ *     window — so it reaches us even while the IME holds the focus. If Back
+ *     comes through there, dismiss.
+ *
+ * Both are in one place, on one channel, deliberately: stacking another
+ * half-measure into the page's 56 Back handlers is what made this unfixable.
  */
 class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(context, attrs) {
 
@@ -59,12 +71,54 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
         // outAttrs for the focused field. The framework reads outAttrs AFTER
         // this returns, so adding flags now is what reaches the IME.
         val connection = super.onCreateInputConnection(outAttrs)
-        outAttrs.imeOptions = outAttrs.imeOptions or
-            EditorInfo.IME_FLAG_NO_FULLSCREEN or
-            EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        return connection
+        outAttrs.imeOptions = (
+            outAttrs.imeOptions
+                or EditorInfo.IME_FLAG_NO_FULLSCREEN
+                or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+            ) and (
+            // Take the PREVIOUS / NEXT buttons away. Nothing to navigate means
+            // nothing for Back to be absorbed by.
+            EditorInfo.IME_FLAG_NAVIGATE_NEXT or EditorInfo.IME_FLAG_NAVIGATE_PREVIOUS
+            ).inv()
+        return connection?.let { BackAwareInputConnection(it, this) }
     }
 
+    /** Ask the IME to go away, from wherever we managed to catch the key. */
+    fun dismissKeyboard() {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(windowToken, 0)
+    }
+
+    /**
+     * Catches the Back an IME hands back rather than using itself. This arrives
+     * over the input connection, not the window, so it is the only route that
+     * still works while a full-screen IME owns the focus.
+     */
+    private class BackAwareInputConnection(
+        target: InputConnection,
+        private val view: SnowWebView,
+    ) : InputConnectionWrapper(target, false) {
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                if (event.action == KeyEvent.ACTION_UP) view.dismissKeyboard()
+                // Swallow it. Passed on, Chromium turns it into a page-level key
+                // and the app's Back handlers navigate while the keyboard stays.
+                return true
+            }
+            return super.sendKeyEvent(event)
+        }
+    }
+
+    /**
+     * The documented answer to this problem, kept for the boxes where it works.
+     *
+     * It does NOT fire on a Fire TV with Amazon's keyboard up, because that IME
+     * takes the window focus and pre-IME dispatch never reaches us — which is
+     * why (a) and (b) above exist. On an Android TV box whose IME docks
+     * properly this is the clean path, so it stays: it costs one comparison and
+     * it is the only handler that can close the keyboard without the IME's
+     * cooperation at all.
+     */
     override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
         // Only when a keyboard is genuinely on screen — SnowKeyboardState
         // measures the window rather than trusting the requests we made, so it
@@ -72,10 +126,7 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
         // stale flag would leave the viewer unable to leave the screen, which
         // is a worse bug than the one being fixed.
         if (keyCode == KeyEvent.KEYCODE_BACK && SnowKeyboardState.isVisible) {
-            if (event.action == KeyEvent.ACTION_UP) {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(windowToken, 0)
-            }
+            if (event.action == KeyEvent.ACTION_UP) dismissKeyboard()
             // Both halves of the press: releasing an unconsumed ACTION_UP on its
             // own would still reach the Activity and navigate.
             return true
