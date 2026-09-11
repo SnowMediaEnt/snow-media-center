@@ -64,7 +64,6 @@ export const focusTextInputForDpad = async (
   if (!Capacitor.isNativePlatform()) return !cancelled() && openScreenKeyboard(element);
 
   let requested = false;
-  let primaryFailed = false;
   if (cancelled()) return false;
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
@@ -75,7 +74,16 @@ export const focusTextInputForDpad = async (
     // A missing plugin registration lands here. Do not give up: the native
     // fallback below can still raise the keyboard on TV devices.
     console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
-    primaryFailed = true;
+    if (cancelled()) return false;
+    try {
+      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+      if (cancelled()) return false;
+      await SnowKeyboard.show();
+      return !cancelled();
+    } catch (fallbackError) {
+      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', fallbackError);
+      return false;
+    }
   }
 
   // Fire TV and some Android TV launchers accept Keyboard.show() and raise
@@ -97,9 +105,7 @@ export const focusTextInputForDpad = async (
     }
   };
 
-  if (primaryFailed) {
-    requested = await showFallback() || requested;
-  } else if (!isNativeKeyboardVisible()) {
+  if (!isNativeKeyboardVisible()) {
     // Do not keep the caller's request slot occupied during this grace period:
     // an accepted-but-invisible show must remain immediately retryable.
     window.setTimeout(() => { void showFallback(); }, 250);
