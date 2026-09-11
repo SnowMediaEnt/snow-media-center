@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
+import { isScreenKeyboardOpen } from '@/lib/screenKeyboard';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -398,6 +399,10 @@ export const useTVFocus = ({
   useEffect(() => {
     if (!enabled) return;
     const handler = (event: KeyboardEvent) => {
+      // The app-rendered browser keyboard owns remote input while visible.
+      // Its capture listener handles arrows, OK and Back before any screen can
+      // move focus, submit, or navigate underneath it.
+      if (isScreenKeyboardOpen()) return;
       if (event.defaultPrevented) return;
       // Mid-composition keys (Android word suggestions, CJK IMEs) arrive as
       // Enter/keyCode 229 and must never submit a form or move the highlight.

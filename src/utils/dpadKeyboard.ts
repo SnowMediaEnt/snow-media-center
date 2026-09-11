@@ -1,11 +1,13 @@
 import { Capacitor } from '@capacitor/core';
 import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
+import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
 
 export const hideKeyboardForDpad = async (
   element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
 ) => {
   element?.blur();
   markKeyboardHidden();
+  closeScreenKeyboard();
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -56,8 +58,10 @@ export const focusTextInputForDpad = async (
   element.focus({ preventScroll: true });
   focused = true;
 
-  // A browser has a real keyboard already; there is nothing to summon.
-  if (!Capacitor.isNativePlatform()) return !cancelled();
+  // Desktop browsers have no system IME to summon, so use the app-rendered
+  // keyboard. Phone/tablet browsers are excluded by its capability gate and
+  // continue using their own keyboard without a duplicate overlay.
+  if (!Capacitor.isNativePlatform()) return !cancelled() && openScreenKeyboard(element);
 
   let requested = false;
   if (cancelled()) return false;
