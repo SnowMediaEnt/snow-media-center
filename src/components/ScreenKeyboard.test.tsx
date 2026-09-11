@@ -30,7 +30,7 @@ describe('ScreenKeyboard', () => {
     render(<Form />);
     const username = screen.getByLabelText('Username') as HTMLInputElement;
     act(() => { openScreenKeyboard(username); });
-    expect(screen.getByLabelText('On-screen keyboard')).toBeInTheDocument();
+    expect(screen.getByLabelText('On-screen keyboard')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'q' }));
     expect(username.value).toBe('q');
   });
@@ -39,9 +39,9 @@ describe('ScreenKeyboard', () => {
     render(<Form />);
     const username = screen.getByLabelText('Username') as HTMLInputElement;
     act(() => { openScreenKeyboard(username); });
-    expect(screen.getByRole('button', { name: 'q' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'q' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByRole('button', { name: 'w' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'w' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(username.value).toBe('w');
   });
@@ -67,9 +67,9 @@ describe('ScreenKeyboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(document.activeElement).toBe(password);
     expect(password.type).toBe('password');
-    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.queryByLabelText('On-screen keyboard')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('On-screen keyboard')).toBeNull();
     expect(submitted).not.toHaveBeenCalled();
   });
 });
