@@ -64,6 +64,7 @@ export const focusTextInputForDpad = async (
   if (!Capacitor.isNativePlatform()) return !cancelled() && openScreenKeyboard(element);
 
   let requested = false;
+  let primaryFailed = false;
   if (cancelled()) return false;
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
@@ -74,6 +75,7 @@ export const focusTextInputForDpad = async (
     // A missing plugin registration lands here. Do not give up: the native
     // fallback below can still raise the keyboard on TV devices.
     console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
+    primaryFailed = true;
   }
 
   // Fire TV and some Android TV launchers accept Keyboard.show() and raise
@@ -82,19 +84,25 @@ export const focusTextInputForDpad = async (
   // screen instead of the usual one. Give the platform a moment to report
   // keyboardDidShow before deciding.
   if (cancelled()) return false;
-  if (!isNativeKeyboardVisible()) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    if (cancelled()) return false;
-    if (!isNativeKeyboardVisible()) {
-      try {
-        const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
-        if (cancelled()) return false;
-        await SnowKeyboard.show();
-        requested = true;
-      } catch (error) {
-        console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
-      }
+  const showFallback = async () => {
+    if (cancelled() || isNativeKeyboardVisible()) return false;
+    try {
+      const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+      if (cancelled()) return false;
+      await SnowKeyboard.show();
+      return true;
+    } catch (error) {
+      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
+      return false;
     }
+  };
+
+  if (primaryFailed) {
+    requested = await showFallback() || requested;
+  } else if (!isNativeKeyboardVisible()) {
+    // Do not keep the caller's request slot occupied during this grace period:
+    // an accepted-but-invisible show must remain immediately retryable.
+    window.setTimeout(() => { void showFallback(); }, 250);
   }
 
   return requested && !cancelled();
