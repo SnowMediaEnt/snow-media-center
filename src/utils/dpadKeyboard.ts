@@ -1,11 +1,14 @@
 import { Capacitor } from '@capacitor/core';
 import { isNativeKeyboardVisible, markKeyboardHidden } from '@/utils/keyboardVisibility';
+import { closeScreenKeyboard, openScreenKeyboard } from '@/lib/screenKeyboard';
+import { SnowKeyboard } from '@/capacitor/SnowKeyboard';
 
 export const hideKeyboardForDpad = async (
   element?: HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
 ) => {
   element?.blur();
   markKeyboardHidden();
+  closeScreenKeyboard();
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -56,8 +59,10 @@ export const focusTextInputForDpad = async (
   element.focus({ preventScroll: true });
   focused = true;
 
-  // A browser has a real keyboard already; there is nothing to summon.
-  if (!Capacitor.isNativePlatform()) return !cancelled();
+  // Desktop browsers have no system IME to summon, so use the app-rendered
+  // keyboard. Phone/tablet browsers are excluded by its capability gate and
+  // continue using their own keyboard without a duplicate overlay.
+  if (!Capacitor.isNativePlatform()) return !cancelled() && openScreenKeyboard(element);
 
   let requested = false;
   if (cancelled()) return false;
@@ -70,6 +75,15 @@ export const focusTextInputForDpad = async (
     // A missing plugin registration lands here. Do not give up: the native
     // fallback below can still raise the keyboard on TV devices.
     console.warn('[DPadKeyboard] Unable to show native keyboard:', error);
+    if (cancelled()) return false;
+    try {
+      if (cancelled()) return false;
+      await SnowKeyboard.show();
+      return !cancelled();
+    } catch (fallbackError) {
+      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', fallbackError);
+      return false;
+    }
   }
 
   // Fire TV and some Android TV launchers accept Keyboard.show() and raise
@@ -78,19 +92,22 @@ export const focusTextInputForDpad = async (
   // screen instead of the usual one. Give the platform a moment to report
   // keyboardDidShow before deciding.
   if (cancelled()) return false;
-  if (!isNativeKeyboardVisible()) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    if (cancelled()) return false;
-    if (!isNativeKeyboardVisible()) {
-      try {
-        const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
-        if (cancelled()) return false;
-        await SnowKeyboard.show();
-        requested = true;
-      } catch (error) {
-        console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
-      }
+  const showFallback = async () => {
+    if (cancelled() || isNativeKeyboardVisible()) return false;
+    try {
+      if (cancelled()) return false;
+      await SnowKeyboard.show();
+      return true;
+    } catch (error) {
+      console.warn('[DPadKeyboard] Keyboard fallback unavailable:', error);
+      return false;
     }
+  };
+
+  if (!isNativeKeyboardVisible()) {
+    // Do not keep the caller's request slot occupied during this grace period:
+    // an accepted-but-invisible show must remain immediately retryable.
+    window.setTimeout(() => { void showFallback(); }, 250);
   }
 
   return requested && !cancelled();
