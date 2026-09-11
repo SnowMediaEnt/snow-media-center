@@ -168,7 +168,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
                 placeholder is the only label it shows. Without one you cannot
                 tell which box you are typing into. */}
             <Input id="ba-email" type="email" inputMode="email" autoComplete="off" disabled={busy}
-              placeholder="Email address" enterKeyHint="next" aria-label="Email address"
+              placeholder="Email address" aria-label="Email address"
               value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT}
               {...focusAttrs(currentFocusId, 'ba-email')} />
             {fieldNote('email')}
@@ -178,8 +178,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
               Password{register ? ` (at least ${MIN_PASSWORD} characters)` : ''}
             </Label>
             <Input id="ba-pass" type="password" autoComplete="off" disabled={busy} data-tv-allow-enter="true"
-              placeholder={register ? `Password — at least ${MIN_PASSWORD} characters` : 'Password'}
-              enterKeyHint={register ? 'next' : 'done'} aria-label="Password"
+              placeholder={register ? `Password — at least ${MIN_PASSWORD} characters` : 'Password'} aria-label="Password"
               value={password} onChange={(e) => setPassword(e.target.value)} className={INPUT}
               {...focusAttrs(currentFocusId, 'ba-pass')} />
             {fieldNote('password')}
@@ -189,7 +188,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
               <div className="space-y-2">
                 <Label htmlFor="ba-first" className="text-brand-ice font-nunito">First name</Label>
                 <Input id="ba-first" autoComplete="off" disabled={busy} value={first}
-                  placeholder="First name" enterKeyHint="next" aria-label="First name"
+                  placeholder="First name" aria-label="First name"
                   onChange={(e) => setFirst(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'ba-first')} />
                 {fieldNote('first_name')}
@@ -197,7 +196,7 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
               <div className="space-y-2">
                 <Label htmlFor="ba-last" className="text-brand-ice font-nunito">Last name <span className="text-brand-ice/50">(optional)</span></Label>
                 <Input id="ba-last" autoComplete="off" disabled={busy} value={last}
-                  placeholder="Last name (optional)" enterKeyHint="done" aria-label="Last name, optional"
+                  placeholder="Last name (optional)" aria-label="Last name, optional"
                   onChange={(e) => setLast(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'ba-last')} />
                 {fieldNote('last_name')}

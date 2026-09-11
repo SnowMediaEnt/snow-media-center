@@ -268,11 +268,15 @@ describe('native visibility association', () => {
     await fireDidShow();                 // a keyboard is genuinely up, and the page knows
     await fireNativeVisibility(false);   // Android closed it: no didHide, no JS key
 
-    // Nothing left to close, so this Back LEAVES THE SCREEN rather than being
-    // swallowed as "close the keyboard" — which is what used to cost a second
-    // press. The fail-safe dismiss still fires on the way out (the field is
-    // focused); what matters is that the press was not consumed.
+    // The page has been told, so nothing here believes a keyboard is up any
+    // more. Back on the field still dismisses and STAYS — that is deliberately
+    // unconditional now — and the press after it, with focus off the field,
+    // leaves the screen.
     await back(email);
+    expect(state.hideCalls).toBe(1);
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => { vi.setSystemTime(Date.now() + 600); });
+    await back(document.body);
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
@@ -294,9 +298,13 @@ describe('native visibility association', () => {
     await ok(email);          // keyboard is up on the device; nothing says so
     await back(email);
 
+    // Dismissed, and still on the field the viewer was typing in. Between
+    // 2026-09-09 and the revert this Back was gated behind a keyboardDidShow
+    // that Fire OS 7 never sends, so it skipped the dismiss and navigated
+    // instead — leaving the keyboard stranded over the next screen.
     expect(state.hideCalls).toBe(1);
     expect(state.nativeHideCalls).toBe(1);
-    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
   });
 
   it('Back on a non-field does not ask the keyboard to hide', async () => {
@@ -386,56 +394,48 @@ describe('native visibility association', () => {
 
 });
 
-describe('Next / Done sequence', () => {
+describe('Enter and OK on a field', () => {
   const walk = async (from: HTMLElement) => { await ok(from); };
 
-  it('Next follows the form order Email -> Password -> First -> Last even though "down" skips Last', async () => {
+  it('Enter never moves the highlight and never submits, however it arrived', async () => {
+    // There was a Next/Done implementation here. It had to go: Amazon's
+    // full-screen keyboard hands the page its own editor action instead of the
+    // Back the viewer pressed, so an Enter cannot be trusted to have come from
+    // the viewer. In the field it meant Back walked username -> password and
+    // then signed in with half-typed credentials. Field movement on a TV is the
+    // D-pad's job.
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
     const email = getByLabelText('email') as HTMLInputElement;
 
     await tap(email);
     await fireDidShow();
-    await walk(email);
-    expect(document.activeElement).toBe(getByLabelText('password'));
-    expect(state.hideCalls).toBe(0); // no hide between editable fields
-
-    await fireDidShow();
-    await walk(getByLabelText('password'));
-    expect(document.activeElement).toBe(getByLabelText('first'));
-
-    await fireDidShow();
-    await walk(getByLabelText('first'));
-    expect(document.activeElement).toBe(getByLabelText('last')); // NOT the submit button
+    await ok(email);
+    expect(document.activeElement).toBe(email);        // did NOT advance
     expect(onSubmit).not.toHaveBeenCalled();
 
+    // Same on the field the form marks as its submit key: OK opens the
+    // keyboard, it does not sign you in.
+    const last = getByLabelText('last') as HTMLInputElement; // done + allow-enter
+    await tap(last);
     await fireDidShow();
-    await walk(getByLabelText('last')); // done + allow-enter
-    expect(onSubmit).toHaveBeenCalledTimes(1);
+    await ok(last);
+    expect(document.activeElement).toBe(last);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('Next transfers fields without requesting a hide, and a native didHide afterwards is honoured', async () => {
-    const onBack = vi.fn();
-    const { getByLabelText } = render(<Harness onBack={onBack} />);
-    const email = getByLabelText('email') as HTMLInputElement;
-    await tap(email);
-    await fireDidShow();
-    await ok(email);                    // Next -> password
+  it('Enter on a field asks for that field\'s keyboard every time', async () => {
+    // The corollary: since Enter no longer means Next or Done, it can safely
+    // mean "let me type here" on every press, so a device that ignored the
+    // first request can simply be asked again.
+    const { getByLabelText } = render(<Harness />);
     const password = getByLabelText('password') as HTMLInputElement;
+    await tap(password);
+    await ok(password);
+    await ok(password);
+    expect(state.showCalls).toBe(2);
     expect(document.activeElement).toBe(password);
-    expect(state.hideCalls).toBe(0);    // no hide was ever asked for
-    // The platform keyboard stayed up through the transfer, so Back closes it
-    // rather than leaving the form.
-    await back(password);
-    expect(state.hideCalls).toBe(1);
-    expect(onBack).not.toHaveBeenCalled();
-    // A real didHide now arrives; the next Back leaves the screen.
-    await fireDidHide();
-    await act(async () => { vi.setSystemTime(Date.now() + 600); });
-    await back(document.body);
-    expect(onBack).toHaveBeenCalledTimes(1);
   });
-
 
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();

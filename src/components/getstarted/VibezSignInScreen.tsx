@@ -110,14 +110,14 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
                 {/* Fire TV's full-screen keyboard covers the form, and the
                     placeholder is the only label it shows. */}
                 <Input id="vs-user" autoComplete="off" disabled={busy} value={username}
-                  placeholder="Username from Vibez" enterKeyHint="next" aria-label="Vibez username"
+                  placeholder="Username from Vibez" aria-label="Vibez username"
                   onChange={(e) => setUsername(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'vs-user')} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vs-pass" className="text-brand-ice font-nunito">Password</Label>
                 <Input id="vs-pass" type="password" autoComplete="off" disabled={busy} data-tv-allow-enter="true"
-                  placeholder="Password from Vibez" enterKeyHint="done" aria-label="Vibez password"
+                  placeholder="Password from Vibez" aria-label="Vibez password"
                   value={password} onChange={(e) => setPassword(e.target.value)} className={INPUT}
                   {...focusAttrs(currentFocusId, 'vs-pass')} />
               </div>

@@ -431,7 +431,7 @@ export const useTVFocus = ({
       if (isBack) {
         // Backspace deletes whenever a field is being edited — however the
         // viewer got into it, remote or tap — and is only Back otherwise.
-        if (event.key === 'Backspace' && (keyboardOpen() || typing)) return;
+        if (event.key === 'Backspace' && typing) return;
         event.preventDefault();
         event.stopPropagation();
         const now = Date.now();
@@ -440,95 +440,60 @@ export const useTVFocus = ({
         lastBackRef.current = now;
         // Tell the app's other Back listeners this press is spoken for.
         (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
-        if (keyboardOpen()) {
+        // Back on a field the viewer is typing in closes the keyboard and
+        // STAYS on that field. Deliberately keyed off `typing` — a text input
+        // is focused — and NOT off any belief about whether a keyboard is
+        // visible.
+        //
+        // This is how it worked from May until 2026-09-09, when the condition
+        // became `if (keyboardOpen())`. That gate can only be satisfied by a
+        // keyboardDidShow event, and @capacitor/keyboard raises those purely
+        // from Android 11 window-inset animations, so on a Fire OS 7 stick
+        // (Android 9) it is false forever. Back stopped dismissing and started
+        // navigating instead, leaving the keyboard stranded over the next
+        // screen — on every text field in the app at once, because this hook is
+        // shared. Nothing about the device changed; this line did.
+        if (typing) {
           closeIme(active ?? target);
           return;
         }
-        // Fail-safe. Everything above depends on knowing a keyboard is up, and
-        // that knowledge has been wrong before: @capacitor/keyboard detects the
-        // keyboard only through Android 11 inset animations, so on a Fire OS 7
-        // stick (Android 9) keyboardDidShow never arrives and this gate was
-        // always false — Back navigated away and left the keyboard on screen
-        // over the next screen. SnowKeyboard now measures the window instead,
-        // and SnowWebView catches Back before the IME, so this should not be
-        // reachable with a keyboard up; ask anyway. Leaving a field is a fine
-        // moment to dismiss, and hiding a keyboard that is not there costs
-        // nothing, whereas stranding one has cost us days.
-        if (typing) void hideKeyboardForDpad(active ?? target);
         onBackRef.current?.();
         return;
       }
 
-      // A field whose keyboard shows Next means the field below, even when the
-      // field is marked allow-enter so Enter can submit a form. Password on the
-      // create-account form is both: it carries allow-enter for the sign-in
-      // layout, where it is the last field, but in register mode the keyboard
-      // says Next and First name is below it.
+      // Enter, however it arrived.
+      //
+      // There was a Next/Done block here between 2026-09-09 and this commit: an
+      // Enter with a keyboard open walked to the next editable field, or on a
+      // field marked allow-enter clicked the form's submit button. On a Fire TV
+      // that is actively harmful, because Amazon's full-screen keyboard hands
+      // us its own action rather than the Back the viewer pressed — so Back
+      // jumped from username to password, and then submitted the form and
+      // reported "username and password is incorrect". Field-to-field movement
+      // on a TV is the D-pad's job; the IME should not be driving navigation.
       const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
-      const wantsNext = enterField?.getAttribute('enterkeyhint') === 'next';
       const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
-
-      // OK on a HIGHLIGHTED field means "let me type here" — never "submit".
-      // While no keyboard is confirmed up this stays true on every press, so a
-      // device that ignored the first request can simply be asked again, and
-      // OK on Password can no longer submit an empty form.
-      if (isEnterKey(event) && enterField && !keyboardOpen()) {
+      if (isEnterKey(event) && enterField) {
+        // A multiline box keeps ordinary editing: Enter inserts a newline.
+        if (enterField.tagName === 'TEXTAREA' && keyboardOpen()) return;
+        // OK on a highlighted field ALWAYS means "let me type here". Never
+        // submit, never move.
+        //
+        // Submitting from here is not safe on this hardware: Amazon's keyboard
+        // hands the page its own editor action instead of the Back the viewer
+        // pressed, so an Enter cannot be trusted to have come from the viewer
+        // at all. It signed people in with half-typed credentials. Submission
+        // goes through the form's own button, which is where the D-pad lands
+        // next anyway.
         event.preventDefault();
         event.stopPropagation();
         activate();
         return;
       }
 
-      // A multiline box with no Next/Done behaviour asked for keeps ordinary
-      // editing: Enter inserts a newline.
-      const isMultiline = enterField?.tagName === 'TEXTAREA';
-      if (isEnterKey(event) && enterField && isMultiline && !wantsNext && !allowEnter) return;
-
-      // The keyboard's own Next / Done key arrives as Enter.
-      if (isEnterKey(event) && enterField && keyboardOpen()) {
-        event.preventDefault();
-        event.stopPropagation();
-        const from = enterField;
-        // Done on the field the form marks as its submit key: submit, exactly
-        // as the platform's own Done would.
-        if (!wantsNext && allowEnter) {
-          closeIme(from);
-          const form = from.form;
-          const submitter = form?.querySelector<HTMLElement>('button[type="submit"], input[type="submit"]');
-          if (submitter) submitter.click();
-          else form?.requestSubmit?.();
-          return;
-        }
-        // Next follows the FORM's own field order — the next editable field in
-        // DOM order — not the spatial 'down' rule. On the billing register form
-        // 'down' from First name lands on Submit, which skipped Last name even
-        // though its keyboard said Next. Directional navigation is untouched.
-        const fields = getElements().filter((el): el is HTMLInputElement | HTMLTextAreaElement =>
-          isTextInput(el) && !el.disabled);
-        const fromIdx = fields.indexOf(from);
-        const nextField = fromIdx >= 0 ? fields[fromIdx + 1] ?? null : null;
-        if (nextField) {
-          // The keyboard is deliberately NOT hidden when moving between
-          // editable fields: hiding is asynchronous, and its didHide would land
-          // after the new field's didShow and wipe the new field's state.
-          focusById(getId(nextField));
-          void openKeyboardOn(nextField);
-          return;
-        }
-        // Nothing editable follows: close the keyboard and let the layout's own
-        // 'down' rule decide where the highlight goes (usually the submit
-        // button).
-        closeIme(from);
-        void Promise.resolve().then(() => {
-          if (!mountedRef.current || !enabledRef.current) return;
-          move('down');
-        });
-        return;
-      }
-
-      // contentEditable and anything else that carries allow-enter: let Enter
-      // reach the form untouched.
-      if (typing && isEnterKey(event) && allowEnter && !wantsNext) return;
+      // contentEditable carrying allow-enter: let Enter reach the form
+      // untouched. (An INPUT/TEXTAREA with allow-enter already returned above.)
+      if (typing && isEnterKey(event) && allowEnter) return;
       // While typing in INPUT/TEXTAREA/contentEditable, never swallow Space — the user must be able
       // to type spaces. Also let Enter pass through unless arrow navigation is needed.
       if (typing && (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space' || event.keyCode === 32)) return;
