@@ -38,7 +38,6 @@ const GAMES: GameCard[] = [
   { id: 'video-poker', nameKey: 'games.hub.gameVideoPokerName', taglineKey: 'games.hub.gameVideoPokerTagline', emoji: '♠️', badgeKey: 'games.hub.badgePlayNow', playable: true },
   { id: 'roulette', nameKey: 'games.hub.gameRouletteName', taglineKey: 'games.hub.gameRouletteTagline', emoji: '🎡', badgeKey: 'games.hub.badgePlayNow', playable: true },
   { id: 'casino-holdem', nameKey: 'games.hub.gameCasinoHoldemName', taglineKey: 'games.hub.gameCasinoHoldemTagline', emoji: '♣️', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'leaderboard', nameKey: 'games.hub.gameLeaderboardName', taglineKey: 'games.hub.gameLeaderboardTagline', emoji: '🏆', badgeKey: 'games.hub.badgeComingSoon', playable: false },
 ];
 
 const COLS = 3;

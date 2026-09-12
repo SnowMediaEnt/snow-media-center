@@ -578,7 +578,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           stopVoicePlayback();
           const sectionMap: Record<string, string> = {
             'install-apps': 'apps',
-            'support': 'videos',
+            'support': 'support-videos',
             'media': 'credits',
             'user': 'user'
           };
@@ -595,7 +595,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       case 'find_support_video':
         if (onNavigate) {
           stopVoicePlayback();
-          onNavigate('videos');
+          onNavigate('support-videos');
           toast({
             title: "Support Videos",
             description: `Looking for videos about: ${args.query}${args.app_name ? ` (${args.app_name})` : ''}`,
