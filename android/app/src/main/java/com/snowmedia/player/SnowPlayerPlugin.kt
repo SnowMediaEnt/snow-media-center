@@ -630,13 +630,36 @@ class SnowPlayerPlugin : Plugin() {
             if (screenId != MAIN && s.currentUrl != null && c.visibility != View.VISIBLE) {
                 c.visibility = View.VISIBLE
             }
-            // Z-order guard: keep our container directly BENEATH the WebView so
-            // the transparent HTML chrome always composites above the video.
+            // Z-order guard: keep our container BELOW the WebView so the
+            // transparent HTML chrome always composites above the video.
+            //
+            // "Below", not "directly below". This used to insist on exactly
+            // wvIdx - 1, which only ONE child can occupy — so with more than
+            // one slot the tiles fought over that single position. Every
+            // setRect moved a container there, pushing the previous one down,
+            // and measureAndApply calls setRect for EVERY occupied slot and
+            // re-runs on every `slots` change (buffering, state, EPG). The
+            // result was a permanent removeView/addView churn.
+            //
+            // That is fatal here: detaching a view destroys its TextureView's
+            // SurfaceTexture, so Media3's listener tears the video output down
+            // and the next attach races the next detach. No tile ever held a
+            // surface long enough to draw — every screen black, audio playing
+            // normally, on all three layouts. The main player was fine because
+            // a single slot satisfies "exactly wvIdx - 1" and then stops moving.
+            //
+            // Tiles never overlap, so their order amongst themselves does not
+            // matter; only staying under the WebView does. ensureSurface adds
+            // at index 0, so in practice this now never fires.
             val parent = c.parent as? ViewGroup
             val wv = bridge?.webView
             if (parent != null && wv != null) {
+                val cIdx = parent.indexOfChild(c)
                 val wvIdx = parent.indexOfChild(wv)
-                if (wvIdx > 0 && parent.indexOfChild(c) != wvIdx - 1) {
+                if (cIdx >= 0 && wvIdx >= 0 && cIdx > wvIdx) {
+                    // Genuinely above the WebView. Removing a child that sits
+                    // after wv leaves wv's index unchanged, so re-reading it
+                    // and inserting there puts us immediately beneath it.
                     parent.removeView(c)
                     parent.addView(c, parent.indexOfChild(wv))
                 }

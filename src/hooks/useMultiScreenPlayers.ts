@@ -53,6 +53,11 @@ export function useMultiScreenPlayers(): Api {
 
   const retryTimersRef = useRef<Record<string, number | undefined>>({});
   const focusedAudioRef = useRef<MultiScreenId | null>(null);
+  // Last rect actually sent per slot. measureAndApply runs for EVERY occupied
+  // slot and re-runs on every `slots` change — buffering flags, player state,
+  // EPG — so without this the native side gets a stream of identical rects,
+  // each costing a layout pass and a format-matrix recompute during playback.
+  const lastRectRef = useRef<Record<string, string>>({});
 
   const isMs = (id: string | undefined): id is MultiScreenId =>
     !!id && (id === 'ms1' || id === 'ms2' || id === 'ms3' || id === 'ms4');
@@ -137,6 +142,8 @@ export function useMultiScreenPlayers(): Api {
   const applyRect = useCallback(async (screenId: MultiScreenId, rect: CssRect): Promise<void> => {
     // Fullscreen sentinel (w/h<=0) → dedicated fullscreen flag.
     if (rect.width <= 0 || rect.height <= 0) {
+      if (lastRectRef.current[screenId] === 'fs') return;
+      lastRectRef.current[screenId] = 'fs';
       try {
         await SnowPlayer.setRect({ x: 0, y: 0, width: 0, height: 0, fullscreen: true, screenId });
       } catch { /* ignore */ }
@@ -152,6 +159,9 @@ export function useMultiScreenPlayers(): Api {
       try { console.warn('[multiscreen] skip applyRect: degenerate rect', screenId, rect); } catch { /* ignore */ }
       return;
     }
+    const key = `${l},${t},${w},${h},${Math.round(window.innerWidth)},${Math.round(window.innerHeight)}`;
+    if (lastRectRef.current[screenId] === key) return;
+    lastRectRef.current[screenId] = key;
     try {
       await SnowPlayer.setRect({
         x: l, y: t, width: w, height: h,
@@ -202,6 +212,7 @@ export function useMultiScreenPlayers(): Api {
     const t = retryTimersRef.current[key];
     if (t) { window.clearTimeout(t); retryTimersRef.current[key] = undefined; }
     try { await SnowPlayer.stop({ screenId }); } catch { /* ignore */ }
+    delete lastRectRef.current[screenId];
     setSlots(prev => ({ ...prev, [screenId]: emptySlot() }));
     if (focusedAudioRef.current === screenId) focusedAudioRef.current = null;
   }, []);
@@ -210,6 +221,7 @@ export function useMultiScreenPlayers(): Api {
     Object.values(retryTimersRef.current).forEach(t => { if (t) window.clearTimeout(t); });
     retryTimersRef.current = {};
     try { await SnowPlayer.stopAll(); } catch { /* ignore */ }
+    lastRectRef.current = {};
     setSlots({ ms1: emptySlot(), ms2: emptySlot(), ms3: emptySlot(), ms4: emptySlot() });
     focusedAudioRef.current = null;
   }, []);
@@ -222,6 +234,9 @@ export function useMultiScreenPlayers(): Api {
       const snap: Record<string, string | null> = {};
       for (const id of MS_SLOT_IDS) snap[id] = slotsRef.current[id].url;
       rememberedRef.current = snap;
+      // stopAll() drops the native containers' state, so every slot must send
+      // its rect again when we come back.
+      lastRectRef.current = {};
       void (async () => {
         try { await SnowPlayer.stopAll(); } catch { /* ignore */ }
       })();
