@@ -17,7 +17,8 @@ vi.mock('@/lib/plexDemo', () => ({ demoConn: { base: '', token: '', name: '' } }
 vi.mock('@/utils/idle', () => ({ runWhenIdle: () => () => { /* never runs in tests */ } }));
 
 const loadCreds = vi.fn();
-vi.mock('@/lib/xtream', () => ({ loadCreds: () => loadCreds() }));
+const loadPlayerAccount = vi.fn();
+vi.mock('@/lib/xtream', () => ({ loadCreds: () => loadCreds(), loadPlayerAccount: () => loadPlayerAccount() }));
 
 const getPlexServers = vi.fn();
 const storage = () => ({
@@ -53,6 +54,8 @@ beforeEach(() => {
   sessionStorage.clear();
   invoke.mockReset();
   loadCreds.mockReset();
+  loadPlayerAccount.mockReset();
+  loadPlayerAccount.mockResolvedValue(null);
   getPlexServers.mockReset();
   getPlexServers.mockResolvedValue([SERVER]);
 });
@@ -152,7 +155,7 @@ describe('usePlexAuth provider link', () => {
     expect(storage().token).toBe('own-tok');
   });
 
-  it('signs Plex out when the Live TV line is removed, only if the link was the provider\'s', async () => {
+  it('keeps a provider-linked Plex when the member signs out of Live TV', async () => {
     loadCreds.mockResolvedValue(LINE);
     invoke.mockResolvedValue({ data: { ok: true, token: 'provider-tok' }, error: null });
     const { result } = renderHook(() => usePlexAuth());
@@ -160,9 +163,49 @@ describe('usePlexAuth provider link', () => {
 
     loadCreds.mockResolvedValue(null);
     act(() => { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(result.current.status).toBe('ready');
+    expect(storage()).toMatchObject({ token: 'provider-tok', flag: '1' });
+    expect(result.current.providerAvailable).toBe(false);
+  });
+
+  it('signs a provider-linked Plex out when the panel reports the line expired', async () => {
+    loadCreds.mockResolvedValue(LINE);
+    loadPlayerAccount.mockResolvedValue({ status: 'Active', expDate: Math.floor(Date.now() / 1000) + 86400 });
+    invoke.mockResolvedValue({ data: { ok: true, token: 'provider-tok' }, error: null });
+    const { result } = renderHook(() => usePlexAuth());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    // The Player's panel refresh writes the new status and fires the event.
+    loadPlayerAccount.mockResolvedValue({ status: 'Expired', expDate: Math.floor(Date.now() / 1000) - 60 });
+    invoke.mockResolvedValue({ data: { ok: false, reason: 'line_inactive', status: 'expired' }, error: null });
+    act(() => { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); });
     await waitFor(() => expect(result.current.status).toBe('signed-out'));
     expect(storage()).toMatchObject({ token: null, flag: null });
-    expect(result.current.providerAvailable).toBe(false);
+    expect(result.current.providerNote).toMatch(/expired/);
+  });
+
+  it('drops an expired provider link at launch, before touching Plex', async () => {
+    localStorage.setItem('snow-plex-token-v1', 'provider-tok');
+    localStorage.setItem('snow-plex-provider-v1', '1');
+    loadCreds.mockResolvedValue(LINE);
+    loadPlayerAccount.mockResolvedValue({ status: 'Active', expDate: Math.floor(Date.now() / 1000) - 3600 });
+    const { result } = renderHook(() => usePlexAuth());
+    await waitFor(() => expect(result.current.status).toBe('signed-out'));
+    expect(getPlexServers).not.toHaveBeenCalled();
+    expect(storage().token).toBeNull();
+  });
+
+  it('never expires a member\'s own PIN-linked Plex', async () => {
+    localStorage.setItem('snow-plex-token-v1', 'own-tok');
+    loadCreds.mockResolvedValue(LINE);
+    loadPlayerAccount.mockResolvedValue({ status: 'Expired', expDate: 1 });
+    const { result } = renderHook(() => usePlexAuth());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => { window.dispatchEvent(new CustomEvent('playerAccountRefresh')); });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(result.current.status).toBe('ready');
+    expect(storage().token).toBe('own-tok');
   });
 
   it('keeps a PIN-linked Plex when the Live TV line is removed', async () => {

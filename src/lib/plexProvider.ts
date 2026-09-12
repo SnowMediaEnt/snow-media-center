@@ -8,7 +8,7 @@
 // remount or a second screen does not re-issue the same request — the
 // function mints nothing, but it does hit the panel and it is throttled.
 import { supabase } from '@/integrations/supabase/client';
-import type { XtreamCreds } from '@/lib/xtream';
+import { loadPlayerAccount, type XtreamCreds } from '@/lib/xtream';
 
 export interface ProviderPlexResult {
   ok: boolean;
@@ -111,6 +111,23 @@ export function providerLinkMessage(r: ProviderPlexResult): string | null {
     case 'provider_misconfigured': return 'Plex is not set up correctly on the provider side yet. Ask your provider.';
     default: return "Couldn't connect Plex through your Live TV account.";
   }
+}
+
+// ── line expiry ────────────────────────────────────────────────────────────
+// A provider-linked Plex lives as long as the line does. The Player refreshes
+// the saved account from the panel every time it opens (LiveTV.tsx), so the
+// status here is at most one Player launch old. Returns the panel status
+// ('expired' | 'disabled' | 'banned') when the line is no longer active,
+// null when it is active or there is no line at all — signing OUT of Live TV
+// is not expiry and leaves Plex alone.
+const INACTIVE = new Set(['expired', 'disabled', 'banned']);
+export async function providerLineInactive(): Promise<string | null> {
+  const acc = await loadPlayerAccount();
+  if (!acc) return null;
+  const status = String(acc.status || '').toLowerCase();
+  if (INACTIVE.has(status)) return status;
+  if (typeof acc.expDate === 'number' && acc.expDate > 0 && acc.expDate * 1000 < Date.now()) return 'expired';
+  return null;
 }
 
 // ── "this token came from the line" flag ──────────────────────────────────

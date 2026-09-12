@@ -12,6 +12,7 @@ import { demoConn } from '@/lib/plexDemo';
 import { loadCreds } from '@/lib/xtream';
 import {
   fetchProviderPlexToken, providerLinkMessage, markPlexProviderLinked, isPlexProviderLinked, isProviderServer,
+  providerLineInactive,
 } from '@/lib/plexProvider';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
@@ -304,6 +305,20 @@ export function usePlexAuth() {
     return isProviderServer(saved?.name);
   }, []);
 
+  // A provider-linked Plex ends with the line: expired, disabled or banned
+  // per the panel. Returns true when it signed Plex out. Signing OUT of Live
+  // TV is not expiry — the box keeps its Plex, as the provider asked.
+  const dropIfLineInactive = useCallback(async (): Promise<boolean> => {
+    if (!(await isPlexProviderLinked())) return false;
+    const inactive = await providerLineInactive();
+    if (!inactive || cancelledRef.current) return false;
+    await resetLocal();
+    await markPlexProviderLinked(false);
+    setProviderNote(`Your Live TV subscription is ${inactive}. Renew it to keep Plex.`);
+    setStatus('signed-out');
+    return true;
+  }, [resetLocal]);
+
   useEffect(() => {
     // Demo mode never touches stored tokens or the Plex account API.
     if (demo) return;
@@ -314,6 +329,7 @@ export function usePlexAuth() {
       if (token) {
         setAccountToken(token);
         void loadCreds().then((c) => { if (!cancelledRef.current) setProviderAvailable(!!c); });
+        if (await dropIfLineInactive()) return;
         const outcome = await discover(token);
         // plex.tv rejected the stored token. If it is the provider's, a fresh
         // one from the line is the fix — no one has to type a code.
@@ -326,12 +342,13 @@ export function usePlexAuth() {
       if (!(await linkViaProvider())) { if (!cancelledRef.current) setStatus('signed-out'); }
     })();
     return () => { cancelledRef.current = true; clearPoll(); cancelUpgradeRef.current?.(); };
-  }, [discover, demo, linkViaProvider, tokenIsOurs]);
+  }, [discover, demo, linkViaProvider, tokenIsOurs, dropIfLineInactive]);
 
   // Follow the Live TV line. Signing into Live TV while Plex is signed out
-  // links Plex on the spot; signing out of Live TV takes a provider-linked
-  // Plex with it. A member's own PIN-linked Plex is left alone either way.
-  // savePlayerAccount/clearPlayerAccount both dispatch this event.
+  // links Plex on the spot; a line the panel reports expired, disabled or
+  // banned takes a provider-linked Plex with it. Signing out of Live TV, and
+  // a member's own PIN-linked Plex, are both left alone. savePlayerAccount
+  // dispatches this event — at sign-in and after every panel refresh.
   useEffect(() => {
     if (demo) return;
     const onRefresh = () => {
@@ -339,21 +356,14 @@ export function usePlexAuth() {
         const creds = await loadCreds();
         if (cancelledRef.current) return;
         setProviderAvailable(!!creds);
-        if (creds) {
-          if (statusRef.current === 'signed-out' && !manualSignOutRef.current) await linkViaProvider();
-          return;
-        }
-        if (await isPlexProviderLinked()) {
-          await resetLocal();
-          await markPlexProviderLinked(false);
-          setProviderNote(null);
-          setStatus('signed-out');
-        }
+        if (!creds) return;
+        if (await dropIfLineInactive()) return;
+        if (statusRef.current === 'signed-out' && !manualSignOutRef.current) await linkViaProvider();
       })();
     };
     window.addEventListener('playerAccountRefresh', onRefresh);
     return () => window.removeEventListener('playerAccountRefresh', onRefresh);
-  }, [demo, linkViaProvider, resetLocal]);
+  }, [demo, linkViaProvider, dropIfLineInactive]);
 
   // PlexSection calls this when a library request comes back 401 on a
   // connection discover() accepted (the /identity check needs no token, so a
