@@ -259,8 +259,20 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
 };
 
 // ---------- ESPN (LIVE NOW only) ----------
+// ESPN's public scoreboard sits behind a WAF that answers 403 to the edge
+// runtime's default `Deno/x.y` User-Agent — every league at once, which is
+// exactly how it presented (liveCount 0 on a Saturday in September). It
+// serves the same JSON to anything that looks like a browser.
+const ESPN_HEADERS: HeadersInit = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://www.espn.com/',
+  'Origin': 'https://www.espn.com',
+};
+
 const fetchEspnLive = async (url: string, label: string): Promise<Item[]> => {
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const res = await fetch(url, { headers: ESPN_HEADERS, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`espn ${label} ${res.status}`);
   const data = await res.json();
   const events = data?.events ?? [];
