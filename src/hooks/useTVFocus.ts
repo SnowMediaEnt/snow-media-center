@@ -132,6 +132,10 @@ export const useTVFocus = ({
   // this long the field becomes retryable again. A lapsed deadline is NOT
   // evidence of visibility — it only permits another request.
   const REQUEST_DEADLINE_MS = 3000;
+  // How long after a Back-dismiss an Enter / OK / Space is treated as the
+  // keyboard's own after-effect rather than a press. See the guard in the
+  // keydown handler.
+  const DISMISS_GRACE_MS = 700;
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearPendingTimer = useCallback(() => {
     if (pendingTimerRef.current) {
@@ -247,6 +251,8 @@ export const useTVFocus = ({
   // the first closed the keyboard and the second left the screen, so there was
   // never a moment to arrow down to Sign In.
   const lastBackRef = useRef(0);
+  // When Back last dismissed a keyboard on a field. See DISMISS_GRACE_MS.
+  const lastDismissRef = useRef(0);
   const [currentFocusId, setCurrentFocusId] = useState<string | null>(initialFocusId ?? null);
 
 
@@ -415,6 +421,7 @@ export const useTVFocus = ({
       if (!managedTarget) return;
 
       const typing = isTextInput(target) || isTextInput(active) || !!target?.isContentEditable;
+      const now = Date.now();
       // Close the keyboard but keep the field highlighted, so Back reads as
       // "done typing" rather than "the screen reset itself".
       const closeIme = (el: HTMLElement | null) => {
@@ -434,7 +441,6 @@ export const useTVFocus = ({
         if (event.key === 'Backspace' && typing) return;
         event.preventDefault();
         event.stopPropagation();
-        const now = Date.now();
         // Swallow the echo of a press we already acted on.
         if (now - lastBackRef.current < 400) return;
         lastBackRef.current = now;
@@ -454,10 +460,37 @@ export const useTVFocus = ({
         // screen — on every text field in the app at once, because this hook is
         // shared. Nothing about the device changed; this line did.
         if (typing) {
+          lastDismissRef.current = now;
           closeIme(active ?? target);
           return;
         }
         onBackRef.current?.();
+        return;
+      }
+
+      // A keyboard dismissed by Back must STAY dismissed.
+      //
+      // Measured on a Fire TV: Back closes Amazon's keyboard for a split
+      // second and it comes straight back. The keyboard emits its editor
+      // action as it goes — Chromium delivers that to the page as a plain
+      // Enter keydown — and by then closeIme() has blurred the field, so the
+      // Enter lands on <body>. activate() then falls back to currentIdRef (the
+      // field we just left) and re-requests the keyboard on it.
+      //
+      // It only started doing this when the keyboard started working. Before
+      // 2026-09-08, activate() on a text field called Capacitor's polite
+      // Keyboard.show(), which a TV in non-touch mode ignores, so that stray
+      // Enter was a no-op. SnowKeyboard.show() actually works — which is the
+      // whole point of it — so the same Enter now re-raises the keyboard.
+      //
+      // So: for a short grace period after a Back-dismiss, Enter / OK / Space
+      // is swallowed outright. A person cannot mean "open it again" within
+      // 700 ms of closing it; the keyboard's own after-effects arrive well
+      // inside that. Arrow keys are untouched, so moving off the field still
+      // works instantly.
+      if (isOkKey(event) && now - lastDismissRef.current < DISMISS_GRACE_MS) {
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
 
