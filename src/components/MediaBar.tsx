@@ -181,6 +181,11 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: Props) => {
   const cached = useMemo(readCache, []);
   const [items, setItems] = useState<MediaItem[]>(cached ?? []);
+  // True once the feed has answered at all. Until then an empty bar shows
+  // placeholder posters; after it, an empty bar is simply empty. Without this
+  // a feed that answers `items: []` — Plex unreachable from the edge runtime
+  // and no game live — pulsed grey skeletons for the rest of the session.
+  const [loaded, setLoaded] = useState(false);
   const [pageIdx, setPageIdx] = useState(0);
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
@@ -245,6 +250,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         );
         if (cancelled) return;
         if (error) throw error;
+        // The function reports its own failures as HTTP 200 + `error`.
+        if (data?.error) throw new Error(String(data.error));
         const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
         if (next.length) {
           setItems(next);
@@ -252,6 +259,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         }
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     };
     const cancelFirst = onFirstInteraction(() => {
@@ -450,9 +459,9 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
 
         <div className="flex-1 grid gap-3 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
           {isEmpty
-            ? Array.from({ length: PAGE_SIZE }).map((_, i) => (
+            ? (loaded ? null : Array.from({ length: PAGE_SIZE }).map((_, i) => (
                 <div key={i} className="media-poster rounded-2xl bg-black/30 animate-pulse" />
-              ))
+              )))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
                 const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
