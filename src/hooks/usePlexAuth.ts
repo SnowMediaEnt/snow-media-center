@@ -9,6 +9,10 @@ import {
 import { runWhenIdle } from '@/utils/idle';
 import { isDemo } from '@/lib/demoMode';
 import { demoConn } from '@/lib/plexDemo';
+import { loadCreds } from '@/lib/xtream';
+import {
+  fetchProviderPlexToken, providerLinkMessage, markPlexProviderLinked, isPlexProviderLinked, isProviderServer,
+} from '@/lib/plexProvider';
 
 export type PlexStatus = 'loading' | 'signed-out' | 'linking' | 'connecting' | 'ready' | 'unreachable' | 'error';
 export interface PlexConn { base: string; token: string; name: string; clientIdentifier?: string; owned?: boolean; route?: PlexRoute; }
@@ -26,12 +30,20 @@ const DEMO_AUTH = {
   error: null,
   justLinked: false,
   accountToken: null,
+  providerNote: null,
+  providerAvailable: false,
   clearJustLinked: noop,
   startLink: asyncNoop,
   cancelLink: noop,
   signOut: asyncNoop,
   retryConnect: asyncNoop,
+  linkWithProvider: asyncNoop,
+  reportAuthFailure: noop,
 };
+
+// What discover() learned. 'auth' is the one outcome the caller can act on:
+// plex.tv rejected the token itself, so no retry with the same token can help.
+type DiscoverOutcome = 'ok' | 'failed' | 'auth';
 
 export function usePlexAuth() {
   const demo = isDemo();
@@ -42,6 +54,18 @@ export function usePlexAuth() {
   const [error, setError] = useState<string | null>(null);
   const [justLinked, setJustLinked] = useState(false);
   const [accountToken, setAccountToken] = useState<string | null>(null);
+  // Provider link (see src/lib/plexProvider.ts): a box signed into Live TV
+  // gets the provider's Plex token without a PIN. `providerNote` is why the
+  // last attempt failed, for the sign-in screen; `providerAvailable` is
+  // "there is a Live TV line on this box", so the screen can offer it.
+  const [providerNote, setProviderNote] = useState<string | null>(null);
+  const [providerAvailable, setProviderAvailable] = useState(false);
+  const statusRef = useRef<PlexStatus>('loading');
+  const linkingProviderRef = useRef(false);
+  // Set by the Sign out button. Auto-link stays off until the next launch so
+  // a member who signs out to link their OWN Plex is not signed straight back
+  // into the provider's.
+  const manualSignOutRef = useRef(false);
   const pollRef = useRef<number | null>(null);
   const startingRef = useRef(false);
   const discoveringRef = useRef(false);
@@ -57,8 +81,10 @@ export function usePlexAuth() {
 
   const clearPoll = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
 
-  const discover = useCallback(async (accountToken: string): Promise<boolean> => {
-    if (discoveringRef.current) return false;
+  useEffect(() => { statusRef.current = status; }, [status]);
+
+  const discover = useCallback(async (accountToken: string): Promise<DiscoverOutcome> => {
+    if (discoveringRef.current) return 'failed';
     discoveringRef.current = true;
     setStatus('connecting');
     try {
@@ -159,14 +185,14 @@ export function usePlexAuth() {
               })();
             }, 8000);
           }
-          return true;
+          return 'ok';
         } catch { /* stale cache — rediscover */ }
       }
       const servers = await getPlexServers(accountToken);
       if (!servers.length) {
         setError('No Plex Media Server is linked to this Plex account.');
         setStatus('unreachable');
-        return false;
+        return 'failed';
       }
       // Try EVERY server (owned first, then shared) — accounts often carry
       // old/dead registrations; the reachable one may be a shared server.
@@ -179,19 +205,103 @@ export function usePlexAuth() {
           await savePlexServer(c);
           if (connBaseRef.current && connBaseRef.current !== base) bumpPlexImageEpoch();
           connBaseRef.current = base;
-          setConn(c); setStatus('ready'); return true;
+          setConn(c); setStatus('ready'); return 'ok';
         }
       }
       setError(`Signed in — found ${ordered.length} server${ordered.length === 1 ? '' : 's'} (${ordered.map((s) => s.name).join(', ')}) but none are reachable from this device right now. Check the server is online and Remote Access is enabled, then tap Retry.`);
       setStatus('unreachable');
-      return false;
+      return 'failed';
     } catch (e) {
-      setError((e as Error).message || 'Failed to reach Plex.');
+      const msg = (e as Error).message || 'Failed to reach Plex.';
+      setError(msg);
       setStatus('unreachable');
-      return false;
+      // plex.tv answered 401: the token is dead, not the network.
+      return /HTTP 401\b/.test(msg) ? 'auth' : 'failed';
     } finally {
       discoveringRef.current = false;
     }
+  }, []);
+
+  // Forget everything Plex on this box: token, saved server, caches, state.
+  // Shared by the Sign out button and the provider re-link, which replaces a
+  // dead token with a fresh one and must not let discover() reuse the saved
+  // server record (it carries the dead token, and for a shared account the
+  // per-server token differs from the account token anyway).
+  const resetLocal = useCallback(async () => {
+    clearPoll();
+    startingRef.current = false;
+    // Stop the deferred writers before clearing storage, and invalidate any
+    // that already started: an idle upgrade landing after this point would
+    // re-create the saved server with the outgoing account's token.
+    sessionRef.current += 1;
+    cancelUpgradeRef.current?.();
+    cancelUpgradeRef.current = null;
+    await clearPlexToken(); // also removes the saved server (token + server prefs)
+    // Drop in-memory catalog caches so the next account (even on the same
+    // server base URL) never renders the previous account's rows/posters.
+    clearPlexCaches();
+    bumpPlexImageEpoch(); // invalidate any queued/in-flight poster URLs
+    connBaseRef.current = null;
+    setAccountToken(null);
+    setConn(null); setPinCode(null); setError(null); setJustLinked(false);
+  }, []);
+
+  // Ask plex-provider-token for the provider's Plex token on behalf of the
+  // Live TV line saved on this box, store it and connect. Returns true when
+  // Plex ended up connected. Sets nothing on the screen when there is no line
+  // or the feature is off, so those boxes behave exactly as before.
+  const linkViaProvider = useCallback(async (opts?: { force?: boolean; replace?: boolean }): Promise<boolean> => {
+    if (linkingProviderRef.current) return false;
+    linkingProviderRef.current = true;
+    const session = sessionRef.current;
+    try {
+      const creds = await loadCreds();
+      if (cancelledRef.current || sessionRef.current !== session) return false;
+      setProviderAvailable(!!creds);
+      if (!creds) return false;
+      setProviderNote(null);
+      // Where to land if this fails: a box that was showing its library keeps
+      // showing it (with the library error), a signed-out box stays signed
+      // out. Never leave the screen on "Connecting…".
+      const prev = statusRef.current;
+      const fallback: PlexStatus = prev === 'loading' || prev === 'connecting' ? 'signed-out' : prev;
+      setStatus('connecting');
+      const r = await fetchProviderPlexToken(creds, { force: opts?.force });
+      if (cancelledRef.current || sessionRef.current !== session) return false;
+      if (!r.ok || !r.token) {
+        setProviderNote(providerLinkMessage(r));
+        setStatus(fallback);
+        return false;
+      }
+      if (opts?.replace) {
+        // The token we hold was rejected. If the provider hands back the very
+        // same one, the provider's token is what died; replacing it with
+        // itself would only burn the line's throttle budget.
+        if ((await loadPlexToken()) === r.token) {
+          setProviderNote('Plex rejected the provider token. Ask your provider to refresh it.');
+          setStatus(fallback);
+          return false;
+        }
+        await resetLocal();
+        if (cancelledRef.current) return false;
+      }
+      await savePlexToken(r.token);
+      await markPlexProviderLinked(true);
+      manualSignOutRef.current = false;
+      setAccountToken(r.token);
+      return (await discover(r.token)) === 'ok';
+    } finally {
+      linkingProviderRef.current = false;
+    }
+  }, [discover, resetLocal]);
+
+  // Is the token on this box ours to replace? Yes when the provider link put
+  // it there, or when the saved server is the provider's — a member's own
+  // Plex, linked by PIN to their own server, is never touched.
+  const tokenIsOurs = useCallback(async (): Promise<boolean> => {
+    if (await isPlexProviderLinked()) return true;
+    const saved = await loadPlexServer();
+    return isProviderServer(saved?.name);
   }, []);
 
   useEffect(() => {
@@ -201,11 +311,67 @@ export function usePlexAuth() {
     (async () => {
       const token = await loadPlexToken();
       if (cancelledRef.current) return;
-      if (token) { setAccountToken(token); await discover(token); }
-      else { setAccountToken(null); setStatus('signed-out'); }
+      if (token) {
+        setAccountToken(token);
+        void loadCreds().then((c) => { if (!cancelledRef.current) setProviderAvailable(!!c); });
+        const outcome = await discover(token);
+        // plex.tv rejected the stored token. If it is the provider's, a fresh
+        // one from the line is the fix — no one has to type a code.
+        if (outcome === 'auth' && !cancelledRef.current && (await tokenIsOurs())) {
+          await linkViaProvider({ force: true, replace: true });
+        }
+        return;
+      }
+      setAccountToken(null);
+      if (!(await linkViaProvider())) { if (!cancelledRef.current) setStatus('signed-out'); }
     })();
     return () => { cancelledRef.current = true; clearPoll(); cancelUpgradeRef.current?.(); };
-  }, [discover, demo]);
+  }, [discover, demo, linkViaProvider, tokenIsOurs]);
+
+  // Follow the Live TV line. Signing into Live TV while Plex is signed out
+  // links Plex on the spot; signing out of Live TV takes a provider-linked
+  // Plex with it. A member's own PIN-linked Plex is left alone either way.
+  // savePlayerAccount/clearPlayerAccount both dispatch this event.
+  useEffect(() => {
+    if (demo) return;
+    const onRefresh = () => {
+      void (async () => {
+        const creds = await loadCreds();
+        if (cancelledRef.current) return;
+        setProviderAvailable(!!creds);
+        if (creds) {
+          if (statusRef.current === 'signed-out' && !manualSignOutRef.current) await linkViaProvider();
+          return;
+        }
+        if (await isPlexProviderLinked()) {
+          await resetLocal();
+          await markPlexProviderLinked(false);
+          setProviderNote(null);
+          setStatus('signed-out');
+        }
+      })();
+    };
+    window.addEventListener('playerAccountRefresh', onRefresh);
+    return () => window.removeEventListener('playerAccountRefresh', onRefresh);
+  }, [demo, linkViaProvider, resetLocal]);
+
+  // PlexSection calls this when a library request comes back 401 on a
+  // connection discover() accepted (the /identity check needs no token, so a
+  // dead token only shows up at the first real request). Same repair as at
+  // launch, same "ours to replace" rule.
+  const reportAuthFailure = useCallback(() => {
+    if (linkingProviderRef.current) return;
+    void (async () => {
+      if (!(await tokenIsOurs())) return;
+      await linkViaProvider({ force: true, replace: true });
+    })();
+  }, [linkViaProvider, tokenIsOurs]);
+
+  // The sign-in screen's "Connect with my Live TV account" button.
+  const linkWithProvider = useCallback(async () => {
+    manualSignOutRef.current = false;
+    if (!(await linkViaProvider({ force: true }))) setStatus('signed-out');
+  }, [linkViaProvider]);
 
 
   // Relay escape: Plex Relay is hard-capped (a couple of Mbit/s), which is
@@ -296,6 +462,11 @@ export function usePlexAuth() {
             startingRef.current = false;
             setPinCode(null);
             await savePlexToken(token);
+            // A PIN-linked token is the member's own: never replaced by the
+            // provider link, never removed by a Live TV sign-out.
+            await markPlexProviderLinked(false);
+            manualSignOutRef.current = false;
+            setProviderNote(null);
             setAccountToken(token);
             setJustLinked(true);
             await discover(token);
@@ -314,34 +485,32 @@ export function usePlexAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    clearPoll();
-    startingRef.current = false;
-    // Stop the deferred writers before clearing storage, and invalidate any
-    // that already started: an idle upgrade landing after this point would
-    // re-create the saved server with the outgoing account's token.
-    sessionRef.current += 1;
-    cancelUpgradeRef.current?.();
-    cancelUpgradeRef.current = null;
-    await clearPlexToken(); // also removes the saved server (token + server prefs)
-    // Drop in-memory catalog caches so the next account (even on the same
-    // server base URL) never renders the previous account's rows/posters.
-    clearPlexCaches();
-    bumpPlexImageEpoch(); // invalidate any queued/in-flight poster URLs
-    connBaseRef.current = null;
-    setAccountToken(null);
-    setConn(null); setPinCode(null); setError(null); setJustLinked(false); setStatus('signed-out');
-  }, []);
+    // Deliberate: stay signed out until the next launch even though a Live
+    // TV line could sign us straight back in.
+    manualSignOutRef.current = true;
+    await resetLocal();
+    await markPlexProviderLinked(false);
+    setProviderNote(null);
+    setStatus('signed-out');
+  }, [resetLocal]);
 
   const retryConnect = useCallback(async () => {
     const token = await loadPlexToken();
-    if (!token) { setStatus('signed-out'); return; }
+    if (!token) {
+      if (!(await linkViaProvider({ force: true }))) setStatus('signed-out');
+      return;
+    }
     setError(null);
-    await discover(token);
-  }, [discover]);
+    const outcome = await discover(token);
+    if (outcome === 'auth' && (await tokenIsOurs())) await linkViaProvider({ force: true, replace: true });
+  }, [discover, linkViaProvider, tokenIsOurs]);
 
   const clearJustLinked = useCallback(() => { setJustLinked(false); }, []);
 
   if (demo) return DEMO_AUTH;
 
-  return { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect };
+  return {
+    status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
+    clearJustLinked, startLink, cancelLink, signOut, retryConnect, linkWithProvider, reportAuthFailure,
+  };
 }

@@ -90,3 +90,9 @@ verify_jwt = false
 # email body is composed server-side, and sends are throttled per IP and line.
 [functions.email-line-credentials]
 verify_jwt = false
+
+# Hands a verified Live TV line the provider's Plex token. No session on a
+# box; the line is verified against the panel in code and throttled per IP
+# and per line.
+[functions.plex-provider-token]
+verify_jwt = false

@@ -7,16 +7,24 @@ interface Props {
   status: PlexStatus;
   pinCode: string | null;
   error: string | null;
+  /** Why the last Live TV → Plex link failed, or null. */
+  providerNote?: string | null;
+  /** A Live TV line is saved on this box, so Plex can be linked through it. */
+  providerAvailable?: boolean;
   onStartLink: () => void;
+  onLinkWithProvider?: () => void;
   onCancel: () => void;
   onRetry: () => void;
   onSignOut: () => void;
 }
 
-const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, onRetry, onSignOut }: Props) => {
-  const [focusIdx, setFocusIdx] = useState(0); // for unreachable: 0=Retry, 1=Sign out
+const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, providerAvailable = false, onStartLink, onLinkWithProvider, onCancel, onRetry, onSignOut }: Props) => {
+  // Two-button screens: unreachable (0=Retry, 1=Sign out) and signed-out with
+  // a Live TV line (0=Connect with Live TV, 1=Sign in with a code).
+  const [focusIdx, setFocusIdx] = useState(0);
+  const twoButtons = status === 'unreachable' || (status === 'signed-out' && providerAvailable);
 
-  useEffect(() => { if (status === 'unreachable') setFocusIdx(0); }, [status]);
+  useEffect(() => { setFocusIdx(0); }, [status, providerAvailable]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -28,7 +36,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
         onCancel();
         return;
       }
-      if (status === 'unreachable') {
+      if (twoButtons) {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           setFocusIdx((i) => (i === 0 ? 1 : 0));
@@ -36,7 +44,9 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
         }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-          if (focusIdx === 0) onRetry(); else onSignOut();
+          if (status === 'unreachable') { if (focusIdx === 0) onRetry(); else onSignOut(); }
+          else if (focusIdx === 0) onLinkWithProvider?.();
+          else onStartLink();
           return;
         }
         return;
@@ -48,7 +58,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [status, focusIdx, onStartLink, onCancel, onRetry, onSignOut]);
+  }, [status, focusIdx, twoButtons, onStartLink, onLinkWithProvider, onCancel, onRetry, onSignOut]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
@@ -57,20 +67,46 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
           {status === 'unreachable' ? <WifiOff className="w-9 h-9 text-brand-gold" /> : status === 'error' ? <AlertTriangle className="w-9 h-9 text-brand-gold" /> : <Tv className="w-9 h-9 text-brand-gold" />}
         </div>
 
-        {(status === 'signed-out') && (
+        {(status === 'signed-out' && providerAvailable) && (
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
             <p className="text-brand-ice/80 font-nunito mb-2">
-              Most members: press Sign in to get a code, then <span className="text-brand-gold font-semibold">SEND THE CODE TO YOUR PROVIDER</span> — they link this device for you.
+              Plex comes with your Live TV account. Press <span className="text-brand-gold font-semibold">Connect with Live TV</span> and it links this device for you — no code needed.
+            </p>
+            {providerNote ? (
+              <p className="text-brand-gold/90 font-nunito text-sm mb-6 max-w-sm mx-auto">{providerNote}</p>
+            ) : (
+              <p className="text-brand-ice/70 font-nunito text-sm mb-6">
+                Have your own Plex server instead? Use Sign in with a code.
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onLinkWithProvider}
+                className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
+                <LogIn className="w-4 h-4 mr-2" /> Connect with Live TV
+              </Button>
+              <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
+                className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
+                Sign in with a code
+              </Button>
+            </div>
+          </>
+        )}
+
+        {(status === 'signed-out' && !providerAvailable) && (
+          <>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
+            <p className="text-brand-ice/80 font-nunito mb-2">
+              Signed into Live TV? Plex connects on its own — go to Live TV and sign in first.
             </p>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-              Only enter the code at plex.tv/link yourself if you run your OWN Plex server.
+              Otherwise press Sign in to get a code and enter it at plex.tv/link with your own Plex account.
             </p>
             <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
               <LogIn className="w-4 h-4 mr-2" /> Sign in with Plex
             </Button>
             <p className="text-brand-ice/70 font-nunito text-sm mt-4 max-w-sm mx-auto">
-              Using your provider's Plex? Message them first — the sign-in code expires about 10 minutes after you press Sign in.
+              The sign-in code expires about 10 minutes after you press Sign in.
             </p>
           </>
         )}
@@ -109,7 +145,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, onStartLink, onCancel, on
             <h2 className="text-2xl font-quicksand font-bold mb-2">Can't reach your Plex server</h2>
             <p className="text-brand-ice/80 font-nunito text-sm mb-4">{error || 'Your Plex server did not respond.'}</p>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
-              Wrong account? If you signed in with your personal Plex account by mistake, sign out and send your provider the new code instead.
+              Wrong account? If you signed in with your personal Plex account by mistake, sign out and choose Connect with Live TV instead.
             </p>
             <div className="flex items-center justify-center gap-3">
               <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onRetry}

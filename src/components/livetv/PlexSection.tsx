@@ -64,12 +64,10 @@ const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
 const searchPlex = DEMO ? demoSearchPlex : _searchPlex;
 import { trackEvent } from '@/lib/analytics';
+import { isProviderServer } from '@/lib/plexProvider';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const NATIVE_PLAYBACK = hasNativePlayer();
-
-const PROVIDER_SERVER_RE = /snow[\s\-_]*media/i;
-const isProviderServer = (name?: string | null) => !!name && PROVIDER_SERVER_RE.test(name);
 
 const COLS = 6;
 const ROW_H_ESTIMATE = 250;   // pre-measure fallback for the virtualizer
@@ -629,7 +627,10 @@ JustLinkedCard.displayName = 'JustLinkedCard';
 // ─── MAIN ──────────────────────────────────────────────────────────────────
 const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
   const { toast } = useToast();
-  const { status, conn, pinCode, error, justLinked, accountToken, clearJustLinked, startLink, cancelLink, signOut, retryConnect } = usePlexAuth();
+  const {
+    status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
+    clearJustLinked, startLink, cancelLink, signOut, retryConnect, linkWithProvider, reportAuthFailure,
+  } = usePlexAuth();
 
   const deeplinkRef = useRef<{ ratingKey: string; title?: string; librarySectionID?: string | number | null; kind?: string; machineIdentifier?: string | null } | null>(
     (() => {
@@ -815,10 +816,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // here: a throw is usually a Wi-Fi blip, and discarding the saved
         // server over one would strand a box whose PMS is on the LAN while
         // the internet is down.
-        setLibrariesError((e as Error)?.message || 'Could not reach the server');
+        const msg = (e as Error)?.message || 'Could not reach the server';
+        setLibrariesError(msg);
+        // 401 is not a blip: the token is dead. The hook decides whether it
+        // is the provider's (replaceable from the Live TV line) or a member's
+        // own (left alone) — a no-op for everything but the provider case.
+        if (/HTTP 401\b/.test(msg)) reportAuthFailure();
       });
     return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
-  }, [status, conn, libRetry]);
+  }, [status, conn, libRetry, reportAuthFailure]);
 
   const visibleLibraries = useMemo(
     () => libraries.filter((l) => hidden.indexOf(l.key) < 0),
@@ -1697,7 +1703,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label="Connecting to Plex…" /></div></div>;
   }
   if (status !== 'ready') {
-    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} onStartLink={startLink} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
+    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} providerNote={providerNote} providerAvailable={providerAvailable} onStartLink={startLink} onLinkWithProvider={() => { void linkWithProvider(); }} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
   // ── render: post-link confirmation ──────────────────────────────────
