@@ -72,14 +72,27 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
         // this returns, so adding flags now is what reaches the IME.
         val connection = super.onCreateInputConnection(outAttrs)
         outAttrs.imeOptions = (
-            outAttrs.imeOptions
-                or EditorInfo.IME_FLAG_NO_FULLSCREEN
-                or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-            ) and (
-            // Take the PREVIOUS / NEXT buttons away. Nothing to navigate means
-            // nothing for Back to be absorbed by.
-            EditorInfo.IME_FLAG_NAVIGATE_NEXT or EditorInfo.IME_FLAG_NAVIGATE_PREVIOUS
-            ).inv()
+            (
+                outAttrs.imeOptions
+                    or EditorInfo.IME_FLAG_NO_FULLSCREEN
+                    or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                ) and (
+                // Take the PREVIOUS / NEXT buttons away. Nothing to navigate
+                // means nothing for Back to be absorbed by.
+                EditorInfo.IME_FLAG_NAVIGATE_NEXT or EditorInfo.IME_FLAG_NAVIGATE_PREVIOUS
+                ).inv()
+                // And no action either. Chromium sets IME_ACTION_NEXT on any
+                // field with a sibling in the form; when the keyboard fires
+                // that action as it dismisses, Chromium does NOT hand the page
+                // an Enter — it calls advanceFocusForIME, moves focus to the
+                // next field natively and raises the keyboard there itself.
+                // Nothing in JavaScript ever sees it. That is "press Back and
+                // it jumps to Password with the keyboard open". With no action
+                // the IME has nothing to fire; an Enter it sends anyway reaches
+                // the page as a plain keydown, which useTVFocus handles.
+                // Moving between fields is the D-pad's job.
+                and EditorInfo.IME_MASK_ACTION.inv()
+            ) or EditorInfo.IME_ACTION_NONE
         return connection?.let { BackAwareInputConnection(it, this) }
     }
 
@@ -98,6 +111,19 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
         target: InputConnection,
         private val view: SnowWebView,
     ) : InputConnectionWrapper(target, false) {
+        /**
+         * The IME's Next / Previous never reach Chromium. Amazon's keyboard
+         * ignores the EditorInfo we hand it, so IME_ACTION_NONE above is not
+         * enough on its own: this is where the action would otherwise turn
+         * into advanceFocusForIME. Every other action (Done, Go, Search, Send,
+         * None) passes through, and Chromium delivers those as an Enter
+         * keydown that the page can reason about.
+         */
+        override fun performEditorAction(actionCode: Int): Boolean {
+            if (actionCode == EditorInfo.IME_ACTION_NEXT || actionCode == EditorInfo.IME_ACTION_PREVIOUS) return true
+            return super.performEditorAction(actionCode)
+        }
+
         override fun sendKeyEvent(event: KeyEvent): Boolean {
             if (event.keyCode == KeyEvent.KEYCODE_BACK) {
                 if (event.action == KeyEvent.ACTION_UP) view.dismissKeyboard()

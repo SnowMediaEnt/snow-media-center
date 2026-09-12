@@ -73,6 +73,10 @@ export const focusTextInputForDpad = async (
   // non-touch mode.
   try {
     const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
+    // Re-check after the await: a Back that lands during the import bumps
+    // the request generation, and the show below must not go out for a field
+    // the viewer has just closed.
+    if (options.isCancelled?.()) return false;
     await SnowKeyboard.show();
     return true;
   } catch (error) {
