@@ -9,6 +9,7 @@ import { App as CapApp } from '@capacitor/app';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume } from '@/utils/volume';
+import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 
 export type MultiScreenId = 'ms1' | 'ms2' | 'ms3' | 'ms4';
 export const MS_SLOT_IDS: MultiScreenId[] = ['ms1', 'ms2', 'ms3', 'ms4'];
@@ -74,10 +75,16 @@ export function useMultiScreenPlayers(): Api {
       root.classList.add('snowplayer-fullscreen');
       root.classList.add('snowplayer-multiview');
       root.classList.add('streaming-active');
+      // Same quiet mode the main player enters (useNativePlayer): with two to
+      // four streams decoding, every pausable interval in the app must stop.
+      // Multi-Screen never asked for it, so alerts, updater checks and the
+      // content-bar refresh all kept running underneath four decoders.
+      enterQuiet('multi-screen');
     } else {
       root.classList.remove('snowplayer-fullscreen');
       root.classList.remove('snowplayer-multiview');
       root.classList.remove('streaming-active');
+      exitQuiet('multi-screen');
     }
   }, [slots]);
 
@@ -94,6 +101,9 @@ export function useMultiScreenPlayers(): Api {
           const cur = slotsRef.current[sid];
           if (!cur.url) return;
           const s = String(data?.state || '').toLowerCase();
+          // The plugin also emits { playing: bool } events with no state at all.
+          // Read as state '' they meant "not buffering" and flipped the slot.
+          if (!s) return;
           const buffering = s === 'buffering';
           if (cur.buffering !== buffering) {
             updateSlot(sid, {
@@ -230,7 +240,12 @@ export function useMultiScreenPlayers(): Api {
   useEffect(() => {
     const rememberedRef: { current: Record<string, string | null> } = { current: {} };
 
+    // Both visibilitychange and appStateChange fire on a background/resume,
+    // so without this every occupied tile was reloaded twice on every resume.
+    let inBackground = false;
     const goBg = () => {
+      if (inBackground) return;
+      inBackground = true;
       const snap: Record<string, string | null> = {};
       for (const id of MS_SLOT_IDS) snap[id] = slotsRef.current[id].url;
       rememberedRef.current = snap;
@@ -242,6 +257,8 @@ export function useMultiScreenPlayers(): Api {
       })();
     };
     const goFg = () => {
+      if (!inBackground) return;
+      inBackground = false;
       const snap = rememberedRef.current;
       for (const id of MS_SLOT_IDS) {
         const url = snap[id];
@@ -286,6 +303,7 @@ export function useMultiScreenPlayers(): Api {
       document.documentElement.classList.remove('snowplayer-fullscreen');
       document.documentElement.classList.remove('snowplayer-multiview');
       document.documentElement.classList.remove('streaming-active');
+      exitQuiet('multi-screen');
     };
   }, []);
 

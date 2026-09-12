@@ -547,6 +547,15 @@ export function plexTokenizedUrl(url: string, token: string): string {
 }
 
 const _imgCache: Map<string, string> = new Map();
+/** Data-URI posters are big; bound the cache instead of growing all session. */
+const IMG_CACHE_MAX = 200;
+const capImgCache = () => {
+  while (_imgCache.size >= IMG_CACHE_MAX) {
+    const first = _imgCache.keys().next().value;
+    if (first === undefined) break;
+    _imgCache.delete(first);
+  }
+};
 // Dedup concurrent identical fetches (warm-up race vs rail mounts).
 const _imgPending: Map<string, Promise<string>> = new Map();
 
@@ -666,6 +675,7 @@ export async function plexFetchImageDataUri(url: string, priority = false, exemp
       if (res.status < 200 || res.status >= 300) throw new Error(`Plex image HTTP ${res.status}`);
       const b64 = typeof res.data === 'string' ? res.data : '';
       const data = `data:image/jpeg;base64,${b64}`;
+      capImgCache();
       _imgCache.set(url, data);
       return data;
     } finally {

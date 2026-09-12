@@ -508,6 +508,10 @@ function runHostProbe(bytes: number, feedSamples: boolean): Promise<void> {
  */
 async function runStallProbes(minGapMs: number = PROBE_INTERVAL_MS): Promise<boolean> {
   if (!state.active || probeInFlight || isHidden()) return false;
+  // A stalled stream on a 2 GB box does not need a 256 KB bandwidth probe plus
+  // an origin GET every 20 s competing with the buffer that is trying to fill.
+  // classify() already copes with probeKbps being null.
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory')) return false;
   const t = now();
   if (state.samples.length === 0 && t - state.startedAt < PROBE_WARMUP_MS) return false;
   if (lastProbeAt > 0 && t - lastProbeAt < minGapMs) return false;

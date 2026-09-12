@@ -198,6 +198,12 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         await SnowPlayer.setVolume({ volume: Math.min(1, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await handleRef.current?.prime();
+        // Every other await above is followed by this check; this one was
+        // not. A teardown during prime() then re-flagged streaming-active
+        // and quiet mode AFTER the player had gone — and nothing ever cleared
+        // them, so alerts, updater checks and the content-bar refresh stayed
+        // paused for the rest of the session.
+        if (cancelled || myNonce !== nonceRef.current) return;
         markStreaming(true);
         quietOn();
       } catch (e) {

@@ -536,6 +536,7 @@ export const XTREAM_REFRESH_EVENT = 'xtream:refresh';
 let xtreamRefreshNonce = 0;
 export function bumpXtreamRefresh(): number {
   xtreamRefreshNonce += 1;
+  _liveCatalogue.clear();
   try {
     window.dispatchEvent(new CustomEvent(XTREAM_REFRESH_EVENT, { detail: xtreamRefreshNonce }));
   } catch { /* SSR / no window */ }
@@ -651,16 +652,35 @@ export async function authenticateRouted(
 
 // --- Live -------------------------------------------------------------------
 
+// The live catalogue, once per Player session. Live TV, the Guide and
+// Multi-Screen each fetched the same category list and the same channel
+// lists independently, and again on every section switch — three full
+// downloads of a catalogue that does not change between them. Keyed by the
+// full URL (creds + category + the refresh nonce), and cleared outright by
+// bumpXtreamRefresh(), which "Update Channels" and opening the Player both
+// call, so freshness is exactly what it was. A failed request is not kept.
+const _liveCatalogue = new Map<string, Promise<unknown>>();
+const memoLive = <T,>(url: string, fetcher: () => Promise<T>): Promise<T> => {
+  let p = _liveCatalogue.get(url) as Promise<T> | undefined;
+  if (!p) {
+    p = fetcher().catch((e) => { _liveCatalogue.delete(url); throw e; });
+    _liveCatalogue.set(url, p);
+  }
+  return p;
+};
+
 export async function getLiveCategories(c: XtreamCreds): Promise<XtreamCategory[]> {
   if (isDemo()) return demoGetLiveCategories();
-  return httpGetJson<XtreamCategory[]>(buildBase(c, { action: 'get_live_categories' }));
+  const url = buildBase(c, { action: 'get_live_categories' });
+  return memoLive(url, () => httpGetJson<XtreamCategory[]>(url));
 }
 
 export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promise<XtreamLiveStream[]> {
   if (isDemo()) return demoGetLiveStreams(categoryId);
   const params: Record<string, string | number> = { action: 'get_live_streams' };
   if (categoryId) params.category_id = categoryId;
-  return httpGetJson<XtreamLiveStream[]>(buildBase(c, params));
+  const url = buildBase(c, params);
+  return memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url));
 }
 
 export async function getShortEpg(

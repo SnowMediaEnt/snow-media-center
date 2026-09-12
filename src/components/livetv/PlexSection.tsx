@@ -1423,6 +1423,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           stillLoadingRef.current = false;
           clearSlowLoadTimer();
           setSlowLoad(false);
+          // Its only job is done; it re-arms for the next streamUrl.
+          window.clearInterval(id);
         }
       } catch { /* ignore */ }
     }, 1500);

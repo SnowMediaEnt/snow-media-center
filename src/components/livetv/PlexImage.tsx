@@ -47,6 +47,14 @@ interface Props {
 // Cache the FINAL resolved src per (base|path). Keyed without token/size so
 // we still hit on remount even if the caller passes slightly different sizes.
 const _srcCache = new Map<string, string>();
+const SRC_CACHE_MAX = 200;
+const capSrcCache = () => {
+  while (_srcCache.size >= SRC_CACHE_MAX) {
+    const first = _srcCache.keys().next().value;
+    if (first === undefined) break;
+    _srcCache.delete(first);
+  }
+};
 
 // When the WebView origin is https://localhost, every http:// image URL is
 // blocked by Chrome's mixed-content policy — the plain <img> + photo-transcode
@@ -134,7 +142,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
     if (/^https?:\/\//i.test(path)) {
       const isPlex = /(^|\.)plex\.tv/i.test(path);
       const resolved = isPlex ? plexTokenizedUrl(path, token) : path;
-      _srcCache.set(key, resolved);
+      capSrcCache(); _srcCache.set(key, resolved);
       commitSrc(resolved);
       return;
     }
@@ -147,7 +155,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { if (cancelled) return; _srcCache.set(key, data); commitSrc(data); })
+        .then((data) => { if (cancelled) return; capSrcCache(); _srcCache.set(key, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return () => { cancelled = true; };
     }
@@ -198,7 +206,7 @@ const PlexImage = memo(({ base, path, token, w, h, className, alt = '', priority
       const url = plexPhotoTranscodeUrl(base, path, token, w, h);
       let cancelled = false;
       plexFetchImageDataUri(url, priority, focusExempt)
-        .then((data) => { if (cancelled) return; _srcCache.set(`${base}|${path}`, data); commitSrc(data); })
+        .then((data) => { if (cancelled) return; capSrcCache(); _srcCache.set(`${base}|${path}`, data); commitSrc(data); })
         .catch(() => { if (!cancelled) setErr(true); });
       return;
     }

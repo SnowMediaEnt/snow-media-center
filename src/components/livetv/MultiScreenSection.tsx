@@ -100,14 +100,9 @@ const layoutNeighbor = (layout: Layout, idx: number, dir: 'up' | 'down' | 'left'
 
 const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExitUp }: Props) => {
   const native = hasNativePlayer();
-  const { account, refresh: refreshAccount } = usePlayerAccount();
-
-  // Re-render on playerAccountRefresh
-  useEffect(() => {
-    const h = () => { void refreshAccount(); };
-    window.addEventListener('playerAccountRefresh', h);
-    return () => window.removeEventListener('playerAccountRefresh', h);
-  }, [refreshAccount]);
+  // usePlayerAccount already re-reads on playerAccountRefresh; a second
+  // listener here made every refresh run twice.
+  const { account } = usePlayerAccount();
 
   const [layout, setLayout] = useState<Layout | null>(null);
   const [pickerIdx, setPickerIdx] = useState(0); // layout picker focus
@@ -288,15 +283,16 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
     } catch { /* ignore */ }
   }, [creds]);
 
-  // Focus audio when focused tile changes
+  // Focus audio when the focused tile changes. Keyed on the focused slot's
+  // url, NOT the whole `slots` object: every buffering flip on any tile used
+  // to re-run this and fan out eight serialized bridge calls across the grid.
+  // loadSlot / closeTile already call focusAudio explicitly.
+  const focusedSid = layout ? tilesForLayout(layout)[focusedTile]?.id : undefined;
+  const focusedHasUrl = !!(focusedSid && slots[focusedSid]?.url);
   useEffect(() => {
-    if (!layout) return;
-    const spec = tilesForLayout(layout);
-    const sid = spec[focusedTile]?.id;
-    if (!sid) return;
-    const s = slots[sid];
-    void focusAudio(s?.url ? sid : null);
-  }, [focusedTile, layout, slots, focusAudio]);
+    if (!focusedSid) return;
+    void focusAudio(focusedHasUrl ? focusedSid : null);
+  }, [focusedSid, focusedHasUrl, focusAudio]);
 
   // 4-grid hint bar: any slot buffering > 6s
   useEffect(() => {
@@ -688,6 +684,11 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
                   occupied ? '' : 'bg-black'
                 } ${
                   chromeHidden ? '' : 'border border-white/10'
+                } ${
+                  // One tile fullscreen: its siblings must stop painting
+                  // (empty ones are solid black). visibility, not display,
+                  // so tileRefs still measure for the exit re-layout.
+                  fullscreenSlot && !chromeHidden ? 'invisible' : ''
                 }`}
               >
                 {!chromeHidden && !occupied && (

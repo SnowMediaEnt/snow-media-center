@@ -670,7 +670,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div data-player-chrome="" style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v{appVersion}</div>
+      <div style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v{appVersion}</div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog

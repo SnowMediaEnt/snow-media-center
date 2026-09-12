@@ -68,7 +68,9 @@ const MediaBarPrompt = () => {
       const code = (e as { keyCode?: number }).keyCode;
       if (key === 'Escape' || key === 'Backspace' || key === 'GoBack' || code === 4 || code === 27) {
         e.preventDefault(); e.stopPropagation();
-        onNotNow();
+        // Dismiss only. An explicit "Not now" opts out; a reflexive Back on a
+        // TV remote must not silently switch the content bar off for good.
+        setOpen(false);
         return;
       }
       if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab' || key === 'ArrowUp' || key === 'ArrowDown') {
