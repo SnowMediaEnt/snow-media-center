@@ -9,7 +9,7 @@ interface Props {
 const CARDS = [
   { id: 'live' as const,   label: 'Live TV',        desc: 'Live channels & guide', icon: Tv },
   { id: 'movies' as const, label: 'Movies & Shows', desc: 'Plex + on-demand',       icon: Film },
-  { id: 'backups' as const, label: 'Backups',       desc: 'Live & movie backups',   icon: LifeBuoy },
+  { id: 'backups' as const, label: 'Backups',       desc: 'For Live TV members',    icon: LifeBuoy },
 ];
 
 const PlayerModeChooser = memo(({ onPick, onBack }: Props) => {

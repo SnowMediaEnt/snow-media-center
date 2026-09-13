@@ -799,15 +799,22 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           </Suspense>
         )}
 
+        {/* Backups are a member perk: a box with no line never gets here
+            (showCredsForm sends it to sign-in first), and an expired line is
+            paused the same way Plex is. */}
         {section === 'backups' && (
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-            <BackupsSection
-              isActive={pane === 'content'}
-              onExitLeft={onExitLeft}
-              onExitUp={onExitUp}
-              serverLabel={serverLabel}
-            />
-          </Suspense>
+          plexBlocked ? (
+            <PlexBlockedScreen feature="Backups" serverLabel={acctServerLabel} onBack={onExitLeft} />
+          ) : (
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+              <BackupsSection
+                isActive={pane === 'content'}
+                onExitLeft={onExitLeft}
+                onExitUp={onExitUp}
+                serverLabel={serverLabel}
+              />
+            </Suspense>
+          )
         )}
 
 

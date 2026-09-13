@@ -9,15 +9,17 @@ import RenewQR from './RenewQR';
 interface Props {
   serverLabel: string;
   onBack: () => void;
+  /** What is being withheld. Plex by default; Backups reuse the same screen. */
+  feature?: 'Plex' | 'Backups';
 }
 
 /**
- * Full-screen D-pad focusable block shown in place of <PlexSection/> whenever
- * the local Xtream PlayerAccount is EXPIRED. Explicit "renew" messaging with
- * a "Renew now" QR; Back / Enter / OK return to the previous view via
- * `onBack` (the QR view's Back returns here first).
+ * Full-screen D-pad focusable block shown in place of <PlexSection/> (or
+ * <BackupsSection/>) whenever the local Xtream PlayerAccount is EXPIRED.
+ * Explicit "renew" messaging with a "Renew now" QR; Back / Enter / OK return
+ * to the previous view via `onBack` (the QR view's Back returns here first).
  */
-const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
+const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props) => {
   const { account, days } = usePlayerAccount();
   const DEMO = isDemo();
   const username = account?.username || null;
@@ -31,8 +33,8 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
   const okRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    try { trackEvent('plex_blocked_expired', 'player', { server: serverLabel }); } catch { /* ignore */ }
-  }, [serverLabel]);
+    try { trackEvent('plex_blocked_expired', 'player', { server: serverLabel, feature }); } catch { /* ignore */ }
+  }, [serverLabel, feature]);
 
   const openRenew = () => {
     if (!DEMO) {
@@ -81,11 +83,11 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack }: Props) => {
           <ShieldAlert className="w-9 h-9 text-red-300" />
         </div>
         <h2 className="text-2xl font-quicksand font-bold mb-3">
-          ⛔ Plex access paused
+          ⛔ {feature} access paused
         </h2>
         <p className="text-brand-ice/90 font-nunito text-base leading-relaxed mb-6">
           Your <span className="font-semibold text-white">{serverLabel}</span> subscription has expired.
-          Renew with Snow Media to restore Plex access.
+          Renew with Snow Media to restore {feature} access.
         </p>
         <div className="flex justify-center gap-3">
           {showRenew && (
