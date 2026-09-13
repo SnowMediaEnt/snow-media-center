@@ -20,6 +20,9 @@
 //                             items:[{kind,name,quantity,variantLabel?,months?}]} → record in
 //                             site_renewals (dedupe by order), CRM payment, admin-API line.renew
 //                             (extends the panel by username), hub expiry, Discord + push with the verdict
+//   line-created   (internal) {host?, username, password?, line_id?, name?, email?, phone?, expires_at?,
+//                             max_connections?, is_trial?, source} -> customer (found or made) +
+//                             customer_services row with expiry, panel id and password
 //   support-session-paid (internal) {ref, order_number, total, email}
 //   admin-notify   (internal) {entry_id} -> Discord + web push to admins
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
@@ -42,6 +45,23 @@ async function decryptMaybe(value: string | null): Promise<string | null> {
   const joined = b64(value.slice('enc:v1:'.length));
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: joined.slice(0, 12) }, key, joined.slice(12));
   return new TextDecoder().decode(plain);
+}
+
+// The mirror of decryptMaybe for values this function writes. Without the key
+// the value is stored as typed (every reader accepts both forms).
+async function encryptIfKeyed(value: string | null): Promise<string | null> {
+  if (!value) return null;
+  const raw = (Deno.env.get('PANEL_CRED_KEY') ?? '').trim();
+  if (!raw) return value;
+  const b64 = (t: string) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+  const keyBytes = b64(raw);
+  if (keyBytes.length !== 32) return value;
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(value)));
+  const joined = new Uint8Array(iv.length + ct.length);
+  joined.set(iv); joined.set(ct, iv.length);
+  return 'enc:v1:' + btoa(String.fromCharCode(...joined));
 }
 
 const PUBLIC_GIVEAWAY_FIELDS =
@@ -753,6 +773,125 @@ Deno.serve(async (req) => {
       }
 
       return json({ ok: true, matched, reason: reason || undefined, renewal: outcome.status, detail: outcome.detail, new_expiry: outcome.newExpiry });
+    }
+
+    if (action === 'line-created') {
+      // A line has just been made somewhere the hub cannot see: the WHMCS
+      // module (app trials and store orders), or the admin app's trial button.
+      // The billing server calls this the moment the line exists, with what
+      // it knows about the person, so the hub has the customer, the line, its
+      // expiry and its panel id from day one — instead of learning about the
+      // line as an anonymous lead when it first signs into the Player.
+      //
+      // {host?, username, password?, line_id?, name?, email?, phone?, expires_at?,
+      //  max_connections?, is_trial?, source, whmcs_client_id?, whmcs_service_id?}
+      // Idempotent: run it twice and the second run only fills blanks.
+      const username = String(body.username || '').trim();
+      if (!username || username.length > 64) return json({ ok: false, error: 'missing_username' }, 400);
+      const hostRaw = String(body.host || 'dstreams.xyz:8080').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      const host = hostRaw === 'dstreams.xyz' ? 'dstreams.xyz:8080' : hostRaw;
+      const hostname = host.replace(/:\d+$/, '').toLowerCase();
+      const label = hostname === 'strmz.xyz' ? 'VibezTV' : 'Dreamstreams';
+      const clean = (v: unknown, max: number) => {
+        const t = String(v ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+        return t ? t.slice(0, max) : null;
+      };
+      const name = clean(body.name, 120);
+      const emailIn = clean(body.email, 200)?.toLowerCase() ?? null;
+      const email = emailIn && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailIn) ? emailIn : null;
+      const phone = clean(body.phone, 40);
+      const password = clean(body.password, 128);
+      const lineId = clean(body.line_id, 64);
+      const validLineId = lineId && /^[0-9a-f-]{36}$/i.test(lineId) ? lineId : null;
+      const source = clean(body.source, 60) ?? 'billing server';
+      const isTrial = body.is_trial === true || body.is_trial === 1 || body.is_trial === '1';
+      const maxConn = Number.isFinite(Number(body.max_connections)) && Number(body.max_connections) > 0 ? Math.round(Number(body.max_connections)) : null;
+      let expDate: string | null = null;
+      if (body.expires_at) {
+        const t = Date.parse(String(body.expires_at));
+        if (Number.isFinite(t)) expDate = new Date(t).toISOString().slice(0, 10);
+      }
+      const escLike = (v: string) => v.replace(/[\\%_]/g, (m) => '\\' + m);
+
+      type Cust = { id: string; user_id: string | null; name: string | null; email: string | null; phone: string | null };
+      let customer: Cust | null = null;
+      let created = false;
+      let how = '';
+      // (a) The line is already on a customer.
+      {
+        const { data } = await admin
+          .from('customer_services')
+          .select('customer_id, panel_username, panel_host')
+          .ilike('panel_username', escLike(username))
+          .order('created_at', { ascending: false })
+          .limit(10);
+        const hit = ((data ?? []) as Array<{ customer_id: string; panel_username: string | null; panel_host: string | null }>)
+          .find((r) => String(r.panel_username ?? '').trim().toLowerCase() === username.toLowerCase()
+            && (!r.panel_host || r.panel_host.replace(/^https?:\/\//, '').replace(/:\d+$/, '').toLowerCase() === hostname));
+        if (hit) {
+          const { data: c } = await admin.from('customers').select('id, user_id, name, email, phone').eq('id', hit.customer_id).maybeSingle();
+          if (c) { customer = c as Cust; how = 'line already on file'; }
+        }
+      }
+      // (b) The person, by email.
+      if (!customer && email) {
+        const { data } = await admin.from('customers').select('id, user_id, name, email, phone').ilike('email', escLike(email)).limit(5);
+        const hit = ((data ?? []) as Cust[]).find((c) => String(c.email ?? '').trim().toLowerCase() === email);
+        if (hit) { customer = hit; how = 'matched by email'; }
+      }
+      // (c) New customer.
+      if (!customer) {
+        const { data, error } = await admin
+          .from('customers')
+          .insert({ name: name ?? (email ? email.split('@')[0] : username), email, phone, notes: `created from ${source}` })
+          .select('id, user_id, name, email, phone')
+          .single();
+        if (error) {
+          console.error('[giveaway-bridge] line-created customer insert:', error.message);
+          return json({ ok: false, error: 'customer_insert_failed' });
+        }
+        customer = data as Cust; created = true; how = 'created';
+      } else {
+        // Fill what the hub was missing; never replace what it has.
+        const patch: Record<string, string> = {};
+        if (name && !customer.name) patch.name = name;
+        if (email && !customer.email) patch.email = email;
+        if (phone && !customer.phone) patch.phone = phone;
+        if (Object.keys(patch).length) await admin.from('customers').update(patch).eq('id', customer.id);
+      }
+
+      // The line under the customer, in the shape the rest of the app reads
+      // (upsert with the no-regress expiry guard).
+      const { error: linkErr } = await admin.rpc('link_claimed_panel_line', {
+        p_customer_id: customer.id,
+        p_supabase_user_id: customer.user_id,
+        p_panel_username: username,
+        p_panel_host: host,
+        p_server_label: label,
+        p_expiration_date: expDate,
+        p_max_connections: maxConn,
+        p_is_trial: isTrial,
+      });
+      if (linkErr) console.error('[giveaway-bridge] line-created link:', linkErr.message);
+
+      // Panel id and password onto that row, only where blank.
+      const { data: rows } = await admin
+        .from('customer_services')
+        .select('id, panel_line_id, panel_password')
+        .eq('customer_id', customer.id)
+        .ilike('panel_username', escLike(username))
+        .limit(5);
+      const row = ((rows ?? []) as Array<{ id: string; panel_line_id: string | null; panel_password: string | null }>)[0];
+      if (row) {
+        const patch: Record<string, string> = {};
+        if (validLineId && !row.panel_line_id) patch.panel_line_id = validLineId;
+        if (password && !row.panel_password) {
+          const stored = await encryptIfKeyed(password);
+          if (stored) patch.panel_password = stored;
+        }
+        if (Object.keys(patch).length) await admin.from('customer_services').update(patch).eq('id', row.id);
+      }
+      return json({ ok: true, customer_id: customer.id, created, how, service_id: row?.id ?? null });
     }
 
     if (action === 'support-session-paid') {
