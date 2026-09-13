@@ -16,7 +16,10 @@
 //                             → giveaway entries + CRM sync (customer / payment /
 //                             service / device rows in this project) + a support
 //                             ticket the admin uses to hand the customer their login
-//   renewal-paid   (internal) {order_number, total, username, server, email}
+//   renewal-paid   (internal) {order_number, total, username, server, email, months?, connections?,
+//                             items:[{kind,name,quantity,variantLabel?,months?}]} → record in
+//                             site_renewals (dedupe by order), CRM payment, WHMCS service.renew
+//                             (extends the panel), hub expiry, Discord + push with the verdict
 //   support-session-paid (internal) {ref, order_number, total, email}
 //   admin-notify   (internal) {entry_id} -> Discord + web push to admins
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
@@ -447,12 +450,50 @@ Deno.serve(async (req) => {
       const itemsDesc = items
         .map((it) => `${String(it?.name || 'item')} x${Math.max(1, Number(it?.quantity || 1) || 1)}`)
         .join(', ') || '(no items)';
+      if (!orderNumber || !username) return json({ ok: false, reason: 'missing_fields' }, 400);
+
+      // The term that was paid for. The site sends months on the service item
+      // (and, once updated, at the top level); older payloads only carry the
+      // variant text, so "3 months" / "2 connections" are read out of that.
+      const num = (v: unknown): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+      };
+      const fromText = (re: RegExp): number | null => {
+        for (const it of items) {
+          const text = `${String(it?.variantLabel ?? '')} ${String(it?.name ?? '')}`;
+          const m = text.match(re);
+          if (m) return num(m[1]);
+        }
+        return null;
+      };
+      const serviceItem = items.find((it) => String(it?.kind ?? '') === 'service') ?? items[0];
+      const months = num(body.months) ?? num(serviceItem?.months) ?? fromText(/(\d+)\s*-?\s*month/i);
+      const connections = num(body.connections) ?? num(serviceItem?.connections) ?? fromText(/(\d+)\s*-?\s*conn/i);
 
       // Panel host hints for server-label filtering.
       const HOST_BY_LABEL: Record<string, string> = { vibez: 'strmz.xyz', dreamstreams: 'dstreams.xyz:8080' };
       const hostHint = server ? HOST_BY_LABEL[server.toLowerCase()] : undefined;
       // Escape ilike pattern metacharacters so usernames match literally.
       const escLike = (s: string) => s.replace(/[\\%_]/g, (m) => '\\' + m);
+
+      // ── 1. Record it first — the order number is the idempotency key ──
+      // The site's notification is fire-and-forget and may arrive twice; a
+      // second delivery must not extend the line a second time.
+      let renewalId: string | null = null;
+      {
+        const { data: rec, error: recErr } = await admin
+          .from('site_renewals')
+          .insert({ order_number: orderNumber, username, server, total, months, connections })
+          .select('id')
+          .maybeSingle();
+        if (recErr) {
+          if (recErr.code === '23505') return json({ ok: true, skipped: 'duplicate' });
+          console.error('[giveaway-bridge] site_renewals insert:', recErr.message);
+        } else {
+          renewalId = (rec as { id?: string } | null)?.id ?? null;
+        }
+      }
 
       let matched = false;
       let reason = '';
@@ -523,6 +564,92 @@ Deno.serve(async (req) => {
         console.error('[giveaway-bridge] renewal-paid threw:', err instanceof Error ? err.message : String(err));
       }
 
+      // ── 2. Extend the line through WHMCS ──
+      // The billing server's admin API (smc/admin.php) owns the panel: its
+      // service.renew runs the 1-Stream module's Renew once per billing cycle
+      // and moves the WHMCS due date with it, refusing rather than half-doing
+      // either. This function only finds the service and asks. Anything it
+      // cannot do lands as 'manual' with the reason, never silently.
+      type Outcome = { status: 'extended' | 'manual' | 'failed'; detail: string; newExpiry: string | null; whmcsId: number | null };
+      const extendViaWhmcs = async (): Promise<Outcome> => {
+        const key = (Deno.env.get('SMC_ADMIN_KEY') ?? '').trim();
+        const url = (Deno.env.get('SMC_ADMIN_URL') ?? 'https://billing.smcdreamstreams.store/smc/admin.php').trim();
+        if (!key) return { status: 'manual', detail: 'SMC_ADMIN_KEY is not set on this project', newExpiry: null, whmcsId: null };
+        if (!months) return { status: 'manual', detail: 'could not tell how many months were paid for', newExpiry: null, whmcsId: null };
+        if (![1, 3, 12].includes(months)) return { status: 'manual', detail: `${months}-month term is not one the admin API renews (1, 3 or 12)`, newExpiry: null, whmcsId: null };
+
+        const call = async (payload: Record<string, unknown>, ms: number) => {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), ms);
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+              body: JSON.stringify(payload),
+              signal: ctrl.signal,
+            });
+            const text = await res.text();
+            let data: Record<string, unknown> = {};
+            try { data = JSON.parse(text); } catch { throw new Error(`admin API answered HTTP ${res.status} with no JSON`); }
+            return data;
+          } finally {
+            clearTimeout(t);
+          }
+        };
+
+        // Which WHMCS service is this line? Exact username, live services only.
+        const found = await call({ action: 'services.search', q: username }, 15_000);
+        if (found.ok !== true) return { status: 'failed', detail: `services.search: ${String(found.human ?? found.reason ?? 'error')}`, newExpiry: null, whmcsId: null };
+        const services = (Array.isArray(found.services) ? found.services : []) as Array<{ serviceId: number; username: string; status: string }>;
+        const mine = services.filter((s) => String(s.username ?? '').trim().toLowerCase() === username);
+        if (!mine.length) return { status: 'manual', detail: 'this username has no service in WHMCS (line made before WHMCS)', newExpiry: null, whmcsId: null };
+        const live = mine.find((s) => s.status === 'Active') ?? mine.find((s) => s.status === 'Suspended');
+        if (!live) return { status: 'manual', detail: `WHMCS service is ${mine[0].status}, only Active or Suspended lines can be renewed`, newExpiry: null, whmcsId: mine[0].serviceId };
+
+        const r = await call({ action: 'service.renew', serviceId: live.serviceId, months, dryRun: false }, 60_000);
+        const newExpiry = typeof r.newNextDue === 'string' ? r.newNextDue : null;
+        if (r.ok === true) return { status: 'extended', detail: `${months} month(s) via WHMCS #${live.serviceId}`, newExpiry, whmcsId: live.serviceId };
+        const why = String(r.human ?? r.reason ?? 'WHMCS refused');
+        // A partial renewal moved the panel and billing together for the cycles
+        // that landed; the rest still needs a hand.
+        const partial = Number(r.cyclesApplied) > 0;
+        return { status: partial ? 'manual' : 'failed', detail: partial ? `PARTIAL — ${why}` : why, newExpiry, whmcsId: live.serviceId };
+      };
+
+      let outcome: Outcome;
+      try {
+        outcome = await extendViaWhmcs();
+      } catch (err) {
+        outcome = { status: 'failed', detail: err instanceof Error ? err.message : String(err), newExpiry: null, whmcsId: null };
+      }
+
+      // ── 3. The hub follows the panel ──
+      if (outcome.newExpiry && serviceId) {
+        const { error } = await admin
+          .from('customer_services')
+          .update({ expiration_date: outcome.newExpiry, renewal_status: 'active' })
+          .eq('id', serviceId);
+        if (error) console.error('[giveaway-bridge] customer_services expiry update:', error.message);
+      }
+      if (renewalId) {
+        await admin.from('site_renewals').update({
+          customer_id: customer?.id ?? null,
+          hub_service_id: serviceId,
+          whmcs_service_id: outcome.whmcsId,
+          status: outcome.status,
+          detail: outcome.detail.slice(0, 500),
+          new_expiry: outcome.newExpiry,
+          updated_at: new Date().toISOString(),
+        }).eq('id', renewalId);
+      }
+
+      const verdict =
+        outcome.status === 'extended'
+          ? `✅ Line extended ${outcome.detail}${outcome.newExpiry ? ` — new expiry ${outcome.newExpiry}` : ''}`
+          : outcome.status === 'manual'
+            ? `⚠️ NOT extended automatically: ${outcome.detail}\n→ Extend the line on the panel by hand.`
+            : `❌ WHMCS renewal FAILED: ${outcome.detail}\n→ Check WHMCS and extend the line by hand.`;
+
       // ALWAYS post to Discord, matched or not.
       try {
         const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
@@ -536,7 +663,7 @@ Deno.serve(async (req) => {
                 `💰 RENEWAL PAID — ${username} (${server ?? 'unknown server'}) — order ${orderNumber} — $${total}\n` +
                 `Customer: ${who}\n` +
                 `Items: ${itemsDesc}\n` +
-                `→ Extend the line on the panel; tomorrow's digest will confirm the new date.`,
+                verdict,
             }),
           });
         }
@@ -557,8 +684,8 @@ Deno.serve(async (req) => {
               'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') ?? ''}`,
             },
             body: JSON.stringify({
-              title: 'Renewal paid',
-              body: `${username} — $${total} — order ${orderNumber}`,
+              title: outcome.status === 'extended' ? 'Renewal paid — line extended' : 'Renewal paid — needs a hand',
+              body: `${username} — $${total} — ${outcome.status === 'extended' ? `expires ${outcome.newExpiry ?? 'later'}` : outcome.detail}`.slice(0, 180),
               tag: `renewal-${orderNumber}`,
             }),
           });
@@ -567,8 +694,7 @@ Deno.serve(async (req) => {
         console.error('[giveaway-bridge] renewal push threw:', err instanceof Error ? err.message : String(err));
       }
 
-      if (reason) return json({ ok: false, matched, reason });
-      return json({ ok: true, matched: true });
+      return json({ ok: true, matched, reason: reason || undefined, renewal: outcome.status, detail: outcome.detail, new_expiry: outcome.newExpiry });
     }
 
     if (action === 'support-session-paid') {
