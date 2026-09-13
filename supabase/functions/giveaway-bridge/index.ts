@@ -607,6 +607,7 @@ Deno.serve(async (req) => {
         // has signed into the Player (player_signins) and of lines the admin
         // recorded (customer_services); either may be stored encrypted.
         let password: string | null = null;
+        let lineId: string | null = null;
         try {
           const { data: ps } = await admin
             .from('player_signins')
@@ -618,9 +619,13 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           password = await decryptMaybe((ps as { panel_password?: string | null } | null)?.panel_password ?? null);
-          if (!password && serviceId) {
-            const { data: cs } = await admin.from('customer_services').select('panel_password').eq('id', serviceId).maybeSingle();
-            password = await decryptMaybe((cs as { panel_password?: string | null } | null)?.panel_password ?? null);
+          if (serviceId) {
+            const { data: cs } = await admin.from('customer_services').select('panel_password, panel_line_id').eq('id', serviceId).maybeSingle();
+            const row = cs as { panel_password?: string | null; panel_line_id?: string | null } | null;
+            if (!password) password = await decryptMaybe(row?.panel_password ?? null);
+            // The panel's own id for the line, when the hub has it: renews
+            // without any lookup, which the reseller key is not allowed to do.
+            if (row?.panel_line_id && /^[0-9a-f-]{36}$/i.test(row.panel_line_id)) lineId = row.panel_line_id;
           }
         } catch (err) {
           console.warn('[giveaway-bridge] line password lookup failed:', err instanceof Error ? err.message : String(err));
@@ -638,6 +643,7 @@ Deno.serve(async (req) => {
               action: 'line.renew', username: usernameRaw, months, connections, dryRun: false,
               rid: `smc-${orderNumber.replace(/[^A-Za-z0-9_-]/g, '')}`,
               ...(password ? { password } : {}),
+              ...(lineId ? { lineId } : {}),
             }),
             signal: ctrl.signal,
           });
@@ -652,6 +658,13 @@ Deno.serve(async (req) => {
         const exp = typeof r.expiresAt === 'string' && r.expiresAt ? r.expiresAt.slice(0, 10) : null;
         if (r.ok === true) {
           const pkg = r.package as { name?: string } | undefined;
+          // Remember the line's id so the next renewal needs no lookup at all.
+          const usedId = typeof r.lineId === 'string' && /^[0-9a-f-]{36}$/i.test(r.lineId) ? r.lineId : null;
+          if (usedId && serviceId && !lineId) {
+            const { error } = await admin.from('customer_services').update({ panel_line_id: usedId }).eq('id', serviceId);
+            if (error) console.warn('[giveaway-bridge] panel_line_id save failed:', error.message);
+          }
+          if (usedId && renewalId) await admin.from('site_renewals').update({ panel_line_id: usedId }).eq('id', renewalId);
           return { status: 'extended', detail: `${months} month(s), ${connections} conn (${pkg?.name ?? 'panel package'})`, newExpiry: exp, whmcsId };
         }
         const reason = String(r.reason ?? '');
