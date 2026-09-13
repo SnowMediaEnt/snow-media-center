@@ -41,9 +41,14 @@ interface Props {
    * otherwise close the whole Player out from under the child.
    */
   onChildOpenChange?: (open: boolean) => void;
+  /**
+   * The line signed in but Snow Media has no account for it yet (not on file,
+   * or no email on file). The shell opens "Finish your Snow Media account".
+   */
+  onNeedProfile?: () => void;
 }
 
-const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }: Props) => {
+const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, onNeedProfile }: Props) => {
   const [username, setUsername] = useState(initial?.username || '');
   const [password, setPassword] = useState(initial?.password || '');
   const [testing, setTesting] = useState(false);
@@ -163,6 +168,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange }:
                   ? `Also signed into your Snow Media account (${r.emailMasked}).`
                   : 'Also signed into your Snow Media account.',
               });
+            } else if (r.reason === 'not_linked') {
+              onNeedProfile?.();
             }
           });
         }

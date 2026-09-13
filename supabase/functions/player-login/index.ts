@@ -211,6 +211,100 @@ async function customerForLine(
   return (cust as LineCustomer | null) ?? null;
 }
 
+// ── profile typed on the TV ────────────────────────────────────────────────
+
+interface Profile { name: string | null; email: string | null; phone: string | null }
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
+const cleanText = (v: unknown, max: number): string | null => {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s || CONTROL_CHARS.test(s)) return null;
+  return s.slice(0, max);
+};
+
+/** Parse the optional profile: null when absent, 'bad_email' when unusable. */
+function readProfile(raw: unknown): Profile | null | 'bad_email' {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const name = cleanText(r.name, 120);
+  const emailRaw = cleanText(r.email, 320);
+  const phone = cleanText(r.phone, 40)?.replace(/[^\d+()\-.\s]/g, '').trim() || null;
+  if (emailRaw && !EMAIL_RE.test(emailRaw)) return 'bad_email';
+  const email = emailRaw ? emailRaw.toLowerCase() : null;
+  if (!name && !email && !phone) return null;
+  return { name, email, phone };
+}
+
+const LABEL_BY_HOSTNAME: Record<string, string> = { 'dstreams.xyz': 'Dreamstreams', 'strmz.xyz': 'VibezTV' };
+
+const expIsoDate = (raw: unknown): string | null => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return new Date(n * 1000).toISOString().slice(0, 10);
+};
+
+/**
+ * Make or complete the hub's record of this member from what they typed:
+ * the customer (name, email, phone — blanks filled, nothing overwritten) and
+ * the line under them. An email that already names a customer adopts that
+ * customer, exactly as the QR claim does. Returns the customer, or null when
+ * nothing could be recorded.
+ */
+async function recordCustomer(
+  admin: ReturnType<typeof createClient>,
+  existing: LineCustomer | null,
+  profile: Profile,
+  host: string,
+  username: string,
+  userInfo: Record<string, unknown>,
+): Promise<LineCustomer | null> {
+  let customer = existing;
+  if (!customer && profile.email) {
+    const { data } = await admin.from('customers').select('id, email, user_id').eq('email', profile.email).maybeSingle();
+    customer = (data as LineCustomer | null) ?? null;
+  }
+  if (!customer) {
+    const { data, error } = await admin
+      .from('customers')
+      .insert({
+        name: profile.name ?? (profile.email ? profile.email.split('@')[0] : username),
+        email: profile.email,
+        phone: profile.phone,
+        notes: 'created from the Player sign-in',
+      })
+      .select('id, email, user_id')
+      .single();
+    if (error) throw error;
+    customer = data as LineCustomer;
+  } else {
+    // Fill in what the hub was missing; never replace what it already has.
+    const { data: row } = await admin.from('customers').select('name, email, phone').eq('id', customer.id).maybeSingle();
+    const patch: Record<string, string> = {};
+    if (profile.name && !(row as { name?: string | null } | null)?.name) patch.name = profile.name;
+    if (profile.email && !(row as { email?: string | null } | null)?.email) patch.email = profile.email;
+    if (profile.phone && !(row as { phone?: string | null } | null)?.phone) patch.phone = profile.phone;
+    if (Object.keys(patch).length) {
+      await admin.from('customers').update(patch).eq('id', customer.id);
+      if (patch.email) customer = { ...customer, email: patch.email };
+    }
+  }
+  // The line under the customer, in the shape the rest of the app reads.
+  const { error: linkErr } = await admin.rpc('link_claimed_panel_line', {
+    p_customer_id: customer.id,
+    p_supabase_user_id: customer.user_id,
+    p_panel_username: username,
+    p_panel_host: host,
+    p_server_label: LABEL_BY_HOSTNAME[hostnameOf(host)] ?? null,
+    p_expiration_date: expIsoDate(userInfo.exp_date),
+    p_max_connections: Number.isFinite(Number(userInfo.max_connections)) ? Number(userInfo.max_connections) : null,
+    p_is_trial: userInfo.is_trial === 1 || userInfo.is_trial === '1' || userInfo.is_trial === true,
+  });
+  if (linkErr) console.warn('[player-login] link_claimed_panel_line failed:', linkErr.message);
+  return customer;
+}
+
 // A NEW website account for the hub's email, confirmed because the hub
 // vouches for it and the line just authenticated. Deliberately never attaches
 // to an account that already exists for that email: a mistyped email in the
@@ -281,6 +375,11 @@ Deno.serve(async (req) => {
     if (!username || username.length > 256 || !password || password.length > 512) {
       return jsonResponse({ ok: false, reason: 'bad_credentials' });
     }
+    // Optional: the member finishing their account from the Player. Name,
+    // email or phone, typed on the TV. Only used once the line has proven
+    // itself against the panel below.
+    const profile = readProfile(body.profile);
+    if (profile === 'bad_email') return jsonResponse({ ok: false, reason: 'bad_email' });
 
     // Throttle by IP and by line BEFORE touching the upstream panel, so this
     // endpoint cannot be used to brute-force the panels either.
@@ -332,9 +431,21 @@ Deno.serve(async (req) => {
     //     ever created (see createUserIfAbsent): an email that already has one
     //     stays not_linked, as does a line the hub does not know or a customer
     //     with no email on file, and the app offers the email sign-in as before.
+    //
+    //     With a profile from the Player, the hub record is made or completed
+    //     first: the customer (name, email, phone) and the line under them,
+    //     written through the same link_claimed_panel_line the QR claim uses.
+    //     That is the provider's "I set them up with a username and password"
+    //     done by the member, with the details the provider never had.
+    let savedProfile = false;
+    let emailInUse = false;
     if (!userId) {
       try {
-        const customer = await customerForLine(admin, host, username);
+        let customer = await customerForLine(admin, host, username);
+        if (profile) {
+          customer = await recordCustomer(admin, customer, profile, host, username, verdict.userInfo);
+          savedProfile = !!customer;
+        }
         if (customer?.user_id) {
           userId = customer.user_id;
         } else if (customer && customer.email) {
@@ -343,13 +454,22 @@ Deno.serve(async (req) => {
           if (created) {
             userId = created;
             await admin.from('customers').update({ user_id: userId }).eq('id', customer.id).is('user_id', null);
+          } else {
+            emailInUse = true;
           }
         }
       } catch (e) {
         console.warn('[player-login] customer link failed:', e);
       }
     }
-    if (!userId) return jsonResponse({ ok: false, reason: 'not_linked' });
+    if (!userId) {
+      if (profile && savedProfile) {
+        // Recorded in the hub, but no website session: either no email was
+        // given (phone only), or that email already has an account of its own.
+        return jsonResponse({ ok: false, reason: emailInUse ? 'email_in_use' : 'no_email', saved: true });
+      }
+      return jsonResponse({ ok: false, reason: 'not_linked' });
+    }
 
     // 3. Privileged accounts can never be entered through a shared IPTV line.
     try {

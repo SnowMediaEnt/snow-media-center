@@ -23,6 +23,7 @@ import { usePlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
+import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
 import { trackEvent, trackAlertShown } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
@@ -35,6 +36,7 @@ const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
+const ClaimAccountCard = lazy(() => import('./livetv/ClaimAccountCard'));
 const SettingsHub = lazy(() => import('./livetv/SettingsHub'));
 const MultiScreenSection = lazy(() => import('./livetv/MultiScreenSection'));
 const BackupsSection = lazy(() => import('./livetv/BackupsSection'));
@@ -66,6 +68,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   // Read-only "Account info" view, shown from the header Account button.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // "Finish your Snow Media account": opened right after a Live TV sign-in
+  // when Snow Media has no account for that line yet.
+  const [claimOpen, setClaimOpen] = useState(false);
 
   const [section, setSection] = useState<SectionId>('live');
   const [mode, setMode] = useState<'choose' | 'live' | 'movies'>('choose');
@@ -647,6 +652,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               setCreds(c);
               setAccountFormOpen(false);
             }}
+            onNeedProfile={() => { if (!isClaimDismissed()) setClaimOpen(true); }}
             onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
           />
         </Suspense>
@@ -881,6 +887,24 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           days={playerDays ?? 0}
           onDismiss={dismissExpNotice}
         />
+      )}
+      {claimOpen && playerAccount && !isClaimDone(playerAccount) && (
+        <Suspense fallback={null}>
+          <ClaimAccountCard
+            open={true}
+            account={playerAccount}
+            onClose={(outcome, email) => {
+              setClaimOpen(false);
+              if (outcome === 'notnow') markClaimDismissed();
+              if (outcome === 'done') {
+                toast({
+                  title: "You're all set",
+                  description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
+                });
+              }
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

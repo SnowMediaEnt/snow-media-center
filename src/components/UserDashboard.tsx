@@ -478,7 +478,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 setFocusedElement(0);
                 toast({
                   title: "You're all set",
-                  description: `Reminders will go to ${email || 'your email'}.`,
+                  description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
                 });
               }
             }}
@@ -876,7 +876,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             if (outcome === 'done') {
               toast({
                 title: "You're all set",
-                description: `Reminders will go to ${email || 'your email'}.`,
+                description: email ? `Your Snow Media account is ready (${email}).` : 'Saved. Add an email any time to get a Snow Media account.',
               });
             }
           }}

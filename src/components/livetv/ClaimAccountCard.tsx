@@ -6,9 +6,10 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { trackEvent } from '@/lib/analytics';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
+import { EDITOR_ACTION_EVENT } from '@/utils/keyboardVisibility';
+import { signInWithPlayerCredentials } from '@/lib/playerLogin';
 import {
   buildClaimUrl,
-  claimAccountManual,
   createClaimSession,
   getClaimSession,
   markClaimDone,
@@ -48,11 +49,20 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [qrState, setQrState] = useState<'loading' | 'ready' | 'expired' | 'error'>('loading');
 
-  // Manual view state
+  // Manual view state: name, email, phone typed on the TV. Vertical chain
+  // name(0) → email(1) → phone(2) → Save(3) → Back(4).
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [manualBusy, setManualBusy] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const fieldRefs = [nameRef, emailRef, phoneRef];
+  const FIELD_COUNT = 3;
+  const SAVE_IDX = 3;
+  const BACK_IDX = 4;
 
   // Refs so the capture-phase keyboard handler never goes stale.
   const viewRef = useRef(view);
@@ -72,7 +82,9 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     setQrUrl(null);
     setQrToken(null);
     setQrState('loading');
+    setName('');
     setEmail('');
+    setPhone('');
     setManualBusy(false);
     setManualError(null);
   }, [open]);
@@ -128,25 +140,45 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     return () => { stopped = true; window.clearInterval(iv); };
   }, [open, view, qrState, qrToken, finishDone]);
 
-  // --- Manual email submit ------------------------------------------------------
+  // --- Manual submit -------------------------------------------------------------
+  // One call does it all (player-login with a profile): the line is verified
+  // against the panel, the member is recorded in the hub with what they typed,
+  // the website account is created for the email, and this box is signed in.
   const submitManual = useCallback(async () => {
+    const nm = name.trim();
     const em = email.trim().toLowerCase();
-    if (!EMAIL_RE.test(em)) {
+    const ph = phone.trim();
+    if (em && !EMAIL_RE.test(em)) {
       setManualError("That email doesn't look right — check it and try again.");
+      return;
+    }
+    if (!em && !ph) {
+      setManualError('Add an email or a phone number so we can reach you.');
       return;
     }
     setManualBusy(true);
     setManualError(null);
     try {
-      const res = await claimAccountManual(account, em);
+      const res = await signInWithPlayerCredentials(account.username, account.password, {
+        name: nm || undefined, email: em || undefined, phone: ph || undefined,
+      });
       if (res.ok) {
-        finishDone('manual', res.email || em);
+        finishDone('manual', em);
         return;
       }
-      if (res.reason === 'signin_not_found') {
-        setManualError("We couldn't verify this box's sign-in yet — please use the QR option instead.");
+      if (res.reason === 'no_email' && res.saved) {
+        // Phone only: recorded with Snow Media, no website account without an email.
+        finishDone('manual', '');
+        return;
+      }
+      if (res.reason === 'email_in_use') {
+        setManualError('That email already has a Snow Media account. Sign into it once from My Account, or use a different email here.');
       } else if (res.reason === 'bad_email') {
         setManualError("That email doesn't look right — check it and try again.");
+      } else if (res.reason === 'auth_failed' || res.reason === 'panel_unreachable') {
+        setManualError("We couldn't verify this box's Live TV sign-in right now — please try again in a minute.");
+      } else if (res.reason === 'rate_limited') {
+        setManualError('Too many attempts — please wait a few minutes and try again.');
       } else {
         setManualError('Something went wrong — please try the QR option.');
       }
@@ -155,7 +187,7 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     } finally {
       setManualBusy(false);
     }
-  }, [email, account, finishDone]);
+  }, [name, email, phone, account, finishDone]);
 
   const openManual = useCallback(() => {
     setView('manual');
@@ -172,18 +204,19 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       const v = viewRef.current;
-      const typing = document.activeElement === emailRef.current;
+      const typingIdx = fieldRefs.findIndex((r) => r.current && document.activeElement === r.current);
+      const typing = typingIdx >= 0;
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
       const isOk = e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
 
-      // While the email field owns DOM focus, text-editing keys pass through;
-      // only ArrowUp/Down leave the field (and hide the on-screen keyboard).
+      // While a field owns DOM focus, text-editing keys pass through; only
+      // ArrowUp/Down leave the field (and hide the on-screen keyboard).
       if (v === 'manual' && typing) {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           e.stopPropagation();
-          void hideKeyboardForDpad(emailRef.current);
-          setFocusIdx(e.key === 'ArrowDown' ? 1 : 2);
+          void hideKeyboardForDpad(fieldRefs[typingIdx].current);
+          setFocusIdx(e.key === 'ArrowDown' ? Math.min(typingIdx + 1, SAVE_IDX) : Math.max(typingIdx - 1, 0));
         } else if (isBack) {
           // Let the OSK consume Back natively — never close mid-typing.
           e.stopPropagation();
@@ -210,8 +243,8 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
         else if (e.key === 'ArrowRight') setFocusIdx((i) => Math.min(2, i + 1));
         else if (isOk) {
           const i = focusIdxRef.current;
-          if (i === 0) { setView('qr'); setFocusIdx(0); }
-          else if (i === 1) openManual();
+          if (i === 0) openManual();
+          else if (i === 1) { setView('qr'); setFocusIdx(0); }
           else onCloseRef.current('notnow');
         }
       } else if (v === 'qr') {
@@ -224,32 +257,57 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
           else backToPrompt();
         }
       } else {
-        // manual — vertical chain: input(0) → Save(1) → Back(2)
+        // manual — vertical chain: name(0) → email(1) → phone(2) → Save(3) → Back(4)
         if (e.key === 'ArrowUp') setFocusIdx((i) => Math.max(0, i - 1));
-        else if (e.key === 'ArrowDown') setFocusIdx((i) => Math.min(2, i + 1));
+        else if (e.key === 'ArrowDown') setFocusIdx((i) => Math.min(BACK_IDX, i + 1));
         else if (isOk) {
           const i = focusIdxRef.current;
-          if (i === 0) void focusTextInputForDpad(emailRef.current);
-          else if (i === 1) void submitManual();
+          if (i < FIELD_COUNT) void focusTextInputForDpad(fieldRefs[i].current);
+          else if (i === SAVE_IDX) void submitManual();
           else backToPrompt();
         }
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
+    // fieldRefs is a fresh array each render but its refs are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, openManual, backToPrompt, startQrSession, submitManual]);
+
+  // The keyboard's Next key (reported natively) walks name → email → phone
+  // and lands on Save after the last one, keyboard away.
+  useEffect(() => {
+    if (!open) return;
+    const onAction = (event: Event) => {
+      if ((event as CustomEvent<{ action?: string }>).detail?.action !== 'next') return;
+      if (viewRef.current !== 'manual') return;
+      const idx = fieldRefs.findIndex((r) => r.current && document.activeElement === r.current);
+      if (idx < 0) return;
+      if (idx + 1 < FIELD_COUNT) {
+        setFocusIdx(idx + 1);
+        void focusTextInputForDpad(fieldRefs[idx + 1].current);
+      } else {
+        void hideKeyboardForDpad(fieldRefs[idx].current);
+        setFocusIdx(SAVE_IDX);
+      }
+    };
+    window.addEventListener(EDITOR_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(EDITOR_ACTION_EVENT, onAction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Keep DOM focus in sync with the D-pad cursor.
   useEffect(() => {
     if (!open) return;
     const t = window.setTimeout(() => {
-      if (view === 'manual' && focusIdx === 0) {
-        emailRef.current?.focus({ preventScroll: true });
+      if (view === 'manual' && focusIdx < FIELD_COUNT) {
+        fieldRefs[focusIdx].current?.focus({ preventScroll: true });
         return;
       }
       document.getElementById(`claim-${view}-btn-${focusIdx}`)?.focus({ preventScroll: true });
     }, 50);
     return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, view, focusIdx, qrState]);
 
   return (
@@ -260,33 +318,33 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
         <div className="px-6 py-4 border-b border-brand-gold/40 flex items-center gap-3 bg-gradient-to-r from-brand-gold/30 via-yellow-500/20 to-brand-gold/30">
           <BellRing className="w-6 h-6 text-brand-gold" />
           <h2 className="text-2xl font-quicksand font-bold text-white leading-tight tracking-tight">
-            Get renewal reminders
+            Finish your Snow Media account
           </h2>
         </div>
 
         {view === 'prompt' && (
           <>
             <p className="px-6 py-6 text-base font-medium text-slate-100 leading-relaxed">
-              Add your email so we can remind you before <span className="font-semibold text-white break-all">{account.username}</span> expires, and let you manage your subscription from your phone.
+              Your Live TV login <span className="font-semibold text-white break-all">{account.username}</span> is your Snow Media login. Add your name and an email or phone, and your account is set up for you: renewal reminders, My Account, support and the store, with no second password.
             </p>
             <div className="px-6 py-4 border-t border-brand-gold/30 bg-slate-950/60 flex justify-center gap-3 flex-wrap">
               <Button
                 variant="gold"
                 id="claim-prompt-btn-0"
                 data-focused={focusIdx === 0 ? 'true' : 'false'}
-                onClick={() => { setView('qr'); setFocusIdx(0); }}
+                onClick={openManual}
                 className={`h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? FOCUSED_CLS : ''}`}
               >
-                <QrCode className="w-4 h-4 mr-2" /> Scan QR with your phone
+                <Keyboard className="w-4 h-4 mr-2" /> Enter it here
               </Button>
               <Button
                 variant="white"
                 id="claim-prompt-btn-1"
                 data-focused={focusIdx === 1 ? 'true' : 'false'}
-                onClick={openManual}
+                onClick={() => { setView('qr'); setFocusIdx(0); }}
                 className={`h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
               >
-                <Keyboard className="w-4 h-4 mr-2" /> Enter email here
+                <QrCode className="w-4 h-4 mr-2" /> Scan QR with your phone
               </Button>
               <Button
                 variant="white"
@@ -352,43 +410,70 @@ const ClaimAccountCard = memo(({ open, account, onClose }: Props) => {
         )}
 
         {view === 'manual' && (
-          <div className="px-6 py-6 flex flex-col gap-4">
+          <div className="px-6 py-5 flex flex-col gap-3">
             <p className="text-sm text-white/80 leading-relaxed">
-              Type the email we should send renewal reminders to for <span className="font-semibold text-white break-all">{account.username}</span>.
+              For <span className="font-semibold text-white break-all">{account.username}</span>. Email or phone, at least one. Press Next on the keyboard to move down.
             </p>
             <Input
-              ref={emailRef}
+              ref={nameRef}
               id="claim-manual-btn-0"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
               autoComplete="off"
-              data-tv-allow-enter="true"
+              enterKeyHint="next"
               disabled={manualBusy}
               data-focused={focusIdx === 0 ? 'true' : 'false'}
               className="tv-ring h-12 rounded-xl bg-black/30 text-white border-white/20"
             />
+            <Input
+              ref={emailRef}
+              id="claim-manual-btn-1"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (for your Snow Media account)"
+              autoComplete="off"
+              enterKeyHint="next"
+              disabled={manualBusy}
+              data-focused={focusIdx === 1 ? 'true' : 'false'}
+              className="tv-ring h-12 rounded-xl bg-black/30 text-white border-white/20"
+            />
+            <Input
+              ref={phoneRef}
+              id="claim-manual-btn-2"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Phone (optional)"
+              autoComplete="off"
+              enterKeyHint="done"
+              disabled={manualBusy}
+              data-focused={focusIdx === 2 ? 'true' : 'false'}
+              className="tv-ring h-12 rounded-xl bg-black/30 text-white border-white/20"
+            />
             {manualError && <p className="text-red-300 text-sm leading-relaxed">{manualError}</p>}
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center gap-3 pt-1">
               <Button
                 variant="gold"
-                id="claim-manual-btn-1"
-                data-focused={focusIdx === 1 ? 'true' : 'false'}
+                id="claim-manual-btn-3"
+                data-focused={focusIdx === SAVE_IDX ? 'true' : 'false'}
                 onClick={() => void submitManual()}
                 disabled={manualBusy}
-                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 1 ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === SAVE_IDX ? FOCUSED_CLS : ''}`}
               >
                 {manualBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {manualBusy ? 'Saving…' : 'Save'}
               </Button>
               <Button
                 variant="white"
-                id="claim-manual-btn-2"
-                data-focused={focusIdx === 2 ? 'true' : 'false'}
+                id="claim-manual-btn-4"
+                data-focused={focusIdx === BACK_IDX ? 'true' : 'false'}
                 onClick={backToPrompt}
                 disabled={manualBusy}
-                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === 2 ? FOCUSED_CLS : ''}`}
+                className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${focusIdx === BACK_IDX ? FOCUSED_CLS : ''}`}
               >
                 Back
               </Button>

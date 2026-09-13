@@ -6,31 +6,41 @@ import { wasWebsiteSignedOut, clearWebsiteSignedOut } from '@/lib/websiteSession
 
 export interface PlayerLoginResult {
   ok: boolean;
-  /** 'not_linked' | 'auth_failed' | 'rate_limited' | 'panel_unreachable' | ... */
+  /** 'not_linked' | 'auth_failed' | 'rate_limited' | 'panel_unreachable' | 'no_email' | 'email_in_use' | ... */
   reason?: string;
   /** Masked email of the account that was signed in (j***@gmail.com). */
   emailMasked?: string;
+  /** With a profile: the hub record was written even though no session was minted. */
+  saved?: boolean;
 }
+
+/** What a member types on the TV to finish their account. All optional. */
+export interface PlayerProfile { name?: string; email?: string; phone?: string }
 
 /**
  * Try to establish a Supabase session from streaming credentials. Safe to call
  * speculatively: every failure is a soft { ok:false, reason } — the caller
  * decides whether to surface it or fall back to normal flows.
+ *
+ * With a `profile`, the server also records the member in the hub (customer
+ * + line) and creates the website account for the email, so this is the one
+ * call behind "finish your account" on the TV.
  */
 export async function signInWithPlayerCredentials(
   username: string,
   password: string,
+  profile?: PlayerProfile,
 ): Promise<PlayerLoginResult> {
   try {
     const server = pickServerForUsername(username.trim());
     const host = server.host.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     const { data, error } = await supabase.functions.invoke('player-login', {
-      body: { host, username: username.trim(), password: password.trim() },
+      body: { host, username: username.trim(), password: password.trim(), ...(profile ? { profile } : {}) },
     });
     if (error) return { ok: false, reason: 'network' };
-    const payload = data as { ok?: boolean; reason?: string; token_hash?: string; email_masked?: string };
+    const payload = data as { ok?: boolean; reason?: string; token_hash?: string; email_masked?: string; saved?: boolean };
     if (!payload?.ok || !payload.token_hash) {
-      return { ok: false, reason: payload?.reason || 'error' };
+      return { ok: false, reason: payload?.reason || 'error', saved: !!payload?.saved };
     }
     const { error: otpErr } = await supabase.auth.verifyOtp({
       type: 'magiclink',
