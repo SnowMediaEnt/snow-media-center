@@ -19,7 +19,17 @@ interface UseTVFocusOptions {
   /** When false, don't auto-focus any element on mount. Useful for embedded
    *  views where the parent decides when focus enters. */
   autoFocusOnMount?: boolean;
+  /** Up/Down with nothing to land on scrolls the screen instead of doing
+   *  nothing, so long read-only content (a ticket thread, an alert list)
+   *  can still be seen with the remote. Off by default: screens with laid-out
+   *  navigation maps rely on the highlight staying put at an edge. */
+  scrollWhenStuck?: boolean;
 }
+
+// Ids for elements a selector matched by tag or role rather than by a
+// data-tv-focus-id. Assigned once, on first sight, so the highlight has a
+// stable name for the element for as long as it stays mounted.
+let autoIdCounter = 0;
 
 
 const isTextInput = (el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement =>
@@ -79,6 +89,7 @@ export const useTVFocus = ({
   onFocusChange,
   scrollBlock = 'nearest',
   autoFocusOnMount = true,
+  scrollWhenStuck = false,
 }: UseTVFocusOptions = {}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef<string | null>(initialFocusId ?? null);
@@ -274,7 +285,12 @@ export const useTVFocus = ({
   const getId = useCallback((el: HTMLElement) => {
     if (el.dataset.tvFocusId) return el.dataset.tvFocusId;
     const attrMatch = focusableSelector.match(/\[([^\]=]+)/)?.[1];
-    return attrMatch ? el.getAttribute(attrMatch) ?? '' : '';
+    const fromAttr = attrMatch ? el.getAttribute(attrMatch) : null;
+    if (fromAttr) return fromAttr;
+    // A plain button/input/tab the selector picked up: name it now.
+    autoIdCounter += 1;
+    el.dataset.tvFocusId = `tvf-${autoIdCounter}`;
+    return el.dataset.tvFocusId;
   }, [focusableSelector]);
 
   const focusById = useCallback((id?: string | null, block: ScrollLogicalPosition = scrollBlock) => {
@@ -366,8 +382,22 @@ export const useTVFocus = ({
     const ruledTarget = typeof rule === 'function' ? rule() : rule;
     if (ruledTarget === null) return true;
     const nextId = ruledTarget !== undefined ? ruledTarget : findSpatial(direction);
+    if (!nextId && scrollWhenStuck && (direction === 'up' || direction === 'down')) {
+      // The nearest ancestor that really scrolls. A screen's
+      // .tv-scroll-container only grows (min-height), so on most screens the
+      // overflow lives on the app root ([data-app-scroll-root]) above it.
+      let scroller: HTMLElement | null = currentEl ?? containerRef.current;
+      while (scroller && !(scroller.scrollHeight > scroller.clientHeight + 1
+        && /(auto|scroll)/.test(getComputedStyle(scroller).overflowY))) {
+        scroller = scroller.parentElement;
+      }
+      const step = Math.round((scroller?.clientHeight ?? window.innerHeight) * 0.6) || 300;
+      const top = direction === 'down' ? step : -step;
+      if (scroller) scroller.scrollBy({ top, behavior: 'smooth' });
+      else window.scrollBy({ top, behavior: 'smooth' });
+    }
     return focusById(nextId ?? currentId);
-  }, [findManagedElement, findSpatial, focusById, getId, navigation]);
+  }, [findManagedElement, findSpatial, focusById, getId, navigation, scrollWhenStuck]);
 
   const activate = useCallback(() => {
     const currentEl = findManagedElement(document.activeElement as HTMLElement | null)

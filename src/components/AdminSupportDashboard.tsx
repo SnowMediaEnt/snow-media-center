@@ -39,6 +39,23 @@ import FreeAISection from '@/components/FreeAISection';
 import { AlertTriangle, Users, MonitorSmartphone } from 'lucide-react';
 import AdminRemoteRequests from '@/components/AdminRemoteRequests';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { useTVFocus } from '@/hooks/useTVFocus';
+
+// Everything a remote can land on in this screen and the sections it hosts
+// (tickets, users, alerts, AI, remote requests): the tabs, every button,
+// switch and select trigger, every field, and the ticket cards below.
+// The hook names the unlabeled ones itself.
+const ADMIN_FOCUSABLE = [
+  '[data-tv-focus-id]',
+  'button:not([disabled])',
+  '[role="tab"]',
+  'input:not([disabled]):not([type="hidden"])',
+  'textarea:not([disabled])',
+  'select:not([disabled])',
+  'a[href]',
+  // Radix gives every tab panel tabindex=0; the panel itself is not a target.
+  '[tabindex="0"]:not([role="tabpanel"])',
+].join(', ');
 
 interface AdminSupportDashboardProps {
   onBack: () => void;
@@ -55,6 +72,22 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   const [broadcastSubject, setBroadcastSubject] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
+
+  // Remote-control navigation. This screen had none: on a Fire TV the
+  // highlight could not leave the first row, so nothing below the fold — the
+  // ticket list, alerts, users — was reachable or even scrollable. The hook
+  // moves the highlight spatially between the controls above, scrolls each
+  // into view, opens the keyboard on fields, and scrolls the page when there
+  // is nothing further to land on.
+  const { containerRef, focusById } = useTVFocus({
+    focusableSelector: ADMIN_FOCUSABLE,
+    initialFocusId: 'back',
+    scrollWhenStuck: true,
+    onBack: () => {
+      if (view === 'ticket') { setView('list'); setSelectedTicketId(null); return; }
+      onBack();
+    },
+  });
 
 
   const {
@@ -125,6 +158,11 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
       if (event.key === 'Backspace' && isTyping) {
         return;
       }
+      // An open dropdown (status filter, ticket status) lives in a portal
+      // outside this screen and closes itself on Back; leave it to it.
+      if (target?.closest?.('[role="listbox"], [data-radix-popper-content-wrapper]')) {
+        return;
+      }
       
       // Handle back button - hierarchical exit from nested containers
       if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4 || event.code === 'GoBack') {
@@ -147,6 +185,13 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, onBack]);
+
+  // Opening or leaving a ticket swaps the whole screen, so the control the
+  // highlight was on is gone. Land on Back, the one control both views share.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => { focusById('back'); });
+    return () => cancelAnimationFrame(raf);
+  }, [view, focusById]);
 
   const handleViewTicket = async (ticketId: string) => {
     setSelectedTicketId(ticketId);
@@ -202,10 +247,10 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
 
   if (view === 'ticket' && selectedTicket) {
     return (
-      <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      <div ref={containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <BackButton onClick={() => setView('list')} label="Back to Tickets" />
+            <BackButton data-tv-focus-id="back" onClick={() => setView('list')} label="Back to Tickets" />
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{selectedTicket.subject}</h1>
               <div className="flex items-center gap-2 mt-1 text-sm text-slate-400">
@@ -350,11 +395,11 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
   }
 
   return (
-    <div className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div ref={containerRef} className="tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <BackButton onClick={onBack} label="Back" />
+            <BackButton data-tv-focus-id="back" onClick={onBack} label="Back" />
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-2">
                 <Shield className="h-8 w-8 text-purple-400" />
@@ -466,7 +511,9 @@ const AdminSupportDashboard = ({ onBack }: AdminSupportDashboardProps) => {
               {filteredTickets.map((ticket) => (
                 <Card 
                   key={ticket.id}
-                  className={`bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
+                  role="button"
+                  tabIndex={0}
+                  className={`tv-ring bg-slate-800/50 border-slate-700 cursor-pointer hover:bg-slate-700/50 transition-colors ${
                     ticket.admin_has_unread ? 'ring-2 ring-purple-500' : ''
                   }`}
                   onClick={() => handleViewTicket(ticket.id)}
