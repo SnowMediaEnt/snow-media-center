@@ -26,6 +26,24 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { getActiveGiveaway } from '../_shared/giveaway.ts';
 
+// Panel line passwords in the hub may be AES-GCM encrypted under
+// PANEL_CRED_KEY (wire format enc:v1:<base64(iv || ciphertext+tag)>). Same
+// scheme as _shared/panelcrypto.ts, inlined so this function stays a single
+// file for dashboard deploys. A value without the prefix is returned as is.
+async function decryptMaybe(value: string | null): Promise<string | null> {
+  if (!value) return null;
+  if (!value.startsWith('enc:v1:')) return value;
+  const raw = (Deno.env.get('PANEL_CRED_KEY') ?? '').trim();
+  if (!raw) return null;
+  const b64 = (t: string) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+  const keyBytes = b64(raw);
+  if (keyBytes.length !== 32) return null;
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const joined = b64(value.slice('enc:v1:'.length));
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: joined.slice(0, 12) }, key, joined.slice(12));
+  return new TextDecoder().decode(plain);
+}
+
 const PUBLIC_GIVEAWAY_FIELDS =
   'id,slug,name,description,prize_description,prize_image_url,winner_count,' +
   'included_service_description,start_at,end_at,status,rules_md,announcement_md';
@@ -442,7 +460,9 @@ Deno.serve(async (req) => {
 
       const orderNumber = String(body.order_number || '').trim();
       const total = Number(body.total) || 0;
-      const username = String(body.username || '').trim().toLowerCase();
+      // Panel usernames are case-sensitive; the lowercased form is only for matching hub rows.
+      const usernameRaw = String(body.username || '').trim();
+      const username = usernameRaw.toLowerCase();
       const server = body.server ? String(body.server).trim() : null;
       const email = body.email ? String(body.email).trim().toLowerCase() : null;
       // deno-lint-ignore no-explicit-any
@@ -582,6 +602,30 @@ Deno.serve(async (req) => {
         if (![1, 3, 6, 12].includes(months)) return none('manual', `${months}-month term has no panel package (1, 3, 6 or 12)`);
         if (!connections) return none('manual', 'could not tell how many connections the line has');
 
+        // The panel finds a line by username AND password unless the reseller
+        // key may list lines. The hub knows the password of every line that
+        // has signed into the Player (player_signins) and of lines the admin
+        // recorded (customer_services); either may be stored encrypted.
+        let password: string | null = null;
+        try {
+          const { data: ps } = await admin
+            .from('player_signins')
+            .select('panel_password')
+            .ilike('panel_username', escLike(username))
+            .ilike('panel_host', `%${escLike(hostHint ?? 'dstreams.xyz')}%`)
+            .not('panel_password', 'is', null)
+            .order('last_seen_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          password = await decryptMaybe((ps as { panel_password?: string | null } | null)?.panel_password ?? null);
+          if (!password && serviceId) {
+            const { data: cs } = await admin.from('customer_services').select('panel_password').eq('id', serviceId).maybeSingle();
+            password = await decryptMaybe((cs as { panel_password?: string | null } | null)?.panel_password ?? null);
+          }
+        } catch (err) {
+          console.warn('[giveaway-bridge] line password lookup failed:', err instanceof Error ? err.message : String(err));
+        }
+
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 60_000);
         let r: Record<string, unknown>;
@@ -589,7 +633,12 @@ Deno.serve(async (req) => {
           const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-            body: JSON.stringify({ action: 'line.renew', username, months, connections, dryRun: false }),
+            // rid is the panel's idempotency key: the same order can never extend twice.
+            body: JSON.stringify({
+              action: 'line.renew', username: usernameRaw, months, connections, dryRun: false,
+              rid: `smc-${orderNumber.replace(/[^A-Za-z0-9_-]/g, '')}`,
+              ...(password ? { password } : {}),
+            }),
             signal: ctrl.signal,
           });
           const text = await res.text();
@@ -608,7 +657,7 @@ Deno.serve(async (req) => {
         const reason = String(r.reason ?? '');
         const why = String(r.human ?? reason ?? 'admin API refused');
         // Things a person has to look at vs. a call the panel rejected.
-        const manual = ['line_not_found', 'no_package', 'bad_term', 'bad_connections', 'bad_username', 'panel_unavailable', 'unauthorized', 'not_configured'];
+        const manual = ['line_not_found', 'no_package', 'bad_term', 'bad_connections', 'bad_username', 'panel_unavailable', 'unauthorized', 'not_configured', 'unknown_action'];
         return { status: manual.includes(reason) ? 'manual' : 'failed', detail: why, newExpiry: null, whmcsId };
       };
 
