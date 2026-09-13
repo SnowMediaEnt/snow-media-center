@@ -29,7 +29,7 @@ export const isProviderServer = (name?: string | null): boolean => !!name && PRO
 
 const HARD_TTL_MS = 10 * 60 * 1000;
 const SOFT_TTL_MS = 60 * 1000;
-const HARD_REASONS = new Set(['disabled', 'auth_failed', 'line_inactive', 'rate_limited', 'host_not_allowed', 'provider_misconfigured']);
+const HARD_REASONS = new Set(['disabled', 'auth_failed', 'line_inactive', 'rate_limited', 'host_not_allowed', 'provider_misconfigured', 'not_customer', 'plex_disabled']);
 
 const inflight = new Map<string, Promise<ProviderPlexResult>>();
 
@@ -109,6 +109,8 @@ export function providerLinkMessage(r: ProviderPlexResult): string | null {
     case 'rate_limited': return 'Too many attempts. Try again in a few minutes.';
     case 'network': return 'No connection to Snow Media. Check the internet and try again.';
     case 'provider_misconfigured': return 'Plex is not set up correctly on the provider side yet. Ask your provider.';
+    case 'not_customer': return "This Live TV account isn't on file with your provider yet. Ask them to add it, then try again.";
+    case 'plex_disabled': return 'Plex has been turned off for this account. Ask your provider.';
     default: return "Couldn't connect Plex through your Live TV account.";
   }
 }

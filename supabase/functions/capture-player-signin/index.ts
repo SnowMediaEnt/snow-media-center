@@ -7,7 +7,25 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { hashClientIp } from '../_shared/ai-guard.ts';
+
+// Same as _shared/ai-guard.ts hashClientIp, kept inline so this file can be
+// pasted into the dashboard editor as a single unit.
+async function hashClientIp(req: Request): Promise<string | null> {
+  const xff = req.headers.get('x-forwarded-for');
+  const cf = req.headers.get('cf-connecting-ip');
+  const real = req.headers.get('x-real-ip');
+  let ip: string | null = null;
+  if (xff) ip = xff.split(',')[0]?.trim() || null;
+  if (!ip && cf) ip = cf.trim();
+  if (!ip && real) ip = real.trim();
+  if (!ip) return null;
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+}
 
 const ALLOWED_HOSTS = ['dstreams.xyz:8080', 'strmz.xyz'] as const;
 
@@ -44,6 +62,40 @@ const normalizeHost = (raw: unknown): string | null => {
   if (h === 'dstreams.xyz') h = 'dstreams.xyz:8080';
   return h;
 };
+
+// ── line → customer ────────────────────────────────────────────────────────
+// The hub stores a customer's line in customer_services as panel_host +
+// panel_username. Hosts are recorded however the hub was handed them
+// (scheme, port, or neither), so compare hostnames only; usernames are
+// compared case-insensitively, then re-checked exactly so LIKE wildcards in
+// a username ('_' is common) cannot pull in a neighbour's row. Newest row
+// wins when the same line was entered twice.
+const hostnameOf = (h: string | null | undefined): string =>
+  String(h ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+
+async function customerForLine(
+  admin: ReturnType<typeof createClient>,
+  host: string,
+  username: string,
+): Promise<string | null> {
+  try {
+    const pattern = username.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data } = await admin
+      .from('customer_services')
+      .select('customer_id, panel_host, panel_username, created_at')
+      .ilike('panel_username', pattern)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const want = hostnameOf(host);
+    const rows = (data ?? []) as Array<{ customer_id: string; panel_host: string | null; panel_username: string | null }>;
+    const exact = rows.filter((r) => String(r.panel_username ?? '').trim().toLowerCase() === username);
+    const onHost = exact.find((r) => hostnameOf(r.panel_host) === want) ?? exact.find((r) => !hostnameOf(r.panel_host));
+    return onHost?.customer_id ?? null;
+  } catch (e) {
+    console.warn('[capture-player-signin] line lookup failed:', e);
+    return null;
+  }
+}
 
 const parseExpirationDate = (raw: unknown): string | null => {
   if (raw === null || raw === undefined || raw === '' || raw === 'null') return null;
@@ -205,7 +257,12 @@ Deno.serve(async (req) => {
     const tenantCodeRaw = clampText(body.tenant_code, 64);
     const tenantCode = tenantCodeRaw ? tenantCodeRaw.trim().toLowerCase() : null;
 
-    // f. matched_customer_id — only when authed.
+    // f. matched_customer_id. A website session names the customer outright.
+    //    Without one, the line itself does: the hub records every customer's
+    //    line in customer_services (panel_host + panel_username), so a sign-in
+    //    with that username on that panel IS that customer. This is what lets
+    //    player-login sign the box into the customer's website account later,
+    //    and what ties an anonymous sign-in to the person the hub created.
     let matchedCustomerId: string | null = null;
     if (supabaseUserId) {
       try {
@@ -218,6 +275,9 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn('[capture-player-signin] customer lookup failed:', e);
       }
+    }
+    if (!matchedCustomerId) {
+      matchedCustomerId = await customerForLine(admin, host, username);
     }
 
     // g. Upsert via SECURITY DEFINER function.

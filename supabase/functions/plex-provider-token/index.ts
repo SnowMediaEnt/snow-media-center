@@ -9,7 +9,9 @@
 // changes is who types.
 //
 // Flow: verify the line SERVER-side against the allowlisted panel (same rules
-// as player-login), require it to be active, then return PLEX_PROVIDER_TOKEN.
+// as player-login), require it to be active, require it to belong to one of
+// OUR customers (customer_services, as the hub records them) whose Plex seat
+// the hub has not ended (plex_members), then return PLEX_PROVIDER_TOKEN.
 // The token lives in this function's env only — never in the database — and
 // is never logged. Removing the secret turns the feature off: the app falls
 // back to the PIN flow on its own.
@@ -147,6 +149,60 @@ function lineActivity(ui: Record<string, unknown>): { active: true } | { active:
   return { active: true };
 }
 
+// ── line → customer → Plex seat ────────────────────────────────────────────
+// A valid line on a shared panel is not automatically OUR customer. The hub
+// records every customer's line in customer_services (panel_host +
+// panel_username); only a line found there gets the provider's Plex. Hosts
+// are recorded however the hub was handed them, so compare hostnames only;
+// usernames case-insensitively, then re-checked exactly so LIKE wildcards in
+// a username ('_' is common) cannot pull in a neighbour's row. Newest row
+// wins when the same line was entered twice.
+const hostnameOf = (h: string | null | undefined): string =>
+  String(h ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+
+async function customerForLine(
+  admin: ReturnType<typeof createClient>,
+  host: string,
+  username: string,
+): Promise<string | null> {
+  const pattern = username.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data, error } = await admin
+    .from('customer_services')
+    .select('customer_id, panel_host, panel_username, created_at')
+    .ilike('panel_username', pattern)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  const want = hostnameOf(host);
+  const rows = (data ?? []) as Array<{ customer_id: string; panel_host: string | null; panel_username: string | null }>;
+  const exact = rows.filter((r) => String(r.panel_username ?? '').trim().toLowerCase() === username);
+  const onHost = exact.find((r) => hostnameOf(r.panel_host) === want) ?? exact.find((r) => !hostnameOf(r.panel_host));
+  return onHost?.customer_id ?? null;
+}
+
+// The hub's Plex Manager keeps a seat per customer in plex_members. No seat
+// means nothing has been decided and the line's own status rules; a seat the
+// hub has explicitly ended or expired says no. Statuses are matched loosely
+// because the hub, not this function, owns that vocabulary.
+const SEAT_ENDED = new Set(['disabled', 'expired', 'banned', 'revoked', 'suspended', 'cancelled', 'canceled', 'inactive', 'removed']);
+
+async function plexSeatBlocked(admin: ReturnType<typeof createClient>, customerId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('plex_members')
+    .select('status, expires_at, updated_at')
+    .eq('customer_id', customerId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return false;
+  const status = String((data as { status?: string }).status ?? '').trim().toLowerCase();
+  if (SEAT_ENDED.has(status)) return true;
+  const exp = (data as { expires_at?: string | null }).expires_at;
+  if (exp && new Date(exp).getTime() < Date.now()) return true;
+  return false;
+}
+
 // ── throttle (shared table with player-login, distinct key prefixes) ───────
 
 async function hashClientIp(req: Request): Promise<string | null> {
@@ -278,6 +334,23 @@ Deno.serve(async (req) => {
 
     const activity = lineActivity(verdict.userInfo);
     if (!activity.active) return jsonResponse({ ok: false, reason: 'line_inactive', status: activity.status });
+
+    // The panel said the line is real and active. The database says whether
+    // it is ours, and whether the hub has ended its Plex seat.
+    let customerId: string | null = null;
+    try {
+      customerId = await customerForLine(admin, host, username);
+    } catch (e) {
+      console.error('[plex-provider-token] customer lookup failed:', e);
+      return jsonResponse({ ok: false, reason: 'error' });
+    }
+    if (!customerId) return jsonResponse({ ok: false, reason: 'not_customer' });
+    try {
+      if (await plexSeatBlocked(admin, customerId)) return jsonResponse({ ok: false, reason: 'plex_disabled' });
+    } catch (e) {
+      console.error('[plex-provider-token] seat lookup failed:', e);
+      return jsonResponse({ ok: false, reason: 'error' });
+    }
 
     if (await tokenOwnsAServer(token)) return jsonResponse({ ok: false, reason: 'provider_misconfigured' });
 
