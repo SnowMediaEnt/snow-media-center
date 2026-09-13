@@ -83,6 +83,8 @@ interface Props {
   onExitUp?: () => void;
   /** Tear down Plex playback and route to Support → Buffering Guide. */
   onOpenBufferingGuide?: () => void;
+  /** Plex needs a Live TV line first: take the viewer to that sign-in. */
+  onNeedLiveTV?: () => void;
   /** Tear down Plex playback and route to Support (no auto-guide). */
   onOpenSupport?: () => void;
 }
@@ -625,7 +627,7 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
 JustLinkedCard.displayName = 'JustLinkedCard';
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────
-const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport }: Props) => {
+const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide, onOpenSupport, onNeedLiveTV }: Props) => {
   const { toast } = useToast();
   const {
     status, conn, pinCode, error, justLinked, accountToken, providerNote, providerAvailable,
@@ -1703,7 +1705,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return <div className="min-h-screen flex items-center justify-center text-white"><div className="w-full max-w-md"><SnowLoader size="md" label="Connecting to Plex…" /></div></div>;
   }
   if (status !== 'ready') {
-    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} providerNote={providerNote} providerAvailable={providerAvailable} onStartLink={startLink} onLinkWithProvider={() => { void linkWithProvider(); }} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
+    return <PlexAuthScreen status={status} pinCode={pinCode} error={error} providerNote={providerNote} providerAvailable={providerAvailable} onStartLink={startLink} onLinkWithProvider={() => { void linkWithProvider(); }} onNeedLiveTV={onNeedLiveTV} onRetry={() => { void retryConnect(); }} onSignOut={() => { void signOut(); }} onCancel={() => { cancelLink(); onExitLeft?.(); }} />;
   }
 
   // ── render: post-link confirmation ──────────────────────────────────

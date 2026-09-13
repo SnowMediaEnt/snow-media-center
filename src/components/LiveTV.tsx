@@ -597,6 +597,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               isActive={true}
               onExitLeft={leaveMode}
               onExitUp={leaveMode}
+              onNeedLiveTV={() => enterMode('live')}
               onOpenBufferingGuide={() => {
                 try {
                   sessionStorage.setItem('smc-open-buffering-guide', '1');
@@ -847,6 +848,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 isActive={pane === 'content'}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
+                onNeedLiveTV={() => enterMode('live')}
                 onOpenBufferingGuide={() => {
                   try {
                     sessionStorage.setItem('smc-open-buffering-guide', '1');

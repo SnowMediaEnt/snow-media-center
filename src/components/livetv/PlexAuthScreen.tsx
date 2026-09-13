@@ -13,16 +13,19 @@ interface Props {
   providerAvailable?: boolean;
   onStartLink: () => void;
   onLinkWithProvider?: () => void;
+  /** Take the viewer to the Live TV sign-in, the normal way into Plex. */
+  onNeedLiveTV?: () => void;
   onCancel: () => void;
   onRetry: () => void;
   onSignOut: () => void;
 }
 
-const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, providerAvailable = false, onStartLink, onLinkWithProvider, onCancel, onRetry, onSignOut }: Props) => {
-  // Two-button screens: unreachable (0=Retry, 1=Sign out) and signed-out with
-  // a Live TV line (0=Connect with Live TV, 1=Sign in with a code).
+const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, providerAvailable = false, onStartLink, onLinkWithProvider, onNeedLiveTV, onCancel, onRetry, onSignOut }: Props) => {
+  // Two-button screens: unreachable (0=Retry, 1=Sign out), signed-out with a
+  // Live TV line (0=Connect with Live TV, 1=own server code) and signed-out
+  // without one (0=Sign into Live TV, 1=own server code).
   const [focusIdx, setFocusIdx] = useState(0);
-  const twoButtons = status === 'unreachable' || (status === 'signed-out' && providerAvailable);
+  const twoButtons = status === 'unreachable' || (status === 'signed-out' && (providerAvailable || !!onNeedLiveTV));
 
   useEffect(() => { setFocusIdx(0); }, [status, providerAvailable]);
 
@@ -45,7 +48,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           if (status === 'unreachable') { if (focusIdx === 0) onRetry(); else onSignOut(); }
-          else if (focusIdx === 0) onLinkWithProvider?.();
+          else if (focusIdx === 0) { if (providerAvailable) onLinkWithProvider?.(); else onNeedLiveTV?.(); }
           else onStartLink();
           return;
         }
@@ -58,7 +61,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [status, focusIdx, twoButtons, onStartLink, onLinkWithProvider, onCancel, onRetry, onSignOut]);
+  }, [status, focusIdx, twoButtons, providerAvailable, onStartLink, onLinkWithProvider, onNeedLiveTV, onCancel, onRetry, onSignOut]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-white">
@@ -71,13 +74,13 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
           <>
             <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
             <p className="text-brand-ice/80 font-nunito mb-2">
-              Plex comes with your Live TV account. Press <span className="text-brand-gold font-semibold">Connect with Live TV</span> and it links this device for you — no code needed.
+              Plex comes with your Live TV account. Press <span className="text-brand-gold font-semibold">Connect with Live TV</span> and this device links itself. Snow Media members never need a code.
             </p>
             {providerNote ? (
               <p className="text-brand-gold/90 font-nunito text-sm mb-6 max-w-sm mx-auto">{providerNote}</p>
             ) : (
               <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-                Have your own Plex server instead? Use Sign in with a code.
+                The second button is only for people who run their own Plex server.
               </p>
             )}
             <div className="flex items-center justify-center gap-3">
@@ -87,7 +90,7 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
               </Button>
               <Button variant="white" data-focused={focusIdx === 1 ? 'true' : 'false'} onClick={onStartLink}
                 className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 1 ? 'scale-105 z-10' : ''}`}>
-                Sign in with a code
+                I run my own Plex server
               </Button>
             </div>
           </>
@@ -95,19 +98,25 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
 
         {(status === 'signed-out' && !providerAvailable) && (
           <>
-            <h2 className="text-2xl font-quicksand font-bold mb-2">Connect your Plex</h2>
+            <h2 className="text-2xl font-quicksand font-bold mb-2">Sign into Live TV first</h2>
             <p className="text-brand-ice/80 font-nunito mb-2">
-              Signed into Live TV? Plex connects on its own — go to Live TV and sign in first.
+              Plex comes with your Live TV account. Sign into Live TV in the Player, then come back here and Plex connects on its own. Snow Media members never need a code.
             </p>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6">
-              Otherwise press Sign in to get a code and enter it at plex.tv/link with your own Plex account.
+              The second button is only for people who run their own Plex server.
             </p>
-            <Button variant="gold" autoFocus data-focused="true" onClick={onStartLink} className="tv-ring tv-ring-contrast relative h-12 rounded-xl px-8 transition-transform duration-150 ease-out scale-105 z-10">
-              <LogIn className="w-4 h-4 mr-2" /> Sign in with Plex
-            </Button>
-            <p className="text-brand-ice/70 font-nunito text-sm mt-4 max-w-sm mx-auto">
-              The sign-in code expires about 10 minutes after you press Sign in.
-            </p>
+            <div className="flex items-center justify-center gap-3">
+              {onNeedLiveTV && (
+                <Button variant="gold" data-focused={focusIdx === 0 ? 'true' : 'false'} onClick={onNeedLiveTV}
+                  className={`tv-ring tv-ring-contrast relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${focusIdx === 0 ? 'scale-105 z-10' : ''}`}>
+                  <LogIn className="w-4 h-4 mr-2" /> Sign into Live TV
+                </Button>
+              )}
+              <Button variant={onNeedLiveTV ? 'white' : 'gold'} data-focused={focusIdx === (onNeedLiveTV ? 1 : 0) ? 'true' : 'false'} onClick={onStartLink}
+                className={`tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out ${onNeedLiveTV ? '' : 'tv-ring-contrast'} ${focusIdx === (onNeedLiveTV ? 1 : 0) ? 'scale-105 z-10' : ''}`}>
+                I run my own Plex server
+              </Button>
+            </div>
           </>
         )}
 
@@ -124,7 +133,8 @@ const PlexAuthScreen = memo(({ status, pinCode, error, providerNote = null, prov
               <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> Waiting for you to sign in…
             </div>
             <p className="text-brand-ice/70 font-nunito text-sm mb-6 max-w-sm mx-auto">
-              Send this code to your provider now — codes expire in about 10 minutes. Only enter it at plex.tv/link yourself if the Plex server is your own.
+              Enter it signed into the Plex account that owns your server. Codes expire in about 10 minutes.
+              <span className="block mt-2 text-brand-gold/90">Snow Media member? You do not need a code. Press Cancel and use Connect with Live TV.</span>
             </p>
             <Button variant="white" autoFocus data-focused="true" onClick={onCancel} className="tv-ring relative h-12 rounded-xl px-6 transition-transform duration-150 ease-out scale-105 z-10">
               Cancel
