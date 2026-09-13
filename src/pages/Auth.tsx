@@ -313,7 +313,7 @@ const Auth = () => {
           toast({
             title: 'Login failed',
             description:
-              'That streaming login works, but it isn’t linked to a website account yet. Sign into the Player once and follow “Link your account”, or use your email here.',
+              'That streaming login works, but Snow Media has no email on file for it yet. Create your Snow Media account with your email below, or message Snow Media in Support so it can be added.',
             variant: 'destructive',
           });
           setLoading(false);

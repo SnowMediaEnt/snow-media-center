@@ -3,19 +3,39 @@
 // link: ClaimAccountCard covers app-account -> line; this covers line -> app.
 //
 // Flow: verify the line SERVER-side against the allowlisted panel, find the
-// auth user already linked to that exact line (player_signins.supabase_user_id
-// or customer_services -> customers.user_id), then mint a one-time magiclink
-// token_hash the client consumes with supabase.auth.verifyOtp(). We never
-// return raw credentials, never create accounts here, and never link by
-// guessable data — only links established by the existing claim/capture flows
-// count.
+// auth user linked to that exact line (player_signins.supabase_user_id or
+// customer_services -> customers.user_id), and when there is none yet but the
+// hub has the line on file with an email that has no account yet, create the
+// account for that email and tie it to the customer (never attach to an
+// existing account by email). Then mint a one-time magiclink token_hash
+// the client consumes with supabase.auth.verifyOtp(). We never return raw
+// credentials and never link by guessable data: the line must authenticate
+// against the panel, and the email comes from the hub's own record.
 //
 // verify_jwt = false (see supabase/config.toml). Soft failures return
 // HTTP 200 with { ok:false, reason } like capture-player-signin.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { hashClientIp } from '../_shared/ai-guard.ts';
+
+// Same as _shared/ai-guard.ts hashClientIp, kept inline so this file can be
+// pasted into the dashboard editor as a single unit.
+async function hashClientIp(req: Request): Promise<string | null> {
+  const xff = req.headers.get('x-forwarded-for');
+  const cf = req.headers.get('cf-connecting-ip');
+  const real = req.headers.get('x-real-ip');
+  let ip: string | null = null;
+  if (xff) ip = xff.split(',')[0]?.trim() || null;
+  if (!ip && cf) ip = cf.trim();
+  if (!ip && real) ip = real.trim();
+  if (!ip) return null;
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+}
 
 const ALLOWED_HOSTS = ['dstreams.xyz:8080', 'dstreams.xyz:2083', 'strmz.xyz'] as const;
 const MAX_BODY_BYTES = 4096;
@@ -156,6 +176,58 @@ async function verifyLine(host: string, username: string, password: string): Pro
 }
 
 
+// ── line → customer (as the hub records it) ────────────────────────────────
+// Same rule as capture-player-signin: hostnames compared without scheme or
+// port, usernames case-insensitively and then exactly, newest row wins.
+const hostnameOf = (h: string | null | undefined): string =>
+  String(h ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
+
+interface LineCustomer { id: string; email: string | null; user_id: string | null }
+
+async function customerForLine(
+  admin: ReturnType<typeof createClient>,
+  host: string,
+  username: string,
+): Promise<LineCustomer | null> {
+  const pattern = username.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data, error } = await admin
+    .from('customer_services')
+    .select('customer_id, panel_host, panel_username, created_at')
+    .ilike('panel_username', pattern)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  const want = hostnameOf(host);
+  const rows = (data ?? []) as Array<{ customer_id: string; panel_host: string | null; panel_username: string | null }>;
+  const exact = rows.filter((r) => String(r.panel_username ?? '').trim().toLowerCase() === username);
+  const onHost = exact.find((r) => hostnameOf(r.panel_host) === want) ?? exact.find((r) => !hostnameOf(r.panel_host));
+  if (!onHost) return null;
+  const { data: cust, error: custErr } = await admin
+    .from('customers')
+    .select('id, email, user_id')
+    .eq('id', onHost.customer_id)
+    .maybeSingle();
+  if (custErr) throw custErr;
+  return (cust as LineCustomer | null) ?? null;
+}
+
+// A NEW website account for the hub's email, confirmed because the hub
+// vouches for it and the line just authenticated. Deliberately never attaches
+// to an account that already exists for that email: a mistyped email in the
+// hub must not hand a line holder someone else's account. In that case the
+// member signs in with their email as before and links from the Player.
+// A member who later wants a password uses "Forgot password".
+async function createUserIfAbsent(admin: ReturnType<typeof createClient>, email: string): Promise<string | null> {
+  const created = await admin.auth.admin.createUser({ email, email_confirm: true });
+  if (created.error || !created.data?.user?.id) {
+    if (!/already|exists|registered/i.test(created.error?.message ?? '')) {
+      console.warn('[player-login] createUser failed:', created.error?.message);
+    }
+    return null;
+  }
+  return created.data.user.id;
+}
+
 async function throttle(
   admin: ReturnType<typeof createClient>,
   key: string | null,
@@ -250,6 +322,32 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.warn('[player-login] link lookup failed:', e);
+    }
+
+    // 2b. No link yet. The hub records every customer's line (customer_services)
+    //     and email (customers). A verified line that maps to a customer with an
+    //     email IS that person, so a website account is created for that email
+    //     here and tied to the customer — one login for members, instead of a
+    //     second account they have to make and then link. Only a NEW account is
+    //     ever created (see createUserIfAbsent): an email that already has one
+    //     stays not_linked, as does a line the hub does not know or a customer
+    //     with no email on file, and the app offers the email sign-in as before.
+    if (!userId) {
+      try {
+        const customer = await customerForLine(admin, host, username);
+        if (customer?.user_id) {
+          userId = customer.user_id;
+        } else if (customer && customer.email) {
+          const email = customer.email.trim().toLowerCase();
+          const created = await createUserIfAbsent(admin, email);
+          if (created) {
+            userId = created;
+            await admin.from('customers').update({ user_id: userId }).eq('id', customer.id).is('user_id', null);
+          }
+        }
+      } catch (e) {
+        console.warn('[player-login] customer link failed:', e);
+      }
     }
     if (!userId) return jsonResponse({ ok: false, reason: 'not_linked' });
 
