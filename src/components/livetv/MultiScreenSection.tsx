@@ -98,7 +98,7 @@ const layoutNeighbor = (layout: Layout, idx: number, dir: 'up' | 'down' | 'left'
   return n === idx ? null : n;
 };
 
-const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExitUp }: Props) => {
+const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) => {
   const native = hasNativePlayer();
   // usePlayerAccount already re-reads on playerAccountRefresh; a second
   // listener here made every refresh run twice.
@@ -461,10 +461,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
 
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
 
-      // Layout picker screen
+      // Layout picker screen. Left off the first option and Up hand the
+      // remote back to the shell (sidebar / header), like every other
+      // section; without that the three layouts were a dead end.
       if (!layoutRef.current) {
         if (isBack) { consume(e); onExitLeft(); return; }
-        if (e.key === 'ArrowLeft') { consume(e); setPickerIdx(i => Math.max(0, i - 1)); return; }
+        if (e.key === 'ArrowUp') { consume(e); onExitUp(); return; }
+        if (e.key === 'ArrowLeft') {
+          consume(e);
+          if (pickerIdxRef.current === 0) onExitLeft();
+          else setPickerIdx(i => Math.max(0, i - 1));
+          return;
+        }
         if (e.key === 'ArrowRight') { consume(e); setPickerIdx(i => Math.min(2, i + 1)); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           consume(e);
@@ -558,7 +566,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp: _onExi
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio]);
+  }, [isActive, native, chooseLayout, enterFullscreen, openPickerForTile, closeTile, exitFullscreen, stopAll, openTileForChannel, focusAudio, onExitLeft, onExitUp]);
 
   // Hardware back
   useEffect(() => {
