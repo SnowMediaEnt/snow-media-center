@@ -9,9 +9,13 @@
 // changes is who types.
 //
 // Flow: verify the line SERVER-side against the allowlisted panel (same rules
-// as player-login), require it to be active, require it to belong to one of
-// OUR customers (customer_services, as the hub records them) whose Plex seat
-// the hub has not ended (plex_members), then return PLEX_PROVIDER_TOKEN.
+// as player-login), require it to be active, and return PLEX_PROVIDER_TOKEN.
+// The panel is the source of truth: a live, unexpired line on one of our
+// panels gets Plex. The hub is consulted only to say NO — a customer whose
+// Plex seat the hub has ended (plex_members) is refused — and is brought up
+// to date afterwards: the line's customer_services row is created when the
+// hub has none and its expiry refreshed when it has, so the admin sees the
+// same date the panel does. That bookkeeping never blocks the token.
 // The token lives in this function's env only — never in the database — and
 // is never logged. Removing the secret turns the feature off: the app falls
 // back to the PIN flow on its own.
@@ -150,13 +154,12 @@ function lineActivity(ui: Record<string, unknown>): { active: true } | { active:
 }
 
 // ── line → customer → Plex seat ────────────────────────────────────────────
-// A valid line on a shared panel is not automatically OUR customer. The hub
-// records every customer's line in customer_services (panel_host +
-// panel_username); only a line found there gets the provider's Plex. Hosts
-// are recorded however the hub was handed them, so compare hostnames only;
-// usernames case-insensitively, then re-checked exactly so LIKE wildcards in
-// a username ('_' is common) cannot pull in a neighbour's row. Newest row
-// wins when the same line was entered twice.
+// The hub records every customer's line in customer_services (panel_host +
+// panel_username). Finding the line there names the customer whose Plex seat
+// we must respect. Hosts are recorded however the hub was handed them, so
+// compare hostnames only; usernames case-insensitively, then re-checked
+// exactly so LIKE wildcards in a username ('_' is common) cannot pull in a
+// neighbour's row. Newest row wins when the same line was entered twice.
 const hostnameOf = (h: string | null | undefined): string =>
   String(h ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
 
@@ -201,6 +204,91 @@ async function plexSeatBlocked(admin: ReturnType<typeof createClient>, customerI
   const exp = (data as { expires_at?: string | null }).expires_at;
   if (exp && new Date(exp).getTime() < Date.now()) return true;
   return false;
+}
+
+// ── keep the hub current ───────────────────────────────────────────────────
+// After the panel has said yes, make sure the hub knows this line and its
+// expiry. A line the hub has never seen gets a customer named after the
+// username (email-shaped usernames — Vibez — adopt or create the customer
+// with that email, the same rule link_player_signin_to_crm applies); a known
+// line has its expiry refreshed through link_claimed_panel_line, whose
+// no-regress guard never moves a date backwards. Best-effort: any failure is
+// logged and the token is issued anyway.
+const LABEL_BY_HOSTNAME: Record<string, string> = { 'dstreams.xyz': 'Dreamstreams', 'strmz.xyz': 'VibezTV' };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const expIsoDate = (raw: unknown): string | null => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return new Date(n * 1000).toISOString().slice(0, 10);
+};
+
+async function customerFromSignins(
+  admin: ReturnType<typeof createClient>,
+  host: string,
+  username: string,
+): Promise<string | null> {
+  // The hub may have matched this line to a customer by hand (player_signins)
+  // without a service row yet. player_signins stores the host bare.
+  const { data } = await admin
+    .from('player_signins')
+    .select('matched_customer_id')
+    .eq('panel_host', host)
+    .eq('panel_username', username)
+    .not('matched_customer_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  return ((data as { matched_customer_id?: string | null } | null)?.matched_customer_id) ?? null;
+}
+
+async function ensureHubRecord(
+  admin: ReturnType<typeof createClient>,
+  host: string,
+  username: string,
+  userInfo: Record<string, unknown>,
+  known: string | null,
+): Promise<void> {
+  let customerId = known ?? (await customerFromSignins(admin, host, username));
+  let userId: string | null = null;
+  const isEmail = EMAIL_RE.test(username);
+  const byEmail = async (): Promise<void> => {
+    // Hub emails are stored as typed; the username is already lowercased.
+    const pattern = username.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data } = await admin.from('customers').select('id, user_id, email').ilike('email', pattern).limit(5);
+    const hit = ((data ?? []) as Array<{ id: string; user_id?: string | null; email?: string | null }>)
+      .find((r) => String(r.email ?? '').trim().toLowerCase() === username);
+    if (hit) { customerId = hit.id; userId = hit.user_id ?? null; }
+  };
+  if (!customerId && isEmail) await byEmail();
+  if (!customerId) {
+    const { data, error } = await admin
+      .from('customers')
+      .insert({
+        name: isEmail ? username.split('@')[0] : username,
+        email: isEmail ? username : null,
+        notes: 'created from the Player sign-in (Plex)',
+      })
+      .select('id')
+      .single();
+    if (error) {
+      // Unique email: another request created the customer first — adopt it.
+      if (isEmail && error.code === '23505') await byEmail();
+      if (!customerId) throw error;
+    } else {
+      customerId = (data as { id: string }).id;
+    }
+  }
+  const { error } = await admin.rpc('link_claimed_panel_line', {
+    p_customer_id: customerId,
+    p_supabase_user_id: userId,
+    p_panel_username: username,
+    p_panel_host: host,
+    p_server_label: LABEL_BY_HOSTNAME[hostnameOf(host)] ?? null,
+    p_expiration_date: expIsoDate(userInfo.exp_date),
+    p_max_connections: Number.isFinite(Number(userInfo.max_connections)) ? Number(userInfo.max_connections) : null,
+    p_is_trial: userInfo.is_trial === 1 || userInfo.is_trial === '1' || userInfo.is_trial === true,
+  });
+  if (error) throw error;
 }
 
 // ── throttle (shared table with player-login, distinct key prefixes) ───────
@@ -335,24 +423,28 @@ Deno.serve(async (req) => {
     const activity = lineActivity(verdict.userInfo);
     if (!activity.active) return jsonResponse({ ok: false, reason: 'line_inactive', status: activity.status });
 
-    // The panel said the line is real and active. The database says whether
-    // it is ours, and whether the hub has ended its Plex seat.
+    // The panel said the line is real and active — that is the rule. The hub
+    // only gets a veto: a customer it knows whose Plex seat it has ended.
     let customerId: string | null = null;
     try {
       customerId = await customerForLine(admin, host, username);
+      if (customerId && (await plexSeatBlocked(admin, customerId))) {
+        return jsonResponse({ ok: false, reason: 'plex_disabled' });
+      }
     } catch (e) {
-      console.error('[plex-provider-token] customer lookup failed:', e);
-      return jsonResponse({ ok: false, reason: 'error' });
-    }
-    if (!customerId) return jsonResponse({ ok: false, reason: 'not_customer' });
-    try {
-      if (await plexSeatBlocked(admin, customerId)) return jsonResponse({ ok: false, reason: 'plex_disabled' });
-    } catch (e) {
-      console.error('[plex-provider-token] seat lookup failed:', e);
+      console.error('[plex-provider-token] hub lookup failed:', e);
       return jsonResponse({ ok: false, reason: 'error' });
     }
 
     if (await tokenOwnsAServer(token)) return jsonResponse({ ok: false, reason: 'provider_misconfigured' });
+
+    // Bookkeeping, after the decision: the hub learns the line (or its new
+    // expiry). Never a reason to withhold Plex.
+    try {
+      await ensureHubRecord(admin, host, username, verdict.userInfo, customerId);
+    } catch (e) {
+      console.warn('[plex-provider-token] hub record update failed:', e instanceof Error ? e.message : String(e));
+    }
 
     return jsonResponse({ ok: true, token });
   } catch (e) {
