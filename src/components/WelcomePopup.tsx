@@ -14,11 +14,13 @@ const CHANGELOG: Record<string, string[]> = {
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',
     '🎁 Start a free 2-day trial with no card, or buy a plan — the Player signs you in when it is ready',
-    '👤 My Account: see what you have, renew it, redeem a gift code, or switch the Player to another service',
+    '👤 My Account: see what you have, extend it, redeem a gift code, or switch the Player to another service',
+    '🎬 Plex signs in by itself when you are signed into Live TV — no more codes to send',
     '📧 Your username and password are emailed to you after a trial or purchase, so you cannot lose them',
-    '📱 Vibez sign-up: pick a package on the TV, finish on your phone, then sign in and carry on',
-    '🕹️ Remote fixes on the new screens, and links no longer open a browser you did not ask for',
-    'Plex libraries open faster',
+    '⌨️ Keyboard fixed: Back closes it and stays put, Next moves to the next box',
+    '🖥️ Multi-Screen shows every picture again, and the home content bar is back',
+    '🐢 Fixed buffering? Long-press a channel: open the guide or send us a ticket',
+    'Smoother and lighter: less running in the background while you watch',
   ],
   '1.7': [
     '🎬 New screen-format button in the player — switch between Wide, Fill and Zoom so movies fill your TV properly',

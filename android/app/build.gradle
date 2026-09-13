@@ -79,7 +79,7 @@ android {
         applicationId "app.lovable.f44324110df840aea0a1fb97cafa76e7"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 30
+        versionCode 31
         versionName "1.7.1"
 
         // Never hardcode the key in Kotlin; see the block above.
