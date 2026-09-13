@@ -44,7 +44,7 @@ const THROTTLE_WINDOW_MS = 5 * 60 * 1000;
 const THROTTLE_MAX_PER_IP = 20;
 const THROTTLE_MAX_PER_LINE = 6;
 
-// The owner check hits plex.tv once, then remembers the verdict for a while.
+// The token check hits plex.tv once, then remembers a good verdict for a while.
 const OWNER_CHECK_TTL_MS = 10 * 60 * 1000;
 
 const jsonResponse = (payload: unknown, status = 200): Response =>
@@ -344,10 +344,21 @@ async function throttle(
 // A plex.tv outage is not a verdict: the box would fail at discovery anyway,
 // so we let the request through rather than lock everyone out.
 
-let ownerVerdict: { at: number; owns: boolean } | null = null;
 
-async function tokenOwnsAServer(token: string): Promise<boolean> {
-  if (ownerVerdict && Date.now() - ownerVerdict.at < OWNER_CHECK_TTL_MS) return ownerVerdict.owns;
+// What plex.tv says about the secret: usable, an owner token (refused), dead
+// (401 — the viewer's password changed and the token with it), or seeing no
+// server at all (the share was removed). Anything but 'ok' must never be
+// handed to a box: a box that receives a dead token shows "Can't reach your
+// Plex server" and blames the server. Good verdicts are remembered for a
+// while; a bad one is re-checked soon so a fixed secret takes effect quickly.
+type TokenVerdict = 'ok' | 'owns' | 'dead' | 'noserver' | 'unknown';
+let tokenVerdict: { at: number; verdict: TokenVerdict } | null = null;
+
+async function checkProviderToken(token: string): Promise<TokenVerdict> {
+  if (tokenVerdict) {
+    const ttl = tokenVerdict.verdict === 'ok' || tokenVerdict.verdict === 'owns' ? OWNER_CHECK_TTL_MS : 60_000;
+    if (Date.now() - tokenVerdict.at < ttl) return tokenVerdict.verdict;
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -360,18 +371,26 @@ async function tokenOwnsAServer(token: string): Promise<boolean> {
         'X-Plex-Product': 'Snow Media Center',
       },
     });
-    if (!res.ok) {
-      // 401 here means the secret itself is dead; say so loudly (no token).
-      if (res.status === 401) console.error('[plex-provider-token] PLEX_PROVIDER_TOKEN rejected by plex.tv (401)');
-      return false;
+    if (res.status === 401) {
+      console.error('[plex-provider-token] PLEX_PROVIDER_TOKEN rejected by plex.tv (401) — the viewer password changed? Sign the viewer in again and update the secret.');
+      tokenVerdict = { at: Date.now(), verdict: 'dead' };
+      return 'dead';
     }
+    if (!res.ok) return 'unknown';
     const list = (await res.json()) as Array<{ provides?: string; owned?: boolean }>;
-    const owns = list.some((r) => String(r.provides || '').includes('server') && !!r.owned);
-    ownerVerdict = { at: Date.now(), owns };
-    if (owns) console.error('[plex-provider-token] PLEX_PROVIDER_TOKEN owns a server — refusing to serve it. Use a viewer account.');
-    return owns;
+    const servers = list.filter((r) => String(r.provides || '').includes('server'));
+    let verdict: TokenVerdict = 'ok';
+    if (servers.some((r) => !!r.owned)) {
+      verdict = 'owns';
+      console.error('[plex-provider-token] PLEX_PROVIDER_TOKEN owns a server — refusing to serve it. Use a viewer account.');
+    } else if (!servers.length) {
+      verdict = 'noserver';
+      console.error('[plex-provider-token] PLEX_PROVIDER_TOKEN sees no server — share the library with the viewer account again.');
+    }
+    tokenVerdict = { at: Date.now(), verdict };
+    return verdict;
   } catch {
-    return false;
+    return 'unknown';
   } finally {
     clearTimeout(timer);
   }
@@ -436,7 +455,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, reason: 'error' });
     }
 
-    if (await tokenOwnsAServer(token)) return jsonResponse({ ok: false, reason: 'provider_misconfigured' });
+    // The secret itself must be sound before it goes anywhere. 'unknown'
+    // (plex.tv unreachable from here) is not a reason to refuse: the box will
+    // find out for itself and repair on a 401.
+    const tokenState = await checkProviderToken(token);
+    if (tokenState === 'owns' || tokenState === 'dead' || tokenState === 'noserver') {
+      return jsonResponse({ ok: false, reason: 'provider_misconfigured', detail: tokenState });
+    }
 
     // Bookkeeping, after the decision: the hub learns the line (or its new
     // expiry). Never a reason to withhold Plex.
