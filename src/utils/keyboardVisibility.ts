@@ -54,11 +54,21 @@ const subscribe = () => {
     try {
       const { SnowKeyboard } = await import('@/capacitor/SnowKeyboard');
       await SnowKeyboard.addListener('keyboardVisibility', ({ visible }) => emit(!!visible));
+      // The keyboard's action key. Re-broadcast as a window event so the
+      // focus hook on whichever screen is up can act on it; a key that was
+      // pressed on the keyboard also proves the keyboard is up.
+      await SnowKeyboard.addListener('editorAction', ({ action }) => {
+        emit(true);
+        try { window.dispatchEvent(new CustomEvent(EDITOR_ACTION_EVENT, { detail: { action } })); } catch { /* ignore */ }
+      });
     } catch (error) {
       console.warn('[Keyboard] Unable to observe native keyboard visibility:', error);
     }
   })();
 };
+
+/** Window event carrying `{ detail: { action: 'next' } }` from the native keyboard. */
+export const EDITOR_ACTION_EVENT = 'snowkeyboard:editoraction';
 
 /** True only when the platform has said the keyboard is on screen. */
 export const isNativeKeyboardVisible = () => {

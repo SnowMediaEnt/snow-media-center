@@ -58,11 +58,17 @@ class SnowKeyboardPlugin : Plugin() {
         notifyListeners("keyboardVisibility", JSObject().put("visible", visible))
     }
 
+    /** The keyboard's action key, reported by SnowWebView's input connection. */
+    private val actionNotifier: (String) -> Unit = { action ->
+        notifyListeners("editorAction", JSObject().put("action", action))
+    }
+
     private fun imm(): InputMethodManager =
         activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
     override fun load() {
         SnowKeyboardState.onChange = notifier
+        SnowKeyboardState.onAction = actionNotifier
 
         val content: View = activity.window.decorView.findViewById(android.R.id.content) ?: return
         // The DECOR view, which does not shrink when the window is resized for
@@ -91,6 +97,7 @@ class SnowKeyboardPlugin : Plugin() {
         // the incoming instance's load() can land before the outgoing one's
         // teardown — clearing unconditionally would unhook the live plugin.
         if (SnowKeyboardState.onChange === notifier) SnowKeyboardState.onChange = null
+        if (SnowKeyboardState.onAction === actionNotifier) SnowKeyboardState.onAction = null
     }
 
     @PluginMethod

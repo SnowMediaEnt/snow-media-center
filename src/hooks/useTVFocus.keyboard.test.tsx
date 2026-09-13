@@ -436,6 +436,38 @@ describe('Enter and OK on a field', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("the native keyboard's action key moves to the next field even with no typing evidence", async () => {
+    // Reported by SnowWebView's input connection: it was pressed ON the
+    // keyboard, so no page-side proof that typing is under way is needed.
+    // This is the path a Fire TV's Play / Next key takes.
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await ok(email);
+    expect(state.showCalls).toBe(1);
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(password);
+    expect(state.showCalls).toBe(2);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("the native action key is ignored when the focused field is not this hook's", async () => {
+    const { getByTestId } = render(<Harness />);
+    const outside = getByTestId('outside');
+    await tap(outside);
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(outside);
+    expect(state.showCalls).toBe(0);
+  });
+
   it('Enter on a field with no keyboard up never moves: it asks for the keyboard', async () => {
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);

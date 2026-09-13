@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
-import { isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
+import { EDITOR_ACTION_EVENT, isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -405,6 +405,23 @@ export const useTVFocus = ({
     const next = rest[0];
     if (next) focusById(getId(next));
   }, [clearIme, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
+
+  // The keyboard's own action key, reported by the native side (see
+  // SnowWebView). Unlike an Enter keydown this needs no evidence that typing
+  // is under way: it was pressed ON the keyboard, so the keyboard is up and
+  // the focused field is the one being edited.
+  useEffect(() => {
+    if (!enabled) return;
+    const onAction = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      if (action !== 'next') return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!ownsElement(active)) return;
+      advanceFrom(active);
+    };
+    window.addEventListener(EDITOR_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(EDITOR_ACTION_EVENT, onAction);
+  }, [advanceFrom, enabled, ownsElement]);
 
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;

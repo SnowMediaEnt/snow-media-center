@@ -13,6 +13,16 @@ interface SnowKeyboardPlugin {
     event: 'keyboardVisibility',
     listener: (state: { visible: boolean }) => void,
   ): Promise<PluginListenerHandle>;
+  /**
+   * The keyboard's own action key (Next / Done / its Enter, or the remote's
+   * Play mapped onto it), pressed while typing. The native side already
+   * filters out the action Amazon's keyboard fires as it dismisses on Back,
+   * so this is always a real press. The page moves to the next field on it.
+   */
+  addListener(
+    event: 'editorAction',
+    listener: (state: { action: 'next' }) => void,
+  ): Promise<PluginListenerHandle>;
 }
 
 export const SnowKeyboard = registerPlugin<SnowKeyboardPlugin>('SnowKeyboard');

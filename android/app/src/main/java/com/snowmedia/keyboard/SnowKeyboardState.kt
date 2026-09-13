@@ -22,9 +22,22 @@ object SnowKeyboardState {
 
     val isVisible: Boolean get() = shown
 
+    /**
+     * The keyboard's own action key ("next"): pressed by the viewer on the IME,
+     * reported by SnowWebView's input connection. The page moves to the next
+     * field on it. Kept off the visibility channel because it is an event, not
+     * a state.
+     */
+    @Volatile
+    var onAction: ((String) -> Unit)? = null
+
     fun set(visible: Boolean) {
         if (shown == visible) return
         shown = visible
         onChange?.invoke(visible)
+    }
+
+    fun emitAction(action: String) {
+        onAction?.invoke(action)
     }
 }

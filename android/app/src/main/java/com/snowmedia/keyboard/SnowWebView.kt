@@ -1,6 +1,8 @@
 package com.snowmedia.keyboard
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
@@ -93,7 +95,10 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
                 // Moving between fields is the D-pad's job.
                 and EditorInfo.IME_MASK_ACTION.inv()
             ) or EditorInfo.IME_ACTION_NONE
-        return connection?.let { BackAwareInputConnection(it, this) }
+        // A multiline box keeps its Enter: the IME's key inserts a newline
+        // there, and only there.
+        val multiline = (outAttrs.inputType and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+        return connection?.let { BackAwareInputConnection(it, this, multiline) }
     }
 
     /** Ask the IME to go away, from wherever we managed to catch the key. */
@@ -110,28 +115,81 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
     private class BackAwareInputConnection(
         target: InputConnection,
         private val view: SnowWebView,
+        private val multiline: Boolean,
     ) : InputConnectionWrapper(target, false) {
+        private val main = Handler(Looper.getMainLooper())
+        private var lastBackAt = 0L
+        private var pendingAction: Runnable? = null
+
         /**
-         * The IME's Next / Previous never reach Chromium. Amazon's keyboard
-         * ignores the EditorInfo we hand it, so IME_ACTION_NONE above is not
-         * enough on its own: this is where the action would otherwise turn
-         * into advanceFocusForIME. Every other action (Done, Go, Search, Send,
-         * None) passes through, and Chromium delivers those as an Enter
-         * keydown that the page can reason about.
+         * THE KEYBOARD'S ACTION KEY IS OURS TO INTERPRET.
+         *
+         * Whatever the IME calls it — Next, Done, its Enter, the remote's Play
+         * mapped onto it — the viewer pressed the key that means "done with
+         * this box". It arrives here two ways, and both are taken: as an
+         * editor action, or as an Enter key event. Neither is passed on to
+         * Chromium, which would either move focus natively without telling
+         * the page (NEXT) or hand the page a bare Enter it cannot tell apart
+         * from the remote's OK (everything else). Instead the page is told
+         * "next" through SnowKeyboardState and moves to the next field itself,
+         * keyboard and highlight together.
+         *
+         * The one trap: Amazon's keyboard fires its action AS IT DISMISSES on
+         * Back, and Back itself comes through sendKeyEvent right beside it,
+         * in either order. So an action is held for a moment and dropped if a
+         * Back is seen just before or just after it. That is what makes this
+         * safe where the 2026-09-09 version was not: Back closes, Next moves,
+         * and neither can be mistaken for the other.
          */
         override fun performEditorAction(actionCode: Int): Boolean {
-            if (actionCode == EditorInfo.IME_ACTION_NEXT || actionCode == EditorInfo.IME_ACTION_PREVIOUS) return true
-            return super.performEditorAction(actionCode)
+            if (multiline) return super.performEditorAction(actionCode)
+            queueAction()
+            return true
         }
 
         override fun sendKeyEvent(event: KeyEvent): Boolean {
-            if (event.keyCode == KeyEvent.KEYCODE_BACK) {
-                if (event.action == KeyEvent.ACTION_UP) view.dismissKeyboard()
-                // Swallow it. Passed on, Chromium turns it into a page-level key
-                // and the app's Back handlers navigate while the keyboard stays.
-                return true
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_BACK -> {
+                    lastBackAt = System.currentTimeMillis()
+                    cancelAction()
+                    if (event.action == KeyEvent.ACTION_UP) view.dismissKeyboard()
+                    // Swallow it. Passed on, Chromium turns it into a page-level
+                    // key and the app's Back handlers navigate while the
+                    // keyboard stays.
+                    return true
+                }
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    if (multiline) return super.sendKeyEvent(event)
+                    if (event.action == KeyEvent.ACTION_DOWN) queueAction()
+                    return true
+                }
             }
             return super.sendKeyEvent(event)
+        }
+
+        private fun queueAction() {
+            val now = System.currentTimeMillis()
+            if (now - lastBackAt < BACK_GUARD_MS) return
+            cancelAction()
+            val r = Runnable {
+                pendingAction = null
+                if (System.currentTimeMillis() - lastBackAt < BACK_GUARD_MS) return@Runnable
+                SnowKeyboardState.emitAction("next")
+            }
+            pendingAction = r
+            main.postDelayed(r, ACTION_SETTLE_MS)
+        }
+
+        private fun cancelAction() {
+            pendingAction?.let { main.removeCallbacks(it) }
+            pendingAction = null
+        }
+
+        private companion object {
+            /** An action this close to a Back is the dismissal's own, not a press. */
+            const val BACK_GUARD_MS = 600L
+            /** How long an action waits for a Back that may still be on its way. */
+            const val ACTION_SETTLE_MS = 200L
         }
     }
 
