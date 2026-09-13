@@ -1178,7 +1178,10 @@ const BufferingGuide = ({
               chosenAppInstalled={chosenAppInstalled}
               onLaunchApp={() => chosenApp && onLaunch(chosenApp)}
               onCopy={copyScript}
-              onSubmitTicket={submitAsTicket}
+              // Not the function itself: the button would hand it the click
+              // event as the subject, and a DOM event cannot be serialised
+              // into a ticket ("Converting circular structure to JSON").
+              onSubmitTicket={() => { void submitAsTicket(); }}
               submittingTicket={submittingTicket}
               onRestart={restart}
             />

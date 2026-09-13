@@ -148,17 +148,20 @@ const PlayerControlBar = memo(({
       </div>
 
       {/* Bottom overlay */}
-      <div className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-16 pb-6 bg-gradient-to-t from-black/95 via-black/75 to-transparent animate-fade-in pointer-events-none">
+      {/* Kept tight: the bar sits over the programme, so every row is as
+          short as it can be, and the controls get their own dark pill so
+          they read against any picture. */}
+      <div className="absolute left-0 right-0 bottom-0 z-10 px-8 pt-8 pb-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent animate-fade-in pointer-events-none">
         {/* Top row: logo + meta + LIVE */}
-        <div className="flex items-start gap-4 max-w-6xl mx-auto pointer-events-auto">
-          <div className="w-16 h-16 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
+        <div className="flex items-start gap-3 max-w-6xl mx-auto pointer-events-auto">
+          <div className="w-12 h-12 rounded-xl bg-black/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10">
             {channelLogo
               ? <img src={channelLogo} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-              : <Tv className="w-8 h-8 text-brand-ice/60" />}
+              : <Tv className="w-6 h-6 text-brand-ice/60" />}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-quicksand font-bold text-white truncate">
+              <h2 className="text-lg font-quicksand font-bold text-white truncate leading-tight">
                 {channelNum != null ? `${channelNum} · ` : ''}{channelName}
               </h2>
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-600 text-white text-xs font-bold tracking-wider">
@@ -184,7 +187,7 @@ const PlayerControlBar = memo(({
         </div>
 
         {/* Progress */}
-        <div className="max-w-6xl mx-auto mt-4 pointer-events-auto">
+        <div className="max-w-6xl mx-auto mt-2 pointer-events-auto">
           <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-brand-gold transition-[width] duration-150 ease-out" style={{ width: `${progressPct}%` }} />
           </div>
@@ -196,13 +199,15 @@ const PlayerControlBar = memo(({
           )}
         </div>
 
-        {/* Centered control row */}
-        <div className="max-w-6xl mx-auto mt-4 flex items-center justify-center gap-3 pointer-events-auto">
-          {controls.map(renderButton)}
+        {/* Centered control row, on its own dark pill */}
+        <div className="max-w-6xl mx-auto mt-2 flex items-center justify-center pointer-events-auto">
+          <div className="inline-flex items-center gap-2 rounded-full bg-black/80 border border-white/10 px-3 py-1.5">
+            {controls.map(renderButton)}
+          </div>
         </div>
 
         {/* Hint */}
-        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-4 pointer-events-none">
+        <p className="text-center text-xs text-brand-ice/60 font-nunito mt-2 pointer-events-none">
           Left / Right: select · Enter: activate · Up or Back: hide bar
         </p>
       </div>

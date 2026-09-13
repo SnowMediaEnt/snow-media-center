@@ -194,10 +194,12 @@ export const useTVFocus = ({
     };
     root?.addEventListener('beforeinput', evidence, true);
     root?.addEventListener('compositionstart', evidence, true);
+    root?.addEventListener('input', evidence, true);
     return () => {
       stop();
       root?.removeEventListener('beforeinput', evidence, true);
       root?.removeEventListener('compositionstart', evidence, true);
+      root?.removeEventListener('input', evidence, true);
       clearIme();
     };
   }, [clearIme, enabled, ownsElement]);
@@ -381,6 +383,29 @@ export const useTVFocus = ({
     currentEl.click();
   }, [findManagedElement, getElements, getId, openKeyboardOn]);
 
+  // The keyboard's Next: leave `field` for the next text field on this screen,
+  // in reading order, and ask for the keyboard there. After the last field
+  // the keyboard is put away and the highlight lands on whatever comes next,
+  // which on every form in the app is its button. Nothing is submitted.
+  const advanceFrom = useCallback((field: HTMLInputElement | HTMLTextAreaElement) => {
+    const elements = getElements();
+    const here = findManagedElement(field) ?? field;
+    const idx = elements.indexOf(here);
+    const rest = idx >= 0 ? elements.slice(idx + 1) : [];
+    const nextField = rest.find(
+      (el): el is HTMLInputElement | HTMLTextAreaElement => isTextInput(el) && !el.disabled && !el.readOnly,
+    );
+    clearIme();
+    if (nextField) {
+      focusById(getId(nextField));
+      void openKeyboardOn(nextField);
+      return;
+    }
+    void hideKeyboardForDpad(field);
+    const next = rest[0];
+    if (next) focusById(getId(next));
+  }, [clearIme, findManagedElement, focusById, getElements, getId, openKeyboardOn]);
+
   useEffect(() => {
     if (!enabled || !autoFocusOnMount) return;
     // Only auto-focus ONCE per mount. Re-enabling (e.g. when a child returns
@@ -494,33 +519,38 @@ export const useTVFocus = ({
         return;
       }
 
-      // Enter, however it arrived.
+      // Enter on a text field.
       //
-      // There was a Next/Done block here between 2026-09-09 and this commit: an
-      // Enter with a keyboard open walked to the next editable field, or on a
-      // field marked allow-enter clicked the form's submit button. On a Fire TV
-      // that is actively harmful, because Amazon's full-screen keyboard hands
-      // us its own action rather than the Back the viewer pressed — so Back
-      // jumped from username to password, and then submitted the form and
-      // reported "username and password is incorrect". Field-to-field movement
-      // on a TV is the D-pad's job; the IME should not be driving navigation.
+      // Two different presses arrive here as the same key:
+      //   • OK on a highlighted field with no keyboard up: "let me type here".
+      //     Ask for the keyboard, and ask again on every press, so a device
+      //     that ignored the first request is simply asked again.
+      //   • The keyboard's own Enter / Next key while the viewer is typing:
+      //     "I'm done with this field". Move to the next text field and take
+      //     the keyboard along, or, after the last one, put the keyboard away
+      //     and land on whatever follows — usually the form's button. It never
+      //     submits: submission is that button's job, where the D-pad lands.
+      //
+      // "Typing" is decided by keyboardOpen(): hard evidence that this field
+      // is being edited (a character went in, a composition started, a
+      // keyboard-shown event landed while it was focused). Nothing else. The
+      // Sept-9 version of this walked fields on ANY Enter, which on a Fire TV
+      // meant Back walked from username to password, because Amazon's
+      // keyboard emitted its editor action as it dismissed. That action is now
+      // stopped at the input connection (SnowWebView: IME_ACTION_NONE, NEXT and
+      // PREVIOUS swallowed), so an Enter reaching this page is one the viewer
+      // pressed. Without this block the keyboard's Next key re-requested the
+      // keyboard on the same field — it blinked and stayed put.
       const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
       const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
       if (isEnterKey(event) && enterField) {
+        const editing = keyboardOpen();
         // A multiline box keeps ordinary editing: Enter inserts a newline.
-        if (enterField.tagName === 'TEXTAREA' && keyboardOpen()) return;
-        // OK on a highlighted field ALWAYS means "let me type here". Never
-        // submit, never move.
-        //
-        // Submitting from here is not safe on this hardware: Amazon's keyboard
-        // hands the page its own editor action instead of the Back the viewer
-        // pressed, so an Enter cannot be trusted to have come from the viewer
-        // at all. It signed people in with half-typed credentials. Submission
-        // goes through the form's own button, which is where the D-pad lands
-        // next anyway.
+        if (enterField.tagName === 'TEXTAREA' && editing) return;
         event.preventDefault();
         event.stopPropagation();
-        activate();
+        if (editing) advanceFrom(enterField);
+        else activate();
         return;
       }
 
@@ -551,7 +581,7 @@ export const useTVFocus = ({
     };
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, clearIme, enabled, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn]);
+  }, [activate, advanceFrom, clearIme, enabled, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,

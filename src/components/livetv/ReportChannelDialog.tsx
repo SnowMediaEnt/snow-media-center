@@ -21,7 +21,12 @@ interface Props {
 type Choice = 'Channel down' | 'Channel buffering' | 'No audio' | 'Other';
 const CHOICES: Choice[] = ['Channel down', 'Channel buffering', 'No audio', 'Other'];
 
-type Step = 'menu' | 'reasons' | 'other';
+// Buffering is the one reason with two answers: most of the time the guide
+// fixes it on the spot, and when it does not, the report still has to reach
+// us. Both are offered; neither is assumed.
+const BUFFERING_OPTIONS = ['Open the buffering guide', 'Submit a ticket'] as const;
+
+type Step = 'menu' | 'reasons' | 'buffering' | 'other';
 
 /**
  * D-pad / focus-trapped dialog: Channel Options → Report → reason → submit.
@@ -122,7 +127,8 @@ const ReportChannelDialog = memo(({
   const onPick = useCallback(
     (choice: Choice) => {
       if (choice === 'Channel buffering') {
-        onOpenBufferingGuide?.();
+        setStep('buffering');
+        setFocusIdx(0);
         return;
       }
       if (choice === 'Other') {
@@ -147,6 +153,11 @@ const ReportChannelDialog = memo(({
           setStep('reasons');
           setFocusIdx(CHOICES.length); // land on Cancel of reasons
           setNote('');
+          return;
+        }
+        if (step === 'buffering' && !submitting) {
+          setStep('reasons');
+          setFocusIdx(CHOICES.indexOf('Channel buffering'));
           return;
         }
         if (step === 'reasons' && !submitting) {
@@ -194,6 +205,30 @@ const ReportChannelDialog = memo(({
           } else {
             onClose();
           }
+          return;
+        }
+        e.stopPropagation();
+        return;
+      }
+
+      // BUFFERING: guide, ticket, or back to the reasons
+      if (step === 'buffering') {
+        const count = BUFFERING_OPTIONS.length + 1;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault(); e.stopPropagation();
+          setFocusIdx(i => (i + 1) % count);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault(); e.stopPropagation();
+          setFocusIdx(i => (i - 1 + count) % count);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault(); e.stopPropagation();
+          if (focusIdx === 0) onOpenBufferingGuide?.();
+          else if (focusIdx === 1) void submit('Channel buffering');
+          else { setStep('reasons'); setFocusIdx(CHOICES.indexOf('Channel buffering')); }
           return;
         }
         e.stopPropagation();
@@ -254,7 +289,7 @@ const ReportChannelDialog = memo(({
       window.removeEventListener('keydown', handler, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite]);
+  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide]);
 
   // Auto-blur textarea so D-pad navigation works again
   useEffect(() => {
@@ -264,6 +299,7 @@ const ReportChannelDialog = memo(({
   const title =
     step === 'menu' ? 'Channel Options'
     : step === 'reasons' ? 'Report a problem'
+    : step === 'buffering' ? 'Channel buffering'
     : 'Describe the problem';
 
   return (
@@ -358,6 +394,49 @@ const ReportChannelDialog = memo(({
               }`}
             >
               Cancel
+            </button>
+          </div>
+        )}
+
+        {step === 'buffering' && (
+          <div className="space-y-2">
+            <p className="text-sm text-brand-ice/80 font-nunito mb-3">
+              The guide fixes most buffering in a few minutes. If it does not, send us a ticket and we will look at the channel.
+            </p>
+            {BUFFERING_OPTIONS.map((label, i) => {
+              const focused = focusIdx === i;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  data-focused={focused ? 'true' : 'false'}
+                  onMouseEnter={() => setFocusIdx(i)}
+                  onClick={() => { if (i === 0) onOpenBufferingGuide?.(); else void submit('Channel buffering'); }}
+                  disabled={submitting}
+                  className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-2 ${
+                    focused
+                      ? 'bg-brand-gold/25 scale-[1.02] z-10'
+                      : 'bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  {i === 1 && submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              data-focused={focusIdx === BUFFERING_OPTIONS.length ? 'true' : 'false'}
+              onMouseEnter={() => setFocusIdx(BUFFERING_OPTIONS.length)}
+              onClick={() => { setStep('reasons'); setFocusIdx(CHOICES.indexOf('Channel buffering')); }}
+              disabled={submitting}
+              className={`tv-ring w-full px-4 py-3 rounded-xl border border-white/10 font-nunito transition-transform duration-150 ease-out ${
+                focusIdx === BUFFERING_OPTIONS.length
+                  ? 'bg-white/15 scale-[1.02] z-10'
+                  : 'bg-white/5 hover:bg-white/10'
+              }`}
+            >
+              Back
             </button>
           </div>
         )}

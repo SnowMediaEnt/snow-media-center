@@ -397,30 +397,53 @@ describe('native visibility association', () => {
 describe('Enter and OK on a field', () => {
   const walk = async (from: HTMLElement) => { await ok(from); };
 
-  it('Enter never moves the highlight and never submits, however it arrived', async () => {
-    // There was a Next/Done implementation here. It had to go: Amazon's
-    // full-screen keyboard hands the page its own editor action instead of the
-    // Back the viewer pressed, so an Enter cannot be trusted to have come from
-    // the viewer. In the field it meant Back walked username -> password and
-    // then signed in with half-typed credentials. Field movement on a TV is the
-    // D-pad's job.
+  it("the keyboard's Enter while typing moves to the next field and brings the keyboard along", async () => {
+    // Typing is proven by a character going in, not by the field being
+    // focused. The Amazon keyboard's own editor action is stopped at the input
+    // connection, so an Enter reaching the page while typing is the viewer's
+    // Next: the highlight moves and the keyboard is asked for on the new
+    // field, exactly what a phone does.
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
     const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
 
     await tap(email);
-    await fireDidShow();
-    await ok(email);
-    expect(document.activeElement).toBe(email);        // did NOT advance
+    await ok(email);                                  // OK: ask for the keyboard
+    expect(state.showCalls).toBe(1);
+    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
+    await ok(email);                                  // keyboard's Enter / Next
+    expect(document.activeElement).toBe(password);
+    expect(password.dataset.tvFocused).toBe('true');
+    expect(state.showCalls).toBe(2);                  // keyboard asked for on password
     expect(onSubmit).not.toHaveBeenCalled();
+  });
 
-    // Same on the field the form marks as its submit key: OK opens the
-    // keyboard, it does not sign you in.
+  it('Enter on the last field puts the keyboard away and lands on the button without submitting', async () => {
+    // Submission stays with the form's own button: an Enter is never trusted
+    // to sign anyone in, even on the field marked allow-enter.
+    const onSubmit = vi.fn();
+    const { getByLabelText, getByText } = render(<Harness onSubmit={onSubmit} />);
     const last = getByLabelText('last') as HTMLInputElement; // done + allow-enter
+    const go = getByText('Go');
+
     await tap(last);
     await fireDidShow();
     await ok(last);
-    expect(document.activeElement).toBe(last);
+    expect(document.activeElement).toBe(go);
+    expect(go.dataset.tvFocused).toBe('true');
+    expect(state.hideCalls + state.nativeHideCalls).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('Enter on a field with no keyboard up never moves: it asks for the keyboard', async () => {
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    await tap(email);
+    await ok(email);
+    expect(document.activeElement).toBe(email);
+    expect(state.showCalls).toBe(1);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
