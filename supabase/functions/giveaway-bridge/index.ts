@@ -18,8 +18,8 @@
 //                             ticket the admin uses to hand the customer their login
 //   renewal-paid   (internal) {order_number, total, username, server, email, months?, connections?,
 //                             items:[{kind,name,quantity,variantLabel?,months?}]} → record in
-//                             site_renewals (dedupe by order), CRM payment, WHMCS service.renew
-//                             (extends the panel), hub expiry, Discord + push with the verdict
+//                             site_renewals (dedupe by order), CRM payment, admin-API line.renew
+//                             (extends the panel by username), hub expiry, Discord + push with the verdict
 //   support-session-paid (internal) {ref, order_number, total, email}
 //   admin-notify   (internal) {entry_id} -> Discord + web push to admins
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
@@ -564,61 +564,57 @@ Deno.serve(async (req) => {
         console.error('[giveaway-bridge] renewal-paid threw:', err instanceof Error ? err.message : String(err));
       }
 
-      // ── 2. Extend the line through WHMCS ──
-      // The billing server's admin API (smc/admin.php) owns the panel: its
-      // service.renew runs the 1-Stream module's Renew once per billing cycle
-      // and moves the WHMCS due date with it, refusing rather than half-doing
-      // either. This function only finds the service and asks. Anything it
-      // cannot do lands as 'manual' with the reason, never silently.
+      // ── 2. Extend the line on the panel ──
+      // The billing server's admin API (smc/admin.php, action line.renew)
+      // renews a line by USERNAME through the 1-Stream module's own client,
+      // so the line does not need a WHMCS service: hand-made lines from
+      // before WHMCS work the same as provisioned ones. When WHMCS does know
+      // the username, the API moves its due date by the same term. Anything
+      // it cannot do lands as 'manual' with the reason, never silently.
       type Outcome = { status: 'extended' | 'manual' | 'failed'; detail: string; newExpiry: string | null; whmcsId: number | null };
-      const extendViaWhmcs = async (): Promise<Outcome> => {
+      const extendOnPanel = async (): Promise<Outcome> => {
         const key = (Deno.env.get('SMC_ADMIN_KEY') ?? '').trim();
         const url = (Deno.env.get('SMC_ADMIN_URL') ?? 'https://billing.smcdreamstreams.store/smc/admin.php').trim();
-        if (!key) return { status: 'manual', detail: 'SMC_ADMIN_KEY is not set on this project', newExpiry: null, whmcsId: null };
-        if (!months) return { status: 'manual', detail: 'could not tell how many months were paid for', newExpiry: null, whmcsId: null };
-        if (![1, 3, 12].includes(months)) return { status: 'manual', detail: `${months}-month term is not one the admin API renews (1, 3 or 12)`, newExpiry: null, whmcsId: null };
+        const none = (status: Outcome['status'], detail: string): Outcome => ({ status, detail, newExpiry: null, whmcsId: null });
+        if (!key) return none('manual', 'SMC_ADMIN_KEY is not set on this project');
+        if (server && server.toLowerCase() === 'vibez') return none('manual', 'Vibez lines live on a different panel the admin API cannot reach yet');
+        if (!months) return none('manual', 'could not tell how many months were paid for');
+        if (![1, 3, 6, 12].includes(months)) return none('manual', `${months}-month term has no panel package (1, 3, 6 or 12)`);
+        if (!connections) return none('manual', 'could not tell how many connections the line has');
 
-        const call = async (payload: Record<string, unknown>, ms: number) => {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), ms);
-          try {
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-              body: JSON.stringify(payload),
-              signal: ctrl.signal,
-            });
-            const text = await res.text();
-            let data: Record<string, unknown> = {};
-            try { data = JSON.parse(text); } catch { throw new Error(`admin API answered HTTP ${res.status} with no JSON`); }
-            return data;
-          } finally {
-            clearTimeout(t);
-          }
-        };
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 60_000);
+        let r: Record<string, unknown>;
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+            body: JSON.stringify({ action: 'line.renew', username, months, connections, dryRun: false }),
+            signal: ctrl.signal,
+          });
+          const text = await res.text();
+          try { r = JSON.parse(text); } catch { throw new Error(`admin API answered HTTP ${res.status} with no JSON`); }
+        } finally {
+          clearTimeout(t);
+        }
 
-        // Which WHMCS service is this line? Exact username, live services only.
-        const found = await call({ action: 'services.search', q: username }, 15_000);
-        if (found.ok !== true) return { status: 'failed', detail: `services.search: ${String(found.human ?? found.reason ?? 'error')}`, newExpiry: null, whmcsId: null };
-        const services = (Array.isArray(found.services) ? found.services : []) as Array<{ serviceId: number; username: string; status: string }>;
-        const mine = services.filter((s) => String(s.username ?? '').trim().toLowerCase() === username);
-        if (!mine.length) return { status: 'manual', detail: 'this username has no service in WHMCS (line made before WHMCS)', newExpiry: null, whmcsId: null };
-        const live = mine.find((s) => s.status === 'Active') ?? mine.find((s) => s.status === 'Suspended');
-        if (!live) return { status: 'manual', detail: `WHMCS service is ${mine[0].status}, only Active or Suspended lines can be renewed`, newExpiry: null, whmcsId: mine[0].serviceId };
-
-        const r = await call({ action: 'service.renew', serviceId: live.serviceId, months, dryRun: false }, 60_000);
-        const newExpiry = typeof r.newNextDue === 'string' ? r.newNextDue : null;
-        if (r.ok === true) return { status: 'extended', detail: `${months} month(s) via WHMCS #${live.serviceId}`, newExpiry, whmcsId: live.serviceId };
-        const why = String(r.human ?? r.reason ?? 'WHMCS refused');
-        // A partial renewal moved the panel and billing together for the cycles
-        // that landed; the rest still needs a hand.
-        const partial = Number(r.cyclesApplied) > 0;
-        return { status: partial ? 'manual' : 'failed', detail: partial ? `PARTIAL — ${why}` : why, newExpiry, whmcsId: live.serviceId };
+        const whmcsId = Number.isFinite(Number(r.whmcsServiceId)) && Number(r.whmcsServiceId) > 0 ? Number(r.whmcsServiceId) : null;
+        // The panel reports the new expiry as an ISO timestamp; the hub keeps a date.
+        const exp = typeof r.expiresAt === 'string' && r.expiresAt ? r.expiresAt.slice(0, 10) : null;
+        if (r.ok === true) {
+          const pkg = r.package as { name?: string } | undefined;
+          return { status: 'extended', detail: `${months} month(s), ${connections} conn (${pkg?.name ?? 'panel package'})`, newExpiry: exp, whmcsId };
+        }
+        const reason = String(r.reason ?? '');
+        const why = String(r.human ?? reason ?? 'admin API refused');
+        // Things a person has to look at vs. a call the panel rejected.
+        const manual = ['line_not_found', 'no_package', 'bad_term', 'bad_connections', 'bad_username', 'panel_unavailable', 'unauthorized', 'not_configured'];
+        return { status: manual.includes(reason) ? 'manual' : 'failed', detail: why, newExpiry: null, whmcsId };
       };
 
       let outcome: Outcome;
       try {
-        outcome = await extendViaWhmcs();
+        outcome = await extendOnPanel();
       } catch (err) {
         outcome = { status: 'failed', detail: err instanceof Error ? err.message : String(err), newExpiry: null, whmcsId: null };
       }
