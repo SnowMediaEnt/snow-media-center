@@ -95,8 +95,8 @@ describe('terminal round reconciliation', () => {
 
   it('Blackjack recovers when a hit is answered with no_active_round', async () => {
     dealBlackjack.mockResolvedValue({
-      ok: true, status: 'playing', playerCards: ['5H', '6D'], dealerCards: ['KS'],
-      playerTotal: 11, canHit: true, canStand: true, balance: 900,
+      ok: true, playerHand: ['5H', '6D'], dealerUp: ['KS'], dealerHand: ['KS'],
+      playerTotal: 11, canHit: true, canStand: true, canDouble: false, balance: 900,
     });
     hit.mockResolvedValue({ ok: false, error: 'no_active_round' });
     render(<Blackjack onBack={() => {}} />);
