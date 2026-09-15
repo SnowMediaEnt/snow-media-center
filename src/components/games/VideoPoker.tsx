@@ -293,7 +293,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     return () => { cancelled = true; };
   }, [showFair, fair]);
 
-  const betsLocked = phase === 'dealt' || busy;
   const orderedPayouts = useMemo(
     () => PAY_ORDER.filter((k) => k in payouts).map((k) => ({ name: k, mult: payouts[k] })),
     [payouts],
