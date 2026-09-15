@@ -368,14 +368,11 @@ const Slots = ({ onBack }: SlotsProps) => {
       setErrorMsg(t('games.slots.errorSpinFailed'));
       inFlight.current = false;
     }
-  }, [spinning, user, canBet, bet, inFreeSpins, balance]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, reducedFx, life]);
 
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        return; // let buttons handle
-      }
       if (e.key === 'ArrowLeft') {
         if (focus === 'spin') { e.preventDefault(); setFocus('betPlus'); }
         else if (focus === 'betPlus') { e.preventDefault(); setFocus('betMinus'); }
@@ -399,7 +396,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   }, [focus, changeBet, onBack]);
 
   const focusRing = (id: FocusId) =>
-    focus === id ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+    focus === id ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
   const renderReel = (reelIndex: number) => {
     const strip = reelStrips[reelIndex] ?? [];
@@ -411,9 +408,11 @@ const Slots = ({ onBack }: SlotsProps) => {
     // padding tail. This guarantees overshoot/downward travel before the ease-out settle for reel 0.
     const spinningOffset = -((STRIP_LENGTH - ROWS) * SYMBOL_HEIGHT);
 
+    const settleMs = reducedFx ? 275 : 550;
+    const spinMs = (reducedFx ? 450 : 900) + reelIndex * (reducedFx ? 110 : 220);
     const transition = stopped
-      ? `transform ${550}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
-      : `transform ${900 + reelIndex * 220}ms linear`;
+      ? `transform ${settleMs}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
+      : `transform ${spinMs}ms linear`;
     const translate = stopped ? finalOffset : spinningOffset;
 
     return (
@@ -439,7 +438,7 @@ const Slots = ({ onBack }: SlotsProps) => {
           style={{
             transform: `translateY(${translate}px)`,
             transition,
-            willChange: 'transform',
+            willChange: stopped ? 'auto' : 'transform',
             filter: stopped ? 'none' : 'blur(1.5px)',
             opacity: stopped ? 1 : 0.92,
           }}
