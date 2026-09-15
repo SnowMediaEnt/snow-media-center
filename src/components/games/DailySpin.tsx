@@ -188,11 +188,54 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     if (nextClaimAt && nextClaimAt.getTime() <= now) setNextClaimAt(null);
   }, [now, nextClaimAt]);
 
-  // Keep focus on something usable across every phase change.
+  const spinReachable = !loadingCooldown && !nextClaimAt && !!user && !spinning;
+
+  // Keep managed focus on a usable control across every phase change.
   useEffect(() => {
-    const target = (!loadingCooldown && !nextClaimAt && user) ? spinBtnRef.current : backBtnRef.current;
-    target?.focus({ preventScroll: true });
-  }, [loadingCooldown, nextClaimAt, user]);
+    let target = zone;
+    if (target === 'spin' && !spinReachable) target = 'back';
+    if (target === 'fair' && !fair) target = 'back';
+    if (target !== zone) { setZone(target); return; }
+    const el = target === 'back' ? backBtnRef.current
+      : target === 'fx' ? fxRef.current
+      : target === 'spin' ? spinBtnRef.current
+      : fairRef.current;
+    el?.focus({ preventScroll: true });
+  }, [zone, spinReachable, fair]);
+
+  // D-pad graph: Back <-> FX on the top row, Spin, then Fairness below.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const k = e.key;
+      const down = () => (spinReachable ? 'spin' : fair ? 'fair' : null);
+      if (zone === 'back') {
+        if (k === 'ArrowRight') { e.preventDefault(); setZone('fx'); }
+        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+      } else if (zone === 'fx') {
+        if (k === 'ArrowLeft') { e.preventDefault(); setZone('back'); }
+        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+      } else if (zone === 'spin') {
+        if (k === 'ArrowUp') { e.preventDefault(); setZone('back'); }
+        else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
+      } else if (zone === 'fair' && k === 'ArrowUp') {
+        e.preventDefault(); setZone(spinReachable ? 'spin' : 'back');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [zone, spinReachable, fair]);
+
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    // A spin in flight or its settle animation must never be abandoned.
+    isBusy: () => spinning || inFlight.current,
+    onBlocked: () => {
+      setBackNote(t('games.shared.finishSpinFirst'));
+      life.timeout(() => setBackNote(null), 2600);
+    },
+    onExit: onBack,
+  });
 
   const handleSpin = useCallback(async () => {
     if (inFlight.current || spinning || nextClaimAt) return;
