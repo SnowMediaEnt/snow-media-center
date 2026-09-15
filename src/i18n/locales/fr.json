@@ -394,7 +394,9 @@
       "fxLow": "Effets réduits",
       "balanceAria": "Solde de Pièces Snow",
       "reducedFxOn": "Effets réduits : activés",
-      "reducedFxOff": "Effets réduits : désactivés"
+      "reducedFxOff": "Effets réduits : désactivés",
+      "finishSpinFirst": "Terminez d'abord ce tour",
+      "finishRoundFirst": "Terminez d'abord cette main"
     }
   }
 }

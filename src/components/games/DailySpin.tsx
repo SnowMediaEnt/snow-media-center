@@ -11,6 +11,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useGameBack } from './shared/gameBack';
 import type { GameFairInfo } from './shared/gameTypes';
 
 interface DailySpinProps {
@@ -45,6 +46,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const wheelVisualRef = useRef<HTMLDivElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const fxRef = useRef<HTMLButtonElement>(null);
+  const fairRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const rotRef = useRef(0);
 
@@ -57,6 +60,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+  const [zone, setZone] = useState<'back' | 'fx' | 'spin' | 'fair'>('spin');
+  const [backNote, setBackNote] = useState<string | null>(null);
 
   // One OK/Select press activates the focused control exactly once.
   useTvActivate(activateFocused);
@@ -184,11 +189,54 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     if (nextClaimAt && nextClaimAt.getTime() <= now) setNextClaimAt(null);
   }, [now, nextClaimAt]);
 
-  // Keep focus on something usable across every phase change.
+  const spinReachable = !loadingCooldown && !nextClaimAt && !!user && !spinning;
+
+  // Keep managed focus on a usable control across every phase change.
   useEffect(() => {
-    const target = (!loadingCooldown && !nextClaimAt && user) ? spinBtnRef.current : backBtnRef.current;
-    target?.focus({ preventScroll: true });
-  }, [loadingCooldown, nextClaimAt, user]);
+    let target = zone;
+    if (target === 'spin' && !spinReachable) target = 'back';
+    if (target === 'fair' && !fair) target = 'back';
+    if (target !== zone) { setZone(target); return; }
+    const el = target === 'back' ? backBtnRef.current
+      : target === 'fx' ? fxRef.current
+      : target === 'spin' ? spinBtnRef.current
+      : fairRef.current;
+    el?.focus({ preventScroll: true });
+  }, [zone, spinReachable, fair]);
+
+  // D-pad graph: Back <-> FX on the top row, Spin, then Fairness below.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const k = e.key;
+      const down = () => (spinReachable ? 'spin' : fair ? 'fair' : null);
+      if (zone === 'back') {
+        if (k === 'ArrowRight') { e.preventDefault(); setZone('fx'); }
+        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+      } else if (zone === 'fx') {
+        if (k === 'ArrowLeft') { e.preventDefault(); setZone('back'); }
+        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+      } else if (zone === 'spin') {
+        if (k === 'ArrowUp') { e.preventDefault(); setZone('back'); }
+        else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
+      } else if (zone === 'fair' && k === 'ArrowUp') {
+        e.preventDefault(); setZone(spinReachable ? 'spin' : 'back');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [zone, spinReachable, fair]);
+
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    // A spin in flight or its settle animation must never be abandoned.
+    isBusy: () => spinning || inFlight.current,
+    onBlocked: () => {
+      setBackNote(t('games.shared.finishSpinFirst'));
+      life.timeout(() => setBackNote(null), 2600);
+    },
+    onExit: onBack,
+  });
 
   const handleSpin = useCallback(async () => {
     if (inFlight.current || spinning || nextClaimAt) return;
@@ -275,14 +323,19 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     <GameShell accent="ice">
       <GameTopBar
         ref={backBtnRef}
-        onBack={onBack}
+        onBack={requestBack}
         backLabel={t('games.dailySpin.back')}
         balance={balance}
         status={status}
         title={t('games.dailySpin.heading')}
         phase={t('games.dailySpin.phase')}
+        backFocused={zone === 'back'}
+        onBackFocus={() => setZone('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
+        fxRef={fxRef}
+        fxFocused={zone === 'fx'}
+        onFxFocus={() => setZone('fx')}
       />
       <GamePanel className="tv-game-board snow-wheel-stage">
         <div className="snow-wheel-layout">

@@ -41,8 +41,10 @@ export const useTvActivate = (
     if (!enabled) return;
     const down = (event: KeyboardEvent) => {
       if (!isSelectKey(event)) return;
-      // Stop the browser's own click synthesis so we never activate twice.
+      // Own the press: stop the browser's own click synthesis and any second
+      // copy of this guard from activating the same control again.
       event.preventDefault();
+      event.stopImmediatePropagation();
       if (event.repeat || held.current) return;
       held.current = true;
       handler.current(document.activeElement as HTMLElement | null);
@@ -50,11 +52,20 @@ export const useTvActivate = (
     const up = (event: KeyboardEvent) => {
       if (isSelectKey(event)) held.current = false;
     };
+    /* A keyup can be lost when the system IME, a launcher overlay or app
+       backgrounding steals focus mid-press. Releasing on blur and visibility
+       change means OK can never end up permanently dead. */
+    const release = () => { held.current = false; };
+
     window.addEventListener('keydown', down, true);
     window.addEventListener('keyup', up, true);
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', release);
     return () => {
       window.removeEventListener('keydown', down, true);
       window.removeEventListener('keyup', up, true);
+      window.removeEventListener('blur', release);
+      document.removeEventListener('visibilitychange', release);
       held.current = false;
     };
   }, [enabled]);

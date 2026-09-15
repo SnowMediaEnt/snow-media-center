@@ -394,7 +394,9 @@
       "fxLow": "مؤثرات مخففة",
       "balanceAria": "رصيد عملات سنو",
       "reducedFxOn": "المؤثرات المخففة: مفعّلة",
-      "reducedFxOff": "المؤثرات المخففة: معطّلة"
+      "reducedFxOff": "المؤثرات المخففة: معطّلة",
+      "finishSpinFirst": "أكمل هذه اللفة أولاً",
+      "finishRoundFirst": "أكمل هذه اليد أولاً"
     }
   }
 }

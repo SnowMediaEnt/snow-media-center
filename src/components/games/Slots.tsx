@@ -9,7 +9,14 @@ import { FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar } fr
 import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useGameBack } from './shared/gameBack';
 import { useReducedGameFx } from './shared/useReducedGameFx';
+import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
+import {
+  CYCLE_CELLS, MIN_TRAVEL_CELLS, REELS, RENDER_CELLS, ROWS,
+  buildCells, computeSettleTarget, cyclePx, gridToColumns, pickLandingIndex,
+  validateGrid, visibleSymbolsAt, winningCellsFor, withLanding,
+} from './shared/slotsReel';
 import type { GameFairInfo } from './shared/gameTypes';
 import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
@@ -23,19 +30,10 @@ interface SlotsProps {
 const BETS = [10, 25, 50, 100];
 
 const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
-const REEL_KEYS = ['p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scatter'];
 const LOW_LETTER: Record<string, string> = { la: 'A', lk: 'K', lq: 'Q', lj: 'J' };
 
-const ROWS = 3;
-const REELS = 5;
-
-/* A short, reusable strip — 14 nodes per reel instead of 36. The server result
-   always sits at RESULT_INDEX..RESULT_INDEX+2, which is exactly the visible
-   window once the reel settles, and there is a bounded lead (9) and tail (2)
-   so the travel never runs past either end of the array. */
-const STRIP_LENGTH = 14;
-const RESULT_INDEX = 9;
-const SPIN_INDEX = 11; // furthest offset that still fills the 3-row window
+/** Rendered nodes per reel: 12 recycled cells plus 3 seamless wrap clones. */
+export const SLOTS_RENDER_CELLS = RENDER_CELLS;
 
 const cellHeightFor = (h: number) => (h <= 760 ? 62 : h >= 1000 ? 92 : 74);
 
@@ -52,43 +50,28 @@ interface SpinResult {
   triggeredFreeSpins: number;
 }
 
-const randomKey = () => REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)];
-
-/** Strip whose result window holds the three given symbols. */
-export const buildStrip = (top: string, mid: string, bot: string): string[] => {
-  const out = Array.from({ length: STRIP_LENGTH }, randomKey);
-  out[RESULT_INDEX] = top;
-  out[RESULT_INDEX + 1] = mid;
-  out[RESULT_INDEX + 2] = bot;
-  return out;
-};
-
-/** The three symbols a settled reel actually shows. */
-export const visibleWindow = (strip: string[]): string[] => strip.slice(RESULT_INDEX, RESULT_INDEX + ROWS);
-
-export const SLOTS_STRIP_LENGTH = STRIP_LENGTH;
-
 /** Branded token — no emoji anywhere in the primary symbol set. */
 function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number }) {
-  const key = REEL_KEYS.includes(symbolKey) ? symbolKey : 'p1';
-  const img = SYMBOL_IMAGES[key];
+  const img = SYMBOL_IMAGES[symbolKey];
   if (img) {
     return <img src={img} alt="" style={{ width: size, height: size, objectFit: 'contain' }} draggable={false} />;
   }
-  if (key === 'wild') {
+  if (symbolKey === 'wild') {
     return <span className="snow-slot-token snow-slot-token--wild" style={{ width: size * 1.35, height: size }}>WILD</span>;
   }
-  if (key === 'scatter') {
+  if (symbolKey === 'scatter') {
     return <span className="snow-slot-token snow-slot-token--bonus" style={{ width: size * 1.35, height: size }}>BONUS</span>;
   }
   return (
     <span className="snow-slot-token snow-slot-token--low" style={{ width: size * 0.8, height: size }}>
-      {LOW_LETTER[key] ?? key.toUpperCase()}
+      {LOW_LETTER[symbolKey] ?? symbolKey.toUpperCase()}
     </span>
   );
 }
 
-type FocusId = 'back' | 'betMinus' | 'betPlus' | 'spin' | 'fair';
+type FocusId = 'back' | 'fx' | 'betMinus' | 'betPlus' | 'spin' | 'fair';
+type ReelMode = 'idle' | 'spin' | 'settle';
+interface SettlePlan { from: number; target: number; start: number; duration: number }
 
 const Slots = ({ onBack }: SlotsProps) => {
   const { t } = useTranslation();
@@ -101,19 +84,18 @@ const Slots = ({ onBack }: SlotsProps) => {
   const [cellHeight, setCellHeight] = useState(() => cellHeightFor(typeof window === 'undefined' ? 900 : window.innerHeight));
   const [bet, setBet] = useState<number>(10);
   const [spinning, setSpinning] = useState(false);
-  const [reelStrips, setReelStrips] = useState<string[][]>(() =>
-    Array.from({ length: REELS }, () => buildStrip(randomKey(), randomKey(), randomKey())),
-  );
-  const [moving, setMoving] = useState<boolean[]>(() => Array(REELS).fill(false));
+  const [reelCells, setReelCells] = useState<string[][]>(() => Array.from({ length: REELS }, () => buildCells()));
+  const [landedWindows, setLandedWindows] = useState<string[][] | null>(null);
   const [winningCells, setWinningCells] = useState<boolean[][]>(() =>
     Array.from({ length: REELS }, () => Array(ROWS).fill(false)),
   );
   const [result, setResult] = useState<SpinResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
-  const [celebrate, setCelebrate] = useState(false);
-  const [freeBurst, setFreeBurst] = useState(false);
+  /** ONE tokenized celebration: a win and a free-spin award share one overlay. */
+  const [callout, setCallout] = useState<{ token: number; payout: number; freeSpins: number } | null>(null);
   const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
   const [focus, setFocus] = useState<FocusId>('spin');
@@ -121,9 +103,26 @@ const Slots = ({ onBack }: SlotsProps) => {
   const inFlight = useRef(false);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const fxBtnRef = useRef<HTMLButtonElement>(null);
   const minusBtnRef = useRef<HTMLButtonElement>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
   const fairBtnRef = useRef<HTMLButtonElement>(null);
+
+  // ---- Reel motion: DOM-driven, never React state per frame ----
+  const stripRefs = useRef<Array<HTMLDivElement | null>>(Array(REELS).fill(null));
+  const posRef = useRef<number[]>(Array(REELS).fill(0));
+  const modeRef = useRef<ReelMode[]>(Array(REELS).fill('idle'));
+  const planRef = useRef<Array<SettlePlan | null>>(Array(REELS).fill(null));
+  const loopRef = useRef<number | null>(null);
+  const lastFrameRef = useRef(0);
+  const cellHeightRef = useRef(cellHeight);
+  cellHeightRef.current = cellHeight;
+  const reducedRef = useRef(reducedFx);
+  reducedRef.current = reducedFx;
+  const spinEpochRef = useRef(0);
+  const pendingRef = useRef<{ epoch: number; settled: SpinResult; columns: string[][] } | null>(null);
+  const calloutTokenRef = useRef(0);
+  const calloutTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const onResize = () => setCellHeight(cellHeightFor(window.innerHeight));
@@ -131,17 +130,142 @@ const Slots = ({ onBack }: SlotsProps) => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  useEffect(() => {
-    if (focus === 'spin') spinBtnRef.current?.focus();
-    else if (focus === 'back') backBtnRef.current?.focus();
-    else if (focus === 'betMinus') minusBtnRef.current?.focus();
-    else if (focus === 'betPlus') plusBtnRef.current?.focus();
-    else if (focus === 'fair') fairBtnRef.current?.focus();
-  }, [focus]);
-
   const inFreeSpins = freeSpinsRemaining > 0;
   const canBet = inFreeSpins || bet <= (balance ?? 0);
   const betIdx = BETS.indexOf(bet);
+  const spinUsable = !spinning && !!user && (inFreeSpins || canBet);
+  const betStepUsable = !spinning && !inFreeSpins;
+
+  /** Rows contain ONLY targets that are usable right now. */
+  const focusRows = useMemo<FocusRows>(() => [
+    ['back', 'fx'],
+    [
+      ...(betStepUsable && betIdx > 0 ? ['betMinus'] : []),
+      ...(betStepUsable && betIdx < BETS.length - 1 ? ['betPlus'] : []),
+      ...(spinUsable ? ['spin'] : []),
+    ],
+    ['fair'],
+  ], [betStepUsable, betIdx, spinUsable]);
+
+  // Re-home whenever a phase or availability change makes the target unusable.
+  useEffect(() => {
+    setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
+  }, [focusRows]);
+
+  useEffect(() => {
+    const target =
+      focus === 'spin' ? spinBtnRef.current
+        : focus === 'back' ? backBtnRef.current
+          : focus === 'fx' ? fxBtnRef.current
+            : focus === 'betMinus' ? minusBtnRef.current
+              : focus === 'betPlus' ? plusBtnRef.current
+                : fairBtnRef.current;
+    if (target && document.activeElement !== target) target.focus({ preventScroll: true });
+  }, [focus]);
+
+  const paint = useCallback((reel: number) => {
+    const el = stripRefs.current[reel];
+    if (!el) return;
+    const cellH = cellHeightRef.current;
+    const pos = posRef.current[reel];
+    el.style.transform = `translateY(${-(((pos % cyclePx(cellH)) + cyclePx(cellH)) % cyclePx(cellH))}px)`;
+    // Cumulative travel, exposed for tests and never read by the render path.
+    el.dataset.travel = String(Math.round(pos));
+  }, []);
+
+  const promote = useCallback((reel: number, on: boolean) => {
+    const el = stripRefs.current[reel];
+    if (el) el.style.willChange = on ? 'transform' : 'auto';
+  }, []);
+
+  const commitResult = useCallback(() => {
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (!pending || pending.epoch !== spinEpochRef.current || !life.isMounted()) return;
+    const { settled, columns } = pending;
+    const cellH = cellHeightRef.current;
+
+    setLandedWindows(columns.map((_, reel) => visibleSymbolsAt(reelCellsRef.current[reel], posRef.current[reel], cellH)));
+    setResult(settled);
+    setFreeSpinsRemaining(settled.freeSpinsRemaining);
+    setMultiplier(settled.multiplier || 1);
+    setWinningCells(settled.totalPayout > 0 ? winningCellsFor(columns, settled.wins) : Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
+    setSpinning(false);
+    inFlight.current = false;
+
+    if (settled.totalPayout > 0 || settled.triggeredFreeSpins > 0) {
+      const token = calloutTokenRef.current + 1;
+      calloutTokenRef.current = token;
+      if (calloutTimerRef.current !== null) life.clearTimer(calloutTimerRef.current);
+      setCallout({ token, payout: settled.totalPayout, freeSpins: settled.triggeredFreeSpins });
+      calloutTimerRef.current = life.timeout(() => {
+        // Back-to-back results each get their full duration: only the newest
+        // token is allowed to clear the overlay.
+        if (calloutTokenRef.current === token) setCallout(null);
+      }, reducedRef.current ? 1200 : 2400);
+    }
+  }, [life]);
+
+  // Latest cells, readable from the animation loop without re-subscribing.
+  const reelCellsRef = useRef(reelCells);
+  reelCellsRef.current = reelCells;
+
+  const loop = useCallback((time: number) => {
+    loopRef.current = null;
+    if (!life.isMounted()) return;
+    if (lastFrameRef.current === 0) lastFrameRef.current = time;
+    const dt = Math.min(64, Math.max(0, time - lastFrameRef.current));
+    lastFrameRef.current = time;
+    const cellH = cellHeightRef.current;
+    const speed = (cellH * (reducedRef.current ? 12 : 20)) / 1000; // px per ms, one direction
+    let active = false;
+    let finished = false;
+
+    for (let reel = 0; reel < REELS; reel += 1) {
+      const mode = modeRef.current[reel];
+      if (mode === 'spin') {
+        posRef.current[reel] += speed * dt;
+        if (!life.isHidden()) paint(reel);
+        active = true;
+      } else if (mode === 'settle') {
+        const plan = planRef.current[reel];
+        if (!plan) { modeRef.current[reel] = 'idle'; continue; }
+        const p = Math.min(1, (time - plan.start) / plan.duration);
+        const eased = 1 - Math.pow(1 - p, 3);
+        posRef.current[reel] = plan.from + (plan.target - plan.from) * eased;
+        if (!life.isHidden()) paint(reel);
+        if (p >= 1) {
+          posRef.current[reel] = plan.target;
+          paint(reel);
+          planRef.current[reel] = null;
+          modeRef.current[reel] = 'idle';
+          promote(reel, false);
+          if (reel === REELS - 1) finished = true;
+        } else {
+          active = true;
+        }
+      }
+    }
+
+    if (active) loopRef.current = life.raf(loop);
+    else lastFrameRef.current = 0;
+    if (finished) commitResult();
+  }, [life, paint, promote, commitResult]);
+
+  const ensureLoop = useCallback(() => {
+    if (loopRef.current === null) loopRef.current = life.raf(loop);
+  }, [life, loop]);
+
+  const stopMotion = useCallback(() => {
+    modeRef.current = Array(REELS).fill('idle');
+    planRef.current = Array(REELS).fill(null);
+    for (let reel = 0; reel < REELS; reel += 1) promote(reel, false);
+    life.cancelRaf(loopRef.current);
+    loopRef.current = null;
+    lastFrameRef.current = 0;
+    setSpinning(false);
+    inFlight.current = false;
+  }, [life, promote]);
 
   const changeBet = useCallback((dir: 1 | -1) => {
     if (spinning || inFreeSpins) return;
@@ -151,40 +275,41 @@ const Slots = ({ onBack }: SlotsProps) => {
     });
   }, [spinning, inFreeSpins]);
 
-  const stopAllReels = useCallback(() => {
-    setSpinning(false);
-    setMoving(Array(REELS).fill(false));
-    inFlight.current = false;
-  }, []);
-
   const handleSpin = useCallback(async () => {
     if (inFlight.current || spinning) return;
     if (!user) { setErrorMsg(t('games.slots.errorSignIn')); return; }
     if (balance === null && !inFreeSpins) { setErrorMsg(t('games.slots.errorLoadingChips')); return; }
     if (!inFreeSpins && !canBet) { setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
     inFlight.current = true;
+    const epoch = spinEpochRef.current + 1;
+    spinEpochRef.current = epoch;
 
     setErrorMsg(null);
+    setNotice(null);
     setResult(null);
+    setLandedWindows(null);
     setFair(null);
     setWinningCells(Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
     setSpinning(true);
-    setReelStrips(Array.from({ length: REELS }, () => buildStrip(randomKey(), randomKey(), randomKey())));
-    // Two frames: park each reel at the top of its short strip, then travel.
-    setMoving(Array(REELS).fill(false));
-    life.raf(() => life.raf(() => setMoving(Array(REELS).fill(true))));
+
+    // Motion starts on this press, before any network work, and keeps looping
+    // seamlessly for as long as the ack takes.
+    modeRef.current = Array(REELS).fill('spin');
+    planRef.current = Array(REELS).fill(null);
+    // Full FX promotes all five layers up front; reduced/low-memory mode waits
+    // until the actual deceleration so nothing stays promoted during the wait.
+    if (!reducedRef.current) for (let reel = 0; reel < REELS; reel += 1) promote(reel, true);
+    ensureLoop();
 
     try {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.spinSlots(bet, clientSeed);
+      if (!life.isMounted() || epoch !== spinEpochRef.current) return;
 
-      if (resp?.ok === true && Array.isArray(resp.grid) && resp.grid.length === ROWS) {
-        const grid: string[][] = resp.grid;
-        const cols: string[][] = Array.from({ length: REELS }, (_, r) =>
-          Array.from({ length: ROWS }, (_, row) => grid[row]?.[r] ?? REEL_KEYS[0]),
-        );
+      if (resp?.ok === true && validateGrid(resp.grid)) {
+        const columns = gridToColumns(resp.grid);
         const settled: SpinResult = {
-          grid,
+          grid: resp.grid,
           wins: Array.isArray(resp.wins) ? resp.wins : [],
           scatterCount: resp.scatterCount ?? 0,
           totalPayout: resp.totalPayout ?? 0,
@@ -195,101 +320,88 @@ const Slots = ({ onBack }: SlotsProps) => {
           multiplier: resp.multiplier ?? 1,
           triggeredFreeSpins: resp.triggeredFreeSpins ?? 0,
         };
+        pendingRef.current = { epoch, settled, columns };
+        if (resp.fair) setFair(resp.fair);
 
-        const baseDelay = reducedFx ? 380 : 780;
-        const stagger = reducedFx ? 90 : 190;
-        for (let i = 0; i < REELS; i++) {
-          const idx = i;
+        const baseDelay = reducedRef.current ? 160 : 340;
+        const stagger = reducedRef.current ? 90 : 170;
+        columns.forEach((column, reel) => {
           life.timeout(() => {
-            // Swap in the committed server column and settle onto it.
-            setReelStrips((prev) => {
+            if (!life.isMounted() || epoch !== spinEpochRef.current) return;
+            const cellH = cellHeightRef.current;
+            const pos = posRef.current[reel];
+            // Committed symbols are written six cells ahead of the window, so
+            // no visible cell is ever swapped during the stop.
+            const landing = pickLandingIndex(pos, cellH);
+            setReelCells((prev) => {
               const next = [...prev];
-              next[idx] = buildStrip(cols[idx][0], cols[idx][1], cols[idx][2]);
+              next[reel] = withLanding(prev[reel], landing, column);
               return next;
             });
-            setMoving((prev) => { const next = [...prev]; next[idx] = false; return next; });
-
-            if (idx === REELS - 1) {
-              setResult(settled);
-              setFreeSpinsRemaining(settled.freeSpinsRemaining);
-              setMultiplier(settled.multiplier || 1);
-
-              const lit: boolean[][] = Array.from({ length: REELS }, () => Array(ROWS).fill(false));
-              const winningSymbols = new Set(settled.wins.filter((w) => w.payout > 0).map((w) => w.symbol));
-              if (settled.totalPayout > 0 && winningSymbols.size > 0) {
-                for (let r = 0; r < REELS; r++) {
-                  for (let row = 0; row < ROWS; row++) {
-                    const sym = cols[r][row];
-                    if (winningSymbols.has(sym) || sym === 'wild') lit[r][row] = true;
-                  }
-                }
-              }
-              setWinningCells(lit);
-              setSpinning(false);
-              if (settled.totalPayout > 0) {
-                setCelebrate(true);
-                life.timeout(() => setCelebrate(false), reducedFx ? 1100 : 2300);
-              }
-              if (settled.triggeredFreeSpins > 0) {
-                setFreeBurst(true);
-                life.timeout(() => setFreeBurst(false), reducedFx ? 1000 : 2100);
-              }
-              if (resp.fair) setFair(resp.fair);
-              inFlight.current = false;
-            }
-          }, baseDelay + idx * stagger);
-        }
+            planRef.current[reel] = {
+              from: pos,
+              target: computeSettleTarget(pos, landing, cellH, MIN_TRAVEL_CELLS),
+              start: performance.now(),
+              duration: reducedRef.current ? 620 : 1080,
+            };
+            modeRef.current[reel] = 'settle';
+            if (reducedRef.current) promote(reel, true);
+            ensureLoop();
+          }, baseDelay + reel * stagger);
+        });
       } else if (resp?.ok === false && resp.error === 'insufficient_balance') {
-        stopAllReels(); setErrorMsg(t('games.slots.errorNotEnoughChips'));
+        stopMotion(); setErrorMsg(t('games.slots.errorNotEnoughChips'));
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
-        stopAllReels(); setErrorMsg(t('games.slots.errorInvalidBet'));
+        stopMotion(); setErrorMsg(t('games.slots.errorInvalidBet'));
       } else if (resp?.error === 'game_disabled') {
-        stopAllReels(); setErrorMsg(t('games.slots.errorGameDisabled'));
+        stopMotion(); setErrorMsg(t('games.slots.errorGameDisabled'));
       } else {
-        stopAllReels(); setErrorMsg(t('games.slots.errorSpinFailed'));
+        stopMotion(); setErrorMsg(t('games.slots.errorSpinFailed'));
       }
     } catch {
-      stopAllReels();
+      if (!life.isMounted() || epoch !== spinEpochRef.current) return;
+      stopMotion();
       setErrorMsg(t('games.slots.errorSpinFailed'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinning, user, canBet, bet, inFreeSpins, balance, reducedFx, life, stopAllReels]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, life, stopMotion, ensureLoop, promote]);
 
-  // D-pad focus movement only; OK/Select activation lives in useTvActivate.
+  // A spin in flight or still stopping owns Back: no committed wager is dropped.
+  const motionActive = () => modeRef.current.some((mode) => mode !== 'idle');
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    isBusy: () => spinning || inFlight.current || motionActive(),
+    onBlocked: () => {
+      setNotice(t('games.shared.finishSpinFirst'));
+      life.timeout(() => setNotice(null), 2600);
+    },
+    onExit: onBack,
+  });
+
+  // D-pad movement only; OK/Select activation lives in useTvActivate.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        if (focus === 'spin') { e.preventDefault(); setFocus('betPlus'); }
-        else if (focus === 'betPlus') { e.preventDefault(); setFocus('betMinus'); }
-        else if (focus === 'fair') { e.preventDefault(); setFocus('spin'); }
-      } else if (e.key === 'ArrowRight') {
-        if (focus === 'betMinus') { e.preventDefault(); setFocus('betPlus'); }
-        else if (focus === 'betPlus') { e.preventDefault(); setFocus('spin'); }
-        else if (focus === 'spin') { e.preventDefault(); setFocus('fair'); }
-        else if (focus === 'back') { e.preventDefault(); setFocus('spin'); }
-      } else if (e.key === 'ArrowDown') {
-        if (focus === 'back') { e.preventDefault(); setFocus('betMinus'); }
-        else { e.preventDefault(); setFocus('fair'); }
-      } else if (e.key === 'ArrowUp') {
-        if (focus === 'fair') { e.preventDefault(); setFocus('spin'); }
-        else if (focus !== 'back') { e.preventDefault(); setFocus('back'); }
-      }
+      const dir: FocusDir | null =
+        e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right'
+          : e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : null;
+      if (!dir) return;
+      e.preventDefault();
+      const next = moveInRows(focusRows, focus, dir);
+      if (next) setFocus(next as FocusId);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [focus]);
+  }, [focus, focusRows]);
 
   const reelHeight = cellHeight * ROWS;
-  const spinDuration = reducedFx ? 1400 : 2600;
-  const settleDuration = reducedFx ? 240 : 440;
-
   const reels = useMemo(() => Array.from({ length: REELS }, (_, i) => i), []);
 
   return (
     <GameShell accent="plum">
       <GameTopBar
         ref={backBtnRef}
-        onBack={onBack}
+        onBack={requestBack}
         backLabel={t('games.slots.back')}
         balance={balance}
         status={status}
@@ -299,6 +411,9 @@ const Slots = ({ onBack }: SlotsProps) => {
         onBackFocus={() => setFocus('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
+        fxRef={fxBtnRef}
+        fxFocused={focus === 'fx'}
+        onFxFocus={() => setFocus('fx')}
       />
 
       <div className="snow-slot-stage">
@@ -308,25 +423,26 @@ const Slots = ({ onBack }: SlotsProps) => {
           <div className="snow-slot-window" style={{ height: reelHeight + 12 }}>
             <div className="snow-slot-reels" style={{ height: reelHeight }}>
               {reels.map((reelIndex) => {
-                const strip = reelStrips[reelIndex] ?? [];
-                const isMoving = moving[reelIndex];
-                const offset = -(isMoving ? SPIN_INDEX : RESULT_INDEX) * cellHeight;
+                const cells = reelCells[reelIndex] ?? [];
                 return (
-                  <div key={reelIndex} className="snow-slot-reel" style={{ height: reelHeight }}>
+                  <div
+                    key={reelIndex}
+                    className="snow-slot-reel"
+                    style={{ height: reelHeight }}
+                    data-reel={reelIndex}
+                    data-reel-symbols={landedWindows ? landedWindows[reelIndex]?.join(',') : undefined}
+                  >
                     <span className="snow-slot-reel__shade" aria-hidden="true" />
-                    {!isMoving && winningCells[reelIndex]?.map((lit, row) => (lit ? (
+                    {landedWindows && winningCells[reelIndex]?.map((lit, row) => (lit ? (
                       <span key={`w-${row}`} className="snow-slot-cell__win" style={{ top: row * cellHeight, height: cellHeight, bottom: 'auto' }} />
                     ) : null))}
                     <div
-                      className={`snow-slot-strip${isMoving ? ' is-moving' : ''}`}
-                      style={{
-                        transform: `translateY(${offset}px)`,
-                        transition: `transform ${isMoving ? spinDuration : settleDuration}ms ${isMoving ? 'linear' : 'cubic-bezier(0.16,0.84,0.36,1)'}`,
-                        opacity: isMoving ? 0.94 : 1,
-                      }}
+                      ref={(el) => { stripRefs.current[reelIndex] = el; }}
+                      className="snow-slot-strip"
+                      data-testid={`slot-strip-${reelIndex}`}
                     >
-                      {strip.map((key, i) => (
-                        <div key={i} className="snow-slot-cell" style={{ height: cellHeight }}>
+                      {cells.map((key, i) => (
+                        <div key={i} className="snow-slot-cell" style={{ height: cellHeight }} data-cell={i < CYCLE_CELLS ? i : `clone-${i - CYCLE_CELLS}`}>
                           <SlotSymbol symbolKey={key} size={Math.round(cellHeight * 0.62)} />
                         </div>
                       ))}
@@ -338,20 +454,17 @@ const Slots = ({ onBack }: SlotsProps) => {
             <span className="snow-slot-payline" style={{ top: cellHeight + 6 }} aria-hidden="true" />
             <span className="snow-slot-payline" style={{ top: cellHeight * 2 + 6 }} aria-hidden="true" />
 
-            {celebrate && result && result.totalPayout > 0 && (
-              <div className="snow-slot-overlay">
+            {callout && (
+              <div className="snow-slot-overlay" data-callout-token={callout.token}>
                 <div className="snow-slot-callout" role="status" aria-live="polite">
-                  {t('games.slots.winChips', { amount: result.totalPayout.toLocaleString() })}
+                  {callout.payout > 0 && t('games.slots.winChips', { amount: callout.payout.toLocaleString() })}
+                  {callout.freeSpins > 0 && (
+                    <small>
+                      {t('games.slots.freeSpinsCallout')} · {t('games.slots.freeSpinsAwarded', { count: callout.freeSpins })}
+                    </small>
+                  )}
                 </div>
-                <GameFxCanvas burstKey={result.totalPayout} reduced={reducedFx} />
-              </div>
-            )}
-            {freeBurst && result && result.triggeredFreeSpins > 0 && (
-              <div className="snow-slot-overlay">
-                <div className="snow-slot-callout" role="status" aria-live="polite">
-                  {t('games.slots.freeSpinsCallout')}
-                  <small>{t('games.slots.freeSpinsAwarded', { count: result.triggeredFreeSpins })}</small>
-                </div>
+                {callout.payout > 0 && <GameFxCanvas burstKey={callout.token} reduced={reducedFx} />}
               </div>
             )}
           </div>
@@ -366,7 +479,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                 size="icon"
                 onFocus={() => setFocus('betMinus')}
                 onClick={() => changeBet(-1)}
-                aria-disabled={spinning || inFreeSpins || betIdx === 0 ? 'true' : undefined}
+                aria-disabled={!betStepUsable || betIdx === 0 ? 'true' : undefined}
                 data-tv-focused={focus === 'betMinus' ? 'true' : 'false'}
               >
                 <Minus />
@@ -379,7 +492,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                 size="icon"
                 onFocus={() => setFocus('betPlus')}
                 onClick={() => changeBet(1)}
-                aria-disabled={spinning || inFreeSpins || betIdx === BETS.length - 1 ? 'true' : undefined}
+                aria-disabled={!betStepUsable || betIdx === BETS.length - 1 ? 'true' : undefined}
                 data-tv-focused={focus === 'betPlus' ? 'true' : 'false'}
               >
                 <Plus />
@@ -390,8 +503,8 @@ const Slots = ({ onBack }: SlotsProps) => {
               ref={spinBtnRef}
               type="button"
               onFocus={() => setFocus('spin')}
-              onClick={() => { if (!(spinning || !user || (!inFreeSpins && !canBet))) handleSpin(); }}
-              aria-disabled={spinning || !user || (!inFreeSpins && !canBet) ? 'true' : undefined}
+              onClick={() => { if (spinUsable) handleSpin(); }}
+              aria-disabled={spinUsable ? undefined : 'true'}
               data-busy={spinning ? 'true' : undefined}
               data-tv-focused={focus === 'spin' ? 'true' : 'false'}
               className={`${GAME_ACTION_CLASS} snow-slot-spin`}
@@ -401,6 +514,7 @@ const Slots = ({ onBack }: SlotsProps) => {
           </div>
 
           {errorMsg && <p className="snow-game-error">{errorMsg}</p>}
+          {notice && <p className="snow-game-note" role="status">{notice}</p>}
           {!errorMsg && balance !== null && !canBet && user && !inFreeSpins && (
             <p className="snow-game-note">{t('games.slots.notEnoughChipsDailySpin')}</p>
           )}
