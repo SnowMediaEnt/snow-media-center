@@ -97,19 +97,30 @@ describe("Casino Hold'em decision phase", () => {
     expect(screen.queryByRole('button', { name: /games\.casinoHoldem\.fold/ })).not.toBeNull();
   });
 
-  it('ignores a stale deal ack that resolves after a newer hand started', async () => {
+  it('never deals twice while the first request is still in flight', async () => {
     let resolveFirst: (v: unknown) => void = () => {};
-    dealCasinoHoldem
-      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
-      .mockResolvedValue({ ...dealAck, balance: 45 });
+    dealCasinoHoldem.mockImplementation(() => new Promise((r) => { resolveFirst = r; }));
     render(<CasinoHoldem onBack={() => {}} />);
     fireEvent.click(dealButton());
-    // A second press starts a new hand epoch; the first ack must be discarded.
     fireEvent.click(dealButton());
-    resolveFirst({ ...dealAck, balance: 900 });
+    fireEvent.click(dealButton());
+    expect(dealCasinoHoldem).toHaveBeenCalledTimes(1);
+    resolveFirst(dealAck);
+    await waitFor(() => expect(callButton().getAttribute('aria-disabled')).toBeNull());
+  });
+
+  it('drops a deal ack that lands after the game unmounted', async () => {
+    let resolveFirst: (v: unknown) => void = () => {};
+    dealCasinoHoldem.mockImplementation(() => new Promise((r) => { resolveFirst = r; }));
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => { errors.push(args); });
+    const { unmount } = render(<CasinoHoldem onBack={() => {}} />);
+    fireEvent.click(dealButton());
+    unmount();
+    resolveFirst(dealAck);
     await new Promise((r) => setTimeout(r, 80));
-    // The stale ack's generous balance must not unlock the 3x raise.
-    expect(raiseButton().getAttribute('aria-disabled')).toBe('true');
-    expect(callButton().getAttribute('aria-disabled')).toBeNull();
+    expect(errors).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /games\.casinoHoldem\.fold/ })).toBeNull();
+    spy.mockRestore();
   });
 });
