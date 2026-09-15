@@ -296,7 +296,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             ) : loadingCooldown ? (
               <div className="snow-wheel-loading"><Loader2 className="animate-spin" /> {t('games.dailySpin.checkingSpin')}</div>
             ) : nextClaimAt ? (
-              <ResultBanner tone="info" title={fmtCountdown(remaining)}>{t('games.dailySpin.nextSpinReady')}</ResultBanner>
+              <ResultBanner tone="info" title={fmtCountdown(remaining, { h: t('games.dailySpin.unitHours'), m: t('games.dailySpin.unitMinutes'), s: t('games.dailySpin.unitSeconds') })}>{t('games.dailySpin.nextSpinReady')}</ResultBanner>
             ) : (
               <Button
                 ref={spinBtnRef}
