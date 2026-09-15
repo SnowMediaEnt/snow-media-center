@@ -110,7 +110,10 @@
       "fairNonce": "nonce:",
       "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen.",
       "phase": "Ein Gratisdreh alle vier Stunden",
-      "jackpotTag": "JACKPOT"
+      "jackpotTag": "JACKPOT",
+      "unitHours": "Std",
+      "unitMinutes": "Min",
+      "unitSeconds": "Sek"
     },
     "slots": {
       "back": "Zurück",

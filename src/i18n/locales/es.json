@@ -110,7 +110,10 @@
       "fairNonce": "nonce:",
       "fairVerify": "Verifica: SHA-256(serverSeed) debe coincidir con el hash mostrado antes del giro.",
       "phase": "Un giro gratis cada cuatro horas",
-      "jackpotTag": "BOTE"
+      "jackpotTag": "BOTE",
+      "unitHours": "h",
+      "unitMinutes": "min",
+      "unitSeconds": "s"
     },
     "slots": {
       "back": "Atrás",
