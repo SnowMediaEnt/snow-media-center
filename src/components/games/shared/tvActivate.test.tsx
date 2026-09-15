@@ -84,4 +84,42 @@ describe('TV one-activation guard', () => {
     okDown();
     expect(onHit).not.toHaveBeenCalled();
   });
+
+  it('stops a second same-window Select listener from doubling the press', () => {
+    const onHit = vi.fn();
+    render(<Harness onHit={onHit} />);
+    screen.getByRole('button').focus();
+    const rival = vi.fn();
+    window.addEventListener('keydown', rival, true);
+    okDown();
+    expect(onHit).toHaveBeenCalledTimes(1);
+    expect(rival).not.toHaveBeenCalled();
+    window.removeEventListener('keydown', rival, true);
+  });
+
+  it('recovers from a lost keyup when the app is backgrounded', () => {
+    const onHit = vi.fn();
+    render(<Harness onHit={onHit} />);
+    screen.getByRole('button').focus();
+    okDown(); // keyup is swallowed by the system keyboard / launcher
+    expect(onHit).toHaveBeenCalledTimes(1);
+    fireEvent.blur(window);
+    okDown();
+    expect(onHit).toHaveBeenCalledTimes(2);
+    document.dispatchEvent(new Event('visibilitychange'));
+    okDown();
+    expect(onHit).toHaveBeenCalledTimes(3);
+  });
+
+  it('never leaves OK dead after a mouse click on the same control', () => {
+    const onHit = vi.fn();
+    render(<Harness onHit={onHit} />);
+    const button = screen.getByRole('button');
+    button.focus();
+    fireEvent.click(button); // pointer path fires once on its own
+    expect(onHit).toHaveBeenCalledTimes(1);
+    okDown();
+    okUp();
+    expect(onHit).toHaveBeenCalledTimes(2);
+  });
 });
