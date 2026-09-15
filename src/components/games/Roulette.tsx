@@ -10,6 +10,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { isBackKey, useGameBack } from './shared/gameBack';
 
 interface RouletteProps {
   onBack: () => void;
@@ -107,6 +108,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
   const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
+  const [backNote, setBackNote] = useState<string | null>(null);
+  /**
+   * Immutable copy of the chips that were on the felt when the wheel settled.
+   * Live placements are cleared on settle (the wager is spent), so the board
+   * colours won/lost cells from this snapshot until the next wager.
+   */
+  const [settledChips, setSettledChips] = useState<PlacedChip[]>([]);
 
   // Wheel animation
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -198,10 +206,12 @@ const Roulette = ({ onBack }: RouletteProps) => {
     if (best) setFocusId(best.id);
   }, [focusId]);
 
+  /** Drops the previous round's result AND its settled chip snapshot. */
   const clearSettleVisuals = useCallback(() => {
     setResult(null);
     setWinKeys(new Set());
     setFair(null);
+    setSettledChips([]);
   }, []);
 
   // Place a chip (stable identity so memoized cells do not re-render on state churn)
@@ -222,23 +232,20 @@ const Roulette = ({ onBack }: RouletteProps) => {
       }
       return prev;
     });
-    setResult(null);
-    setWinKeys(new Set());
-  }, []);
+    clearSettleVisuals();
+  }, [clearSettleVisuals]);
 
   const undoLast = useCallback(() => {
     if (spinningRef.current) return;
     setPlacements((prev) => (prev.length === 0 ? prev : prev.slice(0, -1)));
-    setResult(null);
-    setWinKeys(new Set());
-  }, []);
+    clearSettleVisuals();
+  }, [clearSettleVisuals]);
 
   const clearBets = useCallback(() => {
     if (spinningRef.current) return;
     setPlacements([]);
-    setResult(null);
-    setWinKeys(new Set());
-  }, []);
+    clearSettleVisuals();
+  }, [clearSettleVisuals]);
 
   const totalBet = chips.reduce((s, c) => s + c.amount, 0);
   const canSpin = !spinning && !busy && totalBet > 0 && (balance ?? 0) >= totalBet && !!user;
@@ -368,8 +375,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
         setSpinning(false);
         setBusy(false);
         inFlight.current = false;
+        // Keep an immutable copy of the settled felt so won/lost colouring
+        // survives clearing the spent chips.
+        setSettledChips(chips.map((c) => ({ ...c })));
         setPlacements([]);
-        setFocusId('spin');
+        // Spin is disabled with an empty felt: land the remote on the chip
+        // denomination so the next wager starts under the D-pad.
+        setFocusId(`denom-${denomRef.current}`);
       };
 
       const land = (t: number) => {
@@ -400,17 +412,25 @@ const Roulette = ({ onBack }: RouletteProps) => {
   // OK/Select: exactly one activation per press, repeats swallowed until keyup.
   useTvActivate(activateFocused);
 
-  // D-pad + decrement. Back stays owned by Index, except one Back closes the
-  // open fairness disclosure first.
+  /**
+   * Shared wager-safe Back guard: fairness closes first, a spin in flight keeps
+   * the player on the table, and only a settled/idle table can leave.
+   */
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    isBusy: () => spinning || busy || inFlight.current,
+    onBlocked: () => {
+      setBackNote(t('games.shared.finishSpinFirst'));
+      life.timeout(() => setBackNote(null), 2600);
+    },
+    onExit: onBack,
+  });
+
+  // D-pad + per-cell chip decrement. Back is owned by the shared guard above.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const isBack = e.key === 'Escape' || e.keyCode === 4 || e.code === 'GoBack';
-      if (isBack && showFair) {
-        e.preventDefault();
-        e.stopPropagation();
-        setShowFair(false);
-        return;
-      }
+      if (isBackKey(e)) return;
       if (e.key === 'Backspace' || e.key === '-' || e.key === 'Subtract') {
         const bet = cellBets.current.get(focusId);
         if (bet) { e.preventDefault(); decrementChipOn(bet.type, bet.selection); return; }
@@ -422,7 +442,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [focusId, moveFocus, decrementChipOn, showFair]);
+  }, [focusId, moveFocus, decrementChipOn]);
 
   // If total bet exceeds balance, move focus to Undo so the fix is under the remote.
   useEffect(() => {
@@ -431,12 +451,14 @@ const Roulette = ({ onBack }: RouletteProps) => {
     }
   }, [totalBet, balance, spinning, chips.length]);
 
-  // Switching to European drops '00' chips AND their history, and re-homes focus.
+  // Switching wheel starts a fresh wager: drop '00' chips, the old result and
+  // its settled snapshot, then re-home focus.
   useEffect(() => {
-    if (wheel !== 'european') return;
-    setPlacements((prev) => prev.filter((p) => !(p.type === 'straight' && p.selection === '00')));
     setResult(null);
     setWinKeys(new Set());
+    setSettledChips([]);
+    if (wheel !== 'european') return;
+    setPlacements((prev) => prev.filter((p) => !(p.type === 'straight' && p.selection === '00')));
     setFocusId((current) => (current === 'num-00' ? 'num-0' : current));
   }, [wheel]);
 
@@ -519,8 +541,10 @@ const Roulette = ({ onBack }: RouletteProps) => {
   }, [showFair, fair]);
 
   // ----- Render helpers -----
+  /** After a settle the spent chips are gone, so the board shows the snapshot. */
+  const boardChips = chips.length > 0 ? chips : settledChips;
   const chipAt = (type: BetType, selection: BetSelection): PlacedChip | undefined =>
-    chips.find((c) => c.key === keyFor(type, selection));
+    boardChips.find((c) => c.key === keyFor(type, selection));
   const winFor = (type: BetType, selection: BetSelection) => winKeys.has(keyFor(type, selection));
 
   /**
@@ -563,7 +587,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       <div className="tv-game-body snow-game-body">
         <GameTopBar
           ref={registerFocus('back')}
-          onBack={onBack}
+          onBack={requestBack}
           backLabel={t('games.roulette.back')}
           balance={balance}
           status={status}
@@ -573,6 +597,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
           onBackFocus={() => setFocusId('back')}
           reducedFx={reducedFx}
           onToggleFx={toggleReducedFx}
+          fxRef={registerFocus('fx')}
+          fxFocused={focusId === 'fx'}
+          onFxFocus={() => setFocusId('fx')}
         />
 
         {/* Landscape TV surface: wheel + summary left, board + controls right */}
@@ -743,6 +770,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
             )}
             {balance === null && <p className="snow-rl-note">{t('games.roulette.loadingChips')}</p>}
             {error && <p className="snow-rl-error" role="status">{error}</p>}
+            {backNote && <p className="snow-rl-note" role="status">{backNote}</p>}
 
             {fair && (
               <div className="snow-fairness">

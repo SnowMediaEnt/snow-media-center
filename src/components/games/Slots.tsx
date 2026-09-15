@@ -230,7 +230,10 @@ const Slots = ({ onBack }: SlotsProps) => {
       } else if (mode === 'settle') {
         const plan = planRef.current[reel];
         if (!plan) { modeRef.current[reel] = 'idle'; continue; }
-        const p = Math.min(1, (time - plan.start) / plan.duration);
+        // The clock is taken from the first settle frame, so the animation can
+        // never depend on performance.now() sharing rAF's time origin.
+        if (plan.start === 0) plan.start = time;
+        const p = Math.min(1, Math.max(0, (time - plan.start) / plan.duration));
         const eased = 1 - Math.pow(1 - p, 3);
         posRef.current[reel] = plan.from + (plan.target - plan.from) * eased;
         if (!life.isHidden()) paint(reel);
@@ -341,7 +344,7 @@ const Slots = ({ onBack }: SlotsProps) => {
             planRef.current[reel] = {
               from: pos,
               target: computeSettleTarget(pos, landing, cellH, MIN_TRAVEL_CELLS),
-              start: performance.now(),
+              start: 0, // stamped on the first settle frame from rAF's own clock
               duration: reducedRef.current ? 620 : 1080,
             };
             modeRef.current[reel] = 'settle';
