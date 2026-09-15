@@ -11,6 +11,13 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
+  '1.7.2': [
+    '🎬 Movies & Series: the Player\'s Plex + VOD card, renamed so it says what it is',
+    '🛠️ Admin dashboard works with the remote — every section scrolls',
+    '👤 TV trials and purchases create your customer record and website account on their own',
+    '📧 Your login email now arrives after a trial or purchase',
+    '📺 Plex connects for any active Live TV line — nothing to add on file first',
+  ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',
     '🎁 Start a free 2-day trial with no card, or buy a plan — the Player signs you in when it is ready',
