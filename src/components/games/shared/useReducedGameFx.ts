@@ -29,8 +29,17 @@ export const useReducedGameFx = () => {
     const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     if (!query) return;
     const update = () => setSystem(query.matches);
-    query.addEventListener?.('change', update);
-    return () => query.removeEventListener?.('change', update);
+    // Chrome 66-class TV WebViews only expose the deprecated addListener pair.
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', update);
+      return () => query.removeEventListener('change', update);
+    }
+    const legacy = query as MediaQueryList & {
+      addListener?: (cb: (e: MediaQueryListEvent) => void) => void;
+      removeListener?: (cb: (e: MediaQueryListEvent) => void) => void;
+    };
+    legacy.addListener?.(update);
+    return () => legacy.removeListener?.(update);
   }, []);
 
   const reducedFx = manual || system || lowMemoryMode();

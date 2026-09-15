@@ -110,7 +110,10 @@
       "fairNonce": "nonce:",
       "fairVerify": "تحقّق: يجب أن يساوي SHA-256(serverSeed) قيمة الهاش المعروضة قبل الدورة.",
       "phase": "دورة مجانية واحدة كل أربع ساعات",
-      "jackpotTag": "الجائزة الكبرى"
+      "jackpotTag": "الجائزة الكبرى",
+      "unitHours": "س",
+      "unitMinutes": "د",
+      "unitSeconds": "ث"
     },
     "slots": {
       "back": "رجوع",

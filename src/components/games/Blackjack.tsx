@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { BetChip, FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { PlayingCard } from './shared/PlayingCard';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface BlackjackProps {
   onBack: () => void;
@@ -16,23 +18,12 @@ interface BlackjackProps {
 
 const BETS = [10, 25, 50, 100];
 
-type BjCard = { rank: string; suit: 'S' | 'H' | 'D' | 'C' };
-interface FairInfo {
-  serverSeedHash: string;
-  serverSeed: string;
-  clientSeed: string;
-  nonce: number;
-}
-
 type Phase = 'bet' | 'playing' | 'settled';
 type FocusBet = `chip-${number}` | 'deal' | 'back';
 type FocusAction = 'hit' | 'stand' | 'double' | 'back';
 type FocusSettle = 'again' | 'back' | 'fair';
 
-const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
-const RED_SUITS = new Set(['H', 'D']);
-
-const computeBjTotal = (cards: BjCard[]): number => {
+const computeBjTotal = (cards: GameCardValue[]): number => {
   let total = 0;
   let aces = 0;
   for (const c of cards) {
@@ -44,62 +35,43 @@ const computeBjTotal = (cards: BjCard[]): number => {
   return total;
 };
 
-function PlayingCard({
-  card,
-  faceDown,
-  delay = 0,
-  highlight = false,
-}: { card?: BjCard; faceDown?: boolean; delay?: number; highlight?: boolean }) {
-  const isRed = card && RED_SUITS.has(card.suit);
-  return (
-    <div
-      className="tv-game-card"
-      style={{
-        perspective: '800px',
-        animation: `bj-deal-in 420ms ease-out ${delay}ms both`,
-      }}
-    >
-      <div
-        className="absolute inset-0 rounded-lg shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
-        style={{
-          transform: 'rotateX(8deg) rotateY(-2deg)',
-          transformStyle: 'preserve-3d',
-          background: faceDown
-            ? 'repeating-linear-gradient(45deg, #1e3a8a 0 8px, #1e40af 8px 16px)'
-            : 'linear-gradient(180deg, #fafafa, #e5e7eb)',
-          border: faceDown ? '2px solid #fbbf24' : '2px solid rgba(15,23,42,0.85)',
-          outline: highlight ? '3px solid rgba(251,191,36,0.9)' : 'none',
-          outlineOffset: 2,
-        }}
-      >
-        {!faceDown && card && (
-          <>
-            <div
-              className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-            <div
-              className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(22px, 6cqh, 40px)' }}
-            >
-              {SUIT_GLYPH[card.suit]}
-            </div>
-            <div
-              className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)', transform: 'rotate(180deg)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
+interface BlackjackAck {
+  bet?: number;
+  status?: string;
+  playerHand?: GameCardValue[];
+  dealerHand?: GameCardValue[];
+  dealerUp?: GameCardValue[];
+  playerTotal?: number;
+  dealerUpTotal?: number;
+  dealerTotal?: number;
+  serverSeedHash?: string;
+  canHit?: boolean;
+  canStand?: boolean;
+  canDouble?: boolean;
+  net?: number;
+  fair?: GameFairInfo;
 }
+
+/** A hand that can hold 7+ cards fans instead of overflowing the rail. */
+const Hand = ({ cards, faceDownAfter, highlight, compact }: {
+  cards: GameCardValue[];
+  faceDownAfter?: number;
+  highlight?: boolean;
+  compact?: boolean;
+}) => (
+  <div className={`snow-hand${cards.length > 5 ? ' snow-hand--fan' : ''}${cards.length > 7 ? ' is-wide' : ''}`}>
+    {cards.map((card, i) => (
+      <PlayingCard
+        key={`${card.rank}${card.suit}-${i}`}
+        card={card}
+        faceDown={faceDownAfter !== undefined && i >= faceDownAfter}
+        delay={Math.min(i, 4) * 90}
+        highlighted={highlight}
+        compact={compact || cards.length > 5}
+      />
+    ))}
+  </div>
+);
 
 const Blackjack = ({ onBack }: BlackjackProps) => {
   const { t } = useTranslation();
@@ -115,63 +87,54 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
-  const [playerHand, setPlayerHand] = useState<BjCard[]>([]);
-  const [dealerHand, setDealerHand] = useState<BjCard[]>([]);
-  const [dealerUp, setDealerUp] = useState<BjCard[]>([]);
-  const [playerTotal, setPlayerTotal] = useState<number>(0);
-  const [dealerUpTotal, setDealerUpTotal] = useState<number>(0);
-  const [dealerTotal, setDealerTotal] = useState<number>(0);
-  const [serverSeedHash, setServerSeedHash] = useState<string>('');
+  const [playerHand, setPlayerHand] = useState<GameCardValue[]>([]);
+  const [dealerHand, setDealerHand] = useState<GameCardValue[]>([]);
+  const [dealerUp, setDealerUp] = useState<GameCardValue[]>([]);
+  const [playerTotal, setPlayerTotal] = useState(0);
+  const [dealerUpTotal, setDealerUpTotal] = useState(0);
+  const [dealerTotal, setDealerTotal] = useState(0);
+  const [serverSeedHash, setServerSeedHash] = useState('');
   const [canHit, setCanHit] = useState(false);
   const [canStand, setCanStand] = useState(false);
   const [canDouble, setCanDouble] = useState(false);
 
   const [settleStatus, setSettleStatus] = useState<string | null>(null);
-  const [net, setNet] = useState<number>(0);
-  const [fair, setFair] = useState<FairInfo | null>(null);
+  const [net, setNet] = useState(0);
+  const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
-  // Staggered dealer reveal on settle: number of dealer cards currently shown face-up
-  const [revealedDealer, setRevealedDealer] = useState<number>(0);
+  const [revealedDealer, setRevealedDealer] = useState(0);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
   const [focusAction, setFocusAction] = useState<FocusAction>('hit');
   const [focusSettle, setFocusSettle] = useState<FocusSettle>('again');
 
-  const refs = {
-    back: useRef<HTMLButtonElement>(null),
-    deal: useRef<HTMLButtonElement>(null),
-    hit: useRef<HTMLButtonElement>(null),
-    stand: useRef<HTMLButtonElement>(null),
-    double: useRef<HTMLButtonElement>(null),
-    again: useRef<HTMLButtonElement>(null),
-    fair: useRef<HTMLButtonElement>(null),
-    chips: BETS.map(() => useRef<HTMLButtonElement>(null)),
-  };
-  // strip old seed ref line
+  const backRef = useRef<HTMLButtonElement>(null);
+  const dealRef = useRef<HTMLButtonElement>(null);
+  const hitRef = useRef<HTMLButtonElement>(null);
+  const standRef = useRef<HTMLButtonElement>(null);
+  const doubleRef = useRef<HTMLButtonElement>(null);
+  const againRef = useRef<HTMLButtonElement>(null);
+  const fairRef = useRef<HTMLButtonElement>(null);
+  const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  // Focus management
   useEffect(() => {
     if (phase === 'bet') {
-      if (focusBet === 'back') refs.back.current?.focus();
-      else if (focusBet === 'deal') refs.deal.current?.focus();
-      else if (focusBet.startsWith('chip-')) {
-        const i = Number(focusBet.split('-')[1]);
-        refs.chips[i]?.current?.focus();
-      }
+      if (focusBet === 'back') backRef.current?.focus();
+      else if (focusBet === 'deal') dealRef.current?.focus();
+      else chipRefs.current[Number(focusBet.split('-')[1])]?.focus();
     } else if (phase === 'playing') {
-      if (focusAction === 'back') refs.back.current?.focus();
-      else if (focusAction === 'hit') refs.hit.current?.focus();
-      else if (focusAction === 'stand') refs.stand.current?.focus();
-      else if (focusAction === 'double') refs.double.current?.focus();
-    } else if (phase === 'settled') {
-      if (focusSettle === 'back') refs.back.current?.focus();
-      else if (focusSettle === 'again') refs.again.current?.focus();
-      else if (focusSettle === 'fair') refs.fair.current?.focus();
+      if (focusAction === 'back') backRef.current?.focus();
+      else if (focusAction === 'hit') hitRef.current?.focus();
+      else if (focusAction === 'stand') standRef.current?.focus();
+      else if (focusAction === 'double') doubleRef.current?.focus();
+    } else {
+      if (focusSettle === 'back') backRef.current?.focus();
+      else if (focusSettle === 'again') againRef.current?.focus();
+      else if (focusSettle === 'fair') fairRef.current?.focus();
     }
   }, [phase, focusBet, focusAction, focusSettle]);
 
-  // Apply an in-progress / settled ack to local state
-  const applyAck = useCallback((resp: any) => {
+  const applyAck = useCallback((resp: BlackjackAck) => {
     if (typeof resp?.bet === 'number') setBet(resp.bet);
     if (resp?.status === 'player_turn') {
       setPhase('playing');
@@ -187,18 +150,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setSettleStatus(null);
       setNet(0);
       setFair(null);
-      // Choose a sensible default action focus
-      setFocusAction((prev) => {
-        if (prev === 'hit' && resp.canHit) return 'hit';
-        if (resp.canHit) return 'hit';
-        if (resp.canStand) return 'stand';
-        return 'hit';
-      });
+      setFocusAction(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
     } else if (resp?.status) {
-      // Settled — keep dealer total/banner hidden until the staggered reveal completes
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
-      const dHand: BjCard[] = resp.dealerHand ?? [];
+      const dHand = resp.dealerHand ?? [];
       setDealerHand(dHand);
       setPlayerTotal(resp.playerTotal ?? 0);
       setDealerTotal(resp.dealerTotal ?? 0);
@@ -209,7 +165,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
       setFocusSettle('again');
-      // Start the staggered reveal: only the up-card is showing right now.
       setRevealedDealer(Math.min(1, dHand.length));
     }
   }, []);
@@ -226,8 +181,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   };
 
   const deal = useCallback(async () => {
-    if (inFlight.current) return;
-    if (busy) return;
+    if (inFlight.current || busy) return;
     if (!user) { setError(t('games.blackjack.errorSignIn')); return; }
     if (balance === null) { setError(t('games.blackjack.errorLoadingChips')); return; }
     if (balance < bet) { setError(t('games.blackjack.errorInsufficientBalance')); return; }
@@ -245,11 +199,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setBusy(false);
       inFlight.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, user, balance, bet, applyAck]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
-    if (inFlight.current) return;
-    if (busy) return;
+    if (inFlight.current || busy) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -266,6 +220,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setBusy(false);
       inFlight.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, applyAck]);
 
   const playAgain = () => {
@@ -281,41 +236,39 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setFocusBet('deal');
   };
 
-  // Staggered dealer reveal during settle phase: ~550ms between cards.
+  // Staggered dealer reveal — purely visual, cancelled on unmount/Back.
   useEffect(() => {
     if (phase !== 'settled') return;
     if (revealedDealer >= dealerHand.length) return;
     const base = revealedDealer === 0 ? 250 : 550;
-    const delay = reducedFx ? Math.max(120, Math.round(base / 2)) : base;
-    const id = life.timeout(() => setRevealedDealer((n) => n + 1), delay);
+    const id = life.timeout(() => setRevealedDealer((n) => n + 1), reducedFx ? Math.max(120, Math.round(base / 2)) : base);
     return () => life.clearTimer(id);
   }, [phase, revealedDealer, dealerHand.length, reducedFx, life]);
 
-
-  // D-pad
+  // D-pad focus movement only.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (phase === 'bet') {
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
         if (e.key === 'ArrowLeft') {
-          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}` as FocusBet); }
-          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${BETS.length - 1}` as FocusBet); }
+          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}`); }
+          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${BETS.length - 1}`); }
         } else if (e.key === 'ArrowRight') {
-          if (chipIdx >= 0 && chipIdx < BETS.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}` as FocusBet); }
+          if (chipIdx >= 0 && chipIdx < BETS.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}`); }
           else if (chipIdx === BETS.length - 1) { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowUp') {
-          if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('back'); }
+          if (focusBet !== 'back') { e.preventDefault(); setFocusBet('back'); }
         } else if (e.key === 'ArrowDown') {
-          if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
+          if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0'); }
         }
       } else if (phase === 'playing') {
-        const order: FocusAction[] = ['hit', 'stand', ...(canDouble ? ['double' as FocusAction] : [])];
+        const order: FocusAction[] = ['hit', 'stand', ...(canDouble ? (['double'] as FocusAction[]) : [])];
         const idx = order.indexOf(focusAction);
         if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusAction(order[idx - 1]); }
         else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusAction(order[idx + 1]); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusAction('back'); }
         else if (e.key === 'ArrowDown' && focusAction === 'back') { e.preventDefault(); setFocusAction('hit'); }
-      } else if (phase === 'settled') {
+      } else {
         const order: FocusSettle[] = ['again', 'fair'];
         const idx = order.indexOf(focusSettle);
         if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusSettle(order[idx - 1]); }
@@ -326,14 +279,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [phase, focusBet, focusAction, focusSettle, canDouble, onBack]);
-
-  const focusRing = (active: boolean) =>
-    active ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+  }, [phase, focusBet, focusAction, focusSettle, canDouble]);
 
   const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+  const shownDealerTotal = phase === 'settled'
+    ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
+    : dealerUpTotal;
 
-  const settleBanner = (() => {
+  const banner = (() => {
     if (!settleStatus || !revealComplete) return null;
     const map: Record<string, { text: string; tone: 'win' | 'lose' | 'push' }> = {
       blackjack: { text: t('games.blackjack.bannerBlackjack'), tone: 'win' },
@@ -344,289 +297,182 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       push: { text: t('games.blackjack.bannerPush'), tone: 'push' },
     };
     const m = map[settleStatus] ?? { text: settleStatus.toUpperCase(), tone: 'push' as const };
-    const toneClasses =
-      m.tone === 'win' ? 'from-emerald-500/30 to-emerald-700/30 border-emerald-300/60 text-emerald-100' :
-      m.tone === 'lose' ? 'from-rose-600/25 to-rose-900/25 border-rose-400/50 text-rose-100' :
-      'from-slate-700/40 to-slate-900/40 border-slate-400/40 text-slate-100';
     return (
-      <div className={`mt-6 p-5 rounded-xl border bg-gradient-to-br ${toneClasses} text-center`}>
-        <div className="text-3xl font-black tracking-wider">{m.text}</div>
-        <div className="mt-1 text-lg font-bold">
-          {net > 0 ? (
-            <span className="text-emerald-300">{t('games.blackjack.netWin', { net: net.toLocaleString() })}</span>
-          ) : net < 0 ? (
-            <span className="text-rose-300">{t('games.blackjack.netLoss', { net: net.toLocaleString() })}</span>
-          ) : (
-            <span className="text-slate-200">{t('games.blackjack.netZero')}</span>
-          )}
-        </div>
-        <div className="text-xs text-slate-300 mt-1">{t('games.blackjack.balanceLine', { balance: balance?.toLocaleString() ?? '—' })}</div>
-      </div>
+      <ResultBanner tone={m.tone} title={m.text}>
+        {net > 0 ? t('games.blackjack.netWin', { net: net.toLocaleString() })
+          : net < 0 ? t('games.blackjack.netLoss', { net: net.toLocaleString() })
+          : t('games.blackjack.netZero')}
+      </ResultBanner>
     );
   })();
 
+  const dealerCards = phase === 'playing'
+    ? [...dealerUp, ...(dealerUp.length ? [dealerUp[0]] : [])]
+    : dealerHand;
+  const dealerFaceDownAfter = phase === 'playing' ? dealerUp.length : revealedDealer;
+
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
-      <style>{`
-        @keyframes bj-deal-in {
-          0% { opacity: 0; transform: translateY(-40px) rotate(-12deg) scale(0.8); }
-          100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
-        }
-      `}</style>
+    <GameShell accent="emerald">
+      <GameTopBar
+        ref={backRef}
+        onBack={onBack}
+        backLabel={t('games.blackjack.back')}
+        balance={balance}
+        status={status}
+        title={t('games.blackjack.title')}
+        phase={t('games.blackjack.subheading')}
+        backFocused={(phase === 'bet' && focusBet === 'back') || (phase === 'playing' && focusAction === 'back') || (phase === 'settled' && focusSettle === 'back')}
+        onBackFocus={() => {
+          if (phase === 'bet') setFocusBet('back');
+          else if (phase === 'playing') setFocusAction('back');
+          else setFocusSettle('back');
+        }}
+        reducedFx={reducedFx}
+        onToggleFx={toggleReducedFx}
+      />
 
-      <div className="tv-game-body px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Button
-            ref={refs.back}
-            onClick={onBack}
-            onFocus={() => {
-              if (phase === 'bet') setFocusBet('back');
-              else if (phase === 'playing') setFocusAction('back');
-              else setFocusSettle('back');
-            }}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing(
-              (phase === 'bet' && focusBet === 'back') ||
-              (phase === 'playing' && focusAction === 'back') ||
-              (phase === 'settled' && focusSettle === 'back')
-            )}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.blackjack.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.blackjack.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.blackjack.loadingChips')}
-              </span>
-            </div>
+      <div className="snow-bj-table">
+        <div className="snow-bj-rail">
+          <span className="snow-bj-shoe" aria-hidden="true" />
+          <div className="snow-bj-seat">
+            <span className="snow-bj-seat__label">{t('games.blackjack.dealer')}</span>
+            {phase === 'bet'
+              ? <p className="snow-bj-hint">{t('games.blackjack.placeBetPrompt')}</p>
+              : <>
+                  <Hand cards={dealerCards} faceDownAfter={dealerFaceDownAfter} />
+                  <span className={`snow-bj-total${shownDealerTotal > 21 ? ' is-bust' : ''}`}>{shownDealerTotal}</span>
+                </>}
           </div>
+          <span className="snow-bj-shoe" style={{ visibility: 'hidden' }} aria-hidden="true" />
         </div>
 
-        <div className="text-center tv-compact-head">
-          <p className="text-slate-200/90 mt-1">{t('games.blackjack.subheading')}</p>
+        <div className="snow-bj-seat">
+          <span className="snow-bj-seat__label">{t('games.blackjack.you')}</span>
+          {phase === 'bet'
+            ? <p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p>
+            : <>
+                <Hand cards={playerHand} highlight={phase === 'settled' && settleStatus === 'blackjack'} />
+                <span className={`snow-bj-total${playerTotal > 21 ? ' is-bust' : ''}`}>{playerTotal}</span>
+              </>}
         </div>
 
-        {/* Felt Table */}
-        <div
-          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
-          style={{
-            background:
-              'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
-            border: '3px solid rgba(251,191,36,0.55)',
-            boxShadow:
-              '0 30px 60px -20px rgba(0,0,0,0.85), inset 0 0 80px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.08)',
-          }}
-        >
-          {/* Dealer row */}
-          <div className="mb-2">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.dealer')}</div>
-              {(phase === 'playing' || phase === 'settled') && (
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums transition-all">
-                  {phase === 'settled'
-                    ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
-                    : dealerUpTotal}
-                </span>
-              )}
-            </div>
-            <div className="flex items-end gap-2 min-h-0">
-              {phase === 'bet' && (
-                <div className="text-slate-300/70 italic">{t('games.blackjack.placeBetPrompt')}</div>
-              )}
-              {phase === 'playing' && (
-                <>
-                  {dealerUp.map((c, i) => (
-                    <PlayingCard key={`du-${i}`} card={c} delay={i * 120} />
-                  ))}
-                  <PlayingCard faceDown delay={dealerUp.length * 120} />
-                </>
-              )}
-              {phase === 'settled' && (
-                <>
-                  {dealerHand.slice(0, revealedDealer).map((c, i) => (
-                    <PlayingCard key={`dh-${i}`} card={c} delay={i === revealedDealer - 1 ? 0 : 0} />
-                  ))}
-                  {revealedDealer < dealerHand.length && revealedDealer < 2 && (
-                    <PlayingCard faceDown />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Player row */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.blackjack.you')}</div>
-              {(phase === 'playing' || phase === 'settled') && (
-                <span className="px-3 py-1 rounded-full bg-slate-900/70 border border-amber-300/40 text-amber-100 text-sm font-bold tabular-nums">
-                  {playerTotal}
-                </span>
-              )}
-            </div>
-            <div className="flex items-end gap-2 min-h-0">
-              {phase === 'bet' && (
-                <div className="text-slate-300/70 italic">{t('games.blackjack.cardsAppearHere')}</div>
-              )}
-              {playerHand.map((c, i) => (
-                <PlayingCard key={`p-${i}`} card={c} delay={i * 120} highlight={phase === 'settled' && settleStatus === 'blackjack'} />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Bet selector */}
-        {phase === 'bet' && (
-          <Card className="p-5 bg-slate-900/70 border-emerald-400/30">
-            <div className="text-xs uppercase tracking-wider text-emerald-200 font-bold mb-3">{t('games.blackjack.chooseBet')}</div>
-            <div className="flex flex-wrap gap-3 mb-4">
-              {BETS.map((amount, i) => {
-                const selected = bet === amount;
-                const unaffordable = (balance ?? 0) < amount;
-                return (
-                  <Button
-                    key={amount}
-                    ref={refs.chips[i]}
-                    onFocus={() => setFocusBet(`chip-${i}` as FocusBet)}
-                    onClick={() => setBet(amount)}
-                    disabled={unaffordable}
-                    className={`relative w-20 h-20 rounded-full font-black text-xl border-4 transition-all
-                      ${selected
-                        ? 'bg-gradient-to-br from-amber-300 to-amber-600 text-slate-900 border-amber-200'
-                        : 'bg-gradient-to-br from-slate-700 to-slate-900 text-amber-100 border-amber-400/40'}
-                      ${unaffordable ? 'opacity-40' : ''}
-                      ${focusRing(focusBet === `chip-${i}`)}
-                    `}
-                  >
-                    {amount}
-                  </Button>
-                );
-              })}
-              <Button
-                ref={refs.deal}
-                onFocus={() => setFocusBet('deal')}
-                onClick={deal}
-                disabled={busy || !user || (balance ?? 0) < bet}
-                className={`ml-auto text-xl font-black px-8 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${focusRing(focusBet === 'deal')}`}
-              >
-                {busy ? (
-                  <span className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> {t('games.blackjack.dealing')}</span>
-                ) : t('games.blackjack.dealWithBet', { bet })}
-              </Button>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              {t('games.blackjack.freshSeedNote')}
-            </p>
-          </Card>
-        )}
-
-        {/* Action bar */}
-        {phase === 'playing' && (
-          <Card className="p-5 bg-slate-900/70 border-emerald-400/30">
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Button
-                ref={refs.hit}
-                onFocus={() => setFocusAction('hit')}
-                onClick={() => action('hit')}
-                disabled={!canHit || busy}
-                className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-sky-400 to-sky-600 text-slate-900 border-2 border-sky-200 transition-all ${focusRing(focusAction === 'hit')}`}
-              >
-                {t('games.blackjack.hit')}
-              </Button>
-              <Button
-                ref={refs.stand}
-                onFocus={() => setFocusAction('stand')}
-                onClick={() => action('stand')}
-                disabled={!canStand || busy}
-                className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-200 transition-all ${focusRing(focusAction === 'stand')}`}
-              >
-                {t('games.blackjack.stand')}
-              </Button>
-              {canDouble && (
-                <Button
-                  ref={refs.double}
-                  onFocus={() => setFocusAction('double')}
-                  onClick={() => action('double')}
-                  disabled={busy}
-                  className={`text-lg font-black px-8 py-6 bg-gradient-to-br from-fuchsia-400 to-fuchsia-600 text-slate-900 border-2 border-fuchsia-200 transition-all ${focusRing(focusAction === 'double')}`}
-                >
-                  {t('games.blackjack.double')}
-                </Button>
-              )}
-            </div>
-            {busy && (
-              <div className="flex items-center justify-center gap-2 mt-3 text-slate-300 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" /> {t('games.blackjack.working')}
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Settle */}
-        {phase === 'settled' && (
-          <Card className="p-5 bg-slate-900/70 border-emerald-400/30">
-            {settleBanner}
-            <div className="flex justify-center mt-5">
-              <Button
-                ref={refs.again}
-                onFocus={() => setFocusSettle('again')}
-                onClick={playAgain}
-                className={`text-xl font-black px-10 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${focusRing(focusSettle === 'again')}`}
-              >
-                {t('games.blackjack.playAgain')}
-              </Button>
-            </div>
-
-            {fair && (
-              <div className="mt-6">
-                <button
-                  ref={refs.fair}
-                  onFocus={() => setFocusSettle('fair')}
-                  onClick={() => setShowFair((s) => !s)}
-                  className={`text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 ${focusSettle === 'fair' ? 'ring-2 ring-amber-300/80' : ''}`}
-                >
-                  {t('games.blackjack.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-                {showFair && (
-                  <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                    <div><span className="text-slate-400">{t('games.blackjack.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
-                    <div><span className="text-slate-400">{t('games.blackjack.fairServerSeed')}</span> {fair.serverSeed}</div>
-                    <div><span className="text-slate-400">{t('games.blackjack.fairClientSeed')}</span> {fair.clientSeed}</div>
-                    <div><span className="text-slate-400">{t('games.blackjack.fairNonce')}</span> {fair.nonce}</div>
-                    <div className="text-slate-400 pt-1">{t('games.blackjack.fairVerifyNote')}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
-        )}
-
-        {error && (
-          <div className="mt-4 mx-auto max-w-md px-4 py-3 rounded-lg bg-rose-950/70 border border-rose-400/50 text-rose-100 text-sm text-center font-semibold">
-            {error}
-          </div>
-        )}
-
-        {phase === 'playing' && serverSeedHash && (
-          <p className="mt-3 text-center text-[11px] text-slate-400 font-mono break-all">
-            {t('games.blackjack.seedHashLine', { serverSeedHash })}
-          </p>
-        )}
+        {banner && <div className="snow-bj-seat">{banner}</div>}
       </div>
-    </div>
+
+      <GamePanel className="p-3">
+        {phase === 'bet' && (
+          <div className="snow-bet-row">
+            {BETS.map((amount, i) => (
+              <BetChip
+                key={amount}
+                ref={(el) => { chipRefs.current[i] = el; }}
+                selected={bet === amount}
+                focused={focusBet === `chip-${i}`}
+                onFocus={() => setFocusBet(`chip-${i}`)}
+                onClick={() => { if ((balance ?? 0) >= amount) setBet(amount); }}
+                aria-disabled={(balance ?? 0) < amount ? 'true' : undefined}
+              >
+                {amount}
+              </BetChip>
+            ))}
+            <Button
+              ref={dealRef}
+              type="button"
+              onFocus={() => setFocusBet('deal')}
+              onClick={() => { if (!(busy || !user || (balance ?? 0) < bet)) deal(); }}
+              aria-disabled={busy || !user || (balance ?? 0) < bet ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={focusBet === 'deal' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} ml-3 px-8`}
+            >
+              {busy ? <><Loader2 className="animate-spin" /> {t('games.blackjack.dealing')}</> : t('games.blackjack.dealWithBet', { bet })}
+            </Button>
+          </div>
+        )}
+
+        {phase === 'playing' && (
+          <div className="snow-game-actions">
+            <Button
+              ref={hitRef}
+              type="button"
+              onFocus={() => setFocusAction('hit')}
+              onClick={() => { if (canHit && !busy) action('hit'); }}
+              aria-disabled={!canHit || busy ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={focusAction === 'hit' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} px-8`}
+            >
+              {t('games.blackjack.hit')}
+            </Button>
+            <Button
+              ref={standRef}
+              type="button"
+              variant="navy"
+              onFocus={() => setFocusAction('stand')}
+              onClick={() => { if (canStand && !busy) action('stand'); }}
+              aria-disabled={!canStand || busy ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={focusAction === 'stand' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} px-8`}
+            >
+              {t('games.blackjack.stand')}
+            </Button>
+            {canDouble && (
+              <Button
+                ref={doubleRef}
+                type="button"
+                variant="navy"
+                onFocus={() => setFocusAction('double')}
+                onClick={() => { if (!busy) action('double'); }}
+                aria-disabled={busy ? 'true' : undefined}
+                data-busy={busy ? 'true' : undefined}
+                data-tv-focused={focusAction === 'double' ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} px-8`}
+              >
+                {t('games.blackjack.double')}
+              </Button>
+            )}
+            {busy && <span className="snow-game-note ml-3"><Loader2 className="inline h-4 w-4 animate-spin" /> {t('games.blackjack.working')}</span>}
+          </div>
+        )}
+
+        {phase === 'settled' && (
+          <div className="snow-game-actions">
+            <Button
+              ref={againRef}
+              type="button"
+              onFocus={() => setFocusSettle('again')}
+              onClick={playAgain}
+              data-tv-focused={focusSettle === 'again' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} px-10`}
+            >
+              {t('games.blackjack.playAgain')}
+            </Button>
+          </div>
+        )}
+
+        {error && <p className="snow-game-error">{error}</p>}
+        {phase === 'bet' && !error && <p className="snow-game-note">{t('games.blackjack.freshSeedNote')}</p>}
+      </GamePanel>
+
+      <FairnessPanel
+        ref={fairRef}
+        fair={fair}
+        hash={serverSeedHash}
+        open={showFair}
+        onToggle={() => setShowFair((s) => !s)}
+        focused={focusSettle === 'fair' && phase === 'settled'}
+        onFocus={() => { if (phase === 'settled') setFocusSettle('fair'); }}
+        labels={{
+          title: t('games.blackjack.provablyFair'),
+          hash: t('games.blackjack.fairServerSeedHash'),
+          server: t('games.blackjack.fairServerSeed'),
+          client: t('games.blackjack.fairClientSeed'),
+          nonce: t('games.blackjack.fairNonce'),
+          note: t('games.blackjack.fairVerifyNote'),
+        }}
+      />
+    </GameShell>
   );
 };
 

@@ -22,16 +22,16 @@ const SEG_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b'];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const WHEEL_SIZE = 420;
 
-function fmtCountdown(ms: number) {
-  if (ms <= 0) return '0s';
-  const s = Math.floor(ms / 1000);
+/** Countdown units come from the active locale, never hardcoded h/m/s. */
+function fmtCountdown(ms: number, u: { h: string; m: string; s: string }) {
+  const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
-  if (h > 0) return `${h}h ${pad(m)}m ${pad(sec)}s`;
-  if (m > 0) return `${m}m ${pad(sec)}s`;
-  return `${sec}s`;
+  if (h > 0) return `${h}${u.h} ${pad(m)}${u.m} ${pad(sec)}${u.s}`;
+  if (m > 0) return `${m}${u.m} ${pad(sec)}${u.s}`;
+  return `${sec}${u.s}`;
 }
 
 const DailySpin = ({ onBack }: DailySpinProps) => {
@@ -296,7 +296,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             ) : loadingCooldown ? (
               <div className="snow-wheel-loading"><Loader2 className="animate-spin" /> {t('games.dailySpin.checkingSpin')}</div>
             ) : nextClaimAt ? (
-              <ResultBanner tone="info" title={fmtCountdown(remaining)}>{t('games.dailySpin.nextSpinReady')}</ResultBanner>
+              <ResultBanner tone="info" title={fmtCountdown(remaining, { h: t('games.dailySpin.unitHours'), m: t('games.dailySpin.unitMinutes'), s: t('games.dailySpin.unitSeconds') })}>{t('games.dailySpin.nextSpinReady')}</ResultBanner>
             ) : (
               <Button
                 ref={spinBtnRef}

@@ -110,7 +110,10 @@
       "fairNonce": "nonce :",
       "fairVerify": "Vérifiez : SHA-256(serverSeed) doit correspondre au hash affiché avant le tour.",
       "phase": "Un tour gratuit toutes les quatre heures",
-      "jackpotTag": "JACKPOT"
+      "jackpotTag": "JACKPOT",
+      "unitHours": "h",
+      "unitMinutes": "min",
+      "unitSeconds": "s"
     },
     "slots": {
       "back": "Retour",

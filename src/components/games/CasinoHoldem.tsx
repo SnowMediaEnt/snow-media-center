@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { BetChip, FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { PlayingCard, PlayingCardSlot } from './shared/PlayingCard';
+import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface CasinoHoldemProps {
   onBack: () => void;
-}
-
-type ChCard = { rank: string; suit: 'S' | 'H' | 'D' | 'C' };
-interface FairInfo {
-  serverSeedHash: string;
-  serverSeed: string;
-  clientSeed: string;
-  nonce: number;
 }
 
 type Phase = 'bet' | 'decision' | 'reveal' | 'settled';
@@ -25,9 +23,25 @@ type FocusSettle = 'again' | 'back' | 'fair';
 
 interface RaiseOption { multiplier: number; cost: number }
 
+interface HoldemAck {
+  status?: string;
+  playerHole?: GameCardValue[];
+  dealerHole?: GameCardValue[];
+  community?: GameCardValue[];
+  flop?: GameCardValue[];
+  callCost?: number;
+  raiseOptions?: RaiseOption[];
+  serverSeedHash?: string;
+  playerRank?: string;
+  dealerRank?: string;
+  dealerQualified?: boolean;
+  anteBonus?: number;
+  payout?: number;
+  net?: number;
+  fair?: GameFairInfo;
+}
+
 const ANTES = [10, 25, 50, 100];
-const SUIT_GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
-const RED_SUITS = new Set(['H', 'D']);
 
 const RANK_KEY: Record<string, string> = {
   royal_flush: 'games.casinoHoldem.handName.royalFlush',
@@ -42,100 +56,37 @@ const RANK_KEY: Record<string, string> = {
   high_card: 'games.casinoHoldem.handName.highCard',
 };
 
-function PlayingCard({
-  card,
-  faceDown,
-  delay = 0,
-  highlight = false,
-}: { card?: ChCard; faceDown?: boolean; delay?: number; highlight?: boolean }) {
-  const isRed = card && RED_SUITS.has(card.suit);
-  return (
-    <div
-      className="tv-game-card"
-      style={{
-        perspective: '800px',
-        animation: `ch-deal-in 420ms ease-out ${delay}ms both`,
-      }}
-    >
-      <div
-        className="absolute inset-0 rounded-lg shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
-        style={{
-          transform: 'rotateX(8deg) rotateY(-2deg)',
-          transformStyle: 'preserve-3d',
-          background: faceDown
-            ? 'repeating-linear-gradient(45deg, #1e3a8a 0 8px, #1e40af 8px 16px)'
-            : 'linear-gradient(180deg, #fafafa, #e5e7eb)',
-          border: faceDown ? '2px solid #fbbf24' : '2px solid rgba(15,23,42,0.85)',
-          outline: highlight ? '3px solid rgba(251,191,36,0.9)' : 'none',
-          outlineOffset: 2,
-        }}
-      >
-        {!faceDown && card && (
-          <>
-            <div
-              className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-            <div
-              className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(20px, 5.5cqh, 36px)' }}
-            >
-              {SUIT_GLYPH[card.suit]}
-            </div>
-            <div
-              className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)', transform: 'rotate(180deg)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CardSlot() {
-  return (
-    <div
-      className="tv-game-card rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
-    />
-  );
-}
-
 const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
+
   const labelRank = (k?: string) => (k ? (RANK_KEY[k] ? t(RANK_KEY[k]) : k.replace(/_/g, ' ')) : '');
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [ante, setAnte] = useState<number>(10);
-  const [callCost, setCallCost] = useState<number>(0);
   const [raiseOptions, setRaiseOptions] = useState<RaiseOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
-  const [playerHole, setPlayerHole] = useState<ChCard[]>([]);
-  const [dealerHole, setDealerHole] = useState<ChCard[]>([]);
-  const [community, setCommunity] = useState<ChCard[]>([]); // up to 5
-  const [revealedCommunity, setRevealedCommunity] = useState<number>(0);
+  const [playerHole, setPlayerHole] = useState<GameCardValue[]>([]);
+  const [dealerHole, setDealerHole] = useState<GameCardValue[]>([]);
+  const [community, setCommunity] = useState<GameCardValue[]>([]);
+  const [revealedCommunity, setRevealedCommunity] = useState(0);
   const [dealerRevealed, setDealerRevealed] = useState(false);
 
-  const [serverSeedHash, setServerSeedHash] = useState<string>('');
+  const [serverSeedHash, setServerSeedHash] = useState('');
   const [settleStatus, setSettleStatus] = useState<string | null>(null);
-  const [playerRank, setPlayerRank] = useState<string>('');
-  const [dealerRank, setDealerRank] = useState<string>('');
-  const [dealerQualified, setDealerQualified] = useState<boolean>(true);
-  const [anteBonus, setAnteBonus] = useState<number>(0);
-  const [payout, setPayout] = useState<number>(0);
-  const [net, setNet] = useState<number>(0);
-  const [fair, setFair] = useState<FairInfo | null>(null);
+  const [playerRank, setPlayerRank] = useState('');
+  const [dealerRank, setDealerRank] = useState('');
+  const [dealerQualified, setDealerQualified] = useState(true);
+  const [anteBonus, setAnteBonus] = useState(0);
+  const [net, setNet] = useState(0);
+  const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
 
   const [focusBet, setFocusBet] = useState<FocusBet>('deal');
@@ -147,54 +98,40 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const foldRef = useRef<HTMLButtonElement>(null);
   const againRef = useRef<HTMLButtonElement>(null);
   const fairRef = useRef<HTMLButtonElement>(null);
-  const chipsRefs = ANTES.map(() => useRef<HTMLButtonElement>(null));
+  const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const refs = {
-    back: backRef,
-    deal: dealRef,
-    fold: foldRef,
-    again: againRef,
-    fair: fairRef,
-    chips: chipsRefs,
-  };
 
-  // Focus management
+  const affordable = useCallback((cost: number) => (balance ?? 0) >= cost, [balance]);
+
   useEffect(() => {
     if (phase === 'bet') {
-      if (focusBet === 'back') refs.back.current?.focus();
-      else if (focusBet === 'deal') refs.deal.current?.focus();
-      else if (focusBet.startsWith('chip-')) {
-        const i = Number(focusBet.split('-')[1]);
-        refs.chips[i]?.current?.focus();
-      }
+      if (focusBet === 'back') backRef.current?.focus();
+      else if (focusBet === 'deal') dealRef.current?.focus();
+      else chipRefs.current[Number(focusBet.split('-')[1])]?.focus();
     } else if (phase === 'decision') {
-      if (focusDecision === 'back') refs.back.current?.focus();
-      else if (focusDecision === 'fold') refs.fold.current?.focus();
-      else if (focusDecision === 'fair') refs.fair.current?.focus();
-      else if (focusDecision.startsWith('opt-')) {
-        const i = Number(focusDecision.split('-')[1]);
-        optionRefs.current[i]?.focus();
-      }
+      if (focusDecision === 'back') backRef.current?.focus();
+      else if (focusDecision === 'fold') foldRef.current?.focus();
+      else if (focusDecision === 'fair') fairRef.current?.focus();
+      else optionRefs.current[Number(focusDecision.split('-')[1])]?.focus();
     } else if (phase === 'settled') {
-      if (focusSettle === 'back') refs.back.current?.focus();
-      else if (focusSettle === 'again') refs.again.current?.focus();
-      else if (focusSettle === 'fair') refs.fair.current?.focus();
+      if (focusSettle === 'back') backRef.current?.focus();
+      else if (focusSettle === 'again') againRef.current?.focus();
+      else if (focusSettle === 'fair') fairRef.current?.focus();
     }
   }, [phase, focusBet, focusDecision, focusSettle]);
 
-  const handleErrorAck = (err: string, respBalance?: number) => {
+  const handleErrorAck = (err: string) => {
     if (err === 'game_disabled') setError(t('games.casinoHoldem.error.gameDisabled'));
     else if (err === 'invalid_bet') setError(t('games.casinoHoldem.error.invalidBet'));
     else if (err === 'insufficient_balance') setError(t('games.casinoHoldem.error.insufficientBalance'));
     else if (err === 'round_in_progress') setError(t('games.casinoHoldem.error.roundInProgress'));
     else if (err === 'no_active_round') setError(t('games.casinoHoldem.error.noActiveRound'));
     else setError(t('games.casinoHoldem.error.generic'));
-    setTimeout(() => setError(null), 3500);
+    life.timeout(() => setError(null), 3500);
   };
 
   const deal = useCallback(async () => {
-    if (inFlight.current) return;
-    if (busy) return;
+    if (inFlight.current || busy) return;
     if (!user) { setError(t('games.casinoHoldem.error.signIn')); return; }
     if (balance === null) { setError(t('games.casinoHoldem.error.loadingChips')); return; }
     if (balance < ante) { setError(t('games.casinoHoldem.error.insufficientBalance')); return; }
@@ -211,7 +148,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         setDealerHole([]);
         setDealerRevealed(false);
         const cc = resp.callCost ?? ante * 2;
-        setCallCost(cc);
         const opts: RaiseOption[] = Array.isArray(resp.raiseOptions) && resp.raiseOptions.length
           ? resp.raiseOptions
           : [{ multiplier: 2, cost: cc }];
@@ -219,14 +155,16 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setSettleStatus(null);
         setFair(null);
-        setNet(0); setPayout(0); setAnteBonus(0);
+        setNet(0); setAnteBonus(0);
         setPlayerRank(''); setDealerRank(''); setDealerQualified(true);
         setPhase('decision');
-        const bal = balance ?? 0;
-        const firstAffordable = opts.findIndex((o) => o.cost <= bal);
+        // The ante is already committed, so affordability is measured against
+        // the balance the server just left us with.
+        const remaining = Math.max(0, (balance ?? 0) - ante);
+        const firstAffordable = opts.findIndex((o) => o.cost <= remaining);
         setFocusDecision(firstAffordable >= 0 ? (`opt-${firstAffordable}` as FocusDecision) : 'fold');
       } else {
-        handleErrorAck(resp?.error ?? 'error', resp?.balance);
+        handleErrorAck(resp?.error ?? 'error');
       }
     } catch {
       setError(t('games.casinoHoldem.error.dealFailed'));
@@ -234,18 +172,18 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setBusy(false);
       inFlight.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, user, balance, ante]);
 
-  const finishSettle = useCallback((resp: any, folded: boolean) => {
+  const finishSettle = useCallback((resp: HoldemAck, folded: boolean) => {
     setPlayerHole(resp.playerHole ?? []);
     setDealerHole(resp.dealerHole ?? []);
     setCommunity(resp.community ?? []);
-    setSettleStatus(resp.status);
+    setSettleStatus(resp.status ?? null);
     setPlayerRank(resp.playerRank ?? '');
     setDealerRank(resp.dealerRank ?? '');
     setDealerQualified(resp.dealerQualified !== false);
     setAnteBonus(typeof resp.anteBonus === 'number' ? resp.anteBonus : 0);
-    setPayout(typeof resp.payout === 'number' ? resp.payout : 0);
     setNet(typeof resp.net === 'number' ? resp.net : 0);
     if (resp.fair) setFair(resp.fair);
 
@@ -254,52 +192,51 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setDealerRevealed(true);
       setPhase('settled');
       setFocusSettle('again');
-    } else {
-      setPhase('reveal');
-      setTimeout(() => setRevealedCommunity((n) => Math.max(n, 4)), 350);
-      setTimeout(() => setRevealedCommunity((n) => Math.max(n, 5)), 700);
-      setTimeout(() => setDealerRevealed(true), 1100);
-      setTimeout(() => {
-        setPhase('settled');
-        setFocusSettle('again');
-      }, 1500);
+      return;
     }
-  }, []);
+    // Tracked timers: Back or unmount cancels the whole reveal.
+    const scale = reducedFx ? 0.5 : 1;
+    setPhase('reveal');
+    life.timeout(() => setRevealedCommunity((n) => Math.max(n, 4)), 350 * scale);
+    life.timeout(() => setRevealedCommunity((n) => Math.max(n, 5)), 700 * scale);
+    life.timeout(() => setDealerRevealed(true), 1100 * scale);
+    life.timeout(() => { setPhase('settled'); setFocusSettle('again'); }, 1500 * scale);
+  }, [life, reducedFx]);
 
   const doCall = useCallback(async (multiplier: number) => {
-    if (inFlight.current) return;
-    if (busy) return;
+    if (inFlight.current || busy) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const resp = await gameSocket.callCasinoHoldem(multiplier);
       if (resp?.ok) finishSettle(resp, false);
-      else handleErrorAck(resp?.error ?? 'error', resp?.balance);
+      else handleErrorAck(resp?.error ?? 'error');
     } catch {
       setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, finishSettle]);
 
   const doFold = useCallback(async () => {
-    if (inFlight.current) return;
-    if (busy) return;
+    if (inFlight.current || busy) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const resp = await gameSocket.foldCasinoHoldem();
       if (resp?.ok) finishSettle(resp, true);
-      else handleErrorAck(resp?.error ?? 'error', resp?.balance);
+      else handleErrorAck(resp?.error ?? 'error');
     } catch {
       setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
       setBusy(false);
       inFlight.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, finishSettle]);
 
   const playAgain = () => {
@@ -310,36 +247,30 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     setRevealedCommunity(0);
     setDealerRevealed(false);
     setSettleStatus(null);
-    setNet(0); setPayout(0); setAnteBonus(0);
+    setNet(0); setAnteBonus(0);
     setPlayerRank(''); setDealerRank('');
     setFair(null);
     setShowFair(false);
     setFocusBet('deal');
   };
 
-  // D-pad
+  // D-pad focus movement only. Affordable raise options stay reachable.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
-        e.preventDefault();
-        return;
-      }
       if (phase === 'bet') {
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
         if (e.key === 'ArrowLeft') {
-          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}` as FocusBet); }
-          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${ANTES.length - 1}` as FocusBet); }
+          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}`); }
+          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${ANTES.length - 1}`); }
         } else if (e.key === 'ArrowRight') {
-          if (chipIdx >= 0 && chipIdx < ANTES.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}` as FocusBet); }
+          if (chipIdx >= 0 && chipIdx < ANTES.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}`); }
           else if (chipIdx === ANTES.length - 1) { e.preventDefault(); setFocusBet('deal'); }
         } else if (e.key === 'ArrowUp') {
-          if (chipIdx >= 0 || focusBet === 'deal') { e.preventDefault(); setFocusBet('back'); }
-        } else if (e.key === 'ArrowDown') {
-          if (focusBet === 'back') { e.preventDefault(); setFocusBet('chip-0' as FocusBet); }
+          if (focusBet !== 'back') { e.preventDefault(); setFocusBet('back'); }
+        } else if (e.key === 'ArrowDown' && focusBet === 'back') {
+          e.preventDefault(); setFocusBet('chip-0');
         }
       } else if (phase === 'decision') {
-        // Build dynamic order: each affordable option, then fold, then fair. Fold always present.
-        const bal = balance ?? 0;
         const order: FocusDecision[] = [
           ...raiseOptions.map((_, i) => `opt-${i}` as FocusDecision),
           'fold',
@@ -351,7 +282,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusDecision('back'); }
         else if (e.key === 'ArrowDown' && focusDecision === 'back') {
           e.preventDefault();
-          const firstAff = raiseOptions.findIndex((o) => o.cost <= bal);
+          const firstAff = raiseOptions.findIndex((o) => affordable(o.cost));
           setFocusDecision(firstAff >= 0 ? (`opt-${firstAff}` as FocusDecision) : 'fold');
         }
       } else if (phase === 'settled') {
@@ -365,14 +296,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [phase, focusBet, focusDecision, focusSettle, onBack]);
+  }, [phase, focusBet, focusDecision, focusSettle, raiseOptions, affordable]);
 
-  const focusRing = (active: boolean) =>
-    active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
-
-  const settleBanner = (() => {
+  const banner = (() => {
     if (phase !== 'settled' || !settleStatus) return null;
-    // Tone driven by signed net (so dealer_no_qualify wins render green).
     const tone: 'win' | 'lose' | 'push' = net > 0 ? 'win' : net < 0 ? 'lose' : 'push';
     const text =
       settleStatus === 'win' ? t('games.casinoHoldem.banner.youWin') :
@@ -381,310 +308,211 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       settleStatus === 'dealer_no_qualify' ? t('games.casinoHoldem.banner.dealerNoQualify') :
       settleStatus === 'folded' ? t('games.casinoHoldem.banner.folded') :
       settleStatus.toUpperCase();
-    const toneClasses =
-      tone === 'win' ? 'from-emerald-500/30 to-emerald-700/30 border-emerald-300/60 text-emerald-100' :
-      tone === 'lose' ? 'from-rose-600/25 to-rose-900/25 border-rose-400/50 text-rose-100' :
-      'from-slate-700/40 to-slate-900/40 border-slate-400/40 text-slate-100';
     return (
-      <div className={`mt-6 p-5 rounded-xl border bg-gradient-to-br ${toneClasses} text-center`}>
-        <div className="text-3xl font-black tracking-wider">{text}</div>
-        {(playerRank || dealerRank) && (
-          <div className="mt-2 text-sm text-slate-100/90">
-            {playerRank && <span>{t('games.casinoHoldem.result.youLabel')} <b>{labelRank(playerRank)}</b></span>}
-            {playerRank && dealerRank && <span className="mx-3 opacity-60">{t('games.casinoHoldem.result.versus')}</span>}
-            {dealerRank && <span>{t('games.casinoHoldem.result.dealerLabel')} <b>{labelRank(dealerRank)}</b></span>}
-          </div>
-        )}
-        {anteBonus > 0 && (
-          <div className="mt-1 text-sm font-bold text-amber-200">{t('games.casinoHoldem.result.anteBonus', { amount: anteBonus.toLocaleString() })}</div>
-        )}
-        <div className="mt-1 text-lg font-bold">
-          {net > 0 ? (
-            <span className="text-emerald-300">{t('games.casinoHoldem.result.netWin', { amount: net.toLocaleString() })}</span>
-          ) : net < 0 ? (
-            <span className="text-rose-300">{t('games.casinoHoldem.result.netLose', { amount: net.toLocaleString() })}</span>
-          ) : (
-            <span className="text-slate-200">{t('games.casinoHoldem.result.netZero')}</span>
-          )}
+      <ResultBanner tone={tone} title={text}>
+        {anteBonus > 0 && <div>{t('games.casinoHoldem.result.anteBonus', { amount: anteBonus.toLocaleString() })}</div>}
+        <div>
+          {net > 0 ? t('games.casinoHoldem.result.netWin', { amount: net.toLocaleString() })
+            : net < 0 ? t('games.casinoHoldem.result.netLose', { amount: net.toLocaleString() })
+            : t('games.casinoHoldem.result.netZero')}
         </div>
-        <div className="text-xs text-slate-300 mt-1">{t('games.casinoHoldem.result.balance', { balance: balance?.toLocaleString() ?? '—' })}</div>
-      </div>
+      </ResultBanner>
     );
   })();
 
-  const renderFair = () => (
-    <div className="mt-6">
-      <Button
-        ref={refs.fair}
-        size="sm"
-        onClick={() => setShowFair((v) => !v)}
-        onFocus={() => {
-          if (phase === 'decision') setFocusDecision('fair');
-          else if (phase === 'settled') setFocusSettle('fair');
-        }}
-        className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing(
-          (phase === 'decision' && focusDecision === 'fair') ||
-          (phase === 'settled' && focusSettle === 'fair')
-        )}`}
-      >
-        {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-        {t('games.casinoHoldem.fair.toggle')}
-      </Button>
-      {showFair && (
-        <div className="mt-3 p-4 rounded-lg bg-slate-900/70 border border-slate-700 text-xs text-slate-200 font-mono break-all space-y-1">
-          {serverSeedHash && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeedHash')}</span> {serverSeedHash}</div>}
-          {fair?.serverSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.serverSeed')}</span> {fair.serverSeed}</div>}
-          {fair?.clientSeed && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.clientSeed')}</span> {fair.clientSeed}</div>}
-          {fair && typeof fair.nonce === 'number' && <div><span className="text-slate-400">{t('games.casinoHoldem.fair.nonce')}</span> {fair.nonce}</div>}
-          <div className="text-slate-400 pt-1">{t('games.casinoHoldem.fair.verifyHint')}</div>
-        </div>
-      )}
-    </div>
-  );
+  const backFocused =
+    (phase === 'bet' && focusBet === 'back') ||
+    (phase === 'decision' && focusDecision === 'back') ||
+    (phase === 'settled' && focusSettle === 'back');
 
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
-      <style>{`
-        @keyframes ch-deal-in {
-          0% { opacity: 0; transform: translateY(-40px) rotate(-12deg) scale(0.8); }
-          100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
-        }
-      `}</style>
+    <GameShell accent="teal">
+      <GameTopBar
+        ref={backRef}
+        onBack={onBack}
+        backLabel={t('games.casinoHoldem.back')}
+        balance={balance}
+        status={status}
+        title={t('games.casinoHoldem.title')}
+        phase={t('games.casinoHoldem.subheading')}
+        backFocused={backFocused}
+        onBackFocus={() => {
+          if (phase === 'bet') setFocusBet('back');
+          else if (phase === 'decision') setFocusDecision('back');
+          else setFocusSettle('back');
+        }}
+        reducedFx={reducedFx}
+        onToggleFx={toggleReducedFx}
+      />
 
-      <div className="tv-game-body px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Button
-            ref={refs.back}
-            onClick={onBack}
-            onFocus={() => {
-              if (phase === 'bet') setFocusBet('back');
-              else if (phase === 'decision') setFocusDecision('back');
-              else setFocusSettle('back');
-            }}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing(
-              (phase === 'bet' && focusBet === 'back') ||
-              (phase === 'decision' && focusDecision === 'back') ||
-              (phase === 'settled' && focusSettle === 'back')
-            )}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.casinoHoldem.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.casinoHoldem.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.casinoHoldem.loadingChips')}
+      <div className="snow-ch-table">
+        <div className="snow-ch-zone">
+          <span className="snow-ch-zone__label">{t('games.casinoHoldem.label.dealer')}</span>
+          <div className="snow-ch-row">
+            {[0, 1].map((i) => (dealerHole[i]
+              ? <PlayingCard key={`d-${i}`} card={dealerHole[i]} faceDown={!dealerRevealed} delay={i * 80} compact />
+              : <PlayingCardSlot key={`d-${i}`} compact />))}
+          </div>
+          <span className="snow-ch-zone__label" style={{ textAlign: 'right' }}>
+            {phase === 'settled' && dealerRank ? labelRank(dealerRank) : ''}
+          </span>
+        </div>
+
+        <div className="snow-ch-runway">
+          <span className="snow-ch-zone__label" style={{ display: 'block', textAlign: 'center', width: 'auto' }}>
+            {t('games.casinoHoldem.label.community')}
+          </span>
+          <div className="snow-ch-row">
+            {[0, 1, 2, 3, 4].map((i) => (community[i] && i < revealedCommunity
+              ? <PlayingCard key={`c-${i}`} card={community[i]} delay={Math.max(0, i - 2) * 80} />
+              : <PlayingCardSlot key={`c-${i}`} />))}
+          </div>
+        </div>
+
+        <div className="snow-ch-zone">
+          <span className="snow-ch-zone__label">{t('games.casinoHoldem.label.you')}</span>
+          <div className="snow-ch-row">
+            {[0, 1].map((i) => (playerHole[i]
+              ? <PlayingCard key={`p-${i}`} card={playerHole[i]} delay={i * 80} compact />
+              : <PlayingCardSlot key={`p-${i}`} compact />))}
+          </div>
+          <span className="snow-ch-zone__label" style={{ textAlign: 'right' }}>
+            {phase === 'settled' && playerRank ? labelRank(playerRank) : ''}
+          </span>
+        </div>
+
+        {phase === 'settled' && (playerRank || dealerRank) && (
+          <div className="snow-ch-versus">
+            {playerRank && <span className="snow-ch-rank">{t('games.casinoHoldem.result.youLabel')} <em>{labelRank(playerRank)}</em></span>}
+            {playerRank && dealerRank && <span className="snow-ch-zone__label" style={{ width: 'auto' }}>{t('games.casinoHoldem.result.versus')}</span>}
+            {dealerRank && (
+              <span className="snow-ch-rank">
+                {t('games.casinoHoldem.result.dealerLabel')} <em>{labelRank(dealerRank)}</em>
+                {!dealerQualified && ` · ${t('games.casinoHoldem.dealerDidntQualify')}`}
               </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center tv-compact-head">
-          <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.casinoHoldem.heading')}
-          </h1>
-          <p className="text-slate-200/90 mt-1">{t('games.casinoHoldem.subheading')}</p>
-        </div>
-
-        {/* Felt Table */}
-        <div
-          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
-          style={{
-            background:
-              'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
-            border: '3px solid rgba(251,191,36,0.55)',
-            boxShadow:
-              'inset 0 0 80px rgba(0,0,0,0.55), 0 25px 60px -20px rgba(0,0,0,0.8)',
-          }}
-        >
-          {/* Dealer */}
-          <div className="flex flex-col items-center mb-2">
-            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.dealer')}</div>
-            <div className="flex gap-2">
-              {[0, 1].map((i) => {
-                const card = dealerHole[i];
-                if (!card) return <CardSlot key={`d-${i}`} />;
-                return (
-                  <PlayingCard
-                    key={`d-${i}`}
-                    card={card}
-                    faceDown={!dealerRevealed}
-                    delay={i * 80}
-                  />
-                );
-              })}
-            </div>
-            {phase === 'settled' && dealerRank && (
-              <div className="mt-2 text-sm text-slate-100/90">
-                <b>{labelRank(dealerRank)}</b>
-                {!dealerQualified && (
-                  <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-300/50 text-amber-100 text-[10px] uppercase tracking-wider font-bold">
-                    {t('games.casinoHoldem.dealerDidntQualify')}
-                  </span>
-                )}
-              </div>
             )}
           </div>
+        )}
+        {banner && <div className="snow-ch-versus">{banner}</div>}
+      </div>
 
-          {/* Community */}
-          <div className="flex flex-col items-center mb-2">
-            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.community')}</div>
-            <div className="flex gap-2">
-              {[0, 1, 2, 3, 4].map((i) => {
-                const card = community[i];
-                if (!card || i >= revealedCommunity) return <CardSlot key={`c-${i}`} />;
-                return <PlayingCard key={`c-${i}`} card={card} delay={Math.max(0, (i - 2)) * 80} />;
-              })}
-            </div>
-          </div>
-
-          {/* Player */}
-          <div className="flex flex-col items-center">
-            <div className="text-[10px] uppercase tracking-wider text-amber-100/80 mb-1 font-semibold">{t('games.casinoHoldem.label.you')}</div>
-            <div className="flex gap-2">
-              {[0, 1].map((i) => {
-                const card = playerHole[i];
-                if (!card) return <CardSlot key={`p-${i}`} />;
-                return <PlayingCard key={`p-${i}`} card={card} delay={i * 80} />;
-              })}
-            </div>
-            {phase === 'settled' && playerRank && (
-              <div className="mt-2 text-sm text-slate-100/90"><b>{labelRank(playerRank)}</b></div>
-            )}
-          </div>
-        </div>
-
-        {/* Controls */}
+      <GamePanel className="p-3">
         {phase === 'bet' && (
-          <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
-            <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              {t('games.casinoHoldem.chooseAnte')}
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
-              {ANTES.map((amt, idx) => {
-                const active = ante === amt;
-                const focused = focusBet === `chip-${idx}`;
-                return (
-                  <button
-                    key={amt}
-                    ref={refs.chips[idx]}
-                    onClick={() => { setAnte(amt); setFocusBet(`chip-${idx}` as FocusBet); }}
-                    onFocus={() => setFocusBet(`chip-${idx}` as FocusBet)}
-                    className={`w-16 h-16 rounded-full border-2 font-extrabold text-white text-sm transition-all duration-200
-                      ${active
-                        ? 'bg-gradient-to-br from-amber-400 to-amber-600 border-amber-200'
-                        : 'bg-gradient-to-br from-emerald-600 to-emerald-800 border-emerald-300/60'}
-                      ${focusRing(focused)}`}
-                  >
-                    {amt}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-center">
-              <Button
-                ref={refs.deal}
-                onClick={deal}
-                onFocus={() => setFocusBet('deal')}
-                disabled={busy || !user || balance === null || balance < ante}
-                variant="gold"
-                size="lg"
-                className={`transition-all ${focusRing(focusBet === 'deal')}`}
+          <div className="snow-bet-row">
+            {ANTES.map((amt, idx) => (
+              <BetChip
+                key={amt}
+                ref={(el) => { chipRefs.current[idx] = el; }}
+                selected={ante === amt}
+                focused={focusBet === `chip-${idx}`}
+                onFocus={() => setFocusBet(`chip-${idx}`)}
+                onClick={() => { if (affordable(amt)) setAnte(amt); }}
+                aria-disabled={affordable(amt) ? undefined : 'true'}
               >
-                {balance === null ? t('games.casinoHoldem.loadingChips') : t('games.casinoHoldem.dealButton', { ante })}
-              </Button>
-            </div>
+                {amt}
+              </BetChip>
+            ))}
+            <Button
+              ref={dealRef}
+              type="button"
+              onFocus={() => setFocusBet('deal')}
+              onClick={() => { if (!(busy || !user || balance === null || balance < ante)) deal(); }}
+              aria-disabled={busy || !user || balance === null || balance < ante ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={focusBet === 'deal' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} ml-3 px-8`}
+            >
+              {balance === null
+                ? t('games.casinoHoldem.loadingChips')
+                : busy
+                  ? <><Loader2 className="animate-spin" /> {t('games.casinoHoldem.dealButton', { ante })}</>
+                  : t('games.casinoHoldem.dealButton', { ante })}
+            </Button>
           </div>
         )}
 
         {phase === 'decision' && (
-          <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
-            <div className="text-center text-sm uppercase tracking-wider text-emerald-200/90 mb-3 font-semibold">
-              {t('games.casinoHoldem.chooseMove')}
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {raiseOptions.map((opt, i) => {
-                const canAfford = (balance ?? 0) >= opt.cost;
-                const focused = focusDecision === `opt-${i}`;
-                const isCall = opt.multiplier === 2;
-                const label = isCall ? t('games.casinoHoldem.callOption', { multiplier: opt.multiplier, cost: opt.cost }) : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost });
-                return (
-                  <Button
-                    key={i}
-                    ref={(el) => (optionRefs.current[i] = el)}
-                    onClick={() => doCall(opt.multiplier)}
-                    onFocus={() => setFocusDecision(`opt-${i}` as FocusDecision)}
-                    disabled={busy || !canAfford}
-                    size="lg"
-                    className={`text-base font-black px-6 py-5 border-2 transition-all
-                      ${isCall
-                        ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-amber-200'
-                        : 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white border-emerald-300'}
-                      ${(!canAfford || busy) ? 'opacity-50' : ''}
-                      ${focusRing(focused)}`}
-                  >
-                    {label}
-                  </Button>
-                );
-              })}
-              <Button
-                ref={refs.fold}
-                onClick={doFold}
-                onFocus={() => setFocusDecision('fold')}
-                disabled={busy}
-                size="lg"
-                className={`text-base font-black px-6 py-5 bg-rose-700 hover:bg-rose-600 text-white border-2 border-rose-300/70 transition-all ${focusRing(focusDecision === 'fold')}`}
-              >
-                {t('games.casinoHoldem.fold')}
-              </Button>
-            </div>
-            {renderFair()}
+          <div className="snow-game-actions">
+            {raiseOptions.map((opt, i) => {
+              const canAfford = affordable(opt.cost);
+              const isCall = opt.multiplier === 2;
+              return (
+                <Button
+                  key={`${opt.multiplier}-${opt.cost}`}
+                  ref={(el) => { optionRefs.current[i] = el; }}
+                  type="button"
+                  variant={isCall ? 'default' : 'navy'}
+                  onFocus={() => setFocusDecision(`opt-${i}`)}
+                  onClick={() => { if (canAfford && !busy) doCall(opt.multiplier); }}
+                  aria-disabled={!canAfford || busy ? 'true' : undefined}
+                  data-busy={busy ? 'true' : undefined}
+                  data-tv-focused={focusDecision === `opt-${i}` ? 'true' : 'false'}
+                  className={`${GAME_ACTION_CLASS} px-6`}
+                >
+                  {isCall
+                    ? t('games.casinoHoldem.callOption', { multiplier: opt.multiplier, cost: opt.cost })
+                    : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost })}
+                </Button>
+              );
+            })}
+            <Button
+              ref={foldRef}
+              type="button"
+              variant="destructive"
+              onFocus={() => setFocusDecision('fold')}
+              onClick={() => { if (!busy) doFold(); }}
+              aria-disabled={busy ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={focusDecision === 'fold' ? 'true' : 'false'}
+              className="snow-game-action tv-ring min-h-12 border-2 px-6 font-black"
+            >
+              {t('games.casinoHoldem.fold')}
+            </Button>
           </div>
         )}
 
-        {phase === 'reveal' && (
-          <div className="text-center text-sm text-slate-300">{t('games.casinoHoldem.revealing')}</div>
-        )}
+        {phase === 'reveal' && <p className="snow-game-note">{t('games.casinoHoldem.revealing')}</p>}
 
         {phase === 'settled' && (
-          <div className="rounded-xl border border-emerald-400/20 bg-slate-900/70 p-5">
-            {settleBanner}
-            <div className="flex justify-center mt-5">
-              <Button
-                ref={refs.again}
-                onClick={playAgain}
-                onFocus={() => setFocusSettle('again')}
-                variant="gold"
-                size="lg"
-                className={`transition-all ${focusRing(focusSettle === 'again')}`}
-              >
-                {t('games.casinoHoldem.newHand')}
-              </Button>
-            </div>
-            {renderFair()}
+          <div className="snow-game-actions">
+            <Button
+              ref={againRef}
+              type="button"
+              onFocus={() => setFocusSettle('again')}
+              onClick={playAgain}
+              data-tv-focused={focusSettle === 'again' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} px-10`}
+            >
+              {t('games.casinoHoldem.newHand')}
+            </Button>
           </div>
         )}
 
-        {error && (
-          <div className="mt-4 p-3 rounded-lg border border-rose-400/50 bg-rose-900/40 text-rose-100 text-center text-sm">
-            {error}
-          </div>
-        )}
-      </div>
-    </div>
+        {error && <p className="snow-game-error">{error}</p>}
+        {phase === 'bet' && !error && <p className="snow-game-note">{t('games.casinoHoldem.chooseAnte')}</p>}
+      </GamePanel>
+
+      <FairnessPanel
+        ref={fairRef}
+        fair={fair}
+        hash={serverSeedHash}
+        open={showFair}
+        onToggle={() => setShowFair((v) => !v)}
+        focused={(phase === 'decision' && focusDecision === 'fair') || (phase === 'settled' && focusSettle === 'fair')}
+        onFocus={() => {
+          if (phase === 'decision') setFocusDecision('fair');
+          else if (phase === 'settled') setFocusSettle('fair');
+        }}
+        labels={{
+          title: t('games.casinoHoldem.fair.toggle'),
+          hash: t('games.casinoHoldem.fair.serverSeedHash'),
+          server: t('games.casinoHoldem.fair.serverSeed'),
+          client: t('games.casinoHoldem.fair.clientSeed'),
+          nonce: t('games.casinoHoldem.fair.nonce'),
+          note: t('games.casinoHoldem.fair.verifyHint'),
+        }}
+      />
+    </GameShell>
   );
 };
 
