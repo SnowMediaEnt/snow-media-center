@@ -12,6 +12,7 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
 import type { GameFairInfo } from './shared/gameTypes';
 
 interface DailySpinProps {
@@ -49,6 +50,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const fxRef = useRef<HTMLButtonElement>(null);
   const fairRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
+  /** Bumped per claim: an ack from an older claim can never rotate a new wheel. */
+  const claimEpoch = useRef(0);
   const rotRef = useRef(0);
 
   const [spinning, setSpinning] = useState(false);
@@ -156,6 +159,10 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
 
   useEffect(() => {
     let cancelled = false;
+    // A changed (or signed-out) user must never inherit the previous account's
+    // cooldown, result or loading state.
+    setNextClaimAt(null);
+    setLoadingCooldown(!!user);
     async function loadCooldown() {
       if (!user) { setLoadingCooldown(false); return; }
       try {
@@ -207,19 +214,24 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   // D-pad graph: Back <-> FX on the top row, Spin, then Fairness below.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const k = e.key;
+      if (isGlobalModalOpen()) return;
+      const dir = arrowDir(e);
+      if (!dir) return;
+      // Consume every arrow so native spatial focus cannot diverge from the
+      // single data-tv-focused marker, even at a graph boundary.
+      e.preventDefault();
       const down = () => (spinReachable ? 'spin' : fair ? 'fair' : null);
       if (zone === 'back') {
-        if (k === 'ArrowRight') { e.preventDefault(); setZone('fx'); }
-        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+        if (dir === 'right') setZone('fx');
+        else if (dir === 'down') { const n = down(); if (n) setZone(n); }
       } else if (zone === 'fx') {
-        if (k === 'ArrowLeft') { e.preventDefault(); setZone('back'); }
-        else if (k === 'ArrowDown') { const n = down(); if (n) { e.preventDefault(); setZone(n); } }
+        if (dir === 'left') setZone('back');
+        else if (dir === 'down') { const n = down(); if (n) setZone(n); }
       } else if (zone === 'spin') {
-        if (k === 'ArrowUp') { e.preventDefault(); setZone('back'); }
-        else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
-      } else if (zone === 'fair' && k === 'ArrowUp') {
-        e.preventDefault(); setZone(spinReachable ? 'spin' : 'back');
+        if (dir === 'up') setZone('back');
+        else if (dir === 'down' && fair) setZone('fair');
+      } else if (zone === 'fair' && dir === 'up') {
+        setZone(spinReachable ? 'spin' : 'back');
       }
     };
     window.addEventListener('keydown', handler);
@@ -241,6 +253,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const handleSpin = useCallback(async () => {
     if (inFlight.current || spinning || nextClaimAt) return;
     inFlight.current = true;
+    const epoch = ++claimEpoch.current;
     setErrorMsg(null);
     setLastWin(null);
     setFair(null);
@@ -267,7 +280,19 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.claimDailySpin(clientSeed);
 
-      if (resp?.ok && typeof resp.index === 'number') {
+      // An ack that lands after unmount, or after a newer claim, must not
+      // rotate the wheel, set state or schedule timers.
+      if (!life.isMounted() || epoch !== claimEpoch.current) { stopIdle(); settle(); return; }
+
+      // The landing segment and prize are only trusted when they are finite and
+      // inside the real wheel, otherwise the rotation maths would produce NaN.
+      const validIndex = typeof resp?.index === 'number'
+        && Number.isInteger(resp.index)
+        && resp.index >= 0
+        && resp.index < PRIZES.length;
+      const validPrize = typeof resp?.prize === 'number' && Number.isFinite(resp.prize);
+
+      if (resp?.ok && validIndex && validPrize) {
         const segDeg = 360 / PRIZES.length;
         const liveRot = rotRef.current;
         const currentMod = ((liveRot % 360) + 360) % 360;

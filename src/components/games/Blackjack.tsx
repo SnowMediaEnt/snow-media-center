@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -11,6 +11,8 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
+import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface BlackjackProps {
@@ -20,9 +22,7 @@ interface BlackjackProps {
 const BETS = [10, 25, 50, 100];
 
 type Phase = 'bet' | 'playing' | 'settled';
-type FocusBet = `chip-${number}` | 'deal' | 'back' | 'fx';
-type FocusAction = 'hit' | 'stand' | 'double' | 'back' | 'fx';
-type FocusSettle = 'again' | 'back' | 'fair' | 'fx';
+type FocusId = 'back' | 'fx' | 'deal' | 'hit' | 'stand' | 'double' | 'again' | 'fair' | `chip-${number}`;
 
 const computeBjTotal = (cards: GameCardValue[]): number => {
   let total = 0;
@@ -105,9 +105,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [showFair, setShowFair] = useState(false);
   const [revealedDealer, setRevealedDealer] = useState(0);
 
-  const [focusBet, setFocusBet] = useState<FocusBet>('deal');
-  const [focusAction, setFocusAction] = useState<FocusAction>('hit');
-  const [focusSettle, setFocusSettle] = useState<FocusSettle>('again');
+  const [focus, setFocus] = useState<FocusId>('deal');
 
   const backRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
@@ -118,29 +116,61 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const againRef = useRef<HTMLButtonElement>(null);
   const fairRef = useRef<HTMLButtonElement>(null);
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  /** Bumped per hand: an ack from an older hand can never mutate a newer one. */
+  const roundEpoch = useRef(0);
+
+  const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+
+  /**
+   * The focus graph holds ONLY targets the player can use right now: Back and
+   * Reduced FX are always reachable, chips only while affordable, actions only
+   * while the server says they are legal, Play Again only once the dealer
+   * reveal has finished, Fairness only when there is something to show.
+   * Capability (not the in-flight flag) decides membership, so the focused
+   * transaction button is retained while its ack is pending instead of the
+   * remote jumping away mid-hand.
+   */
+  const focusRows = useMemo<FocusRows>(() => {
+    const top = ['back', 'fx'];
+    if (phase === 'bet') {
+      const chips = BETS
+        .map((amount, i) => ((balance ?? 0) >= amount ? `chip-${i}` : null))
+        .filter((id): id is string => id !== null);
+      const dealUsable = !!user && (balance ?? 0) >= bet;
+      return [top, [...chips, ...(dealUsable ? ['deal'] : [])]];
+    }
+    if (phase === 'playing') {
+      return [top, [
+        ...(canHit ? ['hit'] : []),
+        ...(canStand ? ['stand'] : []),
+        ...(canDouble ? ['double'] : []),
+      ]];
+    }
+    return [
+      top,
+      revealComplete ? ['again'] : [],
+      fair || serverSeedHash ? ['fair'] : [],
+    ];
+  }, [phase, balance, bet, user, canHit, canStand, canDouble, revealComplete, fair, serverSeedHash]);
+
+  // A phase or capability change must always leave managed focus on something
+  // usable rather than stranding the remote on a disabled control.
+  useEffect(() => {
+    setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
+  }, [focusRows]);
 
   useEffect(() => {
-    if (phase === 'bet') {
-      if (focusBet === 'back') backRef.current?.focus();
-      else if (focusBet === 'fx') fxRef.current?.focus();
-      else if (focusBet === 'deal') dealRef.current?.focus();
-      else chipRefs.current[Number(focusBet.split('-')[1])]?.focus();
-    } else if (phase === 'playing') {
-      if (focusAction === 'back') backRef.current?.focus();
-      else if (focusAction === 'fx') fxRef.current?.focus();
-      else if (focusAction === 'hit') hitRef.current?.focus();
-      else if (focusAction === 'stand') standRef.current?.focus();
-      else if (focusAction === 'double') doubleRef.current?.focus();
-    } else {
-      if (focusSettle === 'back') backRef.current?.focus();
-      else if (focusSettle === 'fx') fxRef.current?.focus();
-      else if (focusSettle === 'again') againRef.current?.focus();
-      else if (focusSettle === 'fair') fairRef.current?.focus();
-    }
-  }, [phase, focusBet, focusAction, focusSettle]);
-
-  /** A hand that is still playing, or an ack in flight, may not be abandoned. */
-  const primaryAction: FocusAction = canHit ? 'hit' : canStand ? 'stand' : 'hit';
+    const target = focus === 'back' ? backRef.current
+      : focus === 'fx' ? fxRef.current
+        : focus === 'deal' ? dealRef.current
+          : focus === 'hit' ? hitRef.current
+            : focus === 'stand' ? standRef.current
+              : focus === 'double' ? doubleRef.current
+                : focus === 'again' ? againRef.current
+                  : focus === 'fair' ? fairRef.current
+                    : chipRefs.current[Number(focus.split('-')[1])];
+    if (target && document.activeElement !== target) target.focus({ preventScroll: true });
+  }, [focus, phase]);
 
   const applyAck = useCallback((resp: BlackjackAck) => {
     if (typeof resp?.bet === 'number') setBet(resp.bet);
@@ -158,7 +188,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setSettleStatus(null);
       setNet(0);
       setFair(null);
-      setFocusAction(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
+      setFocus(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
     } else if (resp?.status) {
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
@@ -172,9 +202,31 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanStand(false);
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
-      setFocusSettle('again');
+      setFocus('again');
       setRevealedDealer(Math.min(1, dHand.length));
     }
+  }, []);
+
+  /**
+   * A CONFIRMED terminal answer (the server says this round no longer exists,
+   * or the table was switched off) must never leave the local phase in
+   * `playing`, because the Back guard would then block the player forever. Drop
+   * back to a safe betting state with a clear note. A transport timeout is NOT
+   * terminal — the hand may still be live — so it is left untouched.
+   */
+  const reconcileTerminalRound = useCallback(() => {
+    setPhase('bet');
+    setPlayerHand([]);
+    setDealerHand([]);
+    setDealerUp([]);
+    setSettleStatus(null);
+    setNet(0);
+    setCanHit(false);
+    setCanStand(false);
+    setCanDouble(false);
+    setShowFair(false);
+    setRevealedDealer(0);
+    setFocus('deal');
   }, []);
 
   const handleErrorAck = (err: string) => {
@@ -185,6 +237,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     else if (err === 'no_active_round') setError(t('games.blackjack.errorNoActiveRound'));
     else if (err === 'cannot_double') setError(t('games.blackjack.errorCannotDouble'));
     else setError(t('games.blackjack.errorGeneric'));
+    if (isTerminalRoundError(err)) reconcileTerminalRound();
     life.timeout(() => setError(null), 3500);
   };
 
@@ -194,25 +247,30 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     if (balance === null) { setError(t('games.blackjack.errorLoadingChips')); return; }
     if (balance < bet) { setError(t('games.blackjack.errorInsufficientBalance')); return; }
     inFlight.current = true;
+    const epoch = ++roundEpoch.current;
     setError(null);
     setBusy(true);
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.dealBlackjack(bet, seed);
+      // An ack that lands after unmount, or after a newer hand started, must
+      // not touch state or schedule timers.
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError(t('games.blackjack.errorDealFailed'));
+      if (life.isMounted() && epoch === roundEpoch.current) setError(t('games.blackjack.errorDealFailed'));
     } finally {
-      setBusy(false);
+      if (life.isMounted() && epoch === roundEpoch.current) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, bet, applyAck]);
+  }, [busy, user, balance, bet, applyAck, life]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
     if (inFlight.current || busy) return;
     inFlight.current = true;
+    const epoch = roundEpoch.current;
     setBusy(true);
     setError(null);
     try {
@@ -220,16 +278,17 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         which === 'hit' ? await gameSocket.hit() :
         which === 'stand' ? await gameSocket.stand() :
         await gameSocket.double();
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok) applyAck(resp);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError(t('games.blackjack.errorTableUnreachable'));
+      if (life.isMounted() && epoch === roundEpoch.current) setError(t('games.blackjack.errorTableUnreachable'));
     } finally {
-      setBusy(false);
+      if (life.isMounted() && epoch === roundEpoch.current) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, applyAck]);
+  }, [busy, applyAck, life]);
 
   const playAgain = () => {
     setPhase('bet');
@@ -241,7 +300,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setFair(null);
     setShowFair(false);
     setRevealedDealer(0);
-    setFocusBet('deal');
+    setFocus('deal');
   };
 
   // Staggered dealer reveal — purely visual, cancelled on unmount/Back.
@@ -253,51 +312,24 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     return () => life.clearTimer(id);
   }, [phase, revealedDealer, dealerHand.length, reducedFx, life]);
 
-  // D-pad focus movement only. The top row is always Back → Reduced FX.
+  /**
+   * D-pad focus movement only. Every arrow is consumed while the table is on
+   * screen — even at a graph boundary — so the native TV WebView cannot run its
+   * own spatial navigation and drift off the single data-tv-focused marker.
+   * While a global modal is open the game yields the arrows untouched.
+   */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const topRow = (current: 'back' | 'fx' | string, set: (v: never) => void): boolean => {
-        if (current === 'back' && e.key === 'ArrowRight') { e.preventDefault(); set('fx' as never); return true; }
-        if (current === 'fx' && e.key === 'ArrowLeft') { e.preventDefault(); set('back' as never); return true; }
-        return false;
-      };
-      if (phase === 'bet') {
-        if (topRow(focusBet, setFocusBet as (v: never) => void)) return;
-        const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
-        if (e.key === 'ArrowLeft') {
-          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}`); }
-          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${BETS.length - 1}`); }
-        } else if (e.key === 'ArrowRight') {
-          if (chipIdx >= 0 && chipIdx < BETS.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}`); }
-          else if (chipIdx === BETS.length - 1) { e.preventDefault(); setFocusBet('deal'); }
-        } else if (e.key === 'ArrowUp') {
-          if (focusBet !== 'back' && focusBet !== 'fx') { e.preventDefault(); setFocusBet('back'); }
-        } else if (e.key === 'ArrowDown') {
-          if (focusBet === 'back' || focusBet === 'fx') { e.preventDefault(); setFocusBet('chip-0'); }
-        }
-      } else if (phase === 'playing') {
-        if (topRow(focusAction, setFocusAction as (v: never) => void)) return;
-        const order: FocusAction[] = ['hit', 'stand', ...(canDouble ? (['double'] as FocusAction[]) : [])];
-        const idx = order.indexOf(focusAction);
-        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusAction(order[idx - 1]); }
-        else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusAction(order[idx + 1]); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusAction('back'); }
-        else if (e.key === 'ArrowDown' && (focusAction === 'back' || focusAction === 'fx')) { e.preventDefault(); setFocusAction(primaryAction); }
-      } else {
-        if (topRow(focusSettle, setFocusSettle as (v: never) => void)) return;
-        const order: FocusSettle[] = ['again', 'fair'];
-        const idx = order.indexOf(focusSettle);
-        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusSettle(order[idx - 1]); }
-        else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusSettle(order[idx + 1]); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusSettle('back'); }
-        else if (e.key === 'ArrowDown' && (focusSettle === 'back' || focusSettle === 'fx')) { e.preventDefault(); setFocusSettle('again'); }
-      }
+      if (isGlobalModalOpen()) return;
+      const dir = arrowDir(e);
+      if (!dir) return;
+      e.preventDefault();
+      setFocus((current) => (moveInRows(focusRows, current, dir) as FocusId) ?? current);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [phase, focusBet, focusAction, focusSettle, canDouble, primaryAction]);
+  }, [focusRows]);
 
-  const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
   const shownDealerTotal = phase === 'settled'
     ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
     : dealerUpTotal;
@@ -351,21 +383,13 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         status={status}
         title={t('games.blackjack.title')}
         phase={t('games.blackjack.subheading')}
-        backFocused={(phase === 'bet' && focusBet === 'back') || (phase === 'playing' && focusAction === 'back') || (phase === 'settled' && focusSettle === 'back')}
-        onBackFocus={() => {
-          if (phase === 'bet') setFocusBet('back');
-          else if (phase === 'playing') setFocusAction('back');
-          else setFocusSettle('back');
-        }}
+        backFocused={focus === 'back'}
+        onBackFocus={() => setFocus('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
         fxRef={fxRef}
-        fxFocused={(phase === 'bet' && focusBet === 'fx') || (phase === 'playing' && focusAction === 'fx') || (phase === 'settled' && focusSettle === 'fx')}
-        onFxFocus={() => {
-          if (phase === 'bet') setFocusBet('fx');
-          else if (phase === 'playing') setFocusAction('fx');
-          else setFocusSettle('fx');
-        }}
+        fxFocused={focus === 'fx'}
+        onFxFocus={() => setFocus('fx')}
       />
 
       <div className="snow-bj-table">
@@ -404,8 +428,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 key={amount}
                 ref={(el) => { chipRefs.current[i] = el; }}
                 selected={bet === amount}
-                focused={focusBet === `chip-${i}`}
-                onFocus={() => setFocusBet(`chip-${i}`)}
+                focused={focus === `chip-${i}`}
+                onFocus={() => setFocus(`chip-${i}`)}
                 onClick={() => { if ((balance ?? 0) >= amount) setBet(amount); }}
                 aria-disabled={(balance ?? 0) < amount ? 'true' : undefined}
               >
@@ -415,11 +439,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <Button
               ref={dealRef}
               type="button"
-              onFocus={() => setFocusBet('deal')}
+              onFocus={() => setFocus('deal')}
               onClick={() => { if (!(busy || !user || (balance ?? 0) < bet)) deal(); }}
               aria-disabled={busy || !user || (balance ?? 0) < bet ? 'true' : undefined}
               data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focusBet === 'deal' ? 'true' : 'false'}
+              data-tv-focused={focus === 'deal' ? 'true' : 'false'}
               className={`${GAME_ACTION_CLASS} ml-3 px-8`}
             >
               {busy ? <><Loader2 className="animate-spin" /> {t('games.blackjack.dealing')}</> : t('games.blackjack.dealWithBet', { bet })}
@@ -432,11 +456,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <Button
               ref={hitRef}
               type="button"
-              onFocus={() => setFocusAction('hit')}
+              onFocus={() => setFocus('hit')}
               onClick={() => { if (canHit && !busy) action('hit'); }}
               aria-disabled={!canHit || busy ? 'true' : undefined}
               data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focusAction === 'hit' ? 'true' : 'false'}
+              data-tv-focused={focus === 'hit' ? 'true' : 'false'}
               className={`${GAME_ACTION_CLASS} px-8`}
             >
               {t('games.blackjack.hit')}
@@ -445,11 +469,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
               ref={standRef}
               type="button"
               variant="navy"
-              onFocus={() => setFocusAction('stand')}
+              onFocus={() => setFocus('stand')}
               onClick={() => { if (canStand && !busy) action('stand'); }}
               aria-disabled={!canStand || busy ? 'true' : undefined}
               data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focusAction === 'stand' ? 'true' : 'false'}
+              data-tv-focused={focus === 'stand' ? 'true' : 'false'}
               className={`${GAME_ACTION_CLASS} px-8`}
             >
               {t('games.blackjack.stand')}
@@ -459,11 +483,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 ref={doubleRef}
                 type="button"
                 variant="navy"
-                onFocus={() => setFocusAction('double')}
+                onFocus={() => setFocus('double')}
                 onClick={() => { if (!busy) action('double'); }}
                 aria-disabled={busy ? 'true' : undefined}
                 data-busy={busy ? 'true' : undefined}
-                data-tv-focused={focusAction === 'double' ? 'true' : 'false'}
+                data-tv-focused={focus === 'double' ? 'true' : 'false'}
                 className={`${GAME_ACTION_CLASS} px-8`}
               >
                 {t('games.blackjack.double')}
@@ -478,9 +502,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             <Button
               ref={againRef}
               type="button"
-              onFocus={() => setFocusSettle('again')}
-              onClick={playAgain}
-              data-tv-focused={focusSettle === 'again' ? 'true' : 'false'}
+              onFocus={() => setFocus('again')}
+              onClick={() => { if (revealComplete) playAgain(); }}
+              aria-disabled={revealComplete ? undefined : 'true'}
+              data-tv-focused={focus === 'again' ? 'true' : 'false'}
               className={`${GAME_ACTION_CLASS} px-10`}
             >
               {t('games.blackjack.playAgain')}
@@ -499,8 +524,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         hash={serverSeedHash}
         open={showFair}
         onToggle={() => setShowFair((s) => !s)}
-        focused={focusSettle === 'fair' && phase === 'settled'}
-        onFocus={() => { if (phase === 'settled') setFocusSettle('fair'); }}
+        focused={focus === 'fair'}
+        onFocus={() => setFocus('fair')}
         labels={{
           title: t('games.blackjack.provablyFair'),
           hash: t('games.blackjack.fairServerSeedHash'),

@@ -11,6 +11,7 @@ import { useGameLifecycle } from './shared/gameLifecycle';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { isBackKey, useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
 
 interface RouletteProps {
   onBack: () => void;
@@ -427,18 +428,24 @@ const Roulette = ({ onBack }: RouletteProps) => {
     onExit: onBack,
   });
 
-  // D-pad + per-cell chip decrement. Back is owned by the shared guard above.
+  /**
+   * D-pad + per-cell chip decrement. Back is owned by the shared guard above,
+   * and a global modal owns input outright. Every arrow is consumed while the
+   * table is on screen — even at the edge of the board — so the native WebView
+   * cannot spatially navigate off the single data-tv-focused marker.
+   */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isGlobalModalOpen()) return;
       if (isBackKey(e)) return;
       if (e.key === 'Backspace' || e.key === '-' || e.key === 'Subtract') {
         const bet = cellBets.current.get(focusId);
         if (bet) { e.preventDefault(); decrementChipOn(bet.type, bet.selection); return; }
       }
-      if (e.key === 'ArrowRight') { e.preventDefault(); moveFocus('right'); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocus('left'); }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); moveFocus('down'); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); moveFocus('up'); }
+      const dir = arrowDir(e);
+      if (!dir) return;
+      e.preventDefault();
+      moveFocus(dir);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
