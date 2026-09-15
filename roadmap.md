@@ -36,3 +36,12 @@
 - [ ] Preview checks for all six views at 720p and 1080p
 - [ ] tsc, npm test, npm run build
 - [ ] Restore .lovable/plan.md and roadmap.md to pre-game versions if safely possible
+
+## Partial-merge repair pass (release blocker)
+- [x] Slots.tsx: add missing shared imports (lifecycle, reduced FX, activation, FX canvas)
+- [x] VideoPoker.tsx: drop stale setAnimPayout call; fix payout ref element type
+- [x] Recreate shared modules missing at head: gameTypes, GameFxCanvas, GameArtwork
+- [x] Restore GamesNavigation.test.tsx + shared/GameUI.test.tsx; add tvActivate.test.tsx (OK/DPAD_CENTER one-activation, disabled targets)
+- [x] Roulette: replace `any` bet selections with a typed BetSelection; drop `as any` refs
+- [x] Remove unused icon imports left by the partial merge
+- [ ] Blackjack/CasinoHoldem still use `disabled` and scale-110 focus in places (cosmetic, next pass)
