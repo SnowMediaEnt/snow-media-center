@@ -394,7 +394,9 @@
       "fxLow": "Efectos reducidos",
       "balanceAria": "Saldo de Monedas Snow",
       "reducedFxOn": "Efectos reducidos: Sí",
-      "reducedFxOff": "Efectos reducidos: No"
+      "reducedFxOff": "Efectos reducidos: No",
+      "finishSpinFirst": "Termina primero este giro",
+      "finishRoundFirst": "Termina primero esta mano"
     }
   }
 }

@@ -11,6 +11,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useGameBack } from './shared/gameBack';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface VideoPokerProps {
@@ -45,7 +46,7 @@ const HAND_KEY: Record<string, string> = {
 };
 
 type Phase = 'idle' | 'dealt' | 'settled';
-type FocusZone = 'back' | 'bet' | 'card' | 'primary' | 'fair';
+type FocusZone = 'back' | 'fx' | 'bet' | 'card' | 'primary' | 'fair';
 
 const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const { t } = useTranslation();
@@ -79,14 +80,18 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const [betIdx, setBetIdx] = useState(0);
 
   const backRef = useRef<HTMLButtonElement>(null);
+  const fxRef = useRef<HTMLButtonElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const payoutRef = useRef<HTMLDivElement>(null);
+  /** Bumped per deal so a late ack cannot mutate a newer hand. */
+  const roundEpoch = useRef(0);
 
   useEffect(() => {
     if (zone === 'back') backRef.current?.focus();
+    else if (zone === 'fx') fxRef.current?.focus();
     else if (zone === 'primary') primaryRef.current?.focus();
     else if (zone === 'fair') fairRef.current?.focus();
     else if (zone === 'bet') betRefs.current[betIdx]?.focus();
@@ -109,6 +114,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     if (balance === null) { setError(t('games.videoPoker.error.loadingChips')); return; }
     if (balance < bet) { setError(t('games.videoPoker.error.insufficientBalance')); return; }
     inFlight.current = true;
+    const epoch = roundEpoch.current + 1;
+    roundEpoch.current = epoch;
     setBusy(true);
     setError(null);
     setResultRank(null);
@@ -122,6 +129,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.dealVideoPoker(bet, seed);
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok && Array.isArray(resp.hand)) {
         setHand(resp.hand);
         if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
@@ -132,21 +140,24 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         handleErr(resp?.error ?? 'error');
       }
     } catch {
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       setError(t('games.videoPoker.error.dealFailed'));
     } finally {
       setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, bet]);
+  }, [busy, user, balance, bet, life]);
 
   const doDraw = useCallback(async () => {
     if (inFlight.current || busy || phase !== 'dealt') return;
     inFlight.current = true;
+    const epoch = roundEpoch.current;
     setBusy(true);
     setError(null);
     try {
       const resp = await gameSocket.drawVideoPoker(holds);
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok && Array.isArray(resp.hand)) {
         setHand(resp.hand);
         if (resp.payouts && typeof resp.payouts === 'object') setPayouts({ ...DEFAULT_PAYOUTS, ...resp.payouts });
@@ -179,6 +190,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         handleErr(resp?.error ?? 'error');
       }
     } catch {
+      if (!life.isMounted() || epoch !== roundEpoch.current) return;
       setError(t('games.videoPoker.error.drawFailed'));
     } finally {
       setBusy(false);
@@ -197,28 +209,64 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     setHolds((h) => { const next = [...h]; next[idx] = !next[idx]; return next; });
   }, [phase]);
 
+  const betsLocked = phase === 'dealt' || busy;
+  /** Chip indexes the remote may land on: locked or unaffordable chips are skipped. */
+  const usableBets = BETS
+    .map((amount, i) => (betsLocked || (balance ?? 0) < amount ? -1 : i))
+    .filter((i) => i >= 0);
+
+  // Re-home a bet chip that just became unaffordable or locked.
+  useEffect(() => {
+    if (zone !== 'bet') return;
+    if (!usableBets.includes(betIdx)) {
+      if (usableBets.length) setBetIdx(usableBets[0]);
+      else setZone('primary');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone, betIdx, usableBets.join(',')]);
+
+  const [backNote, setBackNote] = useState<string | null>(null);
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    // A dealt hand holds a committed bet; a running payout count-up is a settle
+    // animation. Neither may be abandoned by a single Back press.
+    isBusy: () => busy || inFlight.current || phase === 'dealt' || celebrate,
+    onBlocked: () => {
+      setBackNote(t('games.shared.finishRoundFirst'));
+      life.timeout(() => setBackNote(null), 2600);
+    },
+    onExit: onBack,
+  });
+
   // D-pad focus movement only.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const k = e.key;
+      const firstBet = () => { if (usableBets.length) { setZone('bet'); setBetIdx(usableBets[0]); } else setZone('primary'); };
       if (zone === 'back') {
-        if (k === 'ArrowDown' || k === 'ArrowRight') { e.preventDefault(); setZone('bet'); setBetIdx(0); }
+        if (k === 'ArrowRight') { e.preventDefault(); setZone('fx'); }
+        else if (k === 'ArrowDown') { e.preventDefault(); firstBet(); }
+      } else if (zone === 'fx') {
+        if (k === 'ArrowLeft') { e.preventDefault(); setZone('back'); }
+        else if (k === 'ArrowDown') { e.preventDefault(); firstBet(); }
       } else if (zone === 'bet') {
+        const pos = usableBets.indexOf(betIdx);
         if (k === 'ArrowLeft') {
           e.preventDefault();
-          if (betIdx > 0) setBetIdx(betIdx - 1); else setZone('back');
-        } else if (k === 'ArrowRight' && betIdx < BETS.length - 1) { e.preventDefault(); setBetIdx(betIdx + 1); }
+          if (pos > 0) setBetIdx(usableBets[pos - 1]); else setZone('back');
+        } else if (k === 'ArrowRight' && pos >= 0 && pos < usableBets.length - 1) { e.preventDefault(); setBetIdx(usableBets[pos + 1]); }
         else if (k === 'ArrowDown') { e.preventDefault(); if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else setZone('primary'); }
         else if (k === 'ArrowUp') { e.preventDefault(); setZone('back'); }
       } else if (zone === 'card') {
         if (k === 'ArrowLeft' && cardIdx > 0) { e.preventDefault(); setCardIdx(cardIdx - 1); }
         else if (k === 'ArrowRight' && cardIdx < 4) { e.preventDefault(); setCardIdx(cardIdx + 1); }
         else if (k === 'ArrowDown') { e.preventDefault(); setZone('primary'); }
-        else if (k === 'ArrowUp') { e.preventDefault(); setZone('bet'); }
+        else if (k === 'ArrowUp') { e.preventDefault(); firstBet(); }
       } else if (zone === 'primary') {
         if (k === 'ArrowUp') {
           e.preventDefault();
-          if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else setZone('bet');
+          if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else firstBet();
         } else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
       } else if (zone === 'fair' && k === 'ArrowUp') {
         e.preventDefault(); setZone('primary');
@@ -226,7 +274,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [zone, cardIdx, betIdx, phase, fair]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone, cardIdx, betIdx, phase, fair, usableBets.join(',')]);
 
   // Verify SHA-256 when the fairness details are open.
   useEffect(() => {

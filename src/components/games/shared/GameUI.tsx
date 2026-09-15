@@ -27,7 +27,11 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
   onBackFocus?: () => void;
   reducedFx?: boolean;
   onToggleFx?: () => void;
-}>(({ onBack, backLabel, balance, status, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx }, ref) => {
+  /** Lets the Reduced FX control join the game's own D-pad focus graph. */
+  fxRef?: React.Ref<HTMLButtonElement>;
+  fxFocused?: boolean;
+  onFxFocus?: () => void;
+}>(({ onBack, backLabel, balance, status, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx, fxRef, fxFocused, onFxFocus }, ref) => {
   const { t } = useTranslation();
   return (
     <header className="snow-game-topbar">
@@ -35,7 +39,17 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
       {phase && <div className="snow-game-heading"><span>{title ? `${title} · ${phase}` : phase}</span></div>}
       <div className="snow-game-topbar__right">
         {onToggleFx && (
-          <Button type="button" variant="navy" size="sm" onClick={onToggleFx} aria-pressed={reducedFx} className="snow-game-fx-toggle">
+          <Button
+            ref={fxRef}
+            type="button"
+            variant="navy"
+            size="sm"
+            onClick={onToggleFx}
+            onFocus={onFxFocus}
+            aria-pressed={reducedFx}
+            data-tv-focused={fxFocused ? 'true' : 'false'}
+            className="snow-game-fx-toggle"
+          >
             <Sparkles /> {reducedFx ? t('games.shared.fxLow') : t('games.shared.fxFull')}
           </Button>
         )}

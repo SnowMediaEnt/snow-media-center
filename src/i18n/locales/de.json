@@ -394,7 +394,9 @@
       "fxLow": "Effekte reduziert",
       "balanceAria": "Snow-Münzen-Guthaben",
       "reducedFxOn": "Reduzierte Effekte: Ein",
-      "reducedFxOff": "Reduzierte Effekte: Aus"
+      "reducedFxOff": "Reduzierte Effekte: Aus",
+      "finishSpinFirst": "Beende zuerst diesen Dreh",
+      "finishRoundFirst": "Beende zuerst diese Runde"
     }
   }
 }

@@ -398,7 +398,9 @@
       "fxLow": "FX Low",
       "balanceAria": "Snow Coins balance",
       "reducedFxOn": "Reduced FX: On",
-      "reducedFxOff": "Reduced FX: Off"
+      "reducedFxOff": "Reduced FX: Off",
+      "finishSpinFirst": "Finish this spin first",
+      "finishRoundFirst": "Finish this hand first"
     }
   }
 }
