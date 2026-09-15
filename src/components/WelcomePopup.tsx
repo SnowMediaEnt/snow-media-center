@@ -13,6 +13,7 @@ import { useVersion } from '@/hooks/useVersion';
 const CHANGELOG: Record<string, string[]> = {
   '1.7.2': [
     '🎬 Movies & Series: the Player\'s Plex + VOD card, renamed so it says what it is',
+    '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
     '🛠️ Admin dashboard works with the remote — every section scrolls',
     '👤 TV trials and purchases create your customer record and website account on their own',
     '📧 Your login email now arrives after a trial or purchase',

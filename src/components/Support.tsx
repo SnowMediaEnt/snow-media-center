@@ -12,6 +12,7 @@ import {
   MessageSquare,
   GraduationCap,
   MonitorSmartphone,
+  Sparkles,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
@@ -35,6 +36,7 @@ const CommunityChat = lazy(() => import('@/components/CommunityChat'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
 const HowToGuide = lazy(() => import('@/components/HowToGuide'));
 const RemoteSupport = lazy(() => import('@/components/RemoteSupport'));
+const DeviceCleaner = lazy(() => import('@/components/DeviceCleaner'));
 
 interface SupportProps {
   onBack: () => void;
@@ -43,7 +45,7 @@ interface SupportProps {
 }
 
 type Tab = 'help' | 'ai' | 'community';
-type HelpView = 'menu' | 'videos' | 'tickets' | 'remote';
+type HelpView = 'menu' | 'videos' | 'tickets' | 'remote' | 'cleaner';
 
 /** DOM order of the Help cards. The D-pad map below is derived from this plus
  *  the live column count, so the two stay in step if a card is added. */
@@ -54,6 +56,7 @@ const HELP_IDS = [
   'help-videos',
   'help-tickets',
   'help-remote',
+  'help-cleaner',
 ] as const;
 
 /** Matches the `md:` breakpoint the card grid switches columns at. */
@@ -322,13 +325,16 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       setTab('help'); setHelpView('menu'); setShowGuide(true);
     };
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
+    const openCleaner = () => { setTab('help'); setHelpView('cleaner'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
+    window.addEventListener('support:open-cleaner', openCleaner);
     window.addEventListener('support:open-buffering-guide', openGuide);
     window.addEventListener('support:open-howto', openHowTo);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
+      window.removeEventListener('support:open-cleaner', openCleaner);
       window.removeEventListener('support:open-buffering-guide', openGuide);
       window.removeEventListener('support:open-howto', openHowTo);
     };
@@ -349,6 +355,13 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     return (
       <Suspense fallback={null}>
         <SupportTicketSystem onBack={() => setHelpView('menu')} />
+      </Suspense>
+    );
+  }
+  if (tab === 'help' && helpView === 'cleaner') {
+    return (
+      <Suspense fallback={null}>
+        <DeviceCleaner onBack={() => setHelpView('menu')} />
       </Suspense>
     );
   }
@@ -511,6 +524,20 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 <span className="text-xl font-semibold truncate">Remote Access</span>
                 <span className="col-start-2 text-sm text-rose-100/90 font-normal truncate">
                   A technician fixes your box live — $25
+                </span>
+              </Button>
+              <Button
+                onClick={() => setHelpView('cleaner')}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-cleaner"
+                className="bg-sky-700/60 border-sky-400/70 text-white hover:bg-sky-600/70 h-20 px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+              >
+                <Sparkles className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">Device Cleaner</span>
+                <span className="col-start-2 text-sm text-sky-100/90 font-normal truncate">
+                  Free up space and memory
                 </span>
               </Button>
 

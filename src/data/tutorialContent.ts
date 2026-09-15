@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Compass,
+  Sparkles,
   Gamepad2,
   Home,
   Film,
@@ -151,6 +152,13 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
         title: 'Submit a Ticket to reach a real person.',
         deepLink: { kind: 'event', event: 'support:open-tickets', label: 'Open tickets' },
         art: { screen: 'support', highlight: 'tickets' },
+      },
+      {
+        icon: Sparkles,
+        title: 'Box running slow or out of space? Device Cleaner frees it up.',
+        line2: 'It empties every app\'s cache, closes background apps, and lists apps nobody opens.',
+        deepLink: { kind: 'event', event: 'support:open-cleaner', label: 'Open the cleaner' },
+        art: { screen: 'support' },
       },
       { icon: Bot, title: 'The AI Chat tab answers questions instantly — day or night.', art: { screen: 'support', highlight: 'ai-tab' } },
     ],

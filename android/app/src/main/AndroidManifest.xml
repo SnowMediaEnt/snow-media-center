@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Device Cleaner: drop background work of other apps (normal permission). -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <!-- Device Cleaner: last-used dates and per-app sizes. Granted by the viewer
+         in Settings (usage access), never automatically. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Voice input (talk-to-app). Marked optional so Fire TV / mic-less devices
          still install — the app gracefully degrades to text input on those. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

@@ -2,11 +2,14 @@ package com.snowmedia.appmanager
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.util.ArrayDeque
 
 /**
  * Accessibility Service that auto-taps "Storage" → "Clear cache" in the system
@@ -14,6 +17,14 @@ import android.view.accessibility.AccessibilityNodeInfo
  * directly (NOT via GLOBAL_ACTION_BACK, which sends a back keypress that the
  * app's WebView intercepts and treats as "exit current screen", kicking the
  * user out of Main Apps).
+ *
+ * One app (setTarget) or a whole queue (startQueue): with a queue the service
+ * opens the next app's App Info itself as soon as one is done or given up on,
+ * and only returns to Snow Media Center after the last one. An App Info
+ * screen that never offers "Clear cache" (some system apps, some OEM layouts)
+ * is skipped after [PER_APP_TIMEOUT_MS] instead of stalling the run.
+ * Progress goes to [progressListener]; the AppManager plugin forwards it to
+ * the web layer as events.
  *
  * IMPORTANT: This service intentionally does NOT touch "Clear data" or
  * "Clear storage" — only cache. Clearing data signs users out of apps and
@@ -23,15 +34,43 @@ class CacheClearService : AccessibilityService() {
 
   companion object {
     private const val TAG = "CacheClearService"
+    private const val PER_APP_TIMEOUT_MS = 9_000L
     @Volatile private var targetPackage: String? = null
     @Volatile private var allowClearData: Boolean = false   // always false for safety
     @Volatile private var lastTriggerAt: Long = 0L
+    private val queue = ArrayDeque<String>()
+    @Volatile private var queueTotal = 0
+    @Volatile private var queueDone = 0
+    /** (packageName, status "cleared" | "skipped", done, total) */
+    @Volatile var progressListener: ((String, String, Int, Int) -> Unit)? = null
+    /** (done, total) once the whole queue has been walked. */
+    @Volatile var doneListener: ((Int, Int) -> Unit)? = null
 
     fun setTarget(packageName: String, clearData: Boolean) {
+      synchronized(queue) { queue.clear(); queueTotal = 1; queueDone = 0 }
       targetPackage = packageName
       allowClearData = false  // hard-coded off — never clear data
       lastTriggerAt = System.currentTimeMillis()
       Log.d(TAG, "setTarget pkg=$packageName clearData=false")
+    }
+
+    /** Queue several apps. The caller opens the first App Info; the service opens the rest. */
+    fun startQueue(packages: List<String>) {
+      synchronized(queue) {
+        queue.clear()
+        packages.drop(1).forEach { queue.add(it) }
+        queueTotal = packages.size
+        queueDone = 0
+      }
+      targetPackage = packages.firstOrNull()
+      allowClearData = false
+      lastTriggerAt = System.currentTimeMillis()
+      Log.d(TAG, "startQueue ${packages.size} apps")
+    }
+
+    fun cancelQueue() {
+      synchronized(queue) { queue.clear() }
+      targetPackage = null
     }
 
     fun consumeTarget(): String? {
@@ -39,11 +78,14 @@ class CacheClearService : AccessibilityService() {
       targetPackage = null
       return t
     }
+
+    private fun nextInQueue(): String? = synchronized(queue) { queue.pollFirst() }
   }
 
   private val handler = Handler(Looper.getMainLooper())
   private var step: Step = Step.IDLE
   private var workingForPackage: String? = null
+  private val watchdog = Runnable { giveUpOnCurrent() }
 
   private enum class Step { IDLE, OPENED_APP_INFO, OPENED_STORAGE, DONE }
 
@@ -66,7 +108,11 @@ class CacheClearService : AccessibilityService() {
 
     when (step) {
       Step.IDLE, Step.OPENED_APP_INFO -> {
-        workingForPackage = pending
+        if (workingForPackage != pending) {
+          workingForPackage = pending
+          handler.removeCallbacks(watchdog)
+          handler.postDelayed(watchdog, PER_APP_TIMEOUT_MS)
+        }
         // 1) Try to find and click "Storage" / "Storage & cache" / "Storage usage"
         val storageNode = findClickableByText(root, listOf(
           "Storage & cache", "Storage and cache", "Storage usage", "Storage"
@@ -81,35 +127,73 @@ class CacheClearService : AccessibilityService() {
           return
         }
         // Some Android TV / older OEM screens show "Clear cache" directly on App Info
-        if (tryClickClearCache()) {
-          step = Step.DONE
-          finishAndReturn()
-        }
+        tryClickClearCache()
       }
-      Step.OPENED_STORAGE -> {
-        if (tryClickClearCache()) {
-          step = Step.DONE
-          finishAndReturn()
-        }
-      }
+      Step.OPENED_STORAGE -> tryClickClearCache()
       Step.DONE -> { /* no-op */ }
     }
   }
 
   private fun tryClickClearCache(): Boolean {
+    if (step == Step.DONE) return false
     val root = rootInActiveWindow ?: return false
     val node = findClickableByText(root, listOf(
       "Clear cache", "CLEAR CACHE", "Clear Cache"
     )) ?: return false
     Log.d(TAG, "Tapping Clear cache")
     performClickOrParent(node)
+    // The tap is the job; finishing here covers the delayed taps too, which
+    // used to rely on a later window event to notice they had worked.
+    step = Step.DONE
+    finishAndReturn("cleared")
     return true
   }
 
-  private fun finishAndReturn() {
-    Log.d(TAG, "Cache cleared for $workingForPackage — returning to SMC")
+  /** The current app's screen never offered "Clear cache": move on. */
+  private fun giveUpOnCurrent() {
+    if (step == Step.DONE || workingForPackage == null) return
+    Log.w(TAG, "No Clear cache for $workingForPackage — skipping")
+    step = Step.DONE
+    finishAndReturn("skipped")
+  }
+
+  private fun finishAndReturn(status: String) {
+    val finished = workingForPackage ?: targetPackage ?: ""
+    handler.removeCallbacks(watchdog)
+    Log.d(TAG, "Cache $status for $finished")
     consumeTarget()
     workingForPackage = null
+    queueDone += 1
+    val done = queueDone
+    val total = queueTotal
+    try { progressListener?.invoke(finished, status, done, total) } catch (e: Exception) { Log.w(TAG, "progress: ${e.message}") }
+
+    val next = nextInQueue()
+    if (next != null) {
+      // Straight on to the next app's App Info. The viewer sees Settings
+      // change from one app to the next until the last one is done.
+      handler.postDelayed({
+        targetPackage = next
+        lastTriggerAt = System.currentTimeMillis()
+        step = Step.IDLE
+        try {
+          val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.parse("package:$next"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+          startActivity(intent)
+          // If Settings never draws the new screen, the watchdog still fires.
+          workingForPackage = next
+          handler.postDelayed(watchdog, PER_APP_TIMEOUT_MS)
+        } catch (e: Exception) {
+          Log.w(TAG, "Could not open App Info for $next: ${e.message}")
+          workingForPackage = next
+          step = Step.DONE
+          finishAndReturn("skipped")
+        }
+      }, 500)
+      return
+    }
+
     // Bring Snow Media Center back to the foreground by launching its own
     // launch intent. This does NOT send a back keypress, so the in-app
     // WebView won't pop us out of Main Apps.
@@ -133,6 +217,7 @@ class CacheClearService : AccessibilityService() {
         Log.w(TAG, "Could not relaunch SMC: ${e.message}")
         performGlobalAction(GLOBAL_ACTION_BACK)
       }
+      try { doneListener?.invoke(done, total) } catch (e: Exception) { Log.w(TAG, "done: ${e.message}") }
     }, 700)
     handler.postDelayed({ step = Step.IDLE }, 1500)
   }
@@ -174,7 +259,8 @@ class CacheClearService : AccessibilityService() {
 
   override fun onInterrupt() {
     step = Step.IDLE
-    consumeTarget()
+    handler.removeCallbacks(watchdog)
+    cancelQueue()
   }
 
   override fun onServiceConnected() {

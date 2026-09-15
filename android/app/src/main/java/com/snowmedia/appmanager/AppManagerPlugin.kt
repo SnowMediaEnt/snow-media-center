@@ -1,6 +1,14 @@
 package com.snowmedia.appmanager
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.app.AppOpsManager
+import android.app.usage.StorageStatsManager
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.os.Environment
+import android.os.Process
+import android.os.StatFs
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -981,5 +989,245 @@ class AppManagerPlugin : Plugin() {
     // beyond cache/ and code_cache/ — that would wipe user data.
     val cmd = "rm -rf /data/data/$pkg/cache/* /data/data/$pkg/code_cache/* 2>/dev/null; true"
     return runAsRoot(cmd)
+  }
+
+  // ---------- Device Cleaner ----------
+  // Storage and memory figures, which apps sit unused, which came from outside
+  // the store, closing background work, and clearing every app's cache in one
+  // run. Everything here is what the system lets an ordinary app do without
+  // root: usage and size figures need the "usage access" permission the
+  // viewer grants once in Settings; cache clearing rides the same
+  // Accessibility Service as the single-app flow, now walking a queue.
+
+  override fun load() {
+    super.load()
+    CacheClearService.progressListener = { pkg, status, done, total ->
+      val data = JSObject().put("packageName", pkg).put("status", status).put("done", done).put("total", total)
+      notifyListeners("cacheClearProgress", data)
+    }
+    CacheClearService.doneListener = { done, total ->
+      notifyListeners("cacheClearDone", JSObject().put("done", done).put("total", total))
+    }
+  }
+
+  override fun handleOnDestroy() {
+    CacheClearService.progressListener = null
+    CacheClearService.doneListener = null
+    super.handleOnDestroy()
+  }
+
+  @PluginMethod
+  fun getStorageInfo(call: PluginCall) {
+    try {
+      val stat = StatFs(Environment.getDataDirectory().path)
+      val total = stat.blockCountLong * stat.blockSizeLong
+      val free = stat.availableBlocksLong * stat.blockSizeLong
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val mem = ActivityManager.MemoryInfo()
+      am.getMemoryInfo(mem)
+      call.resolve(JSObject()
+        .put("totalBytes", total).put("freeBytes", free)
+        .put("totalMemoryBytes", mem.totalMem).put("freeMemoryBytes", mem.availMem)
+        .put("lowMemory", mem.lowMemory))
+    } catch (e: Exception) {
+      call.reject("Could not read storage: ${e.message}")
+    }
+  }
+
+  private fun hasUsageAccessPermission(): Boolean {
+    return try {
+      val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+      val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+      } else {
+        @Suppress("DEPRECATION")
+        appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+      }
+      mode == AppOpsManager.MODE_ALLOWED
+    } catch (e: Exception) {
+      false
+    }
+  }
+
+  @PluginMethod
+  fun hasUsageAccess(call: PluginCall) {
+    call.resolve(JSObject().put("enabled", hasUsageAccessPermission()))
+  }
+
+  /** Opens the system screen where the viewer grants usage access. Not every TV has it. */
+  @PluginMethod
+  fun openUsageAccessSettings(call: PluginCall) {
+    val attempts = listOf(
+      Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).setData(Uri.parse("package:${context.packageName}")),
+      Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+    )
+    for (intent in attempts) {
+      try {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(context.packageManager) == null) continue
+        context.startActivity(intent)
+        call.resolve(JSObject().put("opened", true))
+        return
+      } catch (e: Exception) {
+        Log.w(TAG, "usage access settings: ${e.message}")
+      }
+    }
+    call.resolve(JSObject().put("opened", false))
+  }
+
+  private fun installerOf(pkg: String): String? = try {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      context.packageManager.getInstallSourceInfo(pkg).installingPackageName
+    } else {
+      @Suppress("DEPRECATION")
+      context.packageManager.getInstallerPackageName(pkg)
+    }
+  } catch (e: Exception) {
+    null
+  }
+
+  /**
+   * Every third-party app with what the cleaner needs to judge it: who
+   * installed it, when it was last used, and how much it takes up. Usage and
+   * size figures are only real with usage access; without it lastUsedAt is 0
+   * and the byte counts are -1, and the web layer says so.
+   */
+  @PluginMethod
+  fun getDeviceApps(call: PluginCall) {
+    try {
+      val pm = context.packageManager
+      val usage = hasUsageAccessPermission()
+      val lastUsed = HashMap<String, Long>()
+      if (usage) {
+        try {
+          val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+          val now = System.currentTimeMillis()
+          val stats = usm.queryAndAggregateUsageStats(now - 365L * 24 * 3600 * 1000, now)
+          for ((pkg, st) in stats) lastUsed[pkg] = maxOf(st.lastTimeUsed, 0L)
+        } catch (e: Exception) {
+          Log.w(TAG, "usage stats: ${e.message}")
+        }
+      }
+      val ssm = if (usage && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+        context.getSystemService(Context.STORAGE_STATS_SERVICE) as? StorageStatsManager else null
+
+      val apps = JSArray()
+      for (info in pm.getInstalledPackages(0)) {
+        try {
+          val ai = info.applicationInfo ?: continue
+          val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+          val isUpdatedSystem = (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+          if (isSystem && !isUpdatedSystem) continue
+          if (ai.packageName == context.packageName) continue
+          val obj = JSObject()
+          obj.put("packageName", ai.packageName)
+          obj.put("appName", pm.getApplicationLabel(ai).toString())
+          obj.put("isLaunchable", pm.getLaunchIntentForPackage(ai.packageName) != null)
+          obj.put("installer", installerOf(ai.packageName) ?: "")
+          obj.put("installedAt", info.firstInstallTime)
+          obj.put("updatedAt", info.lastUpdateTime)
+          obj.put("lastUsedAt", lastUsed[ai.packageName] ?: 0L)
+          var appBytes = -1L; var dataBytes = -1L; var cacheBytes = -1L
+          if (ssm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+              val st = ssm.queryStatsForPackage(ai.storageUuid, ai.packageName, Process.myUserHandle())
+              appBytes = st.appBytes; dataBytes = st.dataBytes; cacheBytes = st.cacheBytes
+            } catch (e: Exception) { /* not every package answers */ }
+          }
+          obj.put("appBytes", appBytes)
+          obj.put("dataBytes", dataBytes)
+          obj.put("cacheBytes", cacheBytes)
+          apps.put(obj)
+        } catch (e: Exception) {
+          Log.w(TAG, "getDeviceApps skip: ${e.message}")
+        }
+      }
+      call.resolve(JSObject().put("apps", apps).put("usageAccess", usage))
+    } catch (e: Exception) {
+      Log.e(TAG, "getDeviceApps failed", e)
+      call.reject("Could not list apps: ${e.message}")
+    }
+  }
+
+  /**
+   * Asks the system to drop the background processes of every third-party
+   * app. This is the normal-permission killBackgroundProcesses: the system
+   * honours it for cached and background work and ignores it for anything
+   * protected, so it can never break a running stream — ours is skipped anyway.
+   */
+  @PluginMethod
+  fun closeBackgroundApps(call: PluginCall) {
+    try {
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val pm = context.packageManager
+      val before = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+      var asked = 0
+      for (info in pm.getInstalledPackages(0)) {
+        val ai = info.applicationInfo ?: continue
+        val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val isUpdatedSystem = (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+        if (isSystem && !isUpdatedSystem) continue
+        if (ai.packageName == context.packageName) continue
+        try { am.killBackgroundProcesses(ai.packageName); asked++ } catch (e: Exception) { /* protected */ }
+      }
+      val after = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+      call.resolve(JSObject()
+        .put("asked", asked)
+        .put("freedMemoryBytes", maxOf(0L, after.availMem - before.availMem))
+        .put("freeMemoryBytes", after.availMem)
+        .put("totalMemoryBytes", after.totalMem))
+    } catch (e: Exception) {
+      call.reject("Could not close background apps: ${e.message}")
+    }
+  }
+
+  /**
+   * Clears the cache of many apps in one run. Root does what it can silently;
+   * the rest is queued for the Accessibility Service, which opens each app's
+   * App Info in turn and comes back to Snow Media Center after the last one.
+   * Progress arrives as "cacheClearProgress" events, then "cacheClearDone".
+   */
+  @PluginMethod
+  fun clearCacheForApps(call: PluginCall) {
+    val arr = call.getArray("packages")
+    val list = ArrayList<String>()
+    if (arr != null) {
+      for (i in 0 until arr.length()) {
+        val v = arr.optString(i, "")
+        if (v.isNotBlank() && v != context.packageName) list.add(v)
+      }
+    }
+    if (list.isEmpty()) { call.reject("packages required"); return }
+
+    val remaining = ArrayList<String>()
+    var rootCleared = 0
+    for (pkg in list) {
+      if (tryRootClearCache(pkg)) rootCleared++ else remaining.add(pkg)
+    }
+    if (remaining.isEmpty()) {
+      call.resolve(JSObject().put("method", "root").put("queued", 0).put("rootCleared", rootCleared))
+      return
+    }
+    if (!isAccessibilityServiceEnabled()) {
+      call.reject("ACCESSIBILITY_DISABLED")
+      return
+    }
+    try {
+      CacheClearService.startQueue(remaining)
+      val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:${remaining[0]}"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      call.resolve(JSObject().put("method", "accessibility").put("queued", remaining.size).put("rootCleared", rootCleared))
+    } catch (e: Exception) {
+      CacheClearService.cancelQueue()
+      call.reject("Failed to start cache clear: ${e.message}")
+    }
+  }
+
+  @PluginMethod
+  fun cancelCacheClear(call: PluginCall) {
+    CacheClearService.cancelQueue()
+    call.resolve()
   }
 }
