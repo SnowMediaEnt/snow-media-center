@@ -302,7 +302,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     <GameShell accent="sapphire">
       <GameTopBar
         ref={backRef}
-        onBack={onBack}
+        onBack={requestBack}
         backLabel={t('games.videoPoker.back')}
         balance={balance}
         status={status}
@@ -312,6 +312,9 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         onBackFocus={() => setZone('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
+        fxRef={fxRef}
+        fxFocused={zone === 'fx'}
+        onFxFocus={() => setZone('fx')}
       />
 
       <div className="snow-vp-console">
