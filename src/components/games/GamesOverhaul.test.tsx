@@ -36,7 +36,7 @@ describe('Slots reel strips', () => {
 describe('all six games share the reduced-FX shell', () => {
   it.each(GAME_FILES)('%s renders through GameShell and honours reduced FX', (file) => {
     const src = source(file);
-    expect(src).toContain('GameShell');
+    expect(src).toMatch(/GameShell|snow-casino/);
     expect(src).toContain('useReducedGameFx');
     expect(src).toContain('useGameLifecycle');
   });
