@@ -45,6 +45,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const wheelVisualRef = useRef<HTMLDivElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const fxRef = useRef<HTMLButtonElement>(null);
+  const fairRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const rotRef = useRef(0);
 
@@ -57,6 +59,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+  const [zone, setZone] = useState<'back' | 'fx' | 'spin' | 'fair'>('spin');
+  const [backNote, setBackNote] = useState<string | null>(null);
 
   // One OK/Select press activates the focused control exactly once.
   useTvActivate(activateFocused);
