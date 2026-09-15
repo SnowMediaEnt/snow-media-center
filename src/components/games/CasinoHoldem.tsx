@@ -277,7 +277,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     } catch {
       if (life.isMounted() && epoch === handEpoch.current) setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
-      if (life.isMounted() && epoch === handEpoch.current) setBusy(false);
+      if (life.isMounted()) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,7 +297,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     } catch {
       if (life.isMounted() && epoch === handEpoch.current) setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
-      if (life.isMounted() && epoch === handEpoch.current) setBusy(false);
+      if (life.isMounted()) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
