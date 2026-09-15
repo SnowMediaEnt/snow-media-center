@@ -207,7 +207,7 @@
 .snow-card-slot { flex:none; width:82px; height:123px; border:2px dashed hsl(var(--brand-ice) / .22); border-radius:7px; background:hsl(0 0% 100% / .025); }
 @keyframes snow-card-in { from { opacity:0; transform:translateY(-18px) rotate(-4deg); } to { opacity:1; transform:none; } }
 
-.snow-lobby { min-height:100vh; overflow:hidden; padding:26px 5vw 22px; }
+.snow-lobby { min-height:100vh; overflow:hidden; padding:5vh 5vw; padding:max(env(safe-area-inset-top),5vh) max(env(safe-area-inset-right),5vw) max(env(safe-area-inset-bottom),5vh) max(env(safe-area-inset-left),5vw); }
 .snow-lobby__title { margin:2px 0 3px; font:900 34px/1 Montserrat,sans-serif; text-transform:uppercase; }
 .snow-lobby__subtitle { margin:0; color:hsl(var(--brand-ice) / .82); font-size:15px; }
 .snow-lobby__grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,minmax(180px,1fr)); margin:15px auto 0; max-width:1180px; gap:16px; }
@@ -236,7 +236,6 @@
   .snow-game-topbar { height:48px; min-height:48px; }
   .snow-chip-badge { width:150px; height:45px; }
   .snow-chip-badge strong { font-size:18px; }
-  .snow-lobby { padding-top:18px; padding-bottom:14px; }
   .snow-lobby__title { font-size:28px; }
   .snow-lobby__grid { grid-template-rows:repeat(2,minmax(155px,1fr)); gap:12px; margin-top:10px; }
   .snow-lobby-tile { min-height:155px; }
@@ -402,7 +401,6 @@
 .snow-casino__aurora { bottom:auto; }
 
 /* Spacing fallbacks for WebViews without flex `gap`. */
-.no-flex-gap > * + *,
 .snow-rl-wheelkind__row > * + *,
 .snow-rl-denoms__row > * + *,
 .snow-rl-actions > * + * { margin-left:10px; }
