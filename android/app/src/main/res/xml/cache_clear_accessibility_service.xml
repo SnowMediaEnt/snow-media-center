@@ -5,6 +5,6 @@
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
-    android:packageNames="com.android.settings,com.android.tv.settings,com.amazon.tv.settings"
+    android:packageNames="com.android.settings,com.android.tv.settings,com.android.settings.intelligence,com.amazon.tv.settings,com.amazon.tv.settings.v2,com.google.android.tv.settings,com.android.tv.settings.accessibility"
     android:description="@string/cache_clear_service_desc"
     android:summary="@string/cache_clear_service_summary" />

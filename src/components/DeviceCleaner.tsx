@@ -300,7 +300,7 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
         setA11y(false);
         toast({
           title: 'Turn on cache cleaning first',
-          description: 'Snow Media Center needs the cache cleaner switched on in Accessibility. The button below opens that screen.',
+          description: 'Switch on Snow Media Cache Cleaner under Accessibility. The button at the bottom of this screen opens that list.',
         });
         return false;
       }
@@ -403,7 +403,7 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
 
   const openA11y = useCallback(async () => {
     try { await AppManager.openAccessibilitySettings(); } catch {
-      toast({ title: 'Open it by hand', description: 'Android Settings → Accessibility → Snow Media Center.' });
+      toast({ title: 'Open it by hand', description: 'Android Settings → Accessibility → Snow Media Cache Cleaner.' });
     }
   }, [toast]);
 
@@ -680,10 +680,12 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
                   <Accessibility className="w-6 h-6 text-amber-300" /> One switch to turn on
                 </p>
                 <p className="text-white/80 mb-4">
-                  Android will not let any app empty another app&rsquo;s cache on its own. Switch
-                  <span className="font-semibold text-white"> Snow Media Center </span>
-                  on under Accessibility and the cleaner does the tapping for you. Turn it off again
-                  whenever you like — everything else on this screen works without it.
+                  Android will not let any app empty another app&rsquo;s cache on its own. In the list
+                  that opens, find
+                  <span className="font-semibold text-white"> Snow Media Cache Cleaner </span>
+                  and switch it on — then come back here and press Clean. It only ever taps
+                  &ldquo;Clear cache&rdquo;, never &ldquo;Clear data&rdquo;, and you can switch it off again
+                  whenever you like. Everything else on this screen works without it.
                 </p>
                 <Button
                   onClick={() => void openA11y()}
