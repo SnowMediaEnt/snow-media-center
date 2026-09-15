@@ -13,6 +13,8 @@ import {
   type XtreamUserInfo,
 } from '@/lib/xtream';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
+import { signInWithPlayerCredentials } from '@/lib/playerLogin';
+import { SmcBilling } from '@/capacitor/SmcBilling';
 import { trackEvent } from '@/lib/analytics';
 import type { BillingCredentials, BillingPlan, BillingService } from '@/capacitor/SmcBilling';
 
@@ -246,10 +248,27 @@ export async function applyServiceToPlayer(
     addedAt: Date.now(),
   });
   void capturePlayerSignin(acc, server.label, 'signin');
+  // The person behind this line is known here — they just registered or
+  // signed into billing with a name and an email — so the hub gets a real
+  // customer with the line under it, and the website account is created for
+  // that email, the same "finish your account" path the Player offers by
+  // hand. Best-effort and off the critical path: a hub hiccup never delays
+  // the sign-in the member is waiting for.
+  void recordMemberInHub(creds.username, creds.password);
   try {
     trackEvent('livetv_signin', 'player', { server: server.label, username: acc.username, is_trial: acc.isTrial, days_left: daysUntilExp(acc), via });
   } catch { /* ignore */ }
   return { ok: true, creds, probed };
+}
+
+async function recordMemberInHub(username: string, password: string): Promise<void> {
+  try {
+    const { client } = await SmcBilling.me();
+    const name = (client.name || [client.first_name, client.last_name].filter(Boolean).join(' ')).trim();
+    const email = (client.email || '').trim();
+    if (!name && !email) return;
+    await signInWithPlayerCredentials(username, password, { ...(name ? { name } : {}), ...(email ? { email } : {}) });
+  } catch { /* the billing session may be gone, or this is the web build */ }
 }
 
 // ── clipboard ───────────────────────────────────────────────────────────────
