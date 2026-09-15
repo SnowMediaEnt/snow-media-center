@@ -30,7 +30,6 @@ const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAcco
 
 interface UserDashboardProps {
   onViewChange: (view: 'home' | 'apps' | 'media' | 'news' | 'support' | 'chat' | 'settings' | 'user' | 'community' | 'credits' | 'games' | 'account-signin' | 'livetv') => void;
-  onManageMedia: () => void;
   onViewSettings: () => void;
   onCommunityChat: () => void;
   onCreditStore: () => void;
@@ -38,7 +37,7 @@ interface UserDashboardProps {
   onGiveaway?: () => void;
 }
 
-const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
+const UserDashboard = ({ onViewChange, onViewSettings, onCommunityChat, onCreditStore, onGames, onGiveaway }: UserDashboardProps) => {
   const { enabled: giveawayEnabled } = useFeatureFlag('giveaway_enabled', false);
   const giveawayOn = giveawayEnabled && !isDemo();
   // Billing account section (plans / renew / trial) — flag + native plugin.
@@ -586,7 +585,6 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           >
             <Gamepad2 className="w-5 h-5 mr-2" />
             Games
-            <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-1 rounded-full">Soon</span>
           </Button>
           {giveawayOn && (
             <Button 
