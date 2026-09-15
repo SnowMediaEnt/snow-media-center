@@ -578,18 +578,6 @@ const Slots = ({ onBack }: SlotsProps) => {
                   >
                     {t('games.slots.winChips', { amount: result.totalPayout.toLocaleString() })}
                   </div>
-                  {/* coin burst */}
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className="absolute text-2xl"
-                      style={{
-                        left: `${30 + i * 5}%`,
-                        bottom: '20%',
-                        animation: `slot-coin 1.8s ease-out ${i * 80}ms both`,
-                      }}
-                    >🪙</span>
-                  ))}
                 </div>
               )}
 
@@ -618,8 +606,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={minusBtnRef}
                   onFocus={() => setFocus('betMinus')}
-                  onClick={() => changeBet(-1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === 0}
+                  onClick={() => { if (!(spinning || inFreeSpins || BETS.indexOf(bet) === 0)) changeBet(-1); }}
+                  aria-disabled={(spinning || inFreeSpins || BETS.indexOf(bet) === 0) ? 'true' : undefined}
                   size="icon"
                   className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betMinus')}`}
                 >
@@ -643,8 +631,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={plusBtnRef}
                   onFocus={() => setFocus('betPlus')}
-                  onClick={() => changeBet(1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1}
+                  onClick={() => { if (!(spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1)) changeBet(1); }}
+                  aria-disabled={(spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1) ? 'true' : undefined}
                   size="icon"
                   className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betPlus')}`}
                 >
@@ -656,8 +644,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={spinBtnRef}
                   onFocus={() => setFocus('spin')}
-                  onClick={handleSpin}
-                  disabled={spinning || !user || (!inFreeSpins && !canBet)}
+                  onClick={() => { if (!(spinning || !user || (!inFreeSpins && !canBet))) handleSpin(); }}
+                  aria-disabled={(spinning || !user || (!inFreeSpins && !canBet)) ? 'true' : undefined}
                   className={`text-2xl font-black px-10 py-7 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-300 hover:from-amber-300 hover:to-amber-500 transition-all shadow-[0_10px_30px_-8px_rgba(251,191,36,0.6)] ${focusRing('spin')}`}
                 >
                   {spinning ? (
@@ -682,6 +670,8 @@ const Slots = ({ onBack }: SlotsProps) => {
             )}
           </div>
         </div>
+
+        <GameFxCanvas burstKey={celebrate && result ? result.totalPayout : null} reduced={reducedFx} />
 
         {/* Wins breakdown */}
         {result && result.wins.length > 0 && (
