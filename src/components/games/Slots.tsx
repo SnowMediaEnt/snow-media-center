@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus, Sparkles, Gift, Star } from 'lucide-react';
+import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useReducedGameFx } from './shared/useReducedGameFx';
 import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';

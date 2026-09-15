@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles, Check } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
@@ -191,7 +191,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const payoutSpanRef = useRef<HTMLSpanElement>(null);
+  const payoutSpanRef = useRef<HTMLDivElement>(null);
 
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
@@ -233,7 +233,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     setResultPayout(0);
     setResultNet(0);
     setResultWin(false);
-    setAnimPayout(0);
+    
     setFair(null);
     setShowFair(false);
     setVerifyOk(null);
