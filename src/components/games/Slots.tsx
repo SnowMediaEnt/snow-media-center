@@ -161,6 +161,9 @@ const Slots = ({ onBack }: SlotsProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   const [bet, setBet] = useState<number>(10);
   const [spinning, setSpinning] = useState(false);
@@ -293,12 +296,12 @@ const Slots = ({ onBack }: SlotsProps) => {
           triggeredFreeSpins: resp.triggeredFreeSpins ?? 0,
         };
 
-        // Stagger stops left -> right
-        const baseDelay = 900;
-        const stagger = 220;
+        // Stagger stops left -> right (halved when Reduced FX is on; never instantaneous)
+        const baseDelay = reducedFx ? 450 : 900;
+        const stagger = reducedFx ? 110 : 220;
         for (let i = 0; i < REELS; i++) {
           const idx = i;
-          setTimeout(() => {
+          life.timeout(() => {
             setReelStopped((prev) => {
               const n = [...prev];
               n[idx] = true;
@@ -327,11 +330,11 @@ const Slots = ({ onBack }: SlotsProps) => {
               setSpinning(false);
               if (result.totalPayout > 0) {
                 setCelebrate(true);
-                setTimeout(() => setCelebrate(false), 2400);
+                life.timeout(() => setCelebrate(false), reducedFx ? 1200 : 2400);
               }
               if (result.triggeredFreeSpins > 0) {
                 setFreeBurst(true);
-                setTimeout(() => setFreeBurst(false), 2200);
+                life.timeout(() => setFreeBurst(false), reducedFx ? 1100 : 2200);
               }
               if (resp.fair) setFair(resp.fair);
               inFlight.current = false;
