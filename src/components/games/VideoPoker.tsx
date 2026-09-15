@@ -6,6 +6,11 @@ import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles, Check } fr
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { GameTopBar } from './shared/GameUI';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useReducedGameFx } from './shared/useReducedGameFx';
 
 interface VideoPokerProps {
   onBack: () => void;
@@ -171,7 +176,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const [resultPayout, setResultPayout] = useState<number>(0);
   const [resultNet, setResultNet] = useState<number>(0);
   const [resultWin, setResultWin] = useState<boolean>(false);
-  const [animPayout, setAnimPayout] = useState<number>(0);
   const [celebrate, setCelebrate] = useState(false);
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
@@ -187,6 +191,11 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const payoutSpanRef = useRef<HTMLSpanElement>(null);
+
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   // Initial focus
   useEffect(() => {

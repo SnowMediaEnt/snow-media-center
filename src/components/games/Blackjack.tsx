@@ -102,6 +102,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [bet, setBet] = useState<number>(10);
@@ -216,7 +219,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     else if (err === 'no_active_round') setError(t('games.blackjack.errorNoActiveRound'));
     else if (err === 'cannot_double') setError(t('games.blackjack.errorCannotDouble'));
     else setError(t('games.blackjack.errorGeneric'));
-    setTimeout(() => setError(null), 3500);
+    life.timeout(() => setError(null), 3500);
   };
 
   const deal = useCallback(async () => {
@@ -279,10 +282,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   useEffect(() => {
     if (phase !== 'settled') return;
     if (revealedDealer >= dealerHand.length) return;
-    const delay = revealedDealer === 0 ? 250 : 550;
-    const t = setTimeout(() => setRevealedDealer((n) => n + 1), delay);
-    return () => clearTimeout(t);
-  }, [phase, revealedDealer, dealerHand.length]);
+    const base = revealedDealer === 0 ? 250 : 550;
+    const delay = reducedFx ? Math.max(120, Math.round(base / 2)) : base;
+    const id = life.timeout(() => setRevealedDealer((n) => n + 1), delay);
+    return () => life.clearTimer(id);
+  }, [phase, revealedDealer, dealerHand.length, reducedFx, life]);
 
 
   // D-pad
