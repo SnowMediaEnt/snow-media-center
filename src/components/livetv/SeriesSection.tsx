@@ -16,6 +16,13 @@ import {
   type XtreamSeriesInfo,
   type XtreamEpisode,
 } from '@/lib/xtream';
+import {
+  formatCount,
+  readCounts,
+  recordCounts,
+  tallyByCategory,
+  type CatalogCounts,
+} from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
@@ -45,6 +52,15 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [seriesByCat, setSeriesByCat] = useState<Map<string, XtreamSeries[]>>(new Map());
   const [loadingCat, setLoadingCat] = useState<string | null>(null);
+
+  // How many series this service carries, per category and in total. Same
+  // deal as Movies: filled in from lists that arrive, never fetched for the
+  // sake of a number.
+  const [counts, setCounts] = useState<CatalogCounts>(() => readCounts(creds, 'series'));
+  useEffect(() => { setCounts(readCounts(creds, 'series')); }, [creds]);
+  const noteCounts = useCallback((patch: { total?: number; byCat?: Record<string, number> }) => {
+    setCounts(recordCounts(creds, 'series', patch));
+  }, [creds]);
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on ALL sentinel (0). A separate effect bumps focus to the first
@@ -119,10 +135,15 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   }, [creds, refreshTick]);
 
   const visibleCategories = useMemo(() => {
-    const base = [{ id: ALL_ID, name: 'All Series' }];
-    for (const c of categories) base.push({ id: String(c.category_id), name: c.category_name });
+    const base: { id: string; name: string; count?: number }[] = [
+      { id: ALL_ID, name: 'All Series', count: seriesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
+    ];
+    for (const c of categories) {
+      const key = String(c.category_id);
+      base.push({ id: key, name: c.category_name, count: seriesByCat.get(key)?.length ?? counts.byCat[key] });
+    }
     return base;
-  }, [categories]);
+  }, [categories, seriesByCat, counts]);
 
   // Clamp focus when category list shrinks; once real categories arrive, bump
   // focus to the first real category (index 1) iff the user hasn't moved yet.
@@ -158,6 +179,8 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     p.then(list => {
       if (cancelled) return;
       setSeriesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+      if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      else noteCounts({ byCat: { [key]: list.length } });
     }).catch(() => {
       if (cancelled) return;
       setSeriesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
@@ -166,7 +189,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, currentCat, creds, seriesByCat]);
+  }, [pane, currentCat, creds, seriesByCat, noteCounts]);
 
   // Lazy-load the full series catalog when the search panel opens.
   useEffect(() => {
@@ -175,11 +198,15 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     setAllSeriesLoading(true);
     let cancelled = false;
     getSeries(creds)
-      .then(list => { if (!cancelled) setAllSeries(list); })
+      .then(list => {
+        if (cancelled) return;
+        setAllSeries(list);
+        noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      })
       .catch(() => { if (!cancelled) setAllSeries([]); })
       .finally(() => { if (!cancelled) setAllSeriesLoading(false); });
     return () => { cancelled = true; };
-  }, [searchOpen, allSeries, allSeriesLoading, creds]);
+  }, [searchOpen, allSeries, allSeriesLoading, creds, noteCounts]);
 
   const visibleSeries = useMemo(() => {
     if (searchOpen) {
@@ -687,6 +714,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                 >
                   <span className="flex-1 truncate">{c.name}</span>
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                  {!isLoadingThis && c.count != null && c.count > 0 && (
+                    <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
+                      {formatCount(c.count)}
+                    </span>
+                  )}
                 </div>
               );
             })}

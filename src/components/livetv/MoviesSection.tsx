@@ -15,6 +15,13 @@ import {
   type XtreamVodStream,
   type XtreamVodInfo,
 } from '@/lib/xtream';
+import {
+  formatCount,
+  readCounts,
+  recordCounts,
+  tallyByCategory,
+  type CatalogCounts,
+} from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
@@ -43,6 +50,16 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [moviesByCat, setMoviesByCat] = useState<Map<string, XtreamVodStream[]>>(new Map());
   const [loadingCat, setLoadingCat] = useState<string | null>(null);
+
+  // How many movies this service carries, per category and in total. Filled
+  // in by every list that arrives and remembered between launches, so a
+  // category shows its size before it is opened. Never fetched for its own
+  // sake: the VOD catalogue is the biggest list a panel serves.
+  const [counts, setCounts] = useState<CatalogCounts>(() => readCounts(creds, 'vod'));
+  useEffect(() => { setCounts(readCounts(creds, 'vod')); }, [creds]);
+  const noteCounts = useCallback((patch: { total?: number; byCat?: Record<string, number> }) => {
+    setCounts(recordCounts(creds, 'vod', patch));
+  }, [creds]);
 
   const [pane, setPane] = useState<Pane>('categories');
   // Start on ALL sentinel (0). A separate effect bumps focus to the first
@@ -108,10 +125,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
   }, [creds, refreshTick]);
 
   const visibleCategories = useMemo(() => {
-    const base = [{ id: ALL_ID, name: 'All Movies' }];
-    for (const c of categories) base.push({ id: String(c.category_id), name: c.category_name });
+    const base: { id: string; name: string; count?: number }[] = [
+      { id: ALL_ID, name: 'All Movies', count: moviesByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
+    ];
+    for (const c of categories) {
+      const key = String(c.category_id);
+      base.push({ id: key, name: c.category_name, count: moviesByCat.get(key)?.length ?? counts.byCat[key] });
+    }
     return base;
-  }, [categories]);
+  }, [categories, moviesByCat, counts]);
 
   // Clamp focus when category list shrinks; once real categories arrive, bump
   // focus to the first real category (index 1) iff the user hasn't moved yet.
@@ -147,6 +169,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     p.then(list => {
       if (cancelled) return;
       setMoviesByCat(prev => { const n = new Map(prev); n.set(key, list); return n; });
+      if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      else noteCounts({ byCat: { [key]: list.length } });
     }).catch(() => {
       if (cancelled) return;
       setMoviesByCat(prev => { const n = new Map(prev); n.set(key, []); return n; });
@@ -155,7 +179,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       setLoadingCat(prev => prev === key ? null : prev);
     });
     return () => { cancelled = true; };
-  }, [pane, currentCat, creds, moviesByCat]);
+  }, [pane, currentCat, creds, moviesByCat, noteCounts]);
 
   // Lazy-load the full movie catalog when the search panel opens.
   useEffect(() => {
@@ -164,11 +188,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     setAllMoviesLoading(true);
     let cancelled = false;
     getVodStreams(creds)
-      .then(list => { if (!cancelled) setAllMovies(list); })
+      .then(list => {
+        if (cancelled) return;
+        setAllMovies(list);
+        noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      })
       .catch(() => { if (!cancelled) setAllMovies([]); })
       .finally(() => { if (!cancelled) setAllMoviesLoading(false); });
     return () => { cancelled = true; };
-  }, [searchOpen, allMovies, allMoviesLoading, creds]);
+  }, [searchOpen, allMovies, allMoviesLoading, creds, noteCounts]);
 
   const visibleMovies = useMemo(() => {
     if (searchOpen) {
@@ -554,6 +582,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
                 >
                   <span className="flex-1 truncate">{c.name}</span>
                   {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
+                  {!isLoadingThis && c.count != null && c.count > 0 && (
+                    <span className={`text-xs tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
+                      {formatCount(c.count)}
+                    </span>
+                  )}
                 </div>
               );
             })}

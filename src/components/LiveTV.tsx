@@ -459,9 +459,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           setHeaderIdx(i => (i - 1 + HEADER_COUNT) % HEADER_COUNT);
         } else if (e.key === 'ArrowRight') {
           setHeaderIdx(i => (i + 1) % HEADER_COUNT);
-        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        } else if (e.key === 'ArrowDown') {
           // Return focus to the player area where the user came from.
           setPane(headerReturnPaneRef.current);
+        } else if (e.key === 'ArrowUp') {
+          // Already at the very top: stay there. Up used to drop the
+          // highlight back into the pane below, so a second press — or an
+          // accidental one — bounced the viewer out of the menu they had
+          // just reached. Swallowed, exactly like Up at the top of a list.
         } else if (e.key === 'Enter' || e.key === ' ') {
           const idx = headerIdxRef.current;
           if (idx === 0) leaveMode();

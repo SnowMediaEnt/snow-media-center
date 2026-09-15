@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
+import { formatCount, readCounts } from '@/lib/catalogCounts';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
@@ -122,6 +123,20 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
       : 'text-emerald-300';
   const daysLabel = days === null ? '—' : state.show ? state.label : `${days} days left`;
 
+  // What the service carries, as far as the Player has measured it. Live TV
+  // counts itself in the background; movies and series fill in as their
+  // categories are opened. Nothing is shown for a figure nobody has measured.
+  const catalogue = (() => {
+    const parts: string[] = [];
+    const live = readCounts(account, 'live').total;
+    const vod = readCounts(account, 'vod').total;
+    const series = readCounts(account, 'series').total;
+    if (live != null) parts.push(`${formatCount(live)} channels`);
+    if (vod != null) parts.push(`${formatCount(vod)} movies`);
+    if (series != null) parts.push(`${formatCount(series)} series`);
+    return parts.join(' · ');
+  })();
+
   const rows: Row[] = [
     { label: 'Username',  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
     { label: 'Password',  icon: KeyRound, mono: true, value: (
@@ -139,6 +154,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
     )},
     { label: 'Trial',     icon: ShieldCheck, value: account.isTrial ? 'Yes' : 'No' },
     { label: 'Connections', icon: Users, value: `${account.activeCons ?? 0} active / ${account.maxConnections ?? '—'} allowed` },
+    ...(catalogue ? [{ label: 'Catalog', icon: Library, value: catalogue } as Row] : []),
     { label: 'Created',   icon: Clock,  value: fmtDate(createdMs) },
     { label: 'Server',    icon: Server, value: (
       <span>{account.serverLabel}

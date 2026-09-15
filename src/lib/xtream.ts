@@ -683,6 +683,25 @@ export async function getLiveStreams(c: XtreamCreds, categoryId?: string): Promi
   return memoLive(url, () => httpGetJson<XtreamLiveStream[]>(url));
 }
 
+/**
+ * How many live channels the service carries, and how many are in each
+ * category. Deliberately NOT memoised: the full list for a big line-up is
+ * several megabytes, and the only thing worth keeping is the numbers — so the
+ * list is measured and dropped. Callers use this for the count next to "All
+ * channels"; nothing depends on it, so a failure is theirs to swallow.
+ */
+export async function countLiveStreams(c: XtreamCreds): Promise<{ total: number; byCat: Record<string, number> }> {
+  const list = isDemo()
+    ? await demoGetLiveStreams()
+    : await httpGetJson<XtreamLiveStream[]>(buildBase(c, { action: 'get_live_streams' }), 45000);
+  const byCat: Record<string, number> = {};
+  for (const s of list) {
+    const key = String(s?.category_id ?? '').trim();
+    if (key) byCat[key] = (byCat[key] ?? 0) + 1;
+  }
+  return { total: list.length, byCat };
+}
+
 export async function getShortEpg(
   c: XtreamCreds,
   streamId: number,

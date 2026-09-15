@@ -10,6 +10,7 @@ import {
   getShortEpg,
   buildLiveStreamUrl,
   buildNativeLiveUrl,
+  countLiveStreams,
   pickNowNext,
   XTREAM_REFRESH_EVENT,
   type FavChannel,
@@ -19,6 +20,17 @@ import {
   type EpgNowNext,
 } from '@/lib/xtream';
 import { prepareLocalForLine, reconcileFavoritesOnLoad, scheduleFavoritesPush, flushFavoritesPush } from '@/lib/favoritesSync';
+import {
+  countsAreFresh,
+  expireCounts,
+  formatCount,
+  readCounts,
+  recordCounts,
+  tallyByCategory,
+  type CatalogCounts,
+} from '@/lib/catalogCounts';
+import { runWhenIdle } from '@/utils/idle';
+import { isQuietRequested } from '@/utils/quietMode';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV } from '@/utils/platform';
 import { trackEvent } from '@/lib/analytics';
@@ -93,6 +105,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // persisted FavChannel metadata.
   const [streamsByCat, setStreamsByCat] = useState<Map<string, XtreamLiveStream[]>>(new Map());
   const [loadingCat, setLoadingCat] = useState<string | null>(null);
+
+  // How many channels this line's service carries, remembered between
+  // launches. Every list that arrives feeds it; the badges read from it, so a
+  // category the viewer has not opened this session still shows its size.
+  const [counts, setCounts] = useState<CatalogCounts>(() => readCounts(creds, 'live'));
+  useEffect(() => { setCounts(readCounts(creds, 'live')); }, [creds]);
+  const noteCounts = useCallback((patch: { total?: number; byCat?: Record<string, number> }) => {
+    setCounts(recordCounts(creds, 'live', patch));
+  }, [creds]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -252,11 +273,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       setStreamsByCat(new Map());
       setAllChannels(null);
       allOptedInRef.current = false;
+      // The line-up may have grown or shrunk: measure it again.
+      setCounts(expireCounts(creds, 'live'));
+      countedRef.current = false;
       setRefreshTick(t => t + 1);
     };
     window.addEventListener(XTREAM_REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
-  }, []);
+  }, [creds]);
 
   // 1) Load categories on mount + on every refresh tick.
   useEffect(() => {
@@ -278,15 +302,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const visibleCategories = useMemo(() => {
     const base: { id: string; name: string; count?: number; isFav?: boolean; isAll?: boolean }[] = [
       { id: FAV_ID, name: 'Favorites', count: favorites.size, isFav: true },
-      { id: ALL_ID, name: 'All channels', isAll: true },
+      // The whole service, so the viewer can see how many channels they have
+      // without opening anything. Measured, not promised: no number shows
+      // until a list has actually been counted.
+      { id: ALL_ID, name: 'All channels', isAll: true, count: streamsByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
     ];
     for (const c of categories) {
       const key = String(c.category_id);
       const cached = streamsByCat.get(key);
-      base.push({ id: key, name: c.category_name, count: cached ? cached.length : undefined });
+      base.push({ id: key, name: c.category_name, count: cached ? cached.length : counts.byCat[key] });
     }
     return base;
-  }, [categories, streamsByCat, favorites.size]);
+  }, [categories, streamsByCat, favorites.size, counts]);
 
   // Clamp focus when category list shrinks (never clamp UP to "All channels").
   // Once real categories have arrived, bump focus to the first real category
@@ -331,6 +358,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           n.set(key, list);
           return n;
         });
+        // A list in hand is a free measurement.
+        if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+        else noteCounts({ byCat: { [key]: list.length } });
       })
       .catch(() => {
         if (cancelled) return;
@@ -345,7 +375,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setLoadingCat(prev => (prev === key ? null : prev));
       });
     return () => { cancelled = true; };
-  }, [currentCat, creds, streamsByCat]);
+  }, [currentCat, creds, streamsByCat, noteCounts]);
 
   // Full-catalog channel list, fetched lazily ONLY when search is opened.
   // Used to power search across every channel without bloating per-category caches.
@@ -357,11 +387,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setAllChannelsLoading(true);
     let cancelled = false;
     fetchLiveStreams(creds)
-      .then(list => { if (!cancelled) setAllChannels(list); })
+      .then(list => {
+        if (cancelled) return;
+        setAllChannels(list);
+        noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      })
       .catch(() => { if (!cancelled) setAllChannels([]); })
       .finally(() => { if (!cancelled) setAllChannelsLoading(false); });
     return () => { cancelled = true; };
-  }, [searchOpen, allChannels, allChannelsLoading, creds]);
+  }, [searchOpen, allChannels, allChannelsLoading, creds, noteCounts]);
+
+  // The number next to "All channels" is the size of the whole service, and
+  // the panel has no count call — so the line-up is measured once a week, on
+  // an idle frame, and only the numbers are kept (countLiveStreams drops the
+  // list instead of caching it). Never while something is playing, and never
+  // on a box already short of memory: there the badges still fill in from
+  // whatever the viewer opens.
+  const countedRef = useRef(false);
+  useEffect(() => {
+    if (!isActive || countedRef.current) return;
+    if (categoriesLoading || categories.length === 0) return;
+    if (countsAreFresh(counts)) return;
+    if (playingChannelId || fullscreen || isQuietRequested()) return;
+    try {
+      if (document.documentElement.classList.contains('native-low-memory')) return;
+    } catch { /* no document */ }
+    let cancelled = false;
+    const cancelIdle = runWhenIdle(() => {
+      if (cancelled) return;
+      // Playback may have started during the wait — quiet mode is on for any
+      // player, ours or Multi-Screen — in which case the count can wait a week.
+      if (isQuietRequested()) return;
+      countedRef.current = true;
+      countLiveStreams(creds)
+        .then(({ total, byCat }) => { if (!cancelled) noteCounts({ total, byCat }); })
+        .catch(() => { countedRef.current = false; });
+    }, 8000);
+    return () => { cancelled = true; cancelIdle(); };
+  }, [isActive, categoriesLoading, categories.length, counts, playingChannelId, fullscreen, creds, noteCounts]);
 
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
@@ -1278,7 +1341,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && c.count != null && c.count > 0 && (
                         <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
-                          {c.count}
+                          {formatCount(c.count)}
                         </span>
                       )}
                     </div>

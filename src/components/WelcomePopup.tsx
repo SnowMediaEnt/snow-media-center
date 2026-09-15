@@ -14,6 +14,8 @@ const CHANGELOG: Record<string, string[]> = {
   '1.7.2': [
     '🎬 Movies & Series: the Player\'s Plex + VOD card, renamed so it says what it is',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
+    '🔢 Player: how many channels, movies and series your service carries, next to All',
+    '⬆️ Player: Up at the top menu stays at the top instead of dropping back down',
     '🛠️ Admin dashboard works with the remote — every section scrolls',
     '👤 TV trials and purchases create your customer record and website account on their own',
     '📧 Your login email now arrives after a trial or purchase',
