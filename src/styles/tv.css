@@ -521,3 +521,25 @@ html[data-game-fx="reduced"] .snow-result-banner { border-width:2px; }
   .snow-rl-denom { width:58px; height:58px; font-size:17px; }
   .snow-rl-spin { min-height:64px; font-size:22px; }
 }
+
+/* Daily Spin surface + the ice accent used by the wheel and the lobby. */
+.snow-casino--ice { --game-accent:195 84% 62%; }
+.snow-wheel-stage { display:flex; align-items:center; justify-content:center; }
+.snow-wheel-layout { display:flex; align-items:center; justify-content:center; width:100%; }
+.snow-wheel-wrap { position:relative; flex:0 0 auto; margin-right:24px; }
+.snow-wheel-visual { position:relative; transform-origin:50% 50%; }
+.snow-wheel-visual canvas { display:block; max-width:100%; }
+.snow-wheel-pointer { position:absolute; left:50%; top:-8px; z-index:3; width:0; height:0; margin-left:-16px; border-left:16px solid transparent; border-right:16px solid transparent; border-top:26px solid hsl(var(--brand-gold)); }
+.snow-wheel-controls { flex:1 1 0; min-width:0; max-width:26rem; text-align:center; }
+.snow-wheel-controls > * + * { margin-top:10px; }
+.snow-wheel-loading { display:flex; align-items:center; justify-content:center; color:hsl(210 22% 84%); font-weight:700; }
+.snow-wheel-loading svg { margin-right:8px; }
+.snow-wheel-spin { width:100%; min-height:64px; font-size:22px; }
+@media (max-height:760px) {
+  .snow-wheel-wrap { max-width:300px; margin-right:16px; }
+  .snow-wheel-spin { min-height:52px; font-size:19px; }
+}
+@media (max-width:900px) {
+  .snow-wheel-layout { flex-direction:column; }
+  .snow-wheel-wrap { margin-right:0; margin-bottom:12px; }
+}

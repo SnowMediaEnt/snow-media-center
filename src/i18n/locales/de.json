@@ -108,7 +108,9 @@
       "fairServerSeed": "serverSeed:",
       "fairClientSeed": "clientSeed:",
       "fairNonce": "nonce:",
-      "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen."
+      "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen.",
+      "phase": "Ein Gratisdreh alle vier Stunden",
+      "jackpotTag": "JACKPOT"
     },
     "slots": {
       "back": "Zurück",

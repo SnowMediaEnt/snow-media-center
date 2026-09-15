@@ -108,7 +108,9 @@
       "fairServerSeed": "serverSeed:",
       "fairClientSeed": "clientSeed:",
       "fairNonce": "nonce:",
-      "fairVerify": "تحقّق: يجب أن يساوي SHA-256(serverSeed) قيمة الهاش المعروضة قبل الدورة."
+      "fairVerify": "تحقّق: يجب أن يساوي SHA-256(serverSeed) قيمة الهاش المعروضة قبل الدورة.",
+      "phase": "دورة مجانية واحدة كل أربع ساعات",
+      "jackpotTag": "الجائزة الكبرى"
     },
     "slots": {
       "back": "رجوع",

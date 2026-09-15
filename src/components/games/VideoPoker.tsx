@@ -482,25 +482,10 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
               </div>
               {resultWin && (
                 <div className="mt-2 relative">
-                  <div className="text-3xl font-black text-emerald-300 tabular-nums">
-                    {t('games.videoPoker.payoutChips', { amount: (animPayout || resultPayout).toLocaleString() })}
+                  <div ref={payoutSpanRef} className="text-3xl font-black text-emerald-300 tabular-nums">
+                    {t('games.videoPoker.payoutChips', { amount: resultPayout.toLocaleString() })}
                   </div>
-                  {celebrate && (
-                    <>
-                      {['🪙', '🪙', '🪙', '✨', '✨'].map((g, i) => (
-                        <span
-                          key={i}
-                          className="absolute left-1/2 -translate-x-1/2 text-2xl pointer-events-none"
-                          style={{
-                            animation: `vp-burst 1100ms ease-out ${i * 120}ms both`,
-                            transform: `translateX(${(i - 2) * 28}px)`,
-                          }}
-                        >
-                          {g}
-                        </span>
-                      ))}
-                    </>
-                  )}
+                  <GameFxCanvas burstKey={celebrate ? resultPayout : null} reduced={reducedFx} />
                 </div>
               )}
               {!resultWin && resultNet !== 0 && (
