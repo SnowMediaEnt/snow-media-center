@@ -6,8 +6,9 @@ import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles } from 'luc
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
-import { GameTopBar, ResultBanner } from './shared/GameUI';
-import { PlayingCard as SharedPlayingCard } from './shared/PlayingCard';
+import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
 
 interface BlackjackProps {
   onBack: () => void;
@@ -49,13 +50,64 @@ function PlayingCard({
   delay = 0,
   highlight = false,
 }: { card?: BjCard; faceDown?: boolean; delay?: number; highlight?: boolean }) {
-  return <SharedPlayingCard card={card} faceDown={faceDown} delay={delay} highlighted={highlight} />;
+  const isRed = card && RED_SUITS.has(card.suit);
+  return (
+    <div
+      className="tv-game-card"
+      style={{
+        perspective: '800px',
+        animation: `bj-deal-in 420ms ease-out ${delay}ms both`,
+      }}
+    >
+      <div
+        className="absolute inset-0 rounded-lg shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
+        style={{
+          transform: 'rotateX(8deg) rotateY(-2deg)',
+          transformStyle: 'preserve-3d',
+          background: faceDown
+            ? 'repeating-linear-gradient(45deg, #1e3a8a 0 8px, #1e40af 8px 16px)'
+            : 'linear-gradient(180deg, #fafafa, #e5e7eb)',
+          border: faceDown ? '2px solid #fbbf24' : '2px solid rgba(15,23,42,0.85)',
+          outline: highlight ? '3px solid rgba(251,191,36,0.9)' : 'none',
+          outlineOffset: 2,
+        }}
+      >
+        {!faceDown && card && (
+          <>
+            <div
+              className="absolute top-1 left-2 font-black leading-none"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)' }}
+            >
+              {card.rank}
+              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+            </div>
+            <div
+              className="absolute inset-0 flex items-center justify-center font-black"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(22px, 6cqh, 40px)' }}
+            >
+              {SUIT_GLYPH[card.suit]}
+            </div>
+            <div
+              className="absolute bottom-1 right-2 font-black leading-none"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(11px, 2.6cqh, 18px)', transform: 'rotate(180deg)' }}
+            >
+              {card.rank}
+              <div style={{ fontSize: 'clamp(10px, 2.2cqh, 16px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const Blackjack = ({ onBack }: BlackjackProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [bet, setBet] = useState<number>(10);
@@ -170,7 +222,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     else if (err === 'no_active_round') setError(t('games.blackjack.errorNoActiveRound'));
     else if (err === 'cannot_double') setError(t('games.blackjack.errorCannotDouble'));
     else setError(t('games.blackjack.errorGeneric'));
-    setTimeout(() => setError(null), 3500);
+    life.timeout(() => setError(null), 3500);
   };
 
   const deal = useCallback(async () => {
@@ -233,10 +285,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   useEffect(() => {
     if (phase !== 'settled') return;
     if (revealedDealer >= dealerHand.length) return;
-    const delay = revealedDealer === 0 ? 250 : 550;
-    const t = setTimeout(() => setRevealedDealer((n) => n + 1), delay);
-    return () => clearTimeout(t);
-  }, [phase, revealedDealer, dealerHand.length]);
+    const base = revealedDealer === 0 ? 250 : 550;
+    const delay = reducedFx ? Math.max(120, Math.round(base / 2)) : base;
+    const id = life.timeout(() => setRevealedDealer((n) => n + 1), delay);
+    return () => life.clearTimer(id);
+  }, [phase, revealedDealer, dealerHand.length, reducedFx, life]);
 
 
   // D-pad
@@ -276,7 +329,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [phase, focusBet, focusAction, focusSettle, canDouble, onBack]);
 
   const focusRing = (active: boolean) =>
-    active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+    active ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
   const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
 
@@ -296,7 +349,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       m.tone === 'lose' ? 'from-rose-600/25 to-rose-900/25 border-rose-400/50 text-rose-100' :
       'from-slate-700/40 to-slate-900/40 border-slate-400/40 text-slate-100';
     return (
-      <ResultBanner tone={m.tone} title={m.text}>
+      <div className={`mt-6 p-5 rounded-xl border bg-gradient-to-br ${toneClasses} text-center`}>
+        <div className="text-3xl font-black tracking-wider">{m.text}</div>
         <div className="mt-1 text-lg font-bold">
           {net > 0 ? (
             <span className="text-emerald-300">{t('games.blackjack.netWin', { net: net.toLocaleString() })}</span>
@@ -307,13 +361,20 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           )}
         </div>
         <div className="text-xs text-slate-300 mt-1">{t('games.blackjack.balanceLine', { balance: balance?.toLocaleString() ?? '—' })}</div>
-      </ResultBanner>
+      </div>
     );
   })();
 
   return (
-    <div className="snow-casino snow-casino--emerald tv-game-shell">
-      <div className="snow-casino__aurora" /><div className="snow-casino__vignette" />
+    <div
+      className="tv-game-shell text-white relative"
+      style={{
+        background:
+          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
+          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
+          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
+      }}
+    >
       <style>{`
         @keyframes bj-deal-in {
           0% { opacity: 0; transform: translateY(-40px) rotate(-12deg) scale(0.8); }
@@ -322,18 +383,45 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       `}</style>
 
       <div className="tv-game-body px-4">
-        <GameTopBar ref={refs.back} onBack={onBack} backLabel={t('games.blackjack.back')} balance={balance} status={status} title={t('games.blackjack.heading')} phase={phase} backFocused={(phase === 'bet' && focusBet === 'back') || (phase === 'playing' && focusAction === 'back') || (phase === 'settled' && focusSettle === 'back')} onBackFocus={() => phase === 'bet' ? setFocusBet('back') : phase === 'playing' ? setFocusAction('back') : setFocusSettle('back')} />
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <Button
+            ref={refs.back}
+            onClick={onBack}
+            onFocus={() => {
+              if (phase === 'bet') setFocusBet('back');
+              else if (phase === 'playing') setFocusAction('back');
+              else setFocusSettle('back');
+            }}
+            variant="gold"
+            size="lg"
+            className={`transition-all duration-200 ${focusRing(
+              (phase === 'bet' && focusBet === 'back') ||
+              (phase === 'playing' && focusAction === 'back') ||
+              (phase === 'settled' && focusSettle === 'back')
+            )}`}
+          >
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            {t('games.blackjack.back')}
+          </Button>
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
+            <Coins className="w-6 h-6 text-amber-300" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.blackjack.playChips')}</span>
+              <span className="text-2xl font-extrabold text-white tabular-nums">
+                {balance !== null ? balance.toLocaleString() : t('games.blackjack.loadingChips')}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <div className="text-center tv-compact-head">
-          <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.blackjack.heading')}
-          </h1>
           <p className="text-slate-200/90 mt-1">{t('games.blackjack.subheading')}</p>
         </div>
 
         {/* Felt Table */}
         <div
-          className="tv-game-board snow-game-table relative rounded-lg p-3 md:p-4"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',

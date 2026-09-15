@@ -1,10 +1,63 @@
 import type { GameAccent } from './gameTypes';
 
+/**
+ * Lightweight per-game lobby artwork. SVG only — no emoji, no bitmaps — so it
+ * stays crisp on 4K panels and costs nothing on a legacy TV WebView.
+ */
 export const GameArtwork = ({ game, accent }: { game: string; accent: GameAccent }) => {
-  const common = { viewBox: '0 0 220 120', role: 'img', 'aria-label': `${game} artwork` } as const;
-  if (game === 'daily-spin') return <svg {...common} className={`snow-game-art snow-game-art--${accent}`}><circle cx="110" cy="60" r="46"/><path d="M110 14v92M64 60h92M77 27l66 66M143 27L77 93"/><circle cx="110" cy="60" r="9"/><path d="M110 5l-9 17h18z"/></svg>;
-  if (game === 'slots') return <svg {...common} className={`snow-game-art snow-game-art--${accent}`}><path d="M44 22h132v78H44z"/><path d="M58 35h104v46H58z"/><circle cx="78" cy="58" r="13"/><path d="M110 42l5 10 11 1-8 8 2 11-10-5-10 5 2-11-8-8 11-1z"/><path d="M142 45v27M135 58h14"/><path d="M176 40h15v42h-15"/></svg>;
-  if (game === 'roulette') return <svg {...common} className={`snow-game-art snow-game-art--${accent}`}><circle cx="110" cy="61" r="45"/><circle cx="110" cy="61" r="25"/><path d="M110 16v90M65 61h90M78 29l64 64M142 29L78 93"/><circle cx="137" cy="31" r="6"/></svg>;
-  const isPoker = game === 'video-poker' || game === 'casino-holdem';
-  return <svg {...common} className={`snow-game-art snow-game-art--${accent}`}><g transform="rotate(-10 90 60)"><rect x="54" y="20" width="64" height="88" rx="7"/><path d={isPoker ? 'M86 44c-13-15-29 6 0 31 29-25 13-46 0-31z' : 'M86 38l17 27-17 27-17-27z'}/></g><g transform="rotate(10 132 60)"><rect x="102" y="20" width="64" height="88" rx="7"/><path d={game === 'blackjack' ? 'M134 38c-14 18-21 23 0 45 21-22 14-27 0-45z' : 'M134 39c-15 16-22 25 0 45 22-20 15-29 0-45z'}/></g></svg>;
+  const common = { className: 'snow-game-art', viewBox: '0 0 100 100', 'aria-hidden': true as const, 'data-accent': accent };
+  switch (game) {
+    case 'daily-spin':
+      return (
+        <svg {...common}>
+          <circle cx="50" cy="54" r="30" />
+          <path d="M50 24v60M20 54h60M29 33l42 42M71 33L29 75" />
+          <circle cx="50" cy="54" r="7" />
+          <path d="M50 14l7 11H43z" />
+        </svg>
+      );
+    case 'slots':
+      return (
+        <svg {...common}>
+          <rect x="16" y="24" width="68" height="52" rx="7" />
+          <path d="M32 24v52M50 24v52M68 24v52" />
+          <path d="M22 50h56" />
+        </svg>
+      );
+    case 'blackjack':
+      return (
+        <svg {...common}>
+          <rect x="20" y="30" width="34" height="46" rx="5" transform="rotate(-11 37 53)" />
+          <rect x="46" y="26" width="34" height="46" rx="5" transform="rotate(9 63 49)" />
+          <path d="M60 40l8 9-8 9-8-9z" />
+        </svg>
+      );
+    case 'video-poker':
+      return (
+        <svg {...common}>
+          <rect x="12" y="34" width="22" height="34" rx="4" />
+          <rect x="39" y="30" width="22" height="34" rx="4" />
+          <rect x="66" y="34" width="22" height="34" rx="4" />
+          <path d="M12 78h76" />
+        </svg>
+      );
+    case 'roulette':
+      return (
+        <svg {...common}>
+          <circle cx="50" cy="52" r="30" />
+          <circle cx="50" cy="52" r="17" />
+          <path d="M50 22v60M20 52h60" />
+          <circle cx="50" cy="28" r="4" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <rect x="14" y="40" width="24" height="34" rx="4" transform="rotate(-8 26 57)" />
+          <rect x="38" y="36" width="24" height="34" rx="4" />
+          <rect x="62" y="40" width="24" height="34" rx="4" transform="rotate(8 74 57)" />
+          <path d="M30 26h40" />
+        </svg>
+      );
+  }
 };

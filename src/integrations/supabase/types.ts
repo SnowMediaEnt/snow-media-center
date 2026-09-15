@@ -1404,10 +1404,8 @@ export type Database = {
           max_connections: number | null
           notes: string | null
           panel_host: string | null
-          panel_line_id: string | null
           panel_password: string | null
           panel_username: string | null
-          plex_device_limit: number | null
           renewal_status: string | null
           service_name: string | null
           service_type: string
@@ -1425,10 +1423,8 @@ export type Database = {
           max_connections?: number | null
           notes?: string | null
           panel_host?: string | null
-          panel_line_id?: string | null
           panel_password?: string | null
           panel_username?: string | null
-          plex_device_limit?: number | null
           renewal_status?: string | null
           service_name?: string | null
           service_type: string
@@ -1446,10 +1442,8 @@ export type Database = {
           max_connections?: number | null
           notes?: string | null
           panel_host?: string | null
-          panel_line_id?: string | null
           panel_password?: string | null
           panel_username?: string | null
-          plex_device_limit?: number | null
           renewal_status?: string | null
           service_name?: string | null
           service_type?: string
@@ -1476,9 +1470,6 @@ export type Database = {
           notes: string | null
           payment_handle: string | null
           phone: string | null
-          plex_over_limit_allowed: number | null
-          plex_over_limit_at: string | null
-          plex_over_limit_peak: number | null
           shares_account: boolean
           updated_at: string
           user_id: string | null
@@ -1495,9 +1486,6 @@ export type Database = {
           notes?: string | null
           payment_handle?: string | null
           phone?: string | null
-          plex_over_limit_allowed?: number | null
-          plex_over_limit_at?: string | null
-          plex_over_limit_peak?: number | null
           shares_account?: boolean
           updated_at?: string
           user_id?: string | null
@@ -1514,9 +1502,6 @@ export type Database = {
           notes?: string | null
           payment_handle?: string | null
           phone?: string | null
-          plex_over_limit_allowed?: number | null
-          plex_over_limit_at?: string | null
-          plex_over_limit_peak?: number | null
           shares_account?: boolean
           updated_at?: string
           user_id?: string | null
@@ -2474,77 +2459,6 @@ export type Database = {
         }
         Relationships: []
       }
-      plex_signup_reviews: {
-        Row: {
-          candidate_customer_ids: string[]
-          code_expires_at: string | null
-          created_at: string
-          id: string
-          linked_at: string | null
-          notes: string | null
-          panel_host: string | null
-          panel_username: string
-          plex_code: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          resolved_customer_id: string | null
-          service_type: string | null
-          status: string
-          typed_email: string | null
-          typed_name: string | null
-          verified_expiration: string | null
-          verified_max_connections: number | null
-        }
-        Insert: {
-          candidate_customer_ids?: string[]
-          code_expires_at?: string | null
-          created_at?: string
-          id?: string
-          linked_at?: string | null
-          notes?: string | null
-          panel_host?: string | null
-          panel_username: string
-          plex_code?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          resolved_customer_id?: string | null
-          service_type?: string | null
-          status?: string
-          typed_email?: string | null
-          typed_name?: string | null
-          verified_expiration?: string | null
-          verified_max_connections?: number | null
-        }
-        Update: {
-          candidate_customer_ids?: string[]
-          code_expires_at?: string | null
-          created_at?: string
-          id?: string
-          linked_at?: string | null
-          notes?: string | null
-          panel_host?: string | null
-          panel_username?: string
-          plex_code?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          resolved_customer_id?: string | null
-          service_type?: string | null
-          status?: string
-          typed_email?: string | null
-          typed_name?: string | null
-          verified_expiration?: string | null
-          verified_max_connections?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "plex_signup_reviews_resolved_customer_id_fkey"
-            columns: ["resolved_customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       processed_wix_events: {
         Row: {
           created_at: string
@@ -2712,34 +2626,28 @@ export type Database = {
           channel: string
           customer_id: string
           id: string
-          message: string | null
           notes: string | null
           sent_at: string
           sent_by: string | null
           service_id: string | null
-          stage: string | null
         }
         Insert: {
           channel?: string
           customer_id: string
           id?: string
-          message?: string | null
           notes?: string | null
           sent_at?: string
           sent_by?: string | null
           service_id?: string | null
-          stage?: string | null
         }
         Update: {
           channel?: string
           customer_id?: string
           id?: string
-          message?: string | null
           notes?: string | null
           sent_at?: string
           sent_by?: string | null
           service_id?: string | null
-          stage?: string | null
         }
         Relationships: [
           {
@@ -2846,78 +2754,6 @@ export type Database = {
           url?: string
         }
         Relationships: []
-      }
-      site_renewals: {
-        Row: {
-          connections: number | null
-          created_at: string
-          customer_id: string | null
-          detail: string | null
-          hub_service_id: string | null
-          id: string
-          months: number | null
-          new_expiry: string | null
-          order_number: string
-          panel_line_id: string | null
-          server: string | null
-          status: string
-          total: number
-          updated_at: string
-          username: string
-          whmcs_service_id: number | null
-        }
-        Insert: {
-          connections?: number | null
-          created_at?: string
-          customer_id?: string | null
-          detail?: string | null
-          hub_service_id?: string | null
-          id?: string
-          months?: number | null
-          new_expiry?: string | null
-          order_number: string
-          panel_line_id?: string | null
-          server?: string | null
-          status?: string
-          total?: number
-          updated_at?: string
-          username: string
-          whmcs_service_id?: number | null
-        }
-        Update: {
-          connections?: number | null
-          created_at?: string
-          customer_id?: string | null
-          detail?: string | null
-          hub_service_id?: string | null
-          id?: string
-          months?: number | null
-          new_expiry?: string | null
-          order_number?: string
-          panel_line_id?: string | null
-          server?: string | null
-          status?: string
-          total?: number
-          updated_at?: string
-          username?: string
-          whmcs_service_id?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "site_renewals_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "site_renewals_hub_service_id_fkey"
-            columns: ["hub_service_id"]
-            isOneToOne: false
-            referencedRelation: "customer_services"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       smc_news: {
         Row: {
@@ -4039,25 +3875,6 @@ export type Database = {
         Returns: Json
       }
       run_refresh_player_signins: { Args: never; Returns: undefined }
-      search_customers: {
-        Args: { p_limit?: number; p_offset?: number; p_query: string }
-        Returns: {
-          contact_method: string
-          created_at: string
-          email: string
-          id: string
-          match_field: string
-          match_rank: number
-          match_value: string
-          name: string
-          notes: string
-          payment_handle: string
-          phone: string
-          shares_account: boolean
-          updated_at: string
-          user_id: string
-        }[]
-      }
       set_tenant_giveaway: {
         Args: { p_code: string; p_enabled: boolean }
         Returns: boolean

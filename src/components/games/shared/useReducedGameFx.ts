@@ -8,6 +8,17 @@ const systemPrefersReduced = () =>
 const lowMemoryMode = () =>
   typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
 
+/** Read the effective setting outside React (canvas/RAF code paths). */
+export const isReducedGameFx = (): boolean => {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.getAttribute('data-game-fx') === 'reduced';
+};
+
+/**
+ * Persisted Reduced FX preference, shared by the hub and all six games.
+ * The effective value is mirrored onto <html data-game-fx> so CSS and plain
+ * JS animation code can consult the same switch.
+ */
 export const useReducedGameFx = () => {
   const [manual, setManual] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch { return false; }
@@ -22,6 +33,14 @@ export const useReducedGameFx = () => {
     return () => query.removeEventListener?.('change', update);
   }, []);
 
+  const reducedFx = manual || system || lowMemoryMode();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-game-fx', reducedFx ? 'reduced' : 'full');
+    return () => { root.removeAttribute('data-game-fx'); };
+  }, [reducedFx]);
+
   const toggle = useCallback(() => {
     setManual((current) => {
       const next = !current;
@@ -30,5 +49,5 @@ export const useReducedGameFx = () => {
     });
   }, []);
 
-  return { reducedFx: manual || system || lowMemoryMode(), manualReducedFx: manual, toggleReducedFx: toggle };
+  return { reducedFx, manualReducedFx: manual, toggleReducedFx: toggle };
 };

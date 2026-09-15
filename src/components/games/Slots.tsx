@@ -9,7 +9,6 @@ import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';
 import p4img from '@/assets/slots/smc.png';
-import { GameTopBar } from './shared/GameUI';
 
 interface SlotsProps {
   onBack: () => void;
@@ -162,6 +161,9 @@ const Slots = ({ onBack }: SlotsProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   const [bet, setBet] = useState<number>(10);
   const [spinning, setSpinning] = useState(false);
@@ -294,12 +296,12 @@ const Slots = ({ onBack }: SlotsProps) => {
           triggeredFreeSpins: resp.triggeredFreeSpins ?? 0,
         };
 
-        // Stagger stops left -> right
-        const baseDelay = 900;
-        const stagger = 220;
+        // Stagger stops left -> right (halved when Reduced FX is on; never instantaneous)
+        const baseDelay = reducedFx ? 450 : 900;
+        const stagger = reducedFx ? 110 : 220;
         for (let i = 0; i < REELS; i++) {
           const idx = i;
-          setTimeout(() => {
+          life.timeout(() => {
             setReelStopped((prev) => {
               const n = [...prev];
               n[idx] = true;
@@ -328,11 +330,11 @@ const Slots = ({ onBack }: SlotsProps) => {
               setSpinning(false);
               if (result.totalPayout > 0) {
                 setCelebrate(true);
-                setTimeout(() => setCelebrate(false), 2400);
+                life.timeout(() => setCelebrate(false), reducedFx ? 1200 : 2400);
               }
               if (result.triggeredFreeSpins > 0) {
                 setFreeBurst(true);
-                setTimeout(() => setFreeBurst(false), 2200);
+                life.timeout(() => setFreeBurst(false), reducedFx ? 1100 : 2200);
               }
               if (resp.fair) setFair(resp.fair);
               inFlight.current = false;
@@ -366,14 +368,11 @@ const Slots = ({ onBack }: SlotsProps) => {
       setErrorMsg(t('games.slots.errorSpinFailed'));
       inFlight.current = false;
     }
-  }, [spinning, user, canBet, bet, inFreeSpins, balance]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, reducedFx, life]);
 
   // D-pad
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        return; // let buttons handle
-      }
       if (e.key === 'ArrowLeft') {
         if (focus === 'spin') { e.preventDefault(); setFocus('betPlus'); }
         else if (focus === 'betPlus') { e.preventDefault(); setFocus('betMinus'); }
@@ -397,7 +396,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   }, [focus, changeBet, onBack]);
 
   const focusRing = (id: FocusId) =>
-    focus === id ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+    focus === id ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
   const renderReel = (reelIndex: number) => {
     const strip = reelStrips[reelIndex] ?? [];
@@ -409,9 +408,11 @@ const Slots = ({ onBack }: SlotsProps) => {
     // padding tail. This guarantees overshoot/downward travel before the ease-out settle for reel 0.
     const spinningOffset = -((STRIP_LENGTH - ROWS) * SYMBOL_HEIGHT);
 
+    const settleMs = reducedFx ? 275 : 550;
+    const spinMs = (reducedFx ? 450 : 900) + reelIndex * (reducedFx ? 110 : 220);
     const transition = stopped
-      ? `transform ${550}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
-      : `transform ${900 + reelIndex * 220}ms linear`;
+      ? `transform ${settleMs}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
+      : `transform ${spinMs}ms linear`;
     const translate = stopped ? finalOffset : spinningOffset;
 
     return (
@@ -437,7 +438,7 @@ const Slots = ({ onBack }: SlotsProps) => {
           style={{
             transform: `translateY(${translate}px)`,
             transition,
-            willChange: 'transform',
+            willChange: stopped ? 'auto' : 'transform',
             filter: stopped ? 'none' : 'blur(1.5px)',
             opacity: stopped ? 1 : 0.92,
           }}
@@ -457,8 +458,18 @@ const Slots = ({ onBack }: SlotsProps) => {
   };
 
   return (
-    <div className="snow-casino snow-casino--plum tv-game-shell">
-      <div className="snow-casino__aurora" /><div className="snow-casino__vignette" />
+    <div
+      className="tv-game-shell text-white relative"
+      style={{
+        background: inFreeSpins
+          ? 'radial-gradient(1200px 600px at 50% -10%, rgba(168,85,247,0.28), transparent 60%),' +
+            'radial-gradient(900px 500px at 90% 10%, rgba(236,72,153,0.18), transparent 60%),' +
+            'linear-gradient(135deg, #16092b 0%, #0b1f1a 55%, #0a0420 100%)'
+          : 'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
+            'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
+            'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
+      }}
+    >
       <style>{`
         @keyframes slot-coin {
           0% { opacity: 0; transform: translateY(0) scale(0.5); }
@@ -473,7 +484,29 @@ const Slots = ({ onBack }: SlotsProps) => {
       `}</style>
 
       <div className="tv-game-body px-4" style={{ overflow: 'auto' }}>
-        <GameTopBar ref={backBtnRef} onBack={onBack} backLabel={t('games.slots.back')} balance={balance} status={status} title={t('games.slots.spinToWin')} phase={inFreeSpins ? `${freeSpinsRemaining} free spins · ${multiplier}×` : 'Five reels · server-settled'} backFocused={focus === 'back'} onBackFocus={() => setFocus('back')} />
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
+          <Button
+            ref={backBtnRef}
+            onClick={onBack}
+            onFocus={() => setFocus('back')}
+            variant="gold"
+            size="lg"
+            className={`transition-all duration-200 ${focusRing('back')}`}
+          >
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            {t('games.slots.back')}
+          </Button>
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
+            <Coins className="w-6 h-6 text-amber-300" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.slots.playChips')}</span>
+              <span className="text-2xl font-extrabold text-white tabular-nums">
+                {balance !== null ? balance.toLocaleString() : t('games.slots.loadingChips')}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <div className="text-center tv-compact-head">
           <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
@@ -545,18 +578,6 @@ const Slots = ({ onBack }: SlotsProps) => {
                   >
                     {t('games.slots.winChips', { amount: result.totalPayout.toLocaleString() })}
                   </div>
-                  {/* coin burst */}
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className="absolute text-2xl"
-                      style={{
-                        left: `${30 + i * 5}%`,
-                        bottom: '20%',
-                        animation: `slot-coin 1.8s ease-out ${i * 80}ms both`,
-                      }}
-                    >🪙</span>
-                  ))}
                 </div>
               )}
 
@@ -585,8 +606,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={minusBtnRef}
                   onFocus={() => setFocus('betMinus')}
-                  onClick={() => changeBet(-1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === 0}
+                  onClick={() => { if (!(spinning || inFreeSpins || BETS.indexOf(bet) === 0)) changeBet(-1); }}
+                  aria-disabled={(spinning || inFreeSpins || BETS.indexOf(bet) === 0) ? 'true' : undefined}
                   size="icon"
                   className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betMinus')}`}
                 >
@@ -610,8 +631,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={plusBtnRef}
                   onFocus={() => setFocus('betPlus')}
-                  onClick={() => changeBet(1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1}
+                  onClick={() => { if (!(spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1)) changeBet(1); }}
+                  aria-disabled={(spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1) ? 'true' : undefined}
                   size="icon"
                   className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betPlus')}`}
                 >
@@ -623,8 +644,8 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <Button
                   ref={spinBtnRef}
                   onFocus={() => setFocus('spin')}
-                  onClick={handleSpin}
-                  disabled={spinning || !user || (!inFreeSpins && !canBet)}
+                  onClick={() => { if (!(spinning || !user || (!inFreeSpins && !canBet))) handleSpin(); }}
+                  aria-disabled={(spinning || !user || (!inFreeSpins && !canBet)) ? 'true' : undefined}
                   className={`text-2xl font-black px-10 py-7 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-300 hover:from-amber-300 hover:to-amber-500 transition-all shadow-[0_10px_30px_-8px_rgba(251,191,36,0.6)] ${focusRing('spin')}`}
                 >
                   {spinning ? (
@@ -649,6 +670,8 @@ const Slots = ({ onBack }: SlotsProps) => {
             )}
           </div>
         </div>
+
+        <GameFxCanvas burstKey={celebrate && result ? result.totalPayout : null} reduced={reducedFx} />
 
         {/* Wins breakdown */}
         {result && result.wins.length > 0 && (

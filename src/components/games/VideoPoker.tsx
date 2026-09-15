@@ -7,7 +7,10 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
 import { GameTopBar } from './shared/GameUI';
-import { PlayingCard } from './shared/PlayingCard';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useReducedGameFx } from './shared/useReducedGameFx';
 
 interface VideoPokerProps {
   onBack: () => void;
@@ -77,7 +80,77 @@ function PokerCard({
   focused?: boolean;
   holdLabel: string;
 }) {
-  return <PlayingCard card={card} held={held} focused={focused} faceDown={flipping} delay={delay} />;
+  const isRed = card && RED.has(card.suit);
+  return (
+    <div
+      className="tv-game-card"
+      style={{
+        perspective: '800px',
+      }}
+    >
+      {held && (
+        <div
+          className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-black tracking-wider z-10"
+          style={{
+            background: 'linear-gradient(180deg, #fde68a, #b45309)',
+            color: '#3b1402',
+            border: '2px solid #fbbf24',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+            textShadow: '0 1px 0 rgba(255,255,255,0.4)',
+          }}
+        >
+          {holdLabel}
+        </div>
+      )}
+      <div
+        className="absolute inset-0 rounded-lg"
+        style={{
+          transform: `rotateX(6deg) rotateY(-2deg) ${flipping ? 'rotateY(180deg)' : ''}`,
+          transition: 'transform 380ms ease',
+          transformStyle: 'preserve-3d',
+          animation: `vp-deal-in 420ms ease-out ${delay}ms both`,
+          background: held
+            ? 'linear-gradient(180deg, #fffbeb, #fde68a)'
+            : 'linear-gradient(180deg, #fafafa, #e5e7eb)',
+          border: focused
+            ? '3px solid #fbbf24'
+            : held
+            ? '3px solid #f59e0b'
+            : '2px solid rgba(15,23,42,0.85)',
+          boxShadow: focused
+            ? '0 0 28px rgba(252,211,77,0.7), 0 12px 26px -8px rgba(0,0,0,0.7)'
+            : held
+            ? '0 0 18px rgba(251,191,36,0.45), 0 10px 22px -8px rgba(0,0,0,0.7)'
+            : '0 10px 22px -8px rgba(0,0,0,0.7)',
+        }}
+      >
+        {card && (
+          <>
+            <div
+              className="absolute top-1 left-2 font-black leading-none"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(12px, 2.8cqh, 20px)' }}
+            >
+              {card.rank}
+              <div style={{ fontSize: 'clamp(11px, 2.4cqh, 18px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+            </div>
+            <div
+              className="absolute inset-0 flex items-center justify-center font-black"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(24px, 6.5cqh, 46px)' }}
+            >
+              {SUIT_GLYPH[card.suit]}
+            </div>
+            <div
+              className="absolute bottom-1 right-2 font-black leading-none"
+              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(12px, 2.8cqh, 20px)', transform: 'rotate(180deg)' }}
+            >
+              {card.rank}
+              <div style={{ fontSize: 'clamp(11px, 2.4cqh, 18px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 type Phase = 'idle' | 'dealt' | 'settled';
@@ -103,7 +176,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const [resultPayout, setResultPayout] = useState<number>(0);
   const [resultNet, setResultNet] = useState<number>(0);
   const [resultWin, setResultWin] = useState<boolean>(false);
-  const [animPayout, setAnimPayout] = useState<number>(0);
   const [celebrate, setCelebrate] = useState(false);
   const [fair, setFair] = useState<FairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
@@ -119,6 +191,11 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const payoutSpanRef = useRef<HTMLSpanElement>(null);
+
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
   // Initial focus
   useEffect(() => {
@@ -140,7 +217,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     else if (err === 'round_in_progress') setError(t('games.videoPoker.error.roundInProgress'));
     else if (err === 'no_active_round') setError(t('games.videoPoker.error.noActiveRound'));
     else setError(t('games.videoPoker.error.generic'));
-    setTimeout(() => setError(null), 3500);
+    life.timeout(() => setError(null), 3500);
   };
 
   const doDeal = useCallback(async () => {
@@ -169,7 +246,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         setHand(resp.hand);
         if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setPhase('dealt');
-        setTimeout(() => setFlipping([false, false, false, false, false]), 50);
+        life.timeout(() => setFlipping([false, false, false, false, false]), reducedFx ? 25 : 50);
         setZone('card');
         setCardIdx(0);
       } else {
@@ -196,10 +273,10 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     try {
       const resp = await gameSocket.drawVideoPoker(holds);
       if (resp?.ok && Array.isArray(resp.hand)) {
-        setTimeout(() => {
+        life.timeout(() => {
           setHand(resp.hand);
           setFlipping([false, false, false, false, false]);
-        }, 250);
+        }, reducedFx ? 125 : 250);
         if (resp.payouts && typeof resp.payouts === 'object') {
           setPayouts({ ...DEFAULT_PAYOUTS, ...resp.payouts });
         }
@@ -213,14 +290,17 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
           setCelebrate(true);
           const target = resp.payout as number;
           const start = performance.now();
-          const dur = 1100;
-          const tick = (t: number) => {
-            const p = Math.min(1, (t - start) / dur);
-            setAnimPayout(Math.round(target * (1 - Math.pow(1 - p, 3))));
-            if (p < 1) requestAnimationFrame(tick);
-            else setTimeout(() => setCelebrate(false), 1200);
+          const dur = reducedFx ? 550 : 1100;
+          const tick = (now: number) => {
+            const p = Math.min(1, (now - start) / dur);
+            const value = Math.round(target * (1 - Math.pow(1 - p, 3)));
+            if (payoutSpanRef.current) {
+              payoutSpanRef.current.textContent = t('games.videoPoker.payoutChips', { amount: value.toLocaleString() });
+            }
+            if (p < 1) life.raf(tick);
+            else life.timeout(() => setCelebrate(false), reducedFx ? 600 : 1200);
           };
-          requestAnimationFrame(tick);
+          life.raf(tick);
         }
         setZone('primary');
       } else {
@@ -250,7 +330,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     });
   }, [phase]);
 
-  // D-pad
+  // D-pad (arrow focus movement only — OK/Select activation is handled by useTvActivate)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const k = e.key;
@@ -269,32 +349,25 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
           else setZone('primary');
         } else if (k === 'ArrowUp') {
           e.preventDefault(); setZone('back');
-        } else if (k === 'Enter' || k === ' ') {
-          if (phase === 'idle' || phase === 'settled') {
-            e.preventDefault();
-            setBet(BETS[betIdx]);
-          }
         }
       } else if (zone === 'card') {
         if (k === 'ArrowLeft' && cardIdx > 0) { e.preventDefault(); setCardIdx(cardIdx - 1); }
         else if (k === 'ArrowRight' && cardIdx < 4) { e.preventDefault(); setCardIdx(cardIdx + 1); }
         else if (k === 'ArrowDown') { e.preventDefault(); setZone('primary'); }
         else if (k === 'ArrowUp') { e.preventDefault(); setZone('bet'); }
-        else if (k === 'Enter' || k === ' ') { e.preventDefault(); toggleHold(cardIdx); }
       } else if (zone === 'primary') {
         if (k === 'ArrowUp') {
           e.preventDefault();
           if (phase === 'dealt') { setZone('card'); setCardIdx(0); }
           else { setZone('bet'); }
         } else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
-        else if (k === 'Enter' || k === ' ') { e.preventDefault(); primaryAction(); }
       } else if (zone === 'fair') {
         if (k === 'ArrowUp') { e.preventDefault(); setZone('primary'); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [zone, cardIdx, betIdx, phase, fair, primaryAction, toggleHold, onBack]);
+  }, [zone, cardIdx, betIdx, phase, fair]);
 
   // Verify SHA-256 when fair info is shown
   useEffect(() => {
@@ -316,7 +389,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   }, [showFair, fair]);
 
   const ring = (active: boolean) =>
-    active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+    active ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
   const primaryLabel = phase === 'dealt' ? t('games.videoPoker.draw') : t('games.videoPoker.deal');
   const betsLocked = phase === 'dealt' || busy;
@@ -327,8 +400,15 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   );
 
   return (
-    <div className="snow-casino snow-casino--sapphire tv-game-shell">
-      <div className="snow-casino__aurora" /><div className="snow-casino__vignette" />
+    <div
+      className="tv-game-shell text-white relative"
+      style={{
+        background:
+          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
+          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
+          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
+      }}
+    >
       <style>{`
         @keyframes vp-deal-in {
           0% { opacity: 0; transform: translateY(-40px) rotate(-10deg) scale(0.8); }
@@ -342,17 +422,22 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       `}</style>
 
       <div className="tv-game-body px-4">
-        <GameTopBar ref={backRef} onBack={onBack} backLabel={t('games.videoPoker.back')} balance={balance} status={status} title={t('games.videoPoker.title')} phase={phase} backFocused={zone === 'back'} onBackFocus={() => setZone('back')} />
-
-        <div className="text-center tv-compact-head">
-          <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.videoPoker.title')}
-          </h1>
-        </div>
+        <GameTopBar
+          ref={backRef}
+          onBack={onBack}
+          backLabel={t('games.videoPoker.back')}
+          balance={balance}
+          status={status}
+          title={t('games.videoPoker.title')}
+          backFocused={zone === 'back'}
+          onBackFocus={() => setZone('back')}
+          reducedFx={reducedFx}
+          onToggleFx={toggleReducedFx}
+        />
 
         {/* Felt table */}
         <div
-          className="tv-game-board snow-game-table relative rounded-lg p-3 md:p-4"
+          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
           style={{
             background: 'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
             border: '3px solid rgba(251,191,36,0.55)',
@@ -368,9 +453,9 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   key={i}
                   ref={(el) => (cardRefs.current[i] = el)}
                   onFocus={() => { setZone('card'); setCardIdx(i); }}
-                  onClick={() => toggleHold(i)}
-                  disabled={phase !== 'dealt'}
-                  className="outline-none bg-transparent border-0 p-0 cursor-pointer disabled:cursor-default"
+                  onClick={() => { if (phase !== 'dealt') return; toggleHold(i); }}
+                  aria-disabled={phase !== 'dealt' ? 'true' : undefined}
+                  className="outline-none bg-transparent border-0 p-0 cursor-pointer aria-disabled:cursor-default"
                   aria-label={holds[i] ? t('games.videoPoker.cardAriaLabelHeld', { number: i + 1 }) : t('games.videoPoker.cardAriaLabel', { number: i + 1 })}
                 >
                   <PokerCard
@@ -397,25 +482,10 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
               </div>
               {resultWin && (
                 <div className="mt-2 relative">
-                  <div className="text-3xl font-black text-emerald-300 tabular-nums">
-                    {t('games.videoPoker.payoutChips', { amount: (animPayout || resultPayout).toLocaleString() })}
+                  <div ref={payoutSpanRef} className="text-3xl font-black text-emerald-300 tabular-nums">
+                    {t('games.videoPoker.payoutChips', { amount: resultPayout.toLocaleString() })}
                   </div>
-                  {celebrate && (
-                    <>
-                      {['🪙', '🪙', '🪙', '✨', '✨'].map((g, i) => (
-                        <span
-                          key={i}
-                          className="absolute left-1/2 -translate-x-1/2 text-2xl pointer-events-none"
-                          style={{
-                            animation: `vp-burst 1100ms ease-out ${i * 120}ms both`,
-                            transform: `translateX(${(i - 2) * 28}px)`,
-                          }}
-                        >
-                          {g}
-                        </span>
-                      ))}
-                    </>
-                  )}
+                  <GameFxCanvas burstKey={celebrate ? resultPayout : null} reduced={reducedFx} />
                 </div>
               )}
               {!resultWin && resultNet !== 0 && (
@@ -440,8 +510,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   key={amount}
                   ref={(el) => (betRefs.current[i] = el)}
                   onFocus={() => { setZone('bet'); setBetIdx(i); }}
-                  onClick={() => !betsLocked && setBet(amount)}
-                  disabled={betsLocked || unaffordable}
+                  onClick={() => { if (betsLocked || unaffordable) return; setBet(amount); }}
+                  aria-disabled={(betsLocked || unaffordable) ? 'true' : undefined}
                   className={`relative w-16 h-16 rounded-full font-black text-lg border-4 transition-all
                     ${selected
                       ? 'bg-gradient-to-br from-amber-300 to-amber-600 text-slate-900 border-amber-200'
@@ -457,8 +527,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             <Button
               ref={primaryRef}
               onFocus={() => setZone('primary')}
-              onClick={primaryAction}
-              disabled={busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)}
+              onClick={() => { if (busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)) return; primaryAction(); }}
+              aria-disabled={(busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)) ? 'true' : undefined}
               className={`ml-auto text-xl font-black px-10 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${ring(zone === 'primary')}`}
             >
               {busy ? (

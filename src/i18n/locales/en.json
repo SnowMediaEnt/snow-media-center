@@ -85,7 +85,10 @@
       "heroTitle": "Welcome to the Lounge",
       "heroSubtitle": "Play with free Snow Coins. Earn them daily, climb the leaderboard, and have fun — just for bragging rights.",
       "signInBanner": "Sign in to start collecting Snow Coins.",
-      "serverError": "Server: {{errorMessage}}"
+      "serverError": "Server: {{errorMessage}}",
+      "heroTagline": "Aurora After Dark · six premium tables",
+      "freeChipsNote": "Free entertainment coins · no purchase required",
+      "leaderboardComingSoon": "Leaderboard · Coming soon"
     },
     "dailySpin": {
       "back": "Back",
@@ -109,7 +112,9 @@
       "fairServerSeed": "serverSeed:",
       "fairClientSeed": "clientSeed:",
       "fairNonce": "nonce:",
-      "fairVerify": "Verify: SHA-256(serverSeed) must equal the hash shown before the spin."
+      "fairVerify": "Verify: SHA-256(serverSeed) must equal the hash shown before the spin.",
+      "phase": "One free spin every four hours",
+      "jackpotTag": "JACKPOT"
     },
     "slots": {
       "back": "Back",
@@ -377,6 +382,20 @@
       "fold": "FOLD",
       "revealing": "Revealing…",
       "newHand": "New Hand"
+    },
+    "shared": {
+      "playChips": "Snow Coins",
+      "provablyFair": "Provably fair",
+      "serverSeedHash": "Server seed hash:",
+      "serverSeed": "Server seed:",
+      "clientSeed": "Client seed:",
+      "nonce": "Nonce:",
+      "held": "HELD",
+      "fxFull": "FX Full",
+      "fxLow": "FX Low",
+      "balanceAria": "Snow Coins balance",
+      "reducedFxOn": "Reduced FX: On",
+      "reducedFxOff": "Reduced FX: Off"
     }
   }
 }

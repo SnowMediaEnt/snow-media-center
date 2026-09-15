@@ -1,4 +1,5 @@
 import { forwardRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronUp, Coins, Loader2, Sparkles, WifiOff } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
@@ -26,23 +27,26 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
   onBackFocus?: () => void;
   reducedFx?: boolean;
   onToggleFx?: () => void;
-}>(({ onBack, backLabel, balance, status, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx }, ref) => (
-  <header className="snow-game-topbar">
-    <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} className="snow-game-back" />
-    {(title || phase) && <div className="snow-game-heading"><h1>{title}</h1>{phase && <span>{phase}</span>}</div>}
-    <div className="snow-game-topbar__right">
-      {onToggleFx && (
-        <Button type="button" variant="navy" size="sm" onClick={onToggleFx} aria-pressed={reducedFx} className="snow-game-fx-toggle">
-          <Sparkles /> FX {reducedFx ? 'Low' : 'Full'}
-        </Button>
-      )}
-      <div className="snow-chip-badge" aria-label="Play Chips balance">
-        {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
-        <span><small>PLAY CHIPS</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
+}>(({ onBack, backLabel, balance, status, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx }, ref) => {
+  const { t } = useTranslation();
+  return (
+    <header className="snow-game-topbar">
+      <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} className="snow-game-back" />
+      {phase && <div className="snow-game-heading"><span>{title ? `${title} · ${phase}` : phase}</span></div>}
+      <div className="snow-game-topbar__right">
+        {onToggleFx && (
+          <Button type="button" variant="navy" size="sm" onClick={onToggleFx} aria-pressed={reducedFx} className="snow-game-fx-toggle">
+            <Sparkles /> {reducedFx ? t('games.shared.fxLow') : t('games.shared.fxFull')}
+          </Button>
+        )}
+        <div className="snow-chip-badge" aria-label={t('games.shared.balanceAria')}>
+          {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
+          <span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
+        </div>
       </div>
-    </div>
-  </header>
-));
+    </header>
+  );
+});
 GameTopBar.displayName = 'GameTopBar';
 
 export const GamePanel = ({ children, className }: { children: ReactNode; className?: string }) => (
@@ -73,20 +77,23 @@ export const FairnessPanel = forwardRef<HTMLButtonElement, {
   onFocus?: () => void;
   labels?: Partial<Record<'title' | 'hash' | 'server' | 'client' | 'nonce' | 'note', string>>;
   verification?: ReactNode;
-}>(({ fair, hash, open, onToggle, focused, onFocus, labels = {}, verification }, ref) => (
-  <div className="snow-fairness">
-    <Button ref={ref} type="button" variant="navy" size="sm" onClick={onToggle} onFocus={onFocus} data-tv-focused={focused ? 'true' : 'false'} className="snow-fairness__toggle">
-      {open ? <ChevronUp /> : <ChevronDown />}{labels.title ?? 'Provably fair'}
-    </Button>
-    {open && (
-      <div className="snow-fairness__details">
-        {(fair?.serverSeedHash || hash) && <p><b>{labels.hash ?? 'Server seed hash:'}</b> {fair?.serverSeedHash || hash}</p>}
-        {fair?.serverSeed && <p><b>{labels.server ?? 'Server seed:'}</b> {fair.serverSeed}</p>}
-        {fair?.clientSeed && <p><b>{labels.client ?? 'Client seed:'}</b> {fair.clientSeed}</p>}
-        {fair && <p><b>{labels.nonce ?? 'Nonce:'}</b> {fair.nonce}</p>}
-        {verification ?? (labels.note && <p>{labels.note}</p>)}
-      </div>
-    )}
-  </div>
-));
+}>(({ fair, hash, open, onToggle, focused, onFocus, labels = {}, verification }, ref) => {
+  const { t } = useTranslation();
+  return (
+    <div className="snow-fairness">
+      <Button ref={ref} type="button" variant="navy" size="sm" onClick={onToggle} onFocus={onFocus} data-tv-focused={focused ? 'true' : 'false'} className="snow-fairness__toggle">
+        {open ? <ChevronUp /> : <ChevronDown />}{labels.title ?? t('games.shared.provablyFair')}
+      </Button>
+      {open && (
+        <div className="snow-fairness__details">
+          {(fair?.serverSeedHash || hash) && <p><b>{labels.hash ?? t('games.shared.serverSeedHash')}</b> {fair?.serverSeedHash || hash}</p>}
+          {fair?.serverSeed && <p><b>{labels.server ?? t('games.shared.serverSeed')}</b> {fair.serverSeed}</p>}
+          {fair?.clientSeed && <p><b>{labels.client ?? t('games.shared.clientSeed')}</b> {fair.clientSeed}</p>}
+          {fair && <p><b>{labels.nonce ?? t('games.shared.nonce')}</b> {fair.nonce}</p>}
+          {verification ?? (labels.note && <p>{labels.note}</p>)}
+        </div>
+      )}
+    </div>
+  );
+});
 FairnessPanel.displayName = 'FairnessPanel';
