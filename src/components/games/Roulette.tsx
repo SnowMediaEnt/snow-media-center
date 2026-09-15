@@ -32,30 +32,32 @@ const AM_ORDER: SlotNum[] = [0,28,9,26,30,11,7,20,32,17,5,22,34,15,3,24,36,13,1,
 type BetType =
   | 'straight' | 'column' | 'dozen'
   | 'red' | 'black' | 'even' | 'odd' | 'low' | 'high';
-interface Bet { type: BetType; selection: any; amount: number }
-interface PlacedChip { type: BetType; selection: any; key: string; amount: number }
+/** What a bet points at: a slot for straights, an index for columns/dozens, nothing for evens. */
+type BetSelection = SlotNum | number | number[] | null;
+interface Bet { type: BetType; selection: BetSelection; amount: number }
+interface PlacedChip { type: BetType; selection: BetSelection; key: string; amount: number }
 /** One physical chip placement — the single source of truth for the board. */
-interface ChipPlacement { key: string; type: BetType; selection: any; amount: number }
+interface ChipPlacement { key: string; type: BetType; selection: BetSelection; amount: number }
 interface FairInfo { serverSeedHash: string; serverSeed: string; clientSeed: string; nonce: number }
 interface SpinResult {
   number: SlotNum;
   color: 'red' | 'black' | 'green';
-  bets: { type: BetType; selection: any; amount: number; won: boolean; payout: number }[];
+  bets: { type: BetType; selection: BetSelection; amount: number; won: boolean; payout: number }[];
   totalBet: number;
   totalPayout: number;
   net: number;
 }
 
-const keyFor = (type: BetType, selection: any) =>
+const keyFor = (type: BetType, selection: BetSelection) =>
   `${type}:${selection === null || selection === undefined ? '_' : Array.isArray(selection) ? selection.join(',') : String(selection)}`;
 
 interface RouletteCellProps {
-  id: string; label?: string; type: BetType; selection: any;
+  id: string; label?: string; type: BetType; selection: BetSelection;
   color: 'red' | 'black' | 'green' | 'neutral'; className?: string;
   children?: React.ReactNode; placed?: PlacedChip; won?: boolean; lost?: boolean;
   spinning: boolean; focused: boolean;
-  register: (id: string, el: HTMLButtonElement | null, bet: { type: BetType; selection: any }) => void;
-  onFocus: (id: string) => void; onPlace: (type: BetType, selection: any) => void;
+  register: (id: string, el: HTMLButtonElement | null, bet: { type: BetType; selection: BetSelection }) => void;
+  onFocus: (id: string) => void; onPlace: (type: BetType, selection: BetSelection) => void;
 }
 
 /**
@@ -115,7 +117,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Focus
   const focusItems = useRef<Map<string, HTMLElement>>(new Map());
-  const cellBets = useRef<Map<string, { type: BetType; selection: any }>>(new Map());
+  const cellBets = useRef<Map<string, { type: BetType; selection: BetSelection }>>(new Map());
   const [focusId, setFocusId] = useState<string>('denom-10');
 
   // Live mirrors so cell callbacks stay referentially stable.
@@ -139,7 +141,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
     else focusItems.current.delete(id);
   }, []);
 
-  const registerCell = useCallback((id: string, el: HTMLButtonElement | null, bet: { type: BetType; selection: any }) => {
+  const registerCell = useCallback((id: string, el: HTMLButtonElement | null, bet: { type: BetType; selection: BetSelection }) => {
     if (el) { focusItems.current.set(id, el); cellBets.current.set(id, bet); }
     else { focusItems.current.delete(id); cellBets.current.delete(id); }
   }, []);
@@ -203,7 +205,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   }, []);
 
   // Place a chip (stable identity so memoized cells do not re-render on state churn)
-  const placeChipOn = useCallback((type: BetType, selection: any) => {
+  const placeChipOn = useCallback((type: BetType, selection: BetSelection) => {
     if (spinningRef.current) return;
     const amount = denomRef.current;
     setPlacements((prev) => [...prev, { key: keyFor(type, selection), type, selection, amount }]);
@@ -211,7 +213,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   }, [clearSettleVisuals]);
 
   /** Remove the most recent chip placed on this cell — the exact denomination. */
-  const decrementChipOn = useCallback((type: BetType, selection: any) => {
+  const decrementChipOn = useCallback((type: BetType, selection: BetSelection) => {
     if (spinningRef.current) return;
     const k = keyFor(type, selection);
     setPlacements((prev) => {
@@ -307,7 +309,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
-      const resp: any = await gameSocket.spinRoulette({
+      const resp = await gameSocket.spinRoulette({
         bets: buildBets(),
         wheel,
         clientSeed: seed,
@@ -517,9 +519,9 @@ const Roulette = ({ onBack }: RouletteProps) => {
   }, [showFair, fair]);
 
   // ----- Render helpers -----
-  const chipAt = (type: BetType, selection: any): PlacedChip | undefined =>
+  const chipAt = (type: BetType, selection: BetSelection): PlacedChip | undefined =>
     chips.find((c) => c.key === keyFor(type, selection));
-  const winFor = (type: BetType, selection: any) => winKeys.has(keyFor(type, selection));
+  const winFor = (type: BetType, selection: BetSelection) => winKeys.has(keyFor(type, selection));
 
   /**
    * Plain render function (NOT a component created during render): it returns
@@ -560,7 +562,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       <div className="snow-casino__aurora" aria-hidden="true" /><div className="snow-casino__vignette" aria-hidden="true" />
       <div className="tv-game-body snow-game-body">
         <GameTopBar
-          ref={registerFocus('back') as any}
+          ref={registerFocus('back')}
           onBack={onBack}
           backLabel={t('games.roulette.back')}
           balance={balance}
@@ -702,7 +704,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
               <div className="snow-rl-actions">
                 <Button
-                  ref={registerFocus('undo') as any}
+                  ref={registerFocus('undo')}
                   onFocus={() => setFocusId('undo')}
                   onClick={undoLast}
                   aria-disabled={spinning || placements.length === 0 ? 'true' : undefined}
@@ -713,7 +715,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   {t('games.roulette.undo')}
                 </Button>
                 <Button
-                  ref={registerFocus('clear') as any}
+                  ref={registerFocus('clear')}
                   onFocus={() => setFocusId('clear')}
                   onClick={clearBets}
                   aria-disabled={spinning || chips.length === 0 ? 'true' : undefined}
@@ -724,7 +726,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   <Trash2 className="w-4 h-4 mr-2" /> {t('games.roulette.clearBets')}
                 </Button>
                 <Button
-                  ref={registerFocus('spin') as any}
+                  ref={registerFocus('spin')}
                   onFocus={() => setFocusId('spin')}
                   onClick={() => { if (canSpin) void doSpin(); }}
                   aria-disabled={canSpin ? undefined : 'true'}
