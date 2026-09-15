@@ -323,14 +323,19 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     <GameShell accent="ice">
       <GameTopBar
         ref={backBtnRef}
-        onBack={onBack}
+        onBack={requestBack}
         backLabel={t('games.dailySpin.back')}
         balance={balance}
         status={status}
         title={t('games.dailySpin.heading')}
         phase={t('games.dailySpin.phase')}
+        backFocused={zone === 'back'}
+        onBackFocus={() => setZone('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
+        fxRef={fxRef}
+        fxFocused={zone === 'fx'}
+        onFxFocus={() => setZone('fx')}
       />
       <GamePanel className="tv-game-board snow-wheel-stage">
         <div className="snow-wheel-layout">
