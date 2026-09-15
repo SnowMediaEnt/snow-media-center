@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, Coins, Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
 import { supabase } from '@/integrations/supabase/client';
+import { FairnessPanel, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useReducedGameFx } from './shared/useReducedGameFx';
 
 interface DailySpinProps {
   onBack: () => void;
@@ -40,12 +42,12 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wheelVisualRef = useRef<HTMLDivElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   const rotRef = useRef(0);
 
-  const [rotation, setRotation] = useState(0); // degrees
   const [spinning, setSpinning] = useState(false);
   const [nextClaimAt, setNextClaimAt] = useState<Date | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -56,7 +58,11 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
 
-  const setRot = useCallback((v: number) => { rotRef.current = v; setRotation(v); }, []);
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const setRot = useCallback((v: number) => {
+    rotRef.current = v;
+    if (wheelVisualRef.current) wheelVisualRef.current.style.transform = `rotate(${v}deg)`;
+  }, []);
 
   // Draw wheel
   const drawWheel = useCallback(() => {
@@ -293,178 +299,21 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const eligible = !nextClaimAt && !loadingCooldown && !!user;
 
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
-      <div className="tv-game-body px-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Button ref={backBtnRef} onClick={onBack} variant="gold" size="lg" className="focus:outline-none focus:ring-4 focus:ring-amber-300/80">
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.dailySpin.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.dailySpin.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.dailySpin.loadingChips')}
-              </span>
-            </div>
+    <GameShell accent="ice">
+      <GameTopBar ref={backBtnRef} onBack={onBack} backLabel={t('games.dailySpin.back')} balance={balance} status={status} title={t('games.dailySpin.heading')} phase="One free spin every four hours" reducedFx={reducedFx} onToggleFx={toggleReducedFx} />
+      <GamePanel className="tv-game-board snow-wheel-stage">
+        <div className="snow-wheel-layout">
+          <div className="snow-wheel-wrap"><span className="snow-wheel-pointer" aria-hidden="true" /><div ref={wheelVisualRef} className="snow-wheel-visual"><canvas ref={canvasRef} /></div></div>
+          <div className="snow-wheel-controls">
+            {!user ? <ResultBanner tone="info" title={t('games.dailySpin.signInPrompt')} /> : loadingCooldown ? <div><Loader2 className="animate-spin" /> {t('games.dailySpin.checkingSpin')}</div> : nextClaimAt ? <ResultBanner tone="info" title={fmtCountdown(remaining)}>{t('games.dailySpin.nextSpinReady')}</ResultBanner> : <Button ref={spinBtnRef} onClick={handleSpin} disabled={spinning || !eligible} className="snow-game-action snow-wheel-spin">{spinning ? t('games.dailySpin.spinning') : t('games.dailySpin.spin')}</Button>}
+            {errorMsg && <ResultBanner tone="lose" title={errorMsg} />}
+            {lastWin && <ResultBanner tone="win" title={lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}>{t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}</ResultBanner>}
+            {fair && <FairnessPanel fair={fair} open={showFair} onToggle={() => setShowFair((value) => !value)} labels={{ title: t('games.dailySpin.provablyFair'), note: t('games.dailySpin.fairVerify') }} />}
           </div>
         </div>
-
-        <div className="text-center tv-compact-head">
-          <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.dailySpin.heading')}
-          </h1>
-        </div>
-
-        {/* Wheel */}
-        <div className="tv-game-board items-center">
-          <div
-            className="relative"
-            style={{ perspective: '1200px', width: 460, maxWidth: '100%' }}
-          >
-            {/* Pointer */}
-            <div
-              className="absolute left-1/2 -translate-x-1/2 z-20"
-              style={{ top: -4 }}
-              aria-hidden
-            >
-              <div
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: '18px solid transparent',
-                  borderRight: '18px solid transparent',
-                  borderTop: '28px solid #fbbf24',
-                  filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))',
-                }}
-              />
-            </div>
-
-            <div
-              className="relative mx-auto"
-              style={{
-                width: 420,
-                height: 420,
-                maxWidth: '100%',
-                transform: 'rotateX(18deg)',
-                transformStyle: 'preserve-3d',
-                filter: 'drop-shadow(0 30px 24px rgba(0,0,0,0.55))',
-              }}
-            >
-              {/* Glow */}
-              <div
-                className="absolute inset-0 rounded-full pointer-events-none"
-                style={{
-                  boxShadow: '0 0 80px 10px rgba(251,191,36,0.18), inset 0 0 60px rgba(0,0,0,0.4)',
-                }}
-              />
-              <canvas
-                ref={canvasRef}
-                style={{
-                  transform: `rotate(${rotation}deg)`,
-                  transition: 'none',
-                  display: 'block',
-                  willChange: 'transform',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Spin / cooldown */}
-          <div className="mt-8 w-full max-w-md text-center">
-            {!user ? (
-              <Card className="p-5 bg-slate-900/70 border-amber-400/40 text-amber-100 font-semibold">
-                {t('games.dailySpin.signInPrompt')}
-              </Card>
-            ) : loadingCooldown ? (
-              <div className="flex items-center justify-center gap-2 text-slate-200">
-                <Loader2 className="w-5 h-5 animate-spin" /> {t('games.dailySpin.checkingSpin')}
-              </div>
-            ) : nextClaimAt ? (
-              <Card className="p-6 bg-slate-900/80 border-emerald-400/30">
-                <div className="text-sm uppercase tracking-wider text-emerald-200/90 font-semibold mb-1">
-                  {t('games.dailySpin.comeBackIn')}
-                </div>
-                <div className="text-4xl font-black tabular-nums text-white">
-                  {fmtCountdown(remaining)}
-                </div>
-                <div className="text-xs text-slate-300 mt-2">{t('games.dailySpin.nextSpinReady')}</div>
-              </Card>
-            ) : (
-              <Button
-                ref={spinBtnRef}
-                onClick={handleSpin}
-                disabled={spinning || !eligible}
-                className="w-full text-2xl font-black py-8 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-300 hover:from-amber-300 hover:to-amber-500 focus:outline-none focus:ring-4 focus:ring-amber-300/80 focus:scale-105 transition-all shadow-[0_10px_30px_-8px_rgba(251,191,36,0.6)]"
-              >
-                {spinning ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-6 h-6 animate-spin" /> {t('games.dailySpin.spinning')}
-                  </span>
-                ) : (
-                  t('games.dailySpin.spin')
-                )}
-              </Button>
-            )}
-
-            {errorMsg && (
-              <p className="mt-4 text-amber-200 font-semibold">{errorMsg}</p>
-            )}
-
-            {lastWin && (
-              <div
-                className={`mt-6 p-5 rounded-xl border ${
-                  lastWin.jackpot
-                    ? 'bg-gradient-to-br from-amber-400/30 to-amber-700/30 border-amber-300/60'
-                    : 'bg-emerald-500/15 border-emerald-300/40'
-                } ${celebrate ? 'animate-scale-in' : ''}`}
-                style={
-                  celebrate
-                    ? { boxShadow: '0 0 60px 8px rgba(251,191,36,0.55)' }
-                    : undefined
-                }
-              >
-                <div className="text-sm uppercase tracking-wider font-semibold text-amber-200">
-                  {lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}
-                </div>
-                <div className="text-4xl font-black text-white mt-1">
-                  {t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}
-                </div>
-              </div>
-            )}
-
-            {fair && (
-              <div className="mt-6 text-left">
-                <button
-                  onClick={() => setShowFair((s) => !s)}
-                  className="text-xs text-slate-100 bg-slate-800 border border-slate-500/60 px-2 py-1 rounded inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-300/80"
-                >
-                  {t('games.dailySpin.provablyFair')} {showFair ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-                {showFair && (
-                  <div className="mt-2 p-3 rounded-lg bg-slate-950/70 border border-slate-700/60 text-[11px] text-slate-300 font-mono break-all space-y-1">
-                    <div><span className="text-slate-400">{t('games.dailySpin.fairServerSeedHash')}</span> {fair.serverSeedHash}</div>
-                    <div><span className="text-slate-400">{t('games.dailySpin.fairServerSeed')}</span> {fair.serverSeed}</div>
-                    <div><span className="text-slate-400">{t('games.dailySpin.fairClientSeed')}</span> {fair.clientSeed}</div>
-                    <div><span className="text-slate-400">{t('games.dailySpin.fairNonce')}</span> {fair.nonce}</div>
-                    <div className="text-slate-400 pt-1">{t('games.dailySpin.fairVerify')}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+      </GamePanel>
+      <GameFxCanvas burstKey={celebrate && lastWin ? lastWin.prize : null} reduced={reducedFx} />
+    </GameShell>
   );
 };
 

@@ -9,6 +9,7 @@ import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';
 import p4img from '@/assets/slots/smc.png';
+import { GameTopBar } from './shared/GameUI';
 
 interface SlotsProps {
   onBack: () => void;
@@ -456,18 +457,8 @@ const Slots = ({ onBack }: SlotsProps) => {
   };
 
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background: inFreeSpins
-          ? 'radial-gradient(1200px 600px at 50% -10%, rgba(168,85,247,0.28), transparent 60%),' +
-            'radial-gradient(900px 500px at 90% 10%, rgba(236,72,153,0.18), transparent 60%),' +
-            'linear-gradient(135deg, #16092b 0%, #0b1f1a 55%, #0a0420 100%)'
-          : 'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-            'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-            'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
+    <div className="snow-casino snow-casino--plum tv-game-shell">
+      <div className="snow-casino__aurora" /><div className="snow-casino__vignette" />
       <style>{`
         @keyframes slot-coin {
           0% { opacity: 0; transform: translateY(0) scale(0.5); }
@@ -482,29 +473,7 @@ const Slots = ({ onBack }: SlotsProps) => {
       `}</style>
 
       <div className="tv-game-body px-4" style={{ overflow: 'auto' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
-          <Button
-            ref={backBtnRef}
-            onClick={onBack}
-            onFocus={() => setFocus('back')}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing('back')}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.slots.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.slots.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.slots.loadingChips')}
-              </span>
-            </div>
-          </div>
-        </div>
+        <GameTopBar ref={backBtnRef} onBack={onBack} backLabel={t('games.slots.back')} balance={balance} status={status} title={t('games.slots.spinToWin')} phase={inFreeSpins ? `${freeSpinsRemaining} free spins · ${multiplier}×` : 'Five reels · server-settled'} backFocused={focus === 'back'} onBackFocus={() => setFocus('back')} />
 
         <div className="text-center tv-compact-head">
           <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">

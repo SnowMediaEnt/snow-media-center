@@ -5,6 +5,8 @@ import { ArrowLeft, Coins, ChevronDown, ChevronUp, Sparkles } from 'lucide-react
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { GameTopBar } from './shared/GameUI';
+import { PlayingCard as SharedPlayingCard, PlayingCardSlot as SharedPlayingCardSlot } from './shared/PlayingCard';
 
 interface CasinoHoldemProps {
   onBack: () => void;
@@ -48,64 +50,10 @@ function PlayingCard({
   delay = 0,
   highlight = false,
 }: { card?: ChCard; faceDown?: boolean; delay?: number; highlight?: boolean }) {
-  const isRed = card && RED_SUITS.has(card.suit);
-  return (
-    <div
-      className="tv-game-card"
-      style={{
-        perspective: '800px',
-        animation: `ch-deal-in 420ms ease-out ${delay}ms both`,
-      }}
-    >
-      <div
-        className="absolute inset-0 rounded-lg shadow-[0_10px_24px_-8px_rgba(0,0,0,0.7)]"
-        style={{
-          transform: 'rotateX(8deg) rotateY(-2deg)',
-          transformStyle: 'preserve-3d',
-          background: faceDown
-            ? 'repeating-linear-gradient(45deg, #1e3a8a 0 8px, #1e40af 8px 16px)'
-            : 'linear-gradient(180deg, #fafafa, #e5e7eb)',
-          border: faceDown ? '2px solid #fbbf24' : '2px solid rgba(15,23,42,0.85)',
-          outline: highlight ? '3px solid rgba(251,191,36,0.9)' : 'none',
-          outlineOffset: 2,
-        }}
-      >
-        {!faceDown && card && (
-          <>
-            <div
-              className="absolute top-1 left-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-            <div
-              className="absolute inset-0 flex items-center justify-center font-black"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(20px, 5.5cqh, 36px)' }}
-            >
-              {SUIT_GLYPH[card.suit]}
-            </div>
-            <div
-              className="absolute bottom-1 right-2 font-black leading-none"
-              style={{ color: isRed ? '#dc2626' : '#0f172a', fontSize: 'clamp(10px, 2.4cqh, 16px)', transform: 'rotate(180deg)' }}
-            >
-              {card.rank}
-              <div style={{ fontSize: 'clamp(9px, 2cqh, 14px)', marginTop: 2 }}>{SUIT_GLYPH[card.suit]}</div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
+  return <SharedPlayingCard card={card} faceDown={faceDown} delay={delay} highlighted={highlight} compact />;
 }
 
-function CardSlot() {
-  return (
-    <div
-      className="tv-game-card rounded-lg border-2 border-dashed border-white/15 bg-white/[0.03]"
-    />
-  );
-}
+function CardSlot() { return <SharedPlayingCardSlot compact />; }
 
 const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const { t } = useTranslation();
@@ -443,15 +391,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   );
 
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
+    <div className="snow-casino snow-casino--teal tv-game-shell">
+      <div className="snow-casino__aurora" /><div className="snow-casino__vignette" />
       <style>{`
         @keyframes ch-deal-in {
           0% { opacity: 0; transform: translateY(-40px) rotate(-12deg) scale(0.8); }
@@ -460,37 +401,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       `}</style>
 
       <div className="tv-game-body px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <Button
-            ref={refs.back}
-            onClick={onBack}
-            onFocus={() => {
-              if (phase === 'bet') setFocusBet('back');
-              else if (phase === 'decision') setFocusDecision('back');
-              else setFocusSettle('back');
-            }}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing(
-              (phase === 'bet' && focusBet === 'back') ||
-              (phase === 'decision' && focusDecision === 'back') ||
-              (phase === 'settled' && focusSettle === 'back')
-            )}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.casinoHoldem.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.casinoHoldem.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.casinoHoldem.loadingChips')}
-              </span>
-            </div>
-          </div>
-        </div>
+        <GameTopBar ref={refs.back} onBack={onBack} backLabel={t('games.casinoHoldem.back')} balance={balance} status={status} title={t('games.casinoHoldem.heading')} phase={phase} backFocused={(phase === 'bet' && focusBet === 'back') || (phase === 'decision' && focusDecision === 'back') || (phase === 'settled' && focusSettle === 'back')} onBackFocus={() => phase === 'bet' ? setFocusBet('back') : phase === 'decision' ? setFocusDecision('back') : setFocusSettle('back')} />
 
         <div className="text-center tv-compact-head">
           <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
@@ -501,7 +412,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
 
         {/* Felt Table */}
         <div
-          className="tv-game-board relative rounded-[1.5rem] p-3 md:p-4"
+          className="tv-game-board snow-game-table relative rounded-lg p-3 md:p-4"
           style={{
             background:
               'radial-gradient(ellipse at top, #0f5132 0%, #064e3b 45%, #022c22 100%)',
