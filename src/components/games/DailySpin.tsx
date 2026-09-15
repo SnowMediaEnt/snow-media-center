@@ -355,6 +355,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
                 ref={spinBtnRef}
                 variant="gold"
                 aria-disabled={spinBlocked ? 'true' : undefined}
+                data-tv-focused={zone === 'spin' ? 'true' : undefined}
+                onFocus={() => setZone('spin')}
                 onClick={() => { if (!spinBlocked) void handleSpin(); }}
                 className="snow-game-action snow-wheel-spin"
               >
@@ -362,6 +364,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
               </Button>
             )}
             {errorMsg && <ResultBanner tone="lose" title={errorMsg} />}
+            {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
             {lastWin && (
               <ResultBanner tone="win" title={lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}>
                 {t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}
@@ -369,8 +372,11 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
             )}
             {fair && (
               <FairnessPanel
+                ref={fairRef}
                 fair={fair}
                 open={showFair}
+                focused={zone === 'fair'}
+                onFocus={() => setZone('fair')}
                 onToggle={() => setShowFair((value) => !value)}
                 labels={{ title: t('games.dailySpin.provablyFair'), note: t('games.dailySpin.fairVerify') }}
               />
