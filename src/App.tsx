@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import TvGamesProbe from '@/pages/__TvGamesProbe';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -131,6 +132,7 @@ const App = () => {
               <Route path="/admin/knowledge" element={<AdminKnowledge />} />
               <Route path="/welcome" element={<Welcome />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="/__tvgames" element={<TvGamesProbe />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
