@@ -107,7 +107,9 @@ describe("Casino Hold'em decision phase", () => {
     // A second press starts a new hand epoch; the first ack must be discarded.
     fireEvent.click(dealButton());
     resolveFirst({ ...dealAck, balance: 900 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(screen.queryByRole('button', { name: /games\.casinoHoldem\.raiseOption/ })).toBeNull();
+    await new Promise((r) => setTimeout(r, 80));
+    // The stale ack's generous balance must not unlock the 3x raise.
+    expect(raiseButton().getAttribute('aria-disabled')).toBe('true');
+    expect(callButton().getAttribute('aria-disabled')).toBeNull();
   });
 });
