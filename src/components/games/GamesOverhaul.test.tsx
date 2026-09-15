@@ -51,16 +51,16 @@ describe('all six games share the reduced-FX shell', () => {
 });
 
 describe('shared playing card', () => {
-  it('renders rank and suit with a legacy-safe inset fallback class', () => {
-    const { container } = render(<PlayingCard card={{ rank: 'A', suit: 's' }} />);
+  it('renders rank and suit corners for TV readability', () => {
+    const { container } = render(<PlayingCard card={{ rank: 'A', suit: 'S' }} />);
     expect(screen.getAllByText('A').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.no-inset').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.snow-card-corner').length).toBe(2);
   });
 
   it('supports a compact 720p variant on both card and empty slot', () => {
     const { container } = render(
       <>
-        <PlayingCard card={{ rank: 'K', suit: 'h' }} compact />
+        <PlayingCard card={{ rank: 'K', suit: 'H' }} compact />
         <PlayingCardSlot compact />
       </>,
     );
@@ -68,7 +68,7 @@ describe('shared playing card', () => {
   });
 
   it('marks a held card so HOLD state is unmistakable', () => {
-    const { container } = render(<PlayingCard card={{ rank: '10', suit: 'd' }} held />);
+    const { container } = render(<PlayingCard card={{ rank: '10', suit: 'D' }} held />);
     expect(container.querySelector('.is-held')).not.toBeNull();
   });
 });
