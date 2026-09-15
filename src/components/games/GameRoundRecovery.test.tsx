@@ -100,11 +100,11 @@ describe('terminal round reconciliation', () => {
     });
     hit.mockResolvedValue({ ok: false, error: 'no_active_round' });
     render(<Blackjack onBack={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.deal/ }));
+    fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ }));
     const hitBtn = await waitFor(() => screen.getByRole('button', { name: /games\.blackjack\.hit/ }));
     fireEvent.click(hitBtn);
     await waitFor(() => expect(screen.queryByRole('button', { name: /games\.blackjack\.hit/ })).toBeNull());
-    expect(screen.getByRole('button', { name: /games\.blackjack\.deal/ })).not.toBeNull();
+    expect(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ })).not.toBeNull();
   });
 });
 
