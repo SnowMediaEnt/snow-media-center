@@ -11,6 +11,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useGameBack } from './shared/gameBack';
 import type { GameFairInfo } from './shared/gameTypes';
 
 interface DailySpinProps {
