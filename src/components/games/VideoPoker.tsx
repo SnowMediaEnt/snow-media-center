@@ -453,9 +453,9 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   key={i}
                   ref={(el) => (cardRefs.current[i] = el)}
                   onFocus={() => { setZone('card'); setCardIdx(i); }}
-                  onClick={() => toggleHold(i)}
-                  disabled={phase !== 'dealt'}
-                  className="outline-none bg-transparent border-0 p-0 cursor-pointer disabled:cursor-default"
+                  onClick={() => { if (phase !== 'dealt') return; toggleHold(i); }}
+                  aria-disabled={phase !== 'dealt' ? 'true' : undefined}
+                  className="outline-none bg-transparent border-0 p-0 cursor-pointer aria-disabled:cursor-default"
                   aria-label={holds[i] ? t('games.videoPoker.cardAriaLabelHeld', { number: i + 1 }) : t('games.videoPoker.cardAriaLabel', { number: i + 1 })}
                 >
                   <PokerCard
@@ -525,8 +525,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
                   key={amount}
                   ref={(el) => (betRefs.current[i] = el)}
                   onFocus={() => { setZone('bet'); setBetIdx(i); }}
-                  onClick={() => !betsLocked && setBet(amount)}
-                  disabled={betsLocked || unaffordable}
+                  onClick={() => { if (betsLocked || unaffordable) return; setBet(amount); }}
+                  aria-disabled={(betsLocked || unaffordable) ? 'true' : undefined}
                   className={`relative w-16 h-16 rounded-full font-black text-lg border-4 transition-all
                     ${selected
                       ? 'bg-gradient-to-br from-amber-300 to-amber-600 text-slate-900 border-amber-200'
@@ -542,8 +542,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             <Button
               ref={primaryRef}
               onFocus={() => setZone('primary')}
-              onClick={primaryAction}
-              disabled={busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)}
+              onClick={() => { if (busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)) return; primaryAction(); }}
+              aria-disabled={(busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet)) ? 'true' : undefined}
               className={`ml-auto text-xl font-black px-10 py-6 bg-gradient-to-br from-emerald-400 to-emerald-600 text-slate-900 border-2 border-emerald-200 transition-all shadow-[0_10px_30px_-8px_rgba(16,185,129,0.6)] ${ring(zone === 'primary')}`}
             >
               {busy ? (
