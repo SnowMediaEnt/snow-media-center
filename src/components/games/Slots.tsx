@@ -5,6 +5,10 @@ import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus, Sparkle
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useReducedGameFx } from './shared/useReducedGameFx';
 import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';

@@ -191,7 +191,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const payoutSpanRef = useRef<HTMLSpanElement>(null);
+  const payoutSpanRef = useRef<HTMLDivElement>(null);
 
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
@@ -233,7 +233,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     setResultPayout(0);
     setResultNet(0);
     setResultWin(false);
-    setAnimPayout(0);
+    
     setFair(null);
     setShowFair(false);
     setVerifyOk(null);
