@@ -406,6 +406,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         {error
           ? <p className="snow-game-error">{error}</p>
           : phase === 'dealt' && <p className="snow-game-note">{t('games.videoPoker.holdHint')}</p>}
+        {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
       </GamePanel>
 
       <FairnessPanel
