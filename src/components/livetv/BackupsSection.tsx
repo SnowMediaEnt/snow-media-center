@@ -321,7 +321,7 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
         {vod.length > 0 && (
           <section>
             <h3 className="text-xl font-quicksand font-semibold mb-4 flex items-center gap-2">
-              <Film className="w-5 h-5 text-brand-gold" /> Movies &amp; Shows
+              <Film className="w-5 h-5 text-brand-gold" /> Movies &amp; Series
             </h3>
             <div className="flex gap-4 overflow-x-auto py-2 px-2 -mx-2">
               {vod.map((s, i) => (

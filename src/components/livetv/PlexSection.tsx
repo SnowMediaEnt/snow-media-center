@@ -1,4 +1,4 @@
-// Plex "Movies & Shows" — auth gate → tabs (Home, Search, libraries, Request,
+// Plex "Movies & Series" — auth gate → tabs (Home, Search, libraries, Request,
 // Manage) → poster grid → native play. Fire-TV D-pad only.
 //
 // Perf-critical:

@@ -96,18 +96,18 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
   },
   {
     id: 'movies',
-    title: 'Player — Movies & Shows',
+    title: 'Player — Movies & Series',
     subtitle: 'Your movie & series library',
     icon: Clapperboard,
     color: 'bg-purple-700/60 border-purple-400/70 text-purple-100',
     slides: [
       {
         icon: Clapperboard,
-        title: 'Open Player, then Movies & Shows.',
+        title: 'Open Player, then Movies & Series.',
         deepLink: { kind: 'view', view: 'livetv', label: 'Take me there' },
         art: { screen: 'chooser', highlight: 'movies-card' },
       },
-      { icon: KeyRound, title: 'Press Sign in to get a code — then SEND THE CODE TO YOUR PROVIDER.', line2: "They link it for you. You don't need your own Plex account.", art: { screen: 'plex-code', highlight: 'code' } },
+      { icon: KeyRound, title: 'Signed into Live TV? Plex connects by itself — no code to send.', line2: "Not signed in yet? Press Connect with Live TV. You don't need your own Plex account.", art: { screen: 'plex-code', highlight: 'code' } },
       { icon: Search, title: 'Browse Home, Search, or any category.', line2: 'OK on a poster shows details — then press Play.', art: { screen: 'plex-grid', highlight: 'grid' } },
       { icon: Captions, title: "Need subtitles? Open the Subtitles menu and pick 'Get subtitles…'.", art: { screen: 'controls', highlight: 'subs-menu' } },
       { icon: VolumeX, title: "No sound? Open the Audio menu and press 'Fix audio'.", line2: 'It fixes the sound without restarting your movie.', art: { screen: 'controls', highlight: 'audio-menu' } },

@@ -1,4 +1,4 @@
-// "Request" tab inside Movies & Shows — search Overseerr and request titles.
+// "Request" tab inside Movies & Series — search Overseerr and request titles.
 // Owns the keyboard entirely while active (PlexSection gates itself out).
 import { memo, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, Film, Tv } from 'lucide-react';

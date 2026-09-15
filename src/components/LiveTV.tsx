@@ -286,7 +286,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [credsLoaded, creds]);
 
   // mode_enter — also fire when the user changes SECTION inside a mode
-  // (e.g. Live TV → Guide, or Movies & Shows → Plex/Movies/Series).
+  // (e.g. Live TV → Guide, or Movies & Series → Plex/Movies/Series).
   const lastSectionRef = useRef<SectionId | null>(null);
   useEffect(() => {
     if (mode === 'choose') { lastSectionRef.current = null; return; }
@@ -296,7 +296,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   }, [section, mode]);
 
 
-  // Content-Bar deep-link: land straight in Movies & Shows (PlexSection
+  // Content-Bar deep-link: land straight in Movies & Series (PlexSection
   // consumes the payload itself — do not remove it here).
   useEffect(() => {
     try {
@@ -588,7 +588,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     );
   }
 
-  // Movies & Shows = full-page Plex for real users (unchanged). Demo falls
+  // Movies & Series = full-page Plex for real users (unchanged). Demo falls
   // through to the shared three-pane shell so the canned Movies & Series
   // sections (liveTvDemo fixtures via xtream.ts) are browsable too.
   if (mode === 'movies' && !DEMO) {
