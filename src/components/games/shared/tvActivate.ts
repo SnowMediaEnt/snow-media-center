@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isGlobalModalOpen } from './gameInput';
 
 /**
  * Shared TV activation guard for the games section.
@@ -41,6 +42,8 @@ export const useTvActivate = (
     if (!enabled) return;
     const down = (event: KeyboardEvent) => {
       if (!isSelectKey(event)) return;
+      // A global modal owns input: never activate a control behind it.
+      if (isGlobalModalOpen()) return;
       // Own the press: stop the browser's own click synthesis and any second
       // copy of this guard from activating the same control again.
       event.preventDefault();

@@ -10,6 +10,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
 import {
@@ -151,6 +152,20 @@ const Slots = ({ onBack }: SlotsProps) => {
   useEffect(() => {
     setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
   }, [focusRows]);
+
+  /**
+   * Spin is the control the player wants under the remote. When it becomes
+   * usable again — chips finished loading, or a spin completed / errored — a
+   * player who was pushed onto Back is brought back to Spin. A DELIBERATE move
+   * to Reduced FX or the bet steppers is left alone.
+   */
+  const parkedOnBack = useRef(false);
+  useEffect(() => {
+    if (!spinUsable) { parkedOnBack.current = focus === 'back'; return; }
+    if (parkedOnBack.current && focus === 'back') setFocus('spin');
+    parkedOnBack.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spinUsable]);
 
   useEffect(() => {
     const target =
@@ -382,12 +397,12 @@ const Slots = ({ onBack }: SlotsProps) => {
     onExit: onBack,
   });
 
-  // D-pad movement only; OK/Select activation lives in useTvActivate.
+  // D-pad movement only; OK/Select activation lives in useTvActivate. A global
+  // modal owns input outright, so the machine yields its arrows untouched.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const dir: FocusDir | null =
-        e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right'
-          : e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : null;
+      if (isGlobalModalOpen()) return;
+      const dir: FocusDir | null = arrowDir(e);
       if (!dir) return;
       e.preventDefault();
       const next = moveInRows(focusRows, focus, dir);

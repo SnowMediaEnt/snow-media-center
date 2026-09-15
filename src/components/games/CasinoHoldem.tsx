@@ -11,6 +11,7 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface CasinoHoldemProps {
@@ -158,6 +159,22 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     else if (err === 'round_in_progress') setError(t('games.casinoHoldem.error.roundInProgress'));
     else if (err === 'no_active_round') setError(t('games.casinoHoldem.error.noActiveRound'));
     else setError(t('games.casinoHoldem.error.generic'));
+    // A CONFIRMED dead round must not leave the table in `decision` with Back
+    // blocked forever. Reconcile to a safe, usable betting state; a transport
+    // failure is never treated as confirmation.
+    if (isTerminalRoundError(err)) {
+      handEpoch.current += 1;
+      setPhase('bet');
+      setPlayerHole([]);
+      setDealerHole([]);
+      setCommunity([]);
+      setRevealedCommunity(0);
+      setDealerRevealed(false);
+      setSettleStatus(null);
+      setRaiseOptions([]);
+      setShowFair(false);
+      setFocusBet('deal');
+    }
     life.timeout(() => setError(null), 3500);
   };
 
@@ -247,38 +264,44 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const doCall = useCallback(async (multiplier: number) => {
     if (inFlight.current || busy) return;
     inFlight.current = true;
+    const epoch = handEpoch.current;
     setBusy(true);
     setError(null);
     try {
       const resp = await gameSocket.callCasinoHoldem(multiplier);
+      // An ack from an older hand, or one landing after unmount, must not
+      // reveal cards or schedule reveal timers.
+      if (!life.isMounted() || epoch !== handEpoch.current) return;
       if (resp?.ok) finishSettle(resp, false);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError(t('games.casinoHoldem.error.tableUnreachable'));
+      if (life.isMounted() && epoch === handEpoch.current) setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
-      setBusy(false);
+      if (life.isMounted() && epoch === handEpoch.current) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, finishSettle]);
+  }, [busy, finishSettle, life]);
 
   const doFold = useCallback(async () => {
     if (inFlight.current || busy) return;
     inFlight.current = true;
+    const epoch = handEpoch.current;
     setBusy(true);
     setError(null);
     try {
       const resp = await gameSocket.foldCasinoHoldem();
+      if (!life.isMounted() || epoch !== handEpoch.current) return;
       if (resp?.ok) finishSettle(resp, true);
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
-      setError(t('games.casinoHoldem.error.tableUnreachable'));
+      if (life.isMounted() && epoch === handEpoch.current) setError(t('games.casinoHoldem.error.tableUnreachable'));
     } finally {
-      setBusy(false);
+      if (life.isMounted() && epoch === handEpoch.current) setBusy(false);
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, finishSettle]);
+  }, [busy, finishSettle, life]);
 
   const playAgain = () => {
     setPhase('bet');
@@ -310,27 +333,45 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     onExit: onBack,
   });
 
-  // D-pad focus movement only. Only AFFORDABLE options are ever navigable.
+  /** Ante chips the player can actually pay for; unaffordable ones are skipped. */
+  const usableChips = ANTES
+    .map((amount, i) => ((balance ?? 0) >= amount ? i : -1))
+    .filter((i) => i >= 0);
+
+  /**
+   * D-pad focus movement only. Only AFFORDABLE options are ever navigable, and
+   * every arrow is consumed while the table is on screen so the native WebView
+   * cannot spatially navigate away from the single data-tv-focused marker.
+   */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isGlobalModalOpen()) return;
+      const dir = arrowDir(e);
+      if (!dir) return;
+      e.preventDefault();
       const topRow = (current: string, set: (v: never) => void): boolean => {
-        if (current === 'back' && e.key === 'ArrowRight') { e.preventDefault(); set('fx' as never); return true; }
-        if (current === 'fx' && e.key === 'ArrowLeft') { e.preventDefault(); set('back' as never); return true; }
+        if (current === 'back' && dir === 'right') { set('fx' as never); return true; }
+        if (current === 'fx' && dir === 'left') { set('back' as never); return true; }
         return false;
       };
       if (phase === 'bet') {
         if (topRow(focusBet, setFocusBet as (v: never) => void)) return;
         const chipIdx = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
-        if (e.key === 'ArrowLeft') {
-          if (chipIdx > 0) { e.preventDefault(); setFocusBet(`chip-${chipIdx - 1}`); }
-          else if (focusBet === 'deal') { e.preventDefault(); setFocusBet(`chip-${ANTES.length - 1}`); }
-        } else if (e.key === 'ArrowRight') {
-          if (chipIdx >= 0 && chipIdx < ANTES.length - 1) { e.preventDefault(); setFocusBet(`chip-${chipIdx + 1}`); }
-          else if (chipIdx === ANTES.length - 1) { e.preventDefault(); setFocusBet('deal'); }
-        } else if (e.key === 'ArrowUp') {
-          if (focusBet !== 'back' && focusBet !== 'fx') { e.preventDefault(); setFocusBet('back'); }
-        } else if (e.key === 'ArrowDown' && (focusBet === 'back' || focusBet === 'fx')) {
-          e.preventDefault(); setFocusBet('chip-0');
+        const pos = usableChips.indexOf(chipIdx);
+        const firstChip = (): void => {
+          if (usableChips.length) setFocusBet(`chip-${usableChips[0]}`);
+          else setFocusBet('deal');
+        };
+        if (dir === 'left') {
+          if (pos > 0) setFocusBet(`chip-${usableChips[pos - 1]}`);
+          else if (focusBet === 'deal' && usableChips.length) setFocusBet(`chip-${usableChips[usableChips.length - 1]}`);
+        } else if (dir === 'right') {
+          if (pos >= 0 && pos < usableChips.length - 1) setFocusBet(`chip-${usableChips[pos + 1]}`);
+          else if (pos === usableChips.length - 1) setFocusBet('deal');
+        } else if (dir === 'up') {
+          if (focusBet !== 'back' && focusBet !== 'fx') setFocusBet('back');
+        } else if (focusBet === 'back' || focusBet === 'fx') {
+          firstChip();
         }
       } else if (phase === 'decision') {
         if (topRow(focusDecision, setFocusDecision as (v: never) => void)) return;
@@ -342,26 +383,32 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           'fair',
         ];
         const idx = order.indexOf(focusDecision);
-        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusDecision(order[idx - 1]); }
-        else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusDecision(order[idx + 1]); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusDecision('back'); }
-        else if (e.key === 'ArrowDown' && (focusDecision === 'back' || focusDecision === 'fx')) {
-          e.preventDefault(); setFocusDecision(firstDecision());
+        if (dir === 'left' && idx > 0) setFocusDecision(order[idx - 1]);
+        else if (dir === 'right' && idx >= 0 && idx < order.length - 1) setFocusDecision(order[idx + 1]);
+        else if (dir === 'up') setFocusDecision('back');
+        else if (dir === 'down' && (focusDecision === 'back' || focusDecision === 'fx')) {
+          setFocusDecision(firstDecision());
         }
+      } else if (phase === 'reveal') {
+        // Nothing is actionable while the board runs out: keep a REAL managed
+        // target (Back / Reduced FX) instead of an empty marker.
+        if (dir === 'right' && focusSettle === 'back') setFocusSettle('fx');
+        else if (dir === 'left' && focusSettle === 'fx') setFocusSettle('back');
+        else if (focusSettle !== 'back' && focusSettle !== 'fx') setFocusSettle('back');
       } else if (phase === 'settled') {
         if (topRow(focusSettle, setFocusSettle as (v: never) => void)) return;
         const order: FocusSettle[] = ['again', 'fair'];
         const idx = order.indexOf(focusSettle);
-        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setFocusSettle(order[idx - 1]); }
-        else if (e.key === 'ArrowRight' && idx >= 0 && idx < order.length - 1) { e.preventDefault(); setFocusSettle(order[idx + 1]); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setFocusSettle('back'); }
-        else if (e.key === 'ArrowDown' && (focusSettle === 'back' || focusSettle === 'fx')) { e.preventDefault(); setFocusSettle('again'); }
+        if (dir === 'left' && idx > 0) setFocusSettle(order[idx - 1]);
+        else if (dir === 'right' && idx >= 0 && idx < order.length - 1) setFocusSettle(order[idx + 1]);
+        else if (dir === 'up') setFocusSettle('back');
+        else if (dir === 'down' && (focusSettle === 'back' || focusSettle === 'fx')) setFocusSettle('again');
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, focusBet, focusDecision, focusSettle, affordableOptions.join(',')]);
+  }, [phase, focusBet, focusDecision, focusSettle, affordableOptions.join(','), usableChips.join(',')]);
 
   const banner = (() => {
     if (phase !== 'settled' || !settleStatus) return null;

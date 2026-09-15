@@ -12,6 +12,7 @@ import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
 
 interface VideoPokerProps {
@@ -105,6 +106,16 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     else if (err === 'round_in_progress') setError(t('games.videoPoker.error.roundInProgress'));
     else if (err === 'no_active_round') setError(t('games.videoPoker.error.noActiveRound'));
     else setError(t('games.videoPoker.error.generic'));
+    // A CONFIRMED dead round would otherwise leave the machine in `dealt` with
+    // the Back guard refusing to let the player leave. Reconcile to a safe,
+    // fully usable betting state. Transport failures are never treated this way.
+    if (isTerminalRoundError(err)) {
+      setPhase('idle');
+      setHolds([false, false, false, false, false]);
+      setCelebrate(false);
+      setShowFair(false);
+      setZone('primary');
+    }
     life.timeout(() => setError(null), 3500);
   };
 
@@ -239,43 +250,64 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     onExit: onBack,
   });
 
-  // D-pad focus movement only.
+  /**
+   * The primary button belongs to the graph only while it can actually do
+   * something (a dealt hand can always draw; a fresh deal needs a signed-in
+   * player with enough chips). `busy` is deliberately ignored so a pending
+   * transaction keeps its focus instead of the marker jumping away.
+   */
+  const primaryUsable = !!user && (phase === 'dealt' || (balance ?? 0) >= bet);
+
+  /**
+   * D-pad focus movement only. Every arrow is consumed while the machine is on
+   * screen so the native WebView cannot spatially navigate away from the single
+   * data-tv-focused marker, and no zone can trap the player away from Back/FX.
+   */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const k = e.key;
-      const firstBet = () => { if (usableBets.length) { setZone('bet'); setBetIdx(usableBets[0]); } else setZone('primary'); };
+      if (isGlobalModalOpen()) return;
+      const dir = arrowDir(e);
+      if (!dir) return;
+      e.preventDefault();
+      const gotoBets = () => {
+        if (usableBets.length) { setZone('bet'); setBetIdx(usableBets[0]); }
+        else if (primaryUsable) setZone('primary');
+        else setZone('back');
+      };
+      const belowBets = () => {
+        if (phase === 'dealt') { setZone('card'); setCardIdx(0); }
+        else if (primaryUsable) setZone('primary');
+        else if (fair) setZone('fair');
+      };
       if (zone === 'back') {
-        if (k === 'ArrowRight') { e.preventDefault(); setZone('fx'); }
-        else if (k === 'ArrowDown') { e.preventDefault(); firstBet(); }
+        if (dir === 'right') setZone('fx');
+        else if (dir === 'down') gotoBets();
       } else if (zone === 'fx') {
-        if (k === 'ArrowLeft') { e.preventDefault(); setZone('back'); }
-        else if (k === 'ArrowDown') { e.preventDefault(); firstBet(); }
+        if (dir === 'left') setZone('back');
+        else if (dir === 'down') gotoBets();
       } else if (zone === 'bet') {
         const pos = usableBets.indexOf(betIdx);
-        if (k === 'ArrowLeft') {
-          e.preventDefault();
-          if (pos > 0) setBetIdx(usableBets[pos - 1]); else setZone('back');
-        } else if (k === 'ArrowRight' && pos >= 0 && pos < usableBets.length - 1) { e.preventDefault(); setBetIdx(usableBets[pos + 1]); }
-        else if (k === 'ArrowDown') { e.preventDefault(); if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else setZone('primary'); }
-        else if (k === 'ArrowUp') { e.preventDefault(); setZone('back'); }
+        if (dir === 'left') { if (pos > 0) setBetIdx(usableBets[pos - 1]); else setZone('back'); }
+        else if (dir === 'right') { if (pos >= 0 && pos < usableBets.length - 1) setBetIdx(usableBets[pos + 1]); }
+        else if (dir === 'down') belowBets();
+        else setZone('back');
       } else if (zone === 'card') {
-        if (k === 'ArrowLeft' && cardIdx > 0) { e.preventDefault(); setCardIdx(cardIdx - 1); }
-        else if (k === 'ArrowRight' && cardIdx < 4) { e.preventDefault(); setCardIdx(cardIdx + 1); }
-        else if (k === 'ArrowDown') { e.preventDefault(); setZone('primary'); }
-        else if (k === 'ArrowUp') { e.preventDefault(); firstBet(); }
+        if (dir === 'left') { if (cardIdx > 0) setCardIdx(cardIdx - 1); else setZone('back'); }
+        else if (dir === 'right') { if (cardIdx < 4) setCardIdx(cardIdx + 1); }
+        else if (dir === 'down') { if (primaryUsable) setZone('primary'); else if (fair) setZone('fair'); }
+        else gotoBets();
       } else if (zone === 'primary') {
-        if (k === 'ArrowUp') {
-          e.preventDefault();
-          if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else firstBet();
-        } else if (k === 'ArrowDown' && fair) { e.preventDefault(); setZone('fair'); }
-      } else if (zone === 'fair' && k === 'ArrowUp') {
-        e.preventDefault(); setZone('primary');
+        if (dir === 'up') { if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else gotoBets(); }
+        else if (dir === 'down') { if (fair) setZone('fair'); }
+        else setZone('back');
+      } else if (zone === 'fair') {
+        if (dir === 'up') { if (primaryUsable) setZone('primary'); else setZone('back'); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zone, cardIdx, betIdx, phase, fair, usableBets.join(',')]);
+  }, [zone, cardIdx, betIdx, phase, fair, primaryUsable, usableBets.join(',')]);
 
   // Verify SHA-256 when the fairness details are open.
   useEffect(() => {
