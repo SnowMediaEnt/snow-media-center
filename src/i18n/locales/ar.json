@@ -81,7 +81,10 @@
       "heroTitle": "مرحبًا بك في الصالة",
       "heroSubtitle": "العب باستخدام Snow Coins المجانية. اكسبها يوميًا، وتسلّق لوحة المتصدرين، واستمتع — للتباهي فقط.",
       "signInBanner": "سجّل الدخول لتبدأ بجمع Snow Coins.",
-      "serverError": "الخادم: {{errorMessage}}"
+      "serverError": "الخادم: {{errorMessage}}",
+      "heroTagline": "أورورا بعد الغروب · ست طاولات فاخرة",
+      "freeChipsNote": "عملات ترفيهية مجانية · بدون أي شراء",
+      "leaderboardComingSoon": "لوحة المتصدرين · قريبًا"
     },
     "dailySpin": {
       "back": "رجوع",
@@ -373,6 +376,20 @@
       "fold": "انسحاب",
       "revealing": "جارٍ الكشف…",
       "newHand": "يد جديدة"
+    },
+    "shared": {
+      "playChips": "عملات سنو",
+      "provablyFair": "عدالة قابلة للإثبات",
+      "serverSeedHash": "بصمة بذرة الخادم:",
+      "serverSeed": "بذرة الخادم:",
+      "clientSeed": "بذرة العميل:",
+      "nonce": "الرقم التسلسلي:",
+      "held": "محتفظ بها",
+      "fxFull": "مؤثرات كاملة",
+      "fxLow": "مؤثرات مخففة",
+      "balanceAria": "رصيد عملات سنو",
+      "reducedFxOn": "المؤثرات المخففة: مفعّلة",
+      "reducedFxOff": "المؤثرات المخففة: معطّلة"
     }
   }
 }

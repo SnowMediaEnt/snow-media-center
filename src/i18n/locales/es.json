@@ -81,7 +81,10 @@
       "heroTitle": "Bienvenido al Lounge",
       "heroSubtitle": "Juega con Snow Coins gratis. Gánalas a diario, sube en la clasificación y diviértete — solo por el orgullo.",
       "signInBanner": "Inicia sesión para empezar a acumular Snow Coins.",
-      "serverError": "Servidor: {{errorMessage}}"
+      "serverError": "Servidor: {{errorMessage}}",
+      "heroTagline": "Aurora After Dark · seis mesas premium",
+      "freeChipsNote": "Monedas de entretenimiento gratis · sin compras",
+      "leaderboardComingSoon": "Clasificación · Próximamente"
     },
     "dailySpin": {
       "back": "Atrás",
@@ -373,6 +376,20 @@
       "fold": "RETIRARSE",
       "revealing": "Revelando…",
       "newHand": "Nueva Mano"
+    },
+    "shared": {
+      "playChips": "Monedas Snow",
+      "provablyFair": "Juego verificable",
+      "serverSeedHash": "Hash de semilla del servidor:",
+      "serverSeed": "Semilla del servidor:",
+      "clientSeed": "Semilla del cliente:",
+      "nonce": "Nonce:",
+      "held": "FIJA",
+      "fxFull": "Efectos completos",
+      "fxLow": "Efectos reducidos",
+      "balanceAria": "Saldo de Monedas Snow",
+      "reducedFxOn": "Efectos reducidos: Sí",
+      "reducedFxOff": "Efectos reducidos: No"
     }
   }
 }
