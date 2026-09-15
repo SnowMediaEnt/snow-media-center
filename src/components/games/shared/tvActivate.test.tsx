@@ -79,10 +79,13 @@ describe('TV one-activation guard', () => {
     const button = screen.getByRole('button');
     button.focus();
     unmount();
-    document.body.appendChild(button);
+    const detached = document.createElement('div');
+    document.body.appendChild(detached);
+    detached.appendChild(button);
     button.focus();
     okDown();
     expect(onHit).not.toHaveBeenCalled();
+    detached.remove();
   });
 
   it('stops a second same-window Select listener from doubling the press', () => {

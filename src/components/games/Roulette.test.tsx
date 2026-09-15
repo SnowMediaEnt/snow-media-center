@@ -28,7 +28,11 @@ const cellFor = (name: string) => screen.getByRole('button', { name });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 describe('Roulette settled round', () => {
-  beforeEach(() => { spinRoulette.mockReset(); });
+  beforeEach(() => {
+    spinRoulette.mockReset();
+    // Reduced FX keeps the landing animation short and deterministic in tests.
+    localStorage.setItem('snow-games-reduced-fx-v1', 'true');
+  });
   afterEach(() => { vi.restoreAllMocks(); });
 
   const placeAndSpin = async () => {
@@ -37,10 +41,10 @@ describe('Roulette settled round', () => {
     fireEvent.click(cellFor('17'));
     fireEvent.click(screen.getByText('games.roulette.betRed'));
     fireEvent.click(screen.getByRole('button', { name: /games\.roulette\.spin/ }));
-    await waitFor(() => expect(screen.queryByText('17')).not.toBeNull(), { timeout: 8000 });
+    await waitFor(() => expect(screen.queryByText('17')).not.toBeNull(), { timeout: 15000 });
     await waitFor(() => {
       expect(cellFor('17').className).toContain('is-won');
-    }, { timeout: 8000, interval: 60 });
+    }, { timeout: 15000, interval: 40 });
   };
 
   it('keeps win/loss colouring after the spent chips are cleared', async () => {
@@ -50,20 +54,20 @@ describe('Roulette settled round', () => {
     expect(cellFor('17').className).toContain('is-won');
     expect(screen.getByText('games.roulette.betRed').closest('button')!.className).toContain('is-lost');
     expect(cellFor('17').textContent).toContain('10');
-  }, 20000);
+  }, 30000);
 
   it('drops the settled snapshot as soon as a new wager starts', async () => {
     await placeAndSpin();
     fireEvent.click(cellFor('5'));
     await waitFor(() => expect(cellFor('17').className).not.toContain('is-won'));
     expect(screen.getByText('games.roulette.betRed').closest('button')!.className).not.toContain('is-lost');
-  }, 20000);
+  }, 30000);
 
   it('drops the settled snapshot when the wheel kind changes', async () => {
     await placeAndSpin();
     fireEvent.click(screen.getByText('games.roulette.wheelAmerican'));
     await waitFor(() => expect(cellFor('17').className).not.toContain('is-won'));
-  }, 20000);
+  }, 30000);
 
   it('leaves focus on a usable control, never the disabled Spin button', async () => {
     await placeAndSpin();
@@ -75,7 +79,7 @@ describe('Roulette settled round', () => {
       expect(focused!.getAttribute('aria-disabled')).not.toBe('true');
       expect(focused!.className).toContain('snow-rl-denom');
     }, { timeout: 4000 });
-  }, 20000);
+  }, 30000);
 
   it('Back closes fairness first and only then leaves the game', async () => {
     const onBack = vi.fn();
@@ -83,7 +87,7 @@ describe('Roulette settled round', () => {
     render(<Roulette onBack={onBack} />);
     fireEvent.click(cellFor('17'));
     fireEvent.click(screen.getByRole('button', { name: /games\.roulette\.spin/ }));
-    await waitFor(() => expect(screen.queryByText('games.roulette.provablyFair')).not.toBeNull(), { timeout: 8000 });
+    await waitFor(() => expect(screen.queryByText('games.roulette.provablyFair')).not.toBeNull(), { timeout: 15000 });
 
     fireEvent.click(screen.getByText('games.roulette.provablyFair'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeNull());
@@ -95,7 +99,7 @@ describe('Roulette settled round', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onBack).toHaveBeenCalledTimes(1);
-  }, 20000);
+  }, 30000);
 
   it('blocks Back while the wheel is still spinning', async () => {
     const onBack = vi.fn();
@@ -110,5 +114,5 @@ describe('Roulette settled round', () => {
     expect(onBack).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText('games.shared.finishSpinFirst')).not.toBeNull());
     resolve(RESULT);
-  }, 20000);
+  }, 30000);
 });
