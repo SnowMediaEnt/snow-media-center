@@ -6,6 +6,9 @@ import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Sparkles } from 'luc
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
 
 interface BlackjackProps {
   onBack: () => void;
@@ -326,7 +329,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [phase, focusBet, focusAction, focusSettle, canDouble, onBack]);
 
   const focusRing = (active: boolean) =>
-    active ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
+    active ? 'ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
 
   const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
 
@@ -413,9 +416,6 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         </div>
 
         <div className="text-center tv-compact-head">
-          <h1 className="text-4xl md:text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.blackjack.heading')}
-          </h1>
           <p className="text-slate-200/90 mt-1">{t('games.blackjack.subheading')}</p>
         </div>
 
