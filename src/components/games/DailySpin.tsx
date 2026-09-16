@@ -279,7 +279,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       // Consume every arrow so native spatial focus cannot diverge from the
       // single data-tv-focused marker, even at a graph boundary.
       e.preventDefault();
-      const down = () => (spinReachable ? 'spin' : null);
+      const down = (): 'spin' | null => (spinReachable ? 'spin' : null);
       if (zone === 'back') {
         if (dir === 'right') setZone('fx');
         else if (dir === 'down') { const n = down(); if (n) setZone(n); }
