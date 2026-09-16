@@ -171,7 +171,7 @@ describe('Slots reel motion', () => {
     expect(document.querySelectorAll('.snow-slot-overlay')).toHaveLength(1);
   }, 15000);
 
-  it('renders real n/N collector progress and combines a triggered bonus in the callout', async () => {
+  it('shows qualitative collector heat without exposing exact counters', async () => {
     spinSlots.mockResolvedValue(ack({
       totalPayout: 200,
       basePayout: 0,
@@ -182,9 +182,12 @@ describe('Slots reel motion', () => {
     fireEvent.click(spinButton());
     await waitForLanding();
 
-    expect(screen.getByTestId('slot-collector-red').textContent).toContain('13/15');
-    expect(screen.getByTestId('slot-collector-blue').textContent).toContain('17/24');
-    expect(screen.getByTestId('slot-collector-yellow').textContent).toContain('0/34');
+    expect(screen.getByTestId('slot-collector-red').textContent).not.toMatch(/13\s*\/\s*15/);
+    expect(screen.getByTestId('slot-collector-blue').textContent).not.toMatch(/17\s*\/\s*24/);
+    expect(screen.getByTestId('slot-collector-yellow').textContent).not.toMatch(/0\s*\/\s*34/);
+    expect(screen.getByTestId('slot-collector-red').dataset.heat).toBe('near');
+    expect(screen.getByTestId('slot-collector-blue').dataset.heat).toBe('hot');
+    expect(screen.getByTestId('slot-collector-yellow').dataset.heat).toBe('cold');
     expect(screen.getByTestId('slot-collector-red').className).toContain('is-fed');
     expect(screen.getByTestId('slot-collector-yellow').className).toContain('is-triggered');
     expect(document.querySelector('.snow-slot-callout__trio')?.textContent).toContain('games.slots.collector.bonusCallout');
