@@ -323,8 +323,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   if (billingOpen) {
     return (
       <Suspense fallback={
-        <div className="tv-safe min-h-dvh bg-neutral-900 text-white flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+        <div className="tv-safe min-h-dvh text-white flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       }>
         <BillingAccountScreen
@@ -338,10 +338,10 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
   if (loading || authLoading || playerLoading) {
     return (
-      <div className="tv-safe min-h-dvh bg-neutral-900 text-white flex items-center justify-center">
+      <div className="tv-safe min-h-dvh text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-xl text-blue-200">Loading your dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold mx-auto mb-4"></div>
+          <p className="text-xl text-brand-ice">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -351,7 +351,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     const guestRing = (idx: number) =>
       focusedElement === idx ? 'scale-105 z-10' : '';
     return (
-      <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
+      <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe text-white h-dvh overflow-y-auto overscroll-contain">
         <div className={BACK_ROW}>
           <BackButton
             onClick={() => onViewChange('home')}
@@ -361,8 +361,8 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
         </div>
         <div className="max-w-4xl mx-auto pb-24">
           <div className="text-center mt-4 mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">My Account</h1>
-            <p className="text-xl text-blue-200">
+            <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">My Account</h1>
+            <p className="text-xl text-brand-ice font-nunito">
               {playerAccount
                 ? `Signed in to ${playerAccount.serverLabel} as ${playerAccount.username}`
                 : 'You are not signed in yet.'}
@@ -370,9 +370,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </div>
 
           {/* Player Account — Dreamstreams / Vibez streaming login (local, same store the Player uses) */}
-          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6 mb-6">
-            <h2 className="text-2xl font-bold text-white mb-1">Player Account</h2>
-            <p className="text-slate-400 text-sm mb-4">
+          <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
+            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Player Account</h2>
+            <p className="text-brand-ice/75 text-sm mb-4">
               Your Dreamstreams / Vibez streaming login — the same one the Player uses.
             </p>
             {!playerAccount ? (
@@ -414,9 +414,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
           {/* Billing account — Dreamstreams plans, renewals and the free trial */}
           {billingOn && (
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6 mb-6">
-              <h2 className="text-2xl font-bold text-white mb-1">Billing &amp; subscription</h2>
-              <p className="text-slate-400 text-sm mb-4">
+            <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
+              <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Billing &amp; subscription</h2>
+              <p className="text-brand-ice/75 text-sm mb-4">
                 See your Dreamstreams plan, renew, buy a plan, redeem a gift code, or link a billing account to this device.
               </p>
               <Button
@@ -434,9 +434,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           )}
 
           {/* Website account — optional Snow Media WEBSITE account (Supabase) */}
-          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
-            <h2 className="text-2xl font-bold text-white mb-1">Website account</h2>
-            <p className="text-slate-400 text-sm mb-4">
+          <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
+            <h2 className="text-2xl font-quicksand font-bold text-white mb-1">Website account</h2>
+            <p className="text-brand-ice/75 text-sm mb-4">
               Optional Snow Media WEBSITE account (email &amp; password) for purchases, support
               tickets, messages and Snow Gems. This is not your streaming login.
             </p>
@@ -489,7 +489,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
   }
 
   return (
-    <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe bg-neutral-900 text-white h-dvh overflow-y-auto overscroll-contain">
+    <div ref={dashboardScrollRef} className="tv-scroll-container tv-safe text-white h-dvh overflow-y-auto overscroll-contain">
 
       {/* Header — pinned to the tv-safe corner, content stays centered below */}
       <div className="flex items-center w-full justify-between mb-6">
@@ -502,7 +502,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           onClick={handleSignOut}
           variant="outline"
           data-focused={focusedElement === 1 ? 'true' : 'false'}
-          className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600 border-red-500 text-white hover:bg-red-700 transition-transform duration-150 ease-out ${
+          className={`tv-ring min-h-12 px-5 rounded-xl bg-red-600/30 border-red-400/60 text-white hover:bg-red-600/50 transition-transform duration-150 ease-out ${
             focusedElement === 1 ? 'scale-105 z-10' : ''
           }`}
         >
@@ -513,40 +513,43 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
       <div className="max-w-6xl mx-auto pb-24">
         <div className="flex flex-col items-center mb-8">
           <div className="text-center mt-4">
-            <h1 className="text-3xl font-bold text-white mb-2">Your Dashboard</h1>
-            <p className="text-xl text-blue-200">Welcome back, {profile?.full_name || user?.email}</p>
+            <h1 className="text-3xl font-quicksand font-bold text-white mb-2 text-shadow-strong">Your Dashboard</h1>
+            <p className="text-xl text-brand-ice font-nunito">Welcome back, <span className="text-brand-gold font-semibold">{profile?.full_name || user?.email}</span></p>
           </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gradient-to-br from-green-600 to-green-800 border-green-500 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
+          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-gold)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm font-medium">Available Snow Gems</p>
-                <p className="text-3xl font-bold text-white">{profile?.credits?.toFixed(2) || '0.00'}</p>
+                <p className="text-black/70 text-sm font-semibold font-nunito">Available Snow Gems</p>
+                <p className="text-3xl font-quicksand font-bold text-black/90">{profile?.credits?.toFixed(2) || '0.00'}</p>
               </div>
-              <Wallet className="w-12 h-12 text-green-200" />
+              <Wallet className="w-12 h-12 text-black/60 drop-shadow" />
             </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
+          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-blue)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium">Total Spent</p>
-                <p className="text-3xl font-bold text-white">${profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Total Spent</p>
+                <p className="text-3xl font-quicksand font-bold text-white text-shadow-strong">${profile?.total_spent?.toFixed(2) || '0.00'}</p>
               </div>
-              <CreditCard className="w-12 h-12 text-blue-200" />
+              <CreditCard className="w-12 h-12 text-white/85 drop-shadow-xl" />
             </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
+          <Card className="relative overflow-hidden border-0 rounded-3xl p-6 shadow-xl [background:var(--gradient-purple)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 pointer-events-none" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">Transactions</p>
-                <p className="text-3xl font-bold text-white">{transactions.length}</p>
+                <p className="text-white/85 text-sm font-semibold font-nunito text-shadow-soft">Transactions</p>
+                <p className="text-3xl font-quicksand font-bold text-white text-shadow-strong">{transactions.length}</p>
               </div>
-              <History className="w-12 h-12 text-purple-200" />
+              <History className="w-12 h-12 text-white/85 drop-shadow-xl" />
             </div>
           </Card>
         </div>
@@ -557,7 +560,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onCreditStore}
             size="lg"
             data-focused={focusedElement === 2 ? 'true' : 'false'}
-            className={`tv-ring min-h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white transition-transform duration-150 ease-out ${
+            className={`tv-ring tv-ring-contrast min-h-12 rounded-xl border-0 text-black font-semibold shadow-lg [background:var(--gradient-gold)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 2 ? 'scale-105 z-10' : ''
             }`}
           >
@@ -569,7 +572,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             size="lg"
             variant="outline"
             data-focused={focusedElement === 3 ? 'true' : 'false'}
-            className={`tv-ring min-h-12 rounded-xl bg-blue-600/20 border-blue-500/50 text-white hover:bg-blue-600/30 transition-transform duration-150 ease-out ${
+            className={`tv-ring min-h-12 rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 3 ? 'scale-105 z-10' : ''
             }`}
           >
@@ -580,20 +583,19 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             onClick={onGames}
             size="lg"
             data-focused={focusedElement === 4 ? 'true' : 'false'}
-            className={`tv-ring min-h-12 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white transition-transform duration-150 ease-out ${
+            className={`tv-ring min-h-12 rounded-xl border-0 text-white font-semibold shadow-lg [background:var(--gradient-purple)] hover:brightness-110 transition-transform duration-150 ease-out ${
               focusedElement === 4 ? 'scale-105 z-10' : ''
             }`}
           >
             <Gamepad2 className="w-5 h-5 mr-2" />
-            Games
-            <span className="ml-2 text-xs bg-yellow-500/80 text-black px-2 py-1 rounded-full">Soon</span>
+            Game Lounge
           </Button>
           {giveawayOn && (
             <Button 
               onClick={onGiveaway}
               size="lg"
               data-focused={focusedElement === 5 ? 'true' : 'false'}
-              className={`tv-ring min-h-12 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition-transform duration-150 ease-out ${
+              className={`tv-ring min-h-12 rounded-xl border border-brand-gold/60 bg-brand-gold/20 text-brand-gold font-semibold hover:bg-brand-gold/30 transition-transform duration-150 ease-out ${
                 focusedElement === 5 ? 'scale-105 z-10' : ''
               }`}
             >
@@ -605,11 +607,11 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 rounded-2xl bg-slate-800/50 border-slate-600 p-2">
+          <TabsList className="grid w-full grid-cols-2 h-auto gap-2 mb-8 rounded-2xl bg-brand-navy/70 border border-brand-ice/20 p-2">
             <TabsTrigger 
               value="overview" 
               data-focused={focusedElement === TAB_BASE ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE ? 'scale-[1.02] z-10' : ''
               }`}
             >
@@ -618,7 +620,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
             <TabsTrigger 
               value="credits" 
               data-focused={focusedElement === TAB_BASE + 1 ? 'true' : 'false'}
-              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
+              className={`tv-ring tv-ring-contrast min-h-12 text-white data-[state=active]:bg-brand-gold data-[state=active]:text-black text-center whitespace-normal leading-tight transition-transform duration-150 ease-out ${
                 focusedElement === TAB_BASE + 1 ? 'scale-[1.02] z-10' : ''
               }`}
             >
@@ -627,32 +629,32 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsList>
 
           <TabsContent value="overview" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold text-white mb-4">Account Overview</h2>
+            <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
+              <h2 className="text-2xl font-quicksand font-bold text-white mb-4">Account Overview</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-white">Profile Information</h3>
+                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">Profile Information</h3>
                   <div className="space-y-2">
-                    <p className="text-slate-300"><span className="font-medium">Name:</span> {profile?.full_name || 'Not set'}</p>
-                    <p className="text-slate-300"><span className="font-medium">Email:</span> {profile?.email || user?.email}</p>
-                    <p className="text-slate-300"><span className="font-medium">Username:</span> {profile?.username || 'Not set'}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">Name:</span> {profile?.full_name || 'Not set'}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">Email:</span> {profile?.email || user?.email}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">Username:</span> {profile?.username || 'Not set'}</p>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-white">Account Stats</h3>
+                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">Account Stats</h3>
                   <div className="space-y-2">
-                    <p className="text-slate-300"><span className="font-medium">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
-                    <p className="text-slate-300"><span className="font-medium">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">Member Since:</span> {new Date(profile?.created_at || '').toLocaleDateString()}</p>
+                    <p className="text-white/85"><span className="font-medium text-brand-ice">Total Snow Gems Used:</span> {profile?.total_spent?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </div>
 
               {/* Player Account */}
-              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
-                <h3 className="text-xl font-semibold text-white mb-5">Player Account</h3>
+              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === CLAIM_IDX ? 'true' : 'false'}>
+                <h3 className="text-xl font-quicksand font-semibold text-brand-gold mb-5">Player Account</h3>
                 {!playerAccount ? (
                   <div className="space-y-3">
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-brand-ice/75 text-sm">
                       Sign in with your Dreamstreams or Vibez login to see your streaming account here. This also signs you in to the Player.
                     </p>
                     {!isDemo() && (
@@ -699,9 +701,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
               {/* Billing account — Dreamstreams plans, renewals, trial */}
               {billingOn && (
-                <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === BILLING_IDX ? 'true' : 'false'}>
-                  <h3 className="text-xl font-semibold text-white mb-2">Billing &amp; subscription</h3>
-                  <p className="text-slate-400 text-sm mb-4">
+                <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === BILLING_IDX ? 'true' : 'false'}>
+                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold mb-2">Billing &amp; subscription</h3>
+                  <p className="text-brand-ice/75 text-sm mb-4">
                     Your Dreamstreams plan: renew, buy a plan, redeem a gift code, or link a billing account to this device.
                   </p>
                   <Button
@@ -720,13 +722,13 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               )}
 
               {/* My Devices & Services */}
-              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
+              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === EDIT_IDX ? 'true' : 'false'}>
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-white">My Devices & Services</h3>
+                  <h3 className="text-xl font-quicksand font-semibold text-brand-gold">My Devices & Services</h3>
                   <Button
                     onClick={() => setShowServicesEditor(true)}
                     data-focused={focusedElement === EDIT_IDX ? 'true' : 'false'}
-                    className={`tv-ring min-h-12 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 transition-transform duration-150 ease-out ${
+                    className={`tv-ring min-h-12 px-5 rounded-xl border-0 text-white [background:var(--gradient-blue)] hover:brightness-110 transition-transform duration-150 ease-out ${
                       focusedElement === EDIT_IDX ? 'scale-105 z-10' : ''
                     }`}
                     size="sm"
@@ -736,21 +738,21 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Devices</p>
+                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Devices</p>
                     {myDevices.length === 0 ? (
-                      <p className="text-slate-400 text-sm">No devices added yet.</p>
+                      <p className="text-brand-ice/75 text-sm">No devices added yet.</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {myDevices.map(d => (
-                          <Badge key={d.id} className="px-3 py-1 bg-slate-700 text-white border border-slate-600">{d.device_type}</Badge>
+                          <Badge key={d.id} className="px-3 py-1 bg-brand-ice/15 text-white border border-brand-ice/30">{d.device_type}</Badge>
                         ))}
                       </div>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">Services</p>
+                    <p className="text-xs uppercase tracking-wide text-brand-gold/90 mb-1">Services</p>
                     {myServices.length === 0 ? (
-                      <p className="text-slate-400 text-sm">No services tracked yet.</p>
+                      <p className="text-brand-ice/75 text-sm">No services tracked yet.</p>
                     ) : (
                       <ul className="space-y-1">
                         {myServices.map(s => {
@@ -764,7 +766,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                             else { label = `${days}d left`; cls = 'text-emerald-400'; }
                           }
                           return (
-                            <li key={s.id} className="text-sm text-slate-300 flex justify-between gap-2">
+                            <li key={s.id} className="text-sm text-white/85 flex justify-between gap-2">
                               <span className="truncate">{s.service_name || s.service_type}</span>
                               <span className={cls}>{label}</span>
                             </li>
@@ -777,9 +779,9 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
               </div>
 
 
-              <div className="mt-8 pt-6 border-t border-slate-700" data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
-                <h3 className="text-xl font-semibold text-white mb-2">Danger Zone</h3>
-                <p className="text-slate-400 text-sm mb-4">
+              <div className="mt-8 pt-6 border-t border-brand-ice/15" data-dash-focus={focusedElement === DELETE_IDX ? 'true' : 'false'}>
+                <h3 className="text-xl font-quicksand font-semibold text-red-300 mb-2">Danger Zone</h3>
+                <p className="text-brand-ice/75 text-sm mb-4">
                   Permanently delete your Snow Media app account and all associated data.
                   
                 </p>
@@ -799,20 +801,20 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
           </TabsContent>
 
           <TabsContent value="credits" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-                <Sparkles className="w-6 h-6 mr-2" />
+            <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6">
+              <h2 className="text-2xl font-quicksand font-bold text-white mb-4 flex items-center">
+                <Sparkles className="w-6 h-6 mr-2 text-brand-gold" />
                 Snow Gems & AI Usage
               </h2>
               
               {transactions.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No Snow Gem transactions yet</p>
+                <p className="text-brand-ice/75 text-center py-8">No Snow Gem transactions yet</p>
               ) : (
                 <div className="space-y-3">
                   {transactions.map((transaction) => (
                     <div 
                       key={transaction.id}
-                      className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-600"
+                      className="flex items-center justify-between p-4 bg-black/25 rounded-xl border border-brand-ice/15"
                     >
                       <div className="flex items-center space-x-3">
                         <div className={`w-3 h-3 rounded-full ${
@@ -822,7 +824,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
                         }`} />
                         <div>
                           <p className="text-white font-medium">{transaction.description}</p>
-                          <p className="text-slate-400 text-sm">
+                          <p className="text-brand-ice/75 text-sm">
                             {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
                         </div>
@@ -887,17 +889,17 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
 
-        <AlertDialogContent className="rounded-3xl sm:rounded-3xl bg-slate-900 border-red-500/50 text-white">
+        <AlertDialogContent className="rounded-3xl sm:rounded-3xl bg-gradient-to-br from-brand-navy to-slate-950 border-red-500/50 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl text-white">Delete your account?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-300">
+            <AlertDialogDescription className="text-brand-ice/80">
               This permanently removes your Snow Media app account, profile, Snow Gems,
               chats, support tickets and media. This cannot be undone. Your separate
               Streaming player account is not affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="min-h-12 px-5 rounded-xl bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
+            <AlertDialogCancel disabled={deleting} className="min-h-12 px-5 rounded-xl bg-white/10 text-white border-brand-ice/30 hover:bg-white/20">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
