@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { App as CapApp } from '@capacitor/app';
+import { GLOBAL_MODAL_SELECTOR } from '@/components/games/shared/gameInput';
+import { gameOwnsHardwareBack } from '@/components/games/shared/gameBack';
 
 interface NavigationState {
   currentView: string;
@@ -126,14 +128,16 @@ export const useNavigation = (initialView: string = 'home', options: NavigationO
           const currentView = currentViewRef.current;
 
           if (typeof document !== 'undefined' &&
-              document.querySelector('[data-autoupdate-dialog="true"], [data-download-progress="true"], [aria-modal="true"]')) {
+              document.querySelector(GLOBAL_MODAL_SELECTOR)) {
             return;
           }
           const handledAt = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
           const guideOpen = (window as unknown as { __bufferingGuideOpen?: boolean }).__bufferingGuideOpen === true;
           const playerOwnsBack = (window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack === true
             || currentViewRef.current === 'livetv';
-          if (playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
+          // A mounted casino game owns hardware Back: its wager-safe guard
+          // decides, so this listener must not pop the route underneath it.
+          if (gameOwnsHardwareBack() || playerOwnsBack || guideOpen || Date.now() - handledAt < 350) {
             return;
           }
 

@@ -1,69 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LogIn, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import {
-  ArrowLeft,
-  Coins,
-  Trophy,
-  Lock,
-  Sparkles,
-  Gift,
-  LogIn,
-  Loader2,
-  WifiOff,
-} from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from 'react-i18next';
-import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 import { trackEvent } from '@/lib/analytics';
+import { GameArtwork } from '@/components/games/shared/GameArtwork';
+import { useReducedGameFx } from '@/components/games/shared/useReducedGameFx';
+import { activateFocused, useTvActivate } from '@/components/games/shared/tvActivate';
+import type { GameAccent } from '@/components/games/shared/gameTypes';
 
-interface GamesProps {
-  onBack: () => void;
-  onOpenGame: (view: string) => void;
-}
+interface GamesProps { onBack: () => void; onOpenGame: (view: string) => void }
+type GameTile = { id: string; view: string; nameKey: string; taglineKey: string; accent: GameAccent };
 
-type GameCard = {
-  id: string;
-  nameKey: string;
-  taglineKey: string;
-  emoji: string;
-  badgeKey: string;
-  playable: boolean;
-};
-
-const GAMES: GameCard[] = [
-  { id: 'daily-spin', nameKey: 'games.hub.gameDailySpinName', taglineKey: 'games.hub.gameDailySpinTagline', emoji: '🎁', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'slots', nameKey: 'games.hub.gameSlotsName', taglineKey: 'games.hub.gameSlotsTagline', emoji: '🎰', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'blackjack', nameKey: 'games.hub.gameBlackjackName', taglineKey: 'games.hub.gameBlackjackTagline', emoji: '🃏', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'video-poker', nameKey: 'games.hub.gameVideoPokerName', taglineKey: 'games.hub.gameVideoPokerTagline', emoji: '♠️', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'roulette', nameKey: 'games.hub.gameRouletteName', taglineKey: 'games.hub.gameRouletteTagline', emoji: '🎡', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'casino-holdem', nameKey: 'games.hub.gameCasinoHoldemName', taglineKey: 'games.hub.gameCasinoHoldemTagline', emoji: '♣️', badgeKey: 'games.hub.badgePlayNow', playable: true },
-  { id: 'leaderboard', nameKey: 'games.hub.gameLeaderboardName', taglineKey: 'games.hub.gameLeaderboardTagline', emoji: '🏆', badgeKey: 'games.hub.badgeComingSoon', playable: false },
+const GAMES: GameTile[] = [
+  { id: 'daily-spin', view: 'game-daily-spin', nameKey: 'games.hub.gameDailySpinName', taglineKey: 'games.hub.gameDailySpinTagline', accent: 'ice' },
+  { id: 'slots', view: 'game-slots', nameKey: 'games.hub.gameSlotsName', taglineKey: 'games.hub.gameSlotsTagline', accent: 'plum' },
+  { id: 'blackjack', view: 'game-blackjack', nameKey: 'games.hub.gameBlackjackName', taglineKey: 'games.hub.gameBlackjackTagline', accent: 'emerald' },
+  { id: 'video-poker', view: 'game-video-poker', nameKey: 'games.hub.gameVideoPokerName', taglineKey: 'games.hub.gameVideoPokerTagline', accent: 'sapphire' },
+  { id: 'roulette', view: 'game-roulette', nameKey: 'games.hub.gameRouletteName', taglineKey: 'games.hub.gameRouletteTagline', accent: 'ruby' },
+  { id: 'casino-holdem', view: 'game-casino-holdem', nameKey: 'games.hub.gameCasinoHoldemName', taglineKey: 'games.hub.gameCasinoHoldemTagline', accent: 'teal' },
 ];
 
-const COLS = 3;
-
-const VIEW_BY_ID: Record<string, string> = {
-  'daily-spin': 'game-daily-spin',
-  'slots': 'game-slots',
-  'blackjack': 'game-blackjack',
-  'video-poker': 'game-video-poker',
-  'roulette': 'game-roulette',
-  'casino-holdem': 'game-casino-holdem',
-};
+const FOCUS_KEY = 'snow-games-last-focus-v1';
 
 const Games = ({ onBack, onOpenGame }: GamesProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
-  const [focusIndex, setFocusIndex] = useState(1); // start on first game card
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const initial = Number(sessionStorage.getItem(FOCUS_KEY) ?? 1);
+  const [focusIndex, setFocusIndex] = useState(Number.isInteger(initial) && initial >= 0 && initial <= 7 ? initial : 1);
+  const openingRef = useRef(false);
 
-  // Focusable items: back (0), then GAMES.length game cards (1..)
-  const totalFocusable = 1 + GAMES.length;
+  const focusAt = useCallback((next: number) => {
+    setFocusIndex(next);
+    const el = document.querySelector<HTMLElement>(`[data-game-focus="${next}"]`);
+    el?.focus({ preventScroll: true });
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, []);
 
   // Who reaches the games at all, and whether they have chips to play with.
-  // Time spent per game is timed centrally, keyed on the open game's view.
+  // Time spent inside each game is timed centrally, keyed on its view.
   useEffect(() => {
     try {
       trackEvent('games_open', 'games', {
@@ -71,209 +50,65 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
         has_balance: typeof balance === 'number' ? balance > 0 : null,
       });
     } catch { /* ignore */ }
-    // Once per visit: the balance arriving later must not re-fire it.
+    // Once per visit: a balance that arrives later must not re-fire it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openCard = (card: GameCard) => {
-    if (!card.playable) return;
-    const view = VIEW_BY_ID[card.id];
-    try { trackEvent('game_open', 'games', { game: card.id, playable: card.playable }); } catch { /* ignore */ }
-    if (view) onOpenGame(view);
-  };
+  const open = useCallback((index: number) => {
+    if (openingRef.current || index < 1 || index > 6) return;
+    const tile = GAMES[index - 1];
+    openingRef.current = true;
+    sessionStorage.setItem(FOCUS_KEY, String(index));
+    try { trackEvent('game_open', 'games', { game: tile.id }); } catch { /* ignore */ }
+    onOpenGame(tile.view);
+    window.setTimeout(() => { openingRef.current = false; }, 400);
+  }, [onOpenGame]);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (focusIndex === 0) {
-          onBack();
-        } else {
-          const card = GAMES[focusIndex - 1];
-          if (card) openCard(card);
-        }
-        return;
-      }
-      if (e.key === 'ArrowRight') {
-        setFocusIndex((i) => Math.min(totalFocusable - 1, i + 1));
-      } else if (e.key === 'ArrowLeft') {
-        setFocusIndex((i) => Math.max(0, i - 1));
-      } else if (e.key === 'ArrowDown') {
-        setFocusIndex((i) => {
-          if (i === 0) return 1;
-          return Math.min(totalFocusable - 1, i + COLS);
-        });
-      } else if (e.key === 'ArrowUp') {
-        setFocusIndex((i) => {
-          if (i >= 1 && i <= COLS) return 0;
-          return Math.max(0, i - COLS);
-        });
-      }
+    const raf = requestAnimationFrame(() => focusAt(focusIndex));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // OK/Select activates the one focused control. Back stays owned by Index.
+  useTvActivate(activateFocused);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      let next = focusIndex;
+      if (event.key === 'ArrowLeft') next = focusIndex === 7 ? 6 : focusIndex <= 1 ? 0 : focusIndex - 1;
+      if (event.key === 'ArrowRight') next = focusIndex === 0 ? 1 : focusIndex < 6 ? focusIndex + 1 : 7;
+      if (event.key === 'ArrowDown') next = focusIndex === 0 ? 1 : focusIndex <= 3 ? focusIndex + 3 : 7;
+      if (event.key === 'ArrowUp') next = focusIndex === 7 ? 4 : focusIndex <= 3 ? 0 : focusIndex - 3;
+      if (next !== focusIndex) { event.preventDefault(); focusAt(next); }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onBack, totalFocusable, focusIndex]);
-
-  useEffect(() => {
-    const el = document.querySelector<HTMLElement>(`[data-game-focus="${focusIndex}"]`);
-    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [focusIndex]);
-
-  const renderChipBadge = () => {
-    if (!user) {
-      return (
-        <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-amber-200 text-sm font-semibold">
-          {t('games.hub.chipBadgeSignInPrompt')}
-        </div>
-      );
-    }
-    if (status === 'connecting' || (status === 'connected' && balance === null)) {
-      return (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-emerald-100 text-sm font-semibold">
-          <Loader2 className="w-4 h-4 animate-spin" /> {t('games.hub.chipBadgeLoading')}
-        </div>
-      );
-    }
-    if (status === 'error' || status === 'reconnecting') {
-      return (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-amber-100 text-sm font-semibold">
-          <WifiOff className="w-4 h-4" /> {t('games.hub.chipBadgeReconnecting')}
-        </div>
-      );
-    }
-    return (
-      <div
-        className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)] backdrop-blur"
-        aria-label={t('games.hub.chipBadgeAriaLabel')}
-      >
-        <Coins className="w-6 h-6 text-amber-300 drop-shadow" />
-        <div className="flex flex-col leading-tight">
-          <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.hub.chipBadgeFreeChipsLabel')}</span>
-          <span className="text-2xl font-extrabold text-white tabular-nums">
-            {balance !== null ? balance.toLocaleString() : '—'}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [focusAt, focusIndex]);
 
   return (
-    <div
-      className="tv-scroll-container tv-safe text-white relative"
-      style={{
-        background:
-          'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-          'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
-      {/* Header — pinned to the tv-safe corner, content stays centered below */}
-      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap pt-4">
-          <BackButton
-            data-game-focus={0}
-            onClick={onBack}
-            label={t('games.hub.back')}
-            focused={focusIndex === 0}
-          />
-        {renderChipBadge()}
-      </div>
-
-      <div className="max-w-6xl mx-auto pb-16 px-4">
-        {/* Hero */}
-        <Card className="relative overflow-hidden border-emerald-400/20 bg-gradient-to-br from-slate-900/80 to-emerald-950/70 p-8 mb-10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]">
-          <div className="absolute inset-0 pointer-events-none opacity-30"
-               style={{ background: 'radial-gradient(600px 200px at 50% 0%, rgba(250,204,21,0.25), transparent 70%)' }} />
-          <div className="relative text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full bg-emerald-500/15 border border-emerald-300/30 text-emerald-200 text-xs font-semibold uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5" />
-              {t('games.hub.heroEyebrow')}
-            </div>
-            <h1 className="text-5xl md:text-6xl font-black text-white mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-              {t('games.hub.heroTitle')}
-            </h1>
-            <p className="text-lg md:text-xl text-slate-100/90 max-w-2xl mx-auto font-medium">
-              {t('games.hub.heroSubtitle')}
-            </p>
-          </div>
-        </Card>
-
-        {/* Games grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" style={{ perspective: '1200px' }}>
-          {GAMES.map((card, idx) => {
-            const focusPos = 1 + idx;
-            const focused = focusIndex === focusPos;
-            const playable = card.playable;
-            return (
-              <Card
-                key={card.id}
-                data-game-focus={focusPos}
-                tabIndex={0}
-                onFocus={() => setFocusIndex(focusPos)}
-                onMouseEnter={() => setFocusIndex(focusPos)}
-                onClick={() => openCard(card)}
-                className={`relative overflow-hidden border p-6 transition-all duration-300 outline-none
-                  ${playable
-                    ? 'cursor-pointer border-emerald-400/30 bg-gradient-to-br from-slate-900/90 to-slate-950/95'
-                    : 'cursor-not-allowed border-slate-600/40 bg-gradient-to-br from-slate-800/70 to-slate-950/90 opacity-90'}
-                  ${focused
-                    ? playable
-                      ? 'scale-[1.05] border-emerald-300/70 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.55)] ring-2 ring-emerald-300/60'
-                      : 'scale-[1.04] border-amber-300/60 shadow-[0_18px_44px_-12px_rgba(0,0,0,0.7)] ring-2 ring-amber-300/40'
-                    : 'shadow-[0_12px_32px_-12px_rgba(0,0,0,0.7)] hover:scale-[1.02]'}
-                `}
-                style={{ transformStyle: 'preserve-3d' }}
-              >
-                {!playable && (
-                  <div className="absolute top-3 right-3">
-                    <Lock className="w-4 h-4 text-slate-300" />
-                  </div>
-                )}
-                <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-emerald-400/10 blur-2xl pointer-events-none" />
-                <div className="relative flex items-start gap-4">
-                  <div
-                    className={`text-5xl drop-shadow rounded-xl p-2 ${
-                      playable
-                        ? 'bg-gradient-to-br from-emerald-500/30 to-emerald-700/30 border border-emerald-300/30'
-                        : 'bg-slate-800/40 border border-slate-600/30'
-                    }`}
-                  >
-                    {card.emoji}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="text-xl font-bold text-white">{t(card.nameKey)}</h3>
-                      <span
-                        className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full whitespace-nowrap border ${
-                          playable
-                            ? 'bg-amber-400/25 text-amber-100 border-amber-300/50'
-                            : 'bg-slate-700/50 text-slate-200 border-slate-500/40'
-                        }`}
-                      >
-                        {t(card.badgeKey)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-100/90 font-medium">{t(card.taglineKey)}</p>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        {!user && (
-          <Card className="mt-8 p-6 bg-slate-900/70 border-amber-400/40 flex items-center justify-center gap-3 text-amber-100 font-semibold">
-            <LogIn className="w-5 h-5" />
-            {t('games.hub.signInBanner')}
-          </Card>
-        )}
-
-        {errorMessage && user && (status === 'error' || status === 'reconnecting') && (
-          <p className="mt-6 text-center text-xs text-slate-400">{t('games.hub.serverError', { errorMessage })}</p>
-        )}
-      </div>
-    </div>
+    <main className="snow-casino snow-lobby snow-casino--ice">
+      <div className="snow-casino__aurora" aria-hidden="true" /><div className="snow-casino__vignette" aria-hidden="true" />
+      <header className="snow-game-topbar relative z-10">
+        <BackButton data-game-focus={0} onFocus={() => setFocusIndex(0)} onClick={onBack} label={t('games.hub.back')} focused={focusIndex === 0} />
+        <div className="text-center"><h1 className="snow-lobby__title">{t('games.hub.heroTitle')}</h1><p className="snow-lobby__subtitle">{t('games.hub.heroTagline')}</p></div>
+        <div className="snow-chip-badge"><span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span></div>
+      </header>
+      <section className="snow-lobby__grid relative z-10" aria-label={t('games.hub.heroTitle')}>
+        {GAMES.map((game, index) => {
+          const position = index + 1;
+          return <Button key={game.id} type="button" variant="navy" data-game-focus={position} data-tv-focused={focusIndex === position ? 'true' : 'false'} onFocus={() => setFocusIndex(position)} onClick={() => open(position)} className={`snow-lobby-tile snow-lobby-tile--${game.accent}`}>
+            <h2>{t(game.nameKey)}</h2><p>{t(game.taglineKey)}</p><span className="snow-lobby-tile__status">{t('games.hub.badgePlayNow')}</span><GameArtwork game={game.id} accent={game.accent} />
+          </Button>;
+        })}
+      </section>
+      <footer className="snow-lobby__footer relative z-10">
+        <div>{!user ? <span className="inline-flex items-center"><LogIn className="mr-2 h-4 w-4" />{t('games.hub.signInBanner')}</span> : status === 'error' || status === 'reconnecting' ? t('games.hub.serverError', { errorMessage: errorMessage ?? '' }) : t('games.hub.freeChipsNote')}</div>
+        <div className="snow-lobby__coming"><Trophy className="mr-2 inline h-4 w-4" />{t('games.hub.leaderboardComingSoon')}</div>
+        <Button type="button" variant="navy" size="sm" data-game-focus={7} data-tv-focused={focusIndex === 7 ? 'true' : 'false'} onFocus={() => setFocusIndex(7)} onClick={toggleReducedFx}>{reducedFx ? t('games.shared.reducedFxOn') : t('games.shared.reducedFxOff')}</Button>
+      </footer>
+    </main>
   );
 };
 
 export default Games;
-

@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, Loader2, ChevronDown, ChevronUp, Minus, Plus, Sparkles, Gift, Star } from 'lucide-react';
+import { Loader2, Minus, Plus } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
+import { FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar } from './shared/GameUI';
+import { GameFxCanvas } from './shared/GameFxCanvas';
+import { useGameLifecycle } from './shared/gameLifecycle';
+import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useGameBack } from './shared/gameBack';
+import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
+import { useReducedGameFx } from './shared/useReducedGameFx';
+import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
+import {
+  CYCLE_CELLS, MIN_TRAVEL_CELLS, REELS, RENDER_CELLS, ROWS,
+  buildCells, computeSettleTarget, cyclePx, gridToColumns, pickLandingIndex,
+  validateGrid, visibleSymbolsAt, winningCellsFor, withLanding,
+} from './shared/slotsReel';
+import type { GameFairInfo } from './shared/gameTypes';
 import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';
@@ -16,44 +30,13 @@ interface SlotsProps {
 
 const BETS = [10, 25, 50, 100];
 
-const SYMBOL_IMAGES: Record<string, string | undefined> = {
-  p1: p1img,
-  p2: p2img,
-  p3: p3img,
-  p4: p4img,
-  wild: undefined,
-  scatter: undefined,
-};
+const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
+const LOW_LETTER: Record<string, string> = { la: 'A', lk: 'K', lq: 'Q', lj: 'J' };
 
-const DEFAULT_GLYPHS: Record<string, string> = {
-  p1: '💎',
-  p2: '🔔',
-  p3: '🎰',
-  p4: '🍀',
-  la: 'A',
-  lk: 'K',
-  lq: 'Q',
-  lj: 'J',
-  wild: '⭐',
-  scatter: '🎁',
-};
-const REEL_KEYS = ['p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scatter'];
+/** Rendered nodes per reel: 12 recycled cells plus 3 seamless wrap clones. */
+export const SLOTS_RENDER_CELLS = RENDER_CELLS;
 
-const ROWS = 3;
-const REELS = 5;
-const SYMBOL_HEIGHT = 80; // px per cell
-// Fixed strip length used for every reel; finalOffset is derived from this constant.
-const STRIP_LENGTH = 36;
-// Extra random padding placed AFTER the 3 result symbols so the window never runs past the array end
-// and reel 0's settle has visible downward travel.
-const TAIL_PAD = 6;
-
-interface FairInfo {
-  serverSeedHash: string;
-  serverSeed: string;
-  clientSeed: string;
-  nonce: number;
-}
+const cellHeightFor = (h: number) => (h <= 760 ? 62 : h >= 1000 ? 92 : 74);
 
 interface SpinResult {
   grid: string[][]; // [row][reel]
@@ -68,220 +51,283 @@ interface SpinResult {
   triggeredFreeSpins: number;
 }
 
-function SlotSymbol({ symbolKey, glyphs, size = 56 }: { symbolKey: string; glyphs: Record<string, string>; size?: number }) {
-  // Guard against empty/unknown keys so a cell can never render blank
-  const safeKey = (symbolKey && REEL_KEYS.includes(symbolKey)) ? symbolKey : 'p1';
-  const img = SYMBOL_IMAGES[safeKey];
+/** Branded token — no emoji anywhere in the primary symbol set. */
+function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number }) {
+  const img = SYMBOL_IMAGES[symbolKey];
   if (img) {
-    return <img src={img} alt={safeKey} style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))' }} draggable={false} />;
+    return <img src={img} alt="" style={{ width: size, height: size, objectFit: 'contain' }} draggable={false} />;
   }
-  if (safeKey === 'wild') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
-        <g stroke="#67e8f9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          {[0, 60, 120, 180, 240, 300].map((a) => (
-            <g key={a} transform={`rotate(${a} 32 32)`}>
-              <line x1="32" y1="32" x2="32" y2="10" />
-              <line x1="32" y1="14" x2="26" y2="20" />
-              <line x1="32" y1="14" x2="38" y2="20" />
-              <line x1="32" y1="22" x2="27" y2="27" />
-              <line x1="32" y1="22" x2="37" y2="27" />
-            </g>
-          ))}
-        </g>
-        <circle cx="32" cy="32" r="10" fill="#fbbf24" />
-        <text x="32" y="35.5" textAnchor="middle" fontSize="9" fontWeight="900" fill="#064e3b" style={{ fontFamily: 'system-ui, sans-serif' }}>WILD</text>
-      </svg>
-    );
+  if (symbolKey === 'wild') {
+    return <span className="snow-slot-token snow-slot-token--wild" style={{ width: size * 1.35, height: size }}>WILD</span>;
   }
-  if (safeKey === 'scatter') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.5))' }}>
-        <ellipse cx="32" cy="52" rx="13" ry="4" fill="#a855f7" />
-        <ellipse cx="32" cy="52" rx="13" ry="4" stroke="#c084fc" strokeWidth="1" />
-        <path d="M19 51.5 C19 34 25 26 32 24 C39 26 45 34 45 51.5" fill="#e879f9" fillOpacity="0.22" stroke="#e879f9" strokeWidth="1.5" />
-        <circle cx="32" cy="38" r="9" fill="#fdf4ff" fillOpacity="0.15" stroke="#e879f9" strokeWidth="1.5" />
-        <g fill="#f0abfc">
-          <path d="M32 30 L33.5 34.5 L38 34.5 L34.5 37.5 L35.5 42 L32 39.5 L28.5 42 L29.5 37.5 L26 34.5 L30.5 34.5 Z" />
-        </g>
-        <text x="32" y="54.5" textAnchor="middle" fontSize="6" fontWeight="900" fill="#fdf4ff" style={{ fontFamily: 'system-ui, sans-serif' }}>BONUS</text>
-      </svg>
-    );
+  if (symbolKey === 'scatter') {
+    return <span className="snow-slot-token snow-slot-token--bonus" style={{ width: size * 1.35, height: size }}>BONUS</span>;
   }
-  const glyph = glyphs[safeKey] ?? DEFAULT_GLYPHS[safeKey] ?? '❓';
-  const isLow = safeKey === 'la' || safeKey === 'lk' || safeKey === 'lq' || safeKey === 'lj';
   return (
-    <span
-      style={{
-        fontSize: isLow ? Math.round(size * 0.75) : size,
-        lineHeight: 1,
-        fontWeight: 900,
-        color: isLow ? '#fde68a' : undefined,
-        textShadow: '0 4px 8px rgba(0,0,0,0.55)',
-        letterSpacing: isLow ? '-1px' : 0,
-      }}
-    >
-      {glyph}
+    <span className="snow-slot-token snow-slot-token--low" style={{ width: size * 0.8, height: size }}>
+      {LOW_LETTER[symbolKey] ?? symbolKey.toUpperCase()}
     </span>
   );
 }
 
-// Build a deterministic-length strip. The first (STRIP_LENGTH - ROWS - TAIL_PAD) entries are random
-// fillers, then exactly 3 result symbols (top→bottom), then TAIL_PAD random padding so the visible
-// window has overshoot room and never runs past the array end.
-function buildStrip(top: string, mid: string, bot: string): string[] {
-  const out: string[] = [];
-  const leading = STRIP_LENGTH - ROWS - TAIL_PAD;
-  for (let i = 0; i < leading; i++) {
-    out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
-  }
-  out.push(top, mid, bot);
-  for (let i = 0; i < TAIL_PAD; i++) {
-    out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
-  }
-  return out;
-}
-
-// Build a fully random strip (idle / placeholder spinning state).
-function buildRandomStrip(): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < STRIP_LENGTH; i++) out.push(REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)]);
-  return out;
-}
-
-type FocusId = 'back' | 'betMinus' | 'betPlus' | 'spin' | 'fair';
-
-async function sha256Hex(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+type FocusId = 'back' | 'fx' | 'betMinus' | 'betPlus' | 'spin' | 'fair';
+type ReelMode = 'idle' | 'spin' | 'settle';
+interface SettlePlan { from: number; target: number; start: number; duration: number }
 
 const Slots = ({ onBack }: SlotsProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { balance, status } = useGameSocket();
+  const life = useGameLifecycle();
+  const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  useTvActivate(activateFocused);
 
+  const [cellHeight, setCellHeight] = useState(() => cellHeightFor(typeof window === 'undefined' ? 900 : window.innerHeight));
   const [bet, setBet] = useState<number>(10);
   const [spinning, setSpinning] = useState(false);
-  const [glyphs, setGlyphs] = useState<Record<string, string>>(DEFAULT_GLYPHS);
-
-  // grid[reel] = vertical column of 3 symbols (top, middle, bottom)
-  const initGrid = (): string[][] =>
-    Array.from({ length: REELS }, () =>
-      Array.from({ length: ROWS }, () => REEL_KEYS[Math.floor(Math.random() * REEL_KEYS.length)])
-    );
-  const [columns, setColumns] = useState<string[][]>(initGrid);
-  // For each reel: scrolling strip & stopped flag
-  const [reelStrips, setReelStrips] = useState<string[][]>(() =>
-    Array.from({ length: REELS }, () => buildRandomStrip())
-  );
-  const [reelStopped, setReelStopped] = useState<boolean[]>(() => Array(REELS).fill(true));
-  const inFlight = useRef(false);
-
-  const [result, setResult] = useState<SpinResult | null>(null);
+  const [reelCells, setReelCells] = useState<string[][]>(() => Array.from({ length: REELS }, () => buildCells()));
+  const [landedWindows, setLandedWindows] = useState<string[][] | null>(null);
   const [winningCells, setWinningCells] = useState<boolean[][]>(() =>
-    Array.from({ length: REELS }, () => Array(ROWS).fill(false))
+    Array.from({ length: REELS }, () => Array(ROWS).fill(false)),
   );
+  const [result, setResult] = useState<SpinResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [fair, setFair] = useState<FairInfo | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
-  const [celebrate, setCelebrate] = useState(false);
-  const [freeBurst, setFreeBurst] = useState(false);
-
-  // Free spins mode state mirrored from server acks
-  const [freeSpinsRemaining, setFreeSpinsRemaining] = useState<number>(0);
-  const [multiplier, setMultiplier] = useState<number>(1);
-
-  // Fair verification
-  const [fairValid, setFairValid] = useState<boolean | null>(null);
-
+  /** ONE tokenized celebration: a win and a free-spin award share one overlay. */
+  const [callout, setCallout] = useState<{ token: number; payout: number; freeSpins: number } | null>(null);
+  const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
+  const [multiplier, setMultiplier] = useState(1);
   const [focus, setFocus] = useState<FocusId>('spin');
+
+  const inFlight = useRef(false);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const fxBtnRef = useRef<HTMLButtonElement>(null);
   const minusBtnRef = useRef<HTMLButtonElement>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
   const fairBtnRef = useRef<HTMLButtonElement>(null);
 
+  // ---- Reel motion: DOM-driven, never React state per frame ----
+  const stripRefs = useRef<Array<HTMLDivElement | null>>(Array(REELS).fill(null));
+  const posRef = useRef<number[]>(Array(REELS).fill(0));
+  const modeRef = useRef<ReelMode[]>(Array(REELS).fill('idle'));
+  const planRef = useRef<Array<SettlePlan | null>>(Array(REELS).fill(null));
+  const loopRef = useRef<number | null>(null);
+  const lastFrameRef = useRef(0);
+  const cellHeightRef = useRef(cellHeight);
+  cellHeightRef.current = cellHeight;
+  const reducedRef = useRef(reducedFx);
+  reducedRef.current = reducedFx;
+  const spinEpochRef = useRef(0);
+  const pendingRef = useRef<{ epoch: number; settled: SpinResult; columns: string[][] } | null>(null);
+  const calloutTokenRef = useRef(0);
+  const calloutTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
-    spinBtnRef.current?.focus();
+    const onResize = () => setCellHeight(cellHeightFor(window.innerHeight));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const inFreeSpins = freeSpinsRemaining > 0;
+  const canBet = inFreeSpins || bet <= (balance ?? 0);
+  const betIdx = BETS.indexOf(bet);
+  const spinUsable = !spinning && !!user && (inFreeSpins || canBet);
+  const betStepUsable = !spinning && !inFreeSpins;
+
+  /** Rows contain ONLY targets that are usable right now. */
+  const focusRows = useMemo<FocusRows>(() => [
+    ['back', 'fx'],
+    [
+      ...(betStepUsable && betIdx > 0 ? ['betMinus'] : []),
+      ...(betStepUsable && betIdx < BETS.length - 1 ? ['betPlus'] : []),
+      ...(spinUsable ? ['spin'] : []),
+    ],
+    ['fair'],
+  ], [betStepUsable, betIdx, spinUsable]);
+
+  // Re-home whenever a phase or availability change makes the target unusable.
   useEffect(() => {
-    if (focus === 'spin') spinBtnRef.current?.focus();
-    else if (focus === 'back') backBtnRef.current?.focus();
-    else if (focus === 'betMinus') minusBtnRef.current?.focus();
-    else if (focus === 'betPlus') plusBtnRef.current?.focus();
-    else if (focus === 'fair') fairBtnRef.current?.focus();
+    setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
+  }, [focusRows]);
+
+  /**
+   * Spin is the control the player wants under the remote. When it becomes
+   * usable again — chips finished loading, or a spin completed / errored — a
+   * player who was pushed onto Back is brought back to Spin. A DELIBERATE move
+   * to Reduced FX or the bet steppers is left alone.
+   */
+  const parkedOnBack = useRef(false);
+  useEffect(() => {
+    if (!spinUsable) { parkedOnBack.current = focus === 'back'; return; }
+    if (parkedOnBack.current && focus === 'back') setFocus('spin');
+    parkedOnBack.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spinUsable]);
+
+  useEffect(() => {
+    const target =
+      focus === 'spin' ? spinBtnRef.current
+        : focus === 'back' ? backBtnRef.current
+          : focus === 'fx' ? fxBtnRef.current
+            : focus === 'betMinus' ? minusBtnRef.current
+              : focus === 'betPlus' ? plusBtnRef.current
+                : fairBtnRef.current;
+    if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }, [focus]);
 
-  // Verify provably-fair when fair payload changes
-  useEffect(() => {
-    let cancelled = false;
-    if (!fair?.serverSeed || !fair?.serverSeedHash) {
-      setFairValid(null);
-      return;
+  const paint = useCallback((reel: number) => {
+    const el = stripRefs.current[reel];
+    if (!el) return;
+    const cellH = cellHeightRef.current;
+    const pos = posRef.current[reel];
+    el.style.transform = `translateY(${-(((pos % cyclePx(cellH)) + cyclePx(cellH)) % cyclePx(cellH))}px)`;
+    // Cumulative travel, exposed for tests and never read by the render path.
+    el.dataset.travel = String(Math.round(pos));
+  }, []);
+
+  const promote = useCallback((reel: number, on: boolean) => {
+    const el = stripRefs.current[reel];
+    if (el) el.style.willChange = on ? 'transform' : 'auto';
+  }, []);
+
+  const commitResult = useCallback(() => {
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (!pending || pending.epoch !== spinEpochRef.current || !life.isMounted()) return;
+    const { settled, columns } = pending;
+    const cellH = cellHeightRef.current;
+
+    setLandedWindows(columns.map((_, reel) => visibleSymbolsAt(reelCellsRef.current[reel], posRef.current[reel], cellH)));
+    setResult(settled);
+    setFreeSpinsRemaining(settled.freeSpinsRemaining);
+    setMultiplier(settled.multiplier || 1);
+    setWinningCells(settled.totalPayout > 0 ? winningCellsFor(columns, settled.wins) : Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
+    setSpinning(false);
+    inFlight.current = false;
+
+    if (settled.totalPayout > 0 || settled.triggeredFreeSpins > 0) {
+      const token = calloutTokenRef.current + 1;
+      calloutTokenRef.current = token;
+      if (calloutTimerRef.current !== null) life.clearTimer(calloutTimerRef.current);
+      setCallout({ token, payout: settled.totalPayout, freeSpins: settled.triggeredFreeSpins });
+      calloutTimerRef.current = life.timeout(() => {
+        // Back-to-back results each get their full duration: only the newest
+        // token is allowed to clear the overlay.
+        if (calloutTokenRef.current === token) setCallout(null);
+      }, reducedRef.current ? 1200 : 2400);
     }
-    sha256Hex(fair.serverSeed).then((h) => {
-      if (!cancelled) setFairValid(h.toLowerCase() === fair.serverSeedHash.toLowerCase());
-    }).catch(() => { if (!cancelled) setFairValid(null); });
-    return () => { cancelled = true; };
-  }, [fair]);
+  }, [life]);
 
-  const inFreeSpins = freeSpinsRemaining > 0;
-  const maxAffordableBet = balance ?? 0;
-  const canBet = inFreeSpins || bet <= maxAffordableBet;
+  // Latest cells, readable from the animation loop without re-subscribing.
+  const reelCellsRef = useRef(reelCells);
+  reelCellsRef.current = reelCells;
 
-  const changeBet = useCallback(
-    (dir: 1 | -1) => {
-      if (spinning || inFreeSpins) return;
-      const idx = BETS.indexOf(bet);
-      let next = idx;
-      if (dir === 1) next = Math.min(BETS.length - 1, idx + 1);
-      else next = Math.max(0, idx - 1);
-      setBet(BETS[next]);
-    },
-    [bet, spinning, inFreeSpins]
-  );
+  const loop = useCallback((time: number) => {
+    loopRef.current = null;
+    if (!life.isMounted()) return;
+    if (lastFrameRef.current === 0) lastFrameRef.current = time;
+    const dt = Math.min(64, Math.max(0, time - lastFrameRef.current));
+    lastFrameRef.current = time;
+    const cellH = cellHeightRef.current;
+    const speed = (cellH * (reducedRef.current ? 12 : 20)) / 1000; // px per ms, one direction
+    let active = false;
+    let finished = false;
+
+    for (let reel = 0; reel < REELS; reel += 1) {
+      const mode = modeRef.current[reel];
+      if (mode === 'spin') {
+        posRef.current[reel] += speed * dt;
+        if (!life.isHidden()) paint(reel);
+        active = true;
+      } else if (mode === 'settle') {
+        const plan = planRef.current[reel];
+        if (!plan) { modeRef.current[reel] = 'idle'; continue; }
+        // The clock is taken from the first settle frame, so the animation can
+        // never depend on performance.now() sharing rAF's time origin.
+        if (plan.start === 0) plan.start = time;
+        const p = Math.min(1, Math.max(0, (time - plan.start) / plan.duration));
+        const eased = 1 - Math.pow(1 - p, 3);
+        posRef.current[reel] = plan.from + (plan.target - plan.from) * eased;
+        if (!life.isHidden()) paint(reel);
+        if (p >= 1) {
+          posRef.current[reel] = plan.target;
+          paint(reel);
+          planRef.current[reel] = null;
+          modeRef.current[reel] = 'idle';
+          promote(reel, false);
+          if (reel === REELS - 1) finished = true;
+        } else {
+          active = true;
+        }
+      }
+    }
+
+    if (active) loopRef.current = life.raf(loop);
+    else lastFrameRef.current = 0;
+    if (finished) commitResult();
+  }, [life, paint, promote, commitResult]);
+
+  const ensureLoop = useCallback(() => {
+    if (loopRef.current === null) loopRef.current = life.raf(loop);
+  }, [life, loop]);
+
+  const stopMotion = useCallback(() => {
+    modeRef.current = Array(REELS).fill('idle');
+    planRef.current = Array(REELS).fill(null);
+    for (let reel = 0; reel < REELS; reel += 1) promote(reel, false);
+    life.cancelRaf(loopRef.current);
+    loopRef.current = null;
+    lastFrameRef.current = 0;
+    setSpinning(false);
+    inFlight.current = false;
+  }, [life, promote]);
+
+  const changeBet = useCallback((dir: 1 | -1) => {
+    if (spinning || inFreeSpins) return;
+    setBet((current) => {
+      const idx = BETS.indexOf(current);
+      return BETS[dir === 1 ? Math.min(BETS.length - 1, idx + 1) : Math.max(0, idx - 1)];
+    });
+  }, [spinning, inFreeSpins]);
 
   const handleSpin = useCallback(async () => {
-    if (inFlight.current) return;
-    if (spinning) return;
+    if (inFlight.current || spinning) return;
     if (!user) { setErrorMsg(t('games.slots.errorSignIn')); return; }
     if (balance === null && !inFreeSpins) { setErrorMsg(t('games.slots.errorLoadingChips')); return; }
     if (!inFreeSpins && !canBet) { setErrorMsg(t('games.slots.errorNotEnoughChips')); return; }
     inFlight.current = true;
+    const epoch = spinEpochRef.current + 1;
+    spinEpochRef.current = epoch;
 
     setErrorMsg(null);
+    setNotice(null);
     setResult(null);
+    setLandedWindows(null);
     setFair(null);
-    setFairValid(null);
     setWinningCells(Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
     setSpinning(true);
-    setReelStopped(Array(REELS).fill(false));
 
-    // Kick off scrolling strips with random placeholder content
-    setReelStrips(Array.from({ length: REELS }, () => buildRandomStrip()));
+    // Motion starts on this press, before any network work, and keeps looping
+    // seamlessly for as long as the ack takes.
+    modeRef.current = Array(REELS).fill('spin');
+    planRef.current = Array(REELS).fill(null);
+    // Full FX promotes all five layers up front; reduced/low-memory mode waits
+    // until the actual deceleration so nothing stays promoted during the wait.
+    if (!reducedRef.current) for (let reel = 0; reel < REELS; reel += 1) promote(reel, true);
+    ensureLoop();
 
     try {
       const clientSeed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.spinSlots(bet, clientSeed);
+      if (!life.isMounted() || epoch !== spinEpochRef.current) return;
 
-      if (resp?.ok === true && Array.isArray(resp.grid) && resp.grid.length === ROWS) {
-        if (resp.symbols) setGlyphs({ ...DEFAULT_GLYPHS, ...resp.symbols });
-
-        // Convert row-major grid[row][reel] -> column-major columns[reel][row]
-        const grid: string[][] = resp.grid;
-        const cols: string[][] = Array.from({ length: REELS }, (_, r) =>
-          Array.from({ length: ROWS }, (_, row) => grid[row]?.[r] ?? REEL_KEYS[0])
-        );
-
-        // Build deterministic-length strips for each reel ending with this reel's 3 symbols
-        // followed by TAIL_PAD random padding (so the visible window can never run past the end).
-        setReelStrips(cols.map((col) => buildStrip(col[0], col[1], col[2])));
-
-        const result: SpinResult = {
-          grid,
+      if (resp?.ok === true && validateGrid(resp.grid)) {
+        const columns = gridToColumns(resp.grid);
+        const settled: SpinResult = {
+          grid: resp.grid,
           wins: Array.isArray(resp.wins) ? resp.wins : [],
           scatterCount: resp.scatterCount ?? 0,
           totalPayout: resp.totalPayout ?? 0,
@@ -292,470 +338,247 @@ const Slots = ({ onBack }: SlotsProps) => {
           multiplier: resp.multiplier ?? 1,
           triggeredFreeSpins: resp.triggeredFreeSpins ?? 0,
         };
+        pendingRef.current = { epoch, settled, columns };
+        if (resp.fair) setFair(resp.fair);
 
-        // Stagger stops left -> right
-        const baseDelay = 900;
-        const stagger = 220;
-        for (let i = 0; i < REELS; i++) {
-          const idx = i;
-          setTimeout(() => {
-            setReelStopped((prev) => {
-              const n = [...prev];
-              n[idx] = true;
-              return n;
+        const baseDelay = reducedRef.current ? 160 : 340;
+        const stagger = reducedRef.current ? 90 : 170;
+        columns.forEach((column, reel) => {
+          life.timeout(() => {
+            if (!life.isMounted() || epoch !== spinEpochRef.current) return;
+            const cellH = cellHeightRef.current;
+            const pos = posRef.current[reel];
+            // Committed symbols are written six cells ahead of the window, so
+            // no visible cell is ever swapped during the stop.
+            const landing = pickLandingIndex(pos, cellH);
+            setReelCells((prev) => {
+              const next = [...prev];
+              next[reel] = withLanding(prev[reel], landing, column);
+              return next;
             });
-            if (idx === REELS - 1) {
-              setColumns(cols);
-              setResult(result);
-              setFreeSpinsRemaining(result.freeSpinsRemaining);
-              setMultiplier(result.multiplier || 1);
-
-              // Highlight winning cells — only if a win actually paid.
-              const lit: boolean[][] = Array.from({ length: REELS }, () => Array(ROWS).fill(false));
-              const paidWins = result.wins.filter((w) => w.payout > 0);
-              const winningSymbols = new Set(paidWins.map((w) => w.symbol));
-              if (result.totalPayout > 0 && winningSymbols.size > 0) {
-                for (let r = 0; r < REELS; r++) {
-                  for (let row = 0; row < ROWS; row++) {
-                    const sym = cols[r][row];
-                    if (winningSymbols.has(sym) || sym === 'wild') lit[r][row] = true;
-                  }
-                }
-              }
-              setWinningCells(lit);
-
-              setSpinning(false);
-              if (result.totalPayout > 0) {
-                setCelebrate(true);
-                setTimeout(() => setCelebrate(false), 2400);
-              }
-              if (result.triggeredFreeSpins > 0) {
-                setFreeBurst(true);
-                setTimeout(() => setFreeBurst(false), 2200);
-              }
-              if (resp.fair) setFair(resp.fair);
-              inFlight.current = false;
-            }
-          }, baseDelay + idx * stagger);
-        }
+            planRef.current[reel] = {
+              from: pos,
+              target: computeSettleTarget(pos, landing, cellH, MIN_TRAVEL_CELLS),
+              start: 0, // stamped on the first settle frame from rAF's own clock
+              duration: reducedRef.current ? 620 : 1080,
+            };
+            modeRef.current[reel] = 'settle';
+            if (reducedRef.current) promote(reel, true);
+            ensureLoop();
+          }, baseDelay + reel * stagger);
+        });
       } else if (resp?.ok === false && resp.error === 'insufficient_balance') {
-        setSpinning(false);
-        setReelStopped(Array(REELS).fill(true));
-        setErrorMsg(t('games.slots.errorNotEnoughChips'));
-        inFlight.current = false;
+        stopMotion(); setErrorMsg(t('games.slots.errorNotEnoughChips'));
       } else if (resp?.ok === false && resp.error === 'invalid_bet') {
-        setSpinning(false);
-        setReelStopped(Array(REELS).fill(true));
-        setErrorMsg(t('games.slots.errorInvalidBet'));
-        inFlight.current = false;
+        stopMotion(); setErrorMsg(t('games.slots.errorInvalidBet'));
       } else if (resp?.error === 'game_disabled') {
-        setSpinning(false);
-        setReelStopped(Array(REELS).fill(true));
-        setErrorMsg(t('games.slots.errorGameDisabled'));
-        inFlight.current = false;
+        stopMotion(); setErrorMsg(t('games.slots.errorGameDisabled'));
       } else {
-        setSpinning(false);
-        setReelStopped(Array(REELS).fill(true));
-        setErrorMsg(t('games.slots.errorSpinFailed'));
-        inFlight.current = false;
+        stopMotion(); setErrorMsg(t('games.slots.errorSpinFailed'));
       }
     } catch {
-      setSpinning(false);
-      setReelStopped(Array(REELS).fill(true));
+      if (!life.isMounted() || epoch !== spinEpochRef.current) return;
+      stopMotion();
       setErrorMsg(t('games.slots.errorSpinFailed'));
-      inFlight.current = false;
     }
-  }, [spinning, user, canBet, bet, inFreeSpins, balance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, life, stopMotion, ensureLoop, promote]);
 
-  // D-pad
+  // A spin in flight or still stopping owns Back: no committed wager is dropped.
+  const motionActive = () => modeRef.current.some((mode) => mode !== 'idle');
+  const { requestBack } = useGameBack({
+    isDetailsOpen: () => showFair,
+    closeDetails: () => setShowFair(false),
+    isBusy: () => spinning || inFlight.current || motionActive(),
+    onBlocked: () => {
+      setNotice(t('games.shared.finishSpinFirst'));
+      life.timeout(() => setNotice(null), 2600);
+    },
+    onExit: onBack,
+  });
+
+  // D-pad movement only; OK/Select activation lives in useTvActivate. A global
+  // modal owns input outright, so the machine yields its arrows untouched.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        return; // let buttons handle
-      }
-      if (e.key === 'ArrowLeft') {
-        if (focus === 'spin') { e.preventDefault(); setFocus('betPlus'); }
-        else if (focus === 'betPlus') { e.preventDefault(); setFocus('betMinus'); }
-        else if (focus === 'betMinus') { e.preventDefault(); changeBet(-1); }
-        else if (focus === 'fair') { e.preventDefault(); setFocus('spin'); }
-      } else if (e.key === 'ArrowRight') {
-        if (focus === 'betMinus') { e.preventDefault(); setFocus('betPlus'); }
-        else if (focus === 'betPlus') { e.preventDefault(); setFocus('spin'); }
-        else if (focus === 'spin') { e.preventDefault(); setFocus('fair'); }
-        else if (focus === 'back') { e.preventDefault(); setFocus('spin'); }
-      } else if (e.key === 'ArrowDown') {
-        if (focus === 'back') { e.preventDefault(); setFocus('betMinus'); }
-        else if (focus === 'betMinus' || focus === 'betPlus' || focus === 'spin') { e.preventDefault(); setFocus('fair'); }
-      } else if (e.key === 'ArrowUp') {
-        if (focus === 'fair') { e.preventDefault(); setFocus('spin'); }
-        else if (focus === 'spin' || focus === 'betMinus' || focus === 'betPlus') { e.preventDefault(); setFocus('back'); }
-      }
+      if (isGlobalModalOpen()) return;
+      const dir: FocusDir | null = arrowDir(e);
+      if (!dir) return;
+      e.preventDefault();
+      const next = moveInRows(focusRows, focus, dir);
+      if (next) setFocus(next as FocusId);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [focus, changeBet, onBack]);
+  }, [focus, focusRows]);
 
-  const focusRing = (id: FocusId) =>
-    focus === id ? 'ring-4 ring-amber-300/80 scale-110 shadow-[0_0_24px_rgba(252,211,77,0.6)]' : '';
-
-  const renderReel = (reelIndex: number) => {
-    const strip = reelStrips[reelIndex] ?? [];
-    const stopped = reelStopped[reelIndex];
-    // Result symbols are at positions [STRIP_LENGTH - ROWS - TAIL_PAD, ..., STRIP_LENGTH - 1 - TAIL_PAD].
-    // Window shows ROWS rows; finalOffset puts the result row 0 at the top of the window.
-    const finalOffset = -((STRIP_LENGTH - ROWS - TAIL_PAD) * SYMBOL_HEIGHT);
-    // During spin, translate so we visibly travel past the result row, ending near the bottom-most
-    // padding tail. This guarantees overshoot/downward travel before the ease-out settle for reel 0.
-    const spinningOffset = -((STRIP_LENGTH - ROWS) * SYMBOL_HEIGHT);
-
-    const transition = stopped
-      ? `transform ${550}ms cubic-bezier(0.15, 0.85, 0.35, 1)`
-      : `transform ${900 + reelIndex * 220}ms linear`;
-    const translate = stopped ? finalOffset : spinningOffset;
-
-    return (
-      <div
-        key={reelIndex}
-        className="relative overflow-hidden rounded-lg border-2 border-amber-300/40 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 shadow-[inset_0_8px_18px_rgba(0,0,0,0.7),inset_0_-8px_18px_rgba(0,0,0,0.7)]"
-        style={{ width: 96, height: SYMBOL_HEIGHT * ROWS }}
-      >
-        {/* depth shading */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/70 to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/70 to-transparent z-10" />
-
-        {/* Winning cell highlights */}
-        {stopped && winningCells[reelIndex]?.map((lit, row) => lit ? (
-          <div
-            key={`hl-${row}`}
-            className="pointer-events-none absolute left-0 right-0 z-10 bg-amber-300/20 shadow-[inset_0_0_28px_rgba(251,191,36,0.65)] animate-pulse"
-            style={{ top: row * SYMBOL_HEIGHT, height: SYMBOL_HEIGHT }}
-          />
-        ) : null)}
-
-        <div
-          style={{
-            transform: `translateY(${translate}px)`,
-            transition,
-            willChange: 'transform',
-            filter: stopped ? 'none' : 'blur(1.5px)',
-            opacity: stopped ? 1 : 0.92,
-          }}
-        >
-          {strip.map((key, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-center select-none"
-              style={{ height: SYMBOL_HEIGHT }}
-            >
-              <SlotSymbol symbolKey={key} glyphs={glyphs} size={48} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
+  const reelHeight = cellHeight * ROWS;
+  const reels = useMemo(() => Array.from({ length: REELS }, (_, i) => i), []);
 
   return (
-    <div
-      className="tv-game-shell text-white relative"
-      style={{
-        background: inFreeSpins
-          ? 'radial-gradient(1200px 600px at 50% -10%, rgba(168,85,247,0.28), transparent 60%),' +
-            'radial-gradient(900px 500px at 90% 10%, rgba(236,72,153,0.18), transparent 60%),' +
-            'linear-gradient(135deg, #16092b 0%, #0b1f1a 55%, #0a0420 100%)'
-          : 'radial-gradient(1200px 600px at 20% -10%, rgba(34,197,94,0.18), transparent 60%),' +
-            'radial-gradient(900px 500px at 90% 10%, rgba(56,189,248,0.12), transparent 60%),' +
-            'linear-gradient(135deg, #0a1628 0%, #0b1f1a 50%, #07111c 100%)',
-      }}
-    >
-      <style>{`
-        @keyframes slot-coin {
-          0% { opacity: 0; transform: translateY(0) scale(0.5); }
-          30% { opacity: 1; transform: translateY(-30px) scale(1); }
-          100% { opacity: 0; transform: translateY(-90px) scale(0.8); }
-        }
-        @keyframes free-pop {
-          0% { opacity: 0; transform: scale(0.6); }
-          40% { opacity: 1; transform: scale(1.1); }
-          100% { opacity: 0; transform: scale(1); }
-        }
-      `}</style>
+    <GameShell accent="plum">
+      <GameTopBar
+        ref={backBtnRef}
+        onBack={requestBack}
+        backLabel={t('games.slots.back')}
+        balance={balance}
+        status={status}
+        title={t('games.slots.marquee')}
+        phase={inFreeSpins ? t('games.slots.freeSpinsBanner', { remaining: freeSpinsRemaining, multiplier }) : t('games.slots.spinToWin')}
+        backFocused={focus === 'back'}
+        onBackFocus={() => setFocus('back')}
+        reducedFx={reducedFx}
+        onToggleFx={toggleReducedFx}
+        fxRef={fxBtnRef}
+        fxFocused={focus === 'fx'}
+        onFxFocus={() => setFocus('fx')}
+      />
 
-      <div className="tv-game-body px-4" style={{ overflow: 'auto' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
-          <Button
-            ref={backBtnRef}
-            onClick={onBack}
-            onFocus={() => setFocus('back')}
-            variant="gold"
-            size="lg"
-            className={`transition-all duration-200 ${focusRing('back')}`}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {t('games.slots.back')}
-          </Button>
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-300/50 bg-gradient-to-br from-emerald-500/25 to-emerald-700/25 px-5 py-3 shadow-[0_8px_28px_-12px_rgba(16,185,129,0.6)]">
-            <Coins className="w-6 h-6 text-amber-300" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-200/90 font-semibold">{t('games.slots.playChips')}</span>
-              <span className="text-2xl font-extrabold text-white tabular-nums">
-                {balance !== null ? balance.toLocaleString() : t('games.slots.loadingChips')}
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="snow-slot-stage">
+        <div className="snow-slot-cabinet">
+          <span className="snow-slot-marquee">{t('games.slots.marquee')}</span>
 
-        <div className="text-center tv-compact-head">
-          <h1 className="text-3xl md:text-4xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-            {t('games.slots.spinToWin')}
-          </h1>
-        </div>
-
-        {/* Free spins banner */}
-        {inFreeSpins && (
-          <div className="mb-4 p-3 rounded-xl border border-fuchsia-300/50 bg-gradient-to-br from-fuchsia-600/30 to-purple-700/30 text-center font-bold text-fuchsia-100 shadow-[0_8px_28px_-12px_rgba(217,70,239,0.6)]">
-            {t('games.slots.freeSpinsBanner', { remaining: freeSpinsRemaining, multiplier })}
-          </div>
-        )}
-
-        {/* Cabinet */}
-        <div className="flex justify-center" style={{ perspective: '1400px' }}>
-          <div
-            className="relative rounded-3xl p-5 md:p-6 w-full max-w-4xl"
-            style={{
-              background: 'linear-gradient(180deg, #6b1d1d 0%, #3b0d0d 100%)',
-              boxShadow: '0 30px 60px -20px rgba(0,0,0,0.8), inset 0 2px 0 rgba(255,255,255,0.15), inset 0 -8px 30px rgba(0,0,0,0.6)',
-              border: '2px solid rgba(251,191,36,0.55)',
-              transform: 'rotateX(3deg)',
-              transformStyle: 'preserve-3d',
-            }}
-          >
-            <div className="absolute -left-3 top-4 bottom-4 w-3 rounded-l-lg" style={{ background: 'linear-gradient(90deg, rgba(0,0,0,0.6), rgba(0,0,0,0.1))' }} />
-            <div className="absolute -right-3 top-4 bottom-4 w-3 rounded-r-lg" style={{ background: 'linear-gradient(270deg, rgba(0,0,0,0.6), rgba(0,0,0,0.1))' }} />
-
-            {/* Marquee */}
-            <div className="text-center mb-4">
-              <div
-                className="inline-block px-6 py-2 rounded-lg font-black text-xl tracking-widest"
-                style={{
-                  background: 'linear-gradient(180deg, #fde68a, #b45309)',
-                  color: '#3b1402',
-                  border: '2px solid #fbbf24',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.6)',
-                  textShadow: '0 1px 0 rgba(255,255,255,0.5)',
-                }}
-              >
-                {t('games.slots.marquee')}
-              </div>
-            </div>
-
-            {/* Reels frame */}
-            <div
-              className="relative rounded-xl p-3 md:p-4 mb-4"
-              style={{
-                background: 'linear-gradient(180deg, #1a0606, #0a0202)',
-                boxShadow: 'inset 0 6px 20px rgba(0,0,0,0.9), 0 0 0 3px rgba(251,191,36,0.45)',
-              }}
-            >
-              <div className="flex justify-center gap-2 md:gap-3">
-                {Array.from({ length: REELS }, (_, i) => renderReel(i))}
-              </div>
-
-              {/* Win callout */}
-              {celebrate && result && result.totalPayout > 0 && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-20">
+          <div className="snow-slot-window" style={{ height: reelHeight + 12 }}>
+            <div className="snow-slot-reels" style={{ height: reelHeight }}>
+              {reels.map((reelIndex) => {
+                const cells = reelCells[reelIndex] ?? [];
+                return (
                   <div
-                    className="px-5 py-2 rounded-xl font-black text-3xl text-amber-100"
-                    style={{
-                      background: 'linear-gradient(180deg, rgba(180,83,9,0.85), rgba(120,53,15,0.85))',
-                      border: '2px solid rgba(251,191,36,0.8)',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
-                      animation: 'free-pop 2.2s ease-out both',
-                    }}
+                    key={reelIndex}
+                    className="snow-slot-reel"
+                    style={{ height: reelHeight }}
+                    data-reel={reelIndex}
+                    data-reel-symbols={landedWindows ? landedWindows[reelIndex]?.join(',') : undefined}
                   >
-                    {t('games.slots.winChips', { amount: result.totalPayout.toLocaleString() })}
+                    <span className="snow-slot-reel__shade" aria-hidden="true" />
+                    {landedWindows && winningCells[reelIndex]?.map((lit, row) => (lit ? (
+                      <span key={`w-${row}`} className="snow-slot-cell__win" style={{ top: row * cellHeight, height: cellHeight, bottom: 'auto' }} />
+                    ) : null))}
+                    <div
+                      ref={(el) => { stripRefs.current[reelIndex] = el; }}
+                      className="snow-slot-strip"
+                      data-testid={`slot-strip-${reelIndex}`}
+                    >
+                      {cells.map((key, i) => (
+                        <div key={i} className="snow-slot-cell" style={{ height: cellHeight }} data-cell={i < CYCLE_CELLS ? i : `clone-${i - CYCLE_CELLS}`}>
+                          <SlotSymbol symbolKey={key} size={Math.round(cellHeight * 0.62)} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  {/* coin burst */}
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <span
-                      key={i}
-                      className="absolute text-2xl"
-                      style={{
-                        left: `${30 + i * 5}%`,
-                        bottom: '20%',
-                        animation: `slot-coin 1.8s ease-out ${i * 80}ms both`,
-                      }}
-                    >🪙</span>
-                  ))}
-                </div>
-              )}
-
-              {freeBurst && result && result.triggeredFreeSpins > 0 && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-20">
-                  <div
-                    className="px-6 py-3 rounded-2xl font-black text-3xl text-fuchsia-100 text-center"
-                    style={{
-                      background: 'linear-gradient(180deg, rgba(168,85,247,0.9), rgba(112,26,117,0.9))',
-                      border: '2px solid rgba(232,121,249,0.9)',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
-                      animation: 'free-pop 2.2s ease-out both',
-                    }}
-                  >
-                    {t('games.slots.freeSpinsCallout')}
-                    <div className="text-base mt-1 font-bold tracking-wider">{t('games.slots.freeSpinsAwarded', { count: result.triggeredFreeSpins })}</div>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
+            <span className="snow-slot-payline" style={{ top: cellHeight + 6 }} aria-hidden="true" />
+            <span className="snow-slot-payline" style={{ top: cellHeight * 2 + 6 }} aria-hidden="true" />
 
-            {/* Controls */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="text-xs uppercase tracking-wider text-amber-200 font-bold">{t('games.slots.bet')}</div>
-                <Button
-                  ref={minusBtnRef}
-                  onFocus={() => setFocus('betMinus')}
-                  onClick={() => changeBet(-1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === 0}
-                  size="icon"
-                  className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betMinus')}`}
-                >
-                  <Minus className="w-4 h-4" />
-                </Button>
-                <div
-                  className={`relative min-w-[80px] text-center px-4 py-2 rounded-lg font-black text-2xl tabular-nums ${inFreeSpins ? 'opacity-60' : ''}`}
-                  style={{
-                    background: 'linear-gradient(180deg, #0a0202, #1a0606)',
-                    border: '2px solid rgba(251,191,36,0.6)',
-                    color: '#fde68a',
-                    boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.6)',
-                  }}
-                  title={inFreeSpins ? t('games.slots.betLockedTooltip') : undefined}
-                >
-                  {bet}
-                  {inFreeSpins && (
-                    <span className="absolute -top-2 -right-2 text-[10px] bg-slate-900 border border-amber-400/60 text-amber-200 rounded-full px-1.5 py-0.5">🔒</span>
+            {callout && (
+              <div className="snow-slot-overlay" data-callout-token={callout.token}>
+                <div className="snow-slot-callout" role="status" aria-live="polite">
+                  {callout.payout > 0 && t('games.slots.winChips', { amount: callout.payout.toLocaleString() })}
+                  {callout.freeSpins > 0 && (
+                    <small>
+                      {t('games.slots.freeSpinsCallout')} · {t('games.slots.freeSpinsAwarded', { count: callout.freeSpins })}
+                    </small>
                   )}
                 </div>
-                <Button
-                  ref={plusBtnRef}
-                  onFocus={() => setFocus('betPlus')}
-                  onClick={() => changeBet(1)}
-                  disabled={spinning || inFreeSpins || BETS.indexOf(bet) === BETS.length - 1}
-                  size="icon"
-                  className={`bg-slate-800 hover:bg-slate-700 border border-amber-400/50 text-amber-200 transition-all ${focusRing('betPlus')}`}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
+                {callout.payout > 0 && <GameFxCanvas burstKey={callout.token} reduced={reducedFx} />}
               </div>
-
-              <div className="flex flex-col items-end gap-1">
-                <Button
-                  ref={spinBtnRef}
-                  onFocus={() => setFocus('spin')}
-                  onClick={handleSpin}
-                  disabled={spinning || !user || (!inFreeSpins && !canBet)}
-                  className={`text-2xl font-black px-10 py-7 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 border-2 border-amber-300 hover:from-amber-300 hover:to-amber-500 transition-all shadow-[0_10px_30px_-8px_rgba(251,191,36,0.6)] ${focusRing('spin')}`}
-                >
-                  {spinning ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="w-6 h-6 animate-spin" /> {t('games.slots.spinning')}
-                    </span>
-                  ) : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}
-                </Button>
-                {result && result.scatterCount > 0 && (
-                  <div className="text-xs text-pink-200 font-semibold">🎁 {t('games.slots.scatters', { count: result.scatterCount })}</div>
-                )}
-              </div>
-            </div>
-
-            {balance !== null && !canBet && user && !inFreeSpins && (
-              <p className="mt-3 text-center text-amber-200 font-semibold text-sm">
-                {t('games.slots.notEnoughChipsDailySpin')}
-              </p>
-            )}
-            {errorMsg && (
-              <p className="mt-3 text-center text-rose-200 font-semibold text-sm">{errorMsg}</p>
             )}
           </div>
-        </div>
 
-        {/* Wins breakdown */}
-        {result && result.wins.length > 0 && (
-          <div className="mt-5 max-w-4xl mx-auto rounded-xl border border-emerald-400/30 bg-slate-900/70 p-4">
-            <div className="text-sm uppercase tracking-wider text-emerald-200 font-bold mb-2">{t('games.slots.winsThisSpin')}</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-              {result.wins.map((w, i) => (
-                <div key={i} className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2 border border-emerald-400/20">
-                  <SlotSymbol symbolKey={w.symbol} glyphs={glyphs} size={28} />
-                  <div className="flex-1">
-                    <div className="font-bold text-white">{t('games.slots.winSymbolCount', { count: w.count, symbol: w.symbol.toUpperCase() })}</div>
-                    <div className="text-xs text-slate-300">{t('games.slots.winWays', { ways: w.ways })}</div>
-                  </div>
-                  <div className="text-amber-200 font-extrabold">+{w.payout.toLocaleString()}</div>
-                </div>
-              ))}
+          <div className="snow-slot-controls">
+            <div className="snow-slot-bet">
+              <span className="snow-rl-label">{t('games.slots.bet')}</span>
+              <Button
+                ref={minusBtnRef}
+                type="button"
+                variant="navy"
+                size="icon"
+                onFocus={() => setFocus('betMinus')}
+                onClick={() => changeBet(-1)}
+                aria-disabled={!betStepUsable || betIdx === 0 ? 'true' : undefined}
+                data-tv-focused={focus === 'betMinus' ? 'true' : 'false'}
+              >
+                <Minus />
+              </Button>
+              <span className="snow-slot-bet__value">{bet}</span>
+              <Button
+                ref={plusBtnRef}
+                type="button"
+                variant="navy"
+                size="icon"
+                onFocus={() => setFocus('betPlus')}
+                onClick={() => changeBet(1)}
+                aria-disabled={!betStepUsable || betIdx === BETS.length - 1 ? 'true' : undefined}
+                data-tv-focused={focus === 'betPlus' ? 'true' : 'false'}
+              >
+                <Plus />
+              </Button>
             </div>
-            <div className="mt-2 text-right text-amber-100 font-bold">
-              {result.freeSpin && multiplier > 1
-                ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
-                : t('games.slots.totalPayout', { amount: result.totalPayout.toLocaleString() })}
-            </div>
-          </div>
-        )}
 
-        {/* Paytable */}
-        <div className="mt-5 max-w-4xl mx-auto rounded-xl border border-amber-400/20 bg-slate-900/70 p-4">
-          <div className="text-sm uppercase tracking-wider text-amber-200 font-bold mb-2">{t('games.slots.paytable')}</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-            {(['p1','p2','p3','p4'] as const).map((k) => (
-              <div key={k} className="flex items-center gap-2 bg-black/30 rounded-lg px-3 py-2 border border-amber-400/20">
-                <SlotSymbol symbolKey={k} glyphs={glyphs} size={28} />
-                <div className="font-bold text-white">{k.toUpperCase()}</div>
-                <div className="ml-auto text-amber-200 text-xs">{t('games.slots.topPayer')}</div>
-              </div>
-            ))}
+            <Button
+              ref={spinBtnRef}
+              type="button"
+              onFocus={() => setFocus('spin')}
+              onClick={() => { if (spinUsable) handleSpin(); }}
+              aria-disabled={spinUsable ? undefined : 'true'}
+              data-busy={spinning ? 'true' : undefined}
+              data-tv-focused={focus === 'spin' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} snow-slot-spin`}
+            >
+              {spinning ? <><Loader2 className="animate-spin" /> {t('games.slots.spinning')}</> : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}
+            </Button>
           </div>
-          <div className="mt-2 text-xs text-slate-300">
-            {t('games.slots.paytableNote')}
-          </div>
-        </div>
 
-        {/* Provably fair */}
-        <div className="mt-5 max-w-4xl mx-auto">
-          <Button
-            ref={fairBtnRef}
-            size="sm"
-            onClick={() => setShowFair((v) => !v)}
-            onFocus={() => setFocus('fair')}
-            className={`bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-500/60 transition-all ${focusRing('fair')}`}
-          >
-            {showFair ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-            {t('games.slots.provablyFair')}
-          </Button>
-          {showFair && (
-            <div className="mt-3 p-4 rounded-lg bg-slate-900/70 border border-slate-700 text-xs text-slate-200 font-mono break-all space-y-1">
-              {fair ? (
-                <>
-                  <div><span className="text-slate-400">{t('games.slots.serverSeedHashLabel')}</span> {fair.serverSeedHash}</div>
-                  <div><span className="text-slate-400">{t('games.slots.serverSeedLabel')}</span> {fair.serverSeed}</div>
-                  <div><span className="text-slate-400">{t('games.slots.clientSeedLabel')}</span> {fair.clientSeed}</div>
-                  <div><span className="text-slate-400">{t('games.slots.nonceLabel')}</span> {fair.nonce}</div>
-                  <div className="pt-1">
-                    {fairValid === true && <span className="text-emerald-300 font-bold">{t('games.slots.fairHashMatches')}</span>}
-                    {fairValid === false && <span className="text-rose-300 font-bold">{t('games.slots.fairHashMismatch')}</span>}
-                    {fairValid === null && <span className="text-slate-400">{t('games.slots.fairVerifying')}</span>}
-                  </div>
-                </>
-              ) : (
-                <div className="text-slate-400">{t('games.slots.spinToRevealSeed')}</div>
-              )}
-            </div>
+          {errorMsg && <p className="snow-game-error">{errorMsg}</p>}
+          {notice && <p className="snow-game-note" role="status">{notice}</p>}
+          {!errorMsg && balance !== null && !canBet && user && !inFreeSpins && (
+            <p className="snow-game-note">{t('games.slots.notEnoughChipsDailySpin')}</p>
           )}
         </div>
+
+        <div className="snow-slot-info">
+          <GamePanel>
+            <b>{t('games.slots.paytable')}</b>
+            <ul>
+              {(['p1', 'p2', 'p3', 'p4'] as const).map((k) => (
+                <li key={k}><span>{k.toUpperCase()}</span><span>{t('games.slots.topPayer')}</span></li>
+              ))}
+            </ul>
+          </GamePanel>
+          <GamePanel>
+            <b>{t('games.slots.winsThisSpin')}</b>
+            <ul>
+              {result && result.wins.length > 0 ? result.wins.slice(0, 4).map((w, i) => (
+                <li key={i}>
+                  <span>{t('games.slots.winSymbolCount', { count: w.count, symbol: w.symbol.toUpperCase() })}</span>
+                  <span>+{w.payout.toLocaleString()}</span>
+                </li>
+              )) : <li><span>{t('games.slots.paytableNote')}</span></li>}
+              {result && result.scatterCount > 0 && (
+                <li><span>{t('games.slots.scatters', { count: result.scatterCount })}</span></li>
+              )}
+              {result && result.totalPayout > 0 && (
+                <li><span>{result.freeSpin && multiplier > 1
+                  ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
+                  : t('games.slots.totalPayout', { amount: result.totalPayout.toLocaleString() })}</span></li>
+              )}
+            </ul>
+          </GamePanel>
+        </div>
       </div>
-    </div>
+
+      <FairnessPanel
+        ref={fairBtnRef}
+        fair={fair}
+        open={showFair}
+        onToggle={() => setShowFair((v) => !v)}
+        focused={focus === 'fair'}
+        onFocus={() => setFocus('fair')}
+        labels={{ title: t('games.slots.provablyFair'), note: t('games.slots.spinToRevealSeed') }}
+      />
+    </GameShell>
   );
 };
 

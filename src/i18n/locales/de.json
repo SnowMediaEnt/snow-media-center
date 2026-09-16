@@ -81,7 +81,10 @@
       "heroTitle": "Willkommen in der Lounge",
       "heroSubtitle": "Spiele mit kostenlosen Snow Coins. Verdiene sie täglich, klettere in der Bestenliste nach oben und hab Spaß — nur für den Ruhm.",
       "signInBanner": "Melde dich an, um Snow Coins zu sammeln.",
-      "serverError": "Server: {{errorMessage}}"
+      "serverError": "Server: {{errorMessage}}",
+      "heroTagline": "Aurora After Dark · sechs Premium-Tische",
+      "freeChipsNote": "Kostenlose Unterhaltungsmünzen · kein Kauf nötig",
+      "leaderboardComingSoon": "Bestenliste · Demnächst"
     },
     "dailySpin": {
       "back": "Zurück",
@@ -105,7 +108,12 @@
       "fairServerSeed": "serverSeed:",
       "fairClientSeed": "clientSeed:",
       "fairNonce": "nonce:",
-      "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen."
+      "fairVerify": "Verifizieren: SHA-256(serverSeed) muss mit dem vor dem Spin angezeigten Hash übereinstimmen.",
+      "phase": "Ein Gratisdreh alle vier Stunden",
+      "jackpotTag": "JACKPOT",
+      "unitHours": "Std",
+      "unitMinutes": "Min",
+      "unitSeconds": "Sek"
     },
     "slots": {
       "back": "Zurück",
@@ -373,6 +381,22 @@
       "fold": "PASSEN",
       "revealing": "Aufdecken…",
       "newHand": "Neue Hand"
+    },
+    "shared": {
+      "playChips": "Snow-Münzen",
+      "provablyFair": "Nachweislich fair",
+      "serverSeedHash": "Server-Seed-Hash:",
+      "serverSeed": "Server-Seed:",
+      "clientSeed": "Client-Seed:",
+      "nonce": "Nonce:",
+      "held": "HALTEN",
+      "fxFull": "Effekte voll",
+      "fxLow": "Effekte reduziert",
+      "balanceAria": "Snow-Münzen-Guthaben",
+      "reducedFxOn": "Reduzierte Effekte: Ein",
+      "reducedFxOff": "Reduzierte Effekte: Aus",
+      "finishSpinFirst": "Beende zuerst diesen Dreh",
+      "finishRoundFirst": "Beende zuerst diese Runde"
     }
   }
 }

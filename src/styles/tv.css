@@ -107,17 +107,21 @@
    svh excludes overscan-affected chrome on Fire TV. container-type enables
    cqh/cqw units inside so games can scale to the shell. */
 .tv-game-shell {
+  height: 100vh;
+  max-height: 100vh;
   height: 100svh;
   max-height: 100svh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   container-type: size;
+  /* Chrome 66 floor: a plain 5% safe area on every edge comes first. */
+  padding: 5vh 5vw;
   padding:
-    max(env(safe-area-inset-top), 2.5vh)
-    max(env(safe-area-inset-right), 3vw)
-    max(env(safe-area-inset-bottom), 3vh)
-    max(env(safe-area-inset-left), 3vw);
+    max(env(safe-area-inset-top), 5vh)
+    max(env(safe-area-inset-right), 5vw)
+    max(env(safe-area-inset-bottom), 5vh)
+    max(env(safe-area-inset-left), 5vw);
 }
 
 /* Inner flex column that fills the shell — no scroll, content shrinks. */
@@ -127,10 +131,118 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 8px;
   gap: clamp(0.35rem, 1cqh, 0.85rem);
   overflow: hidden;
   max-width: 80rem;
   margin: 0 auto;
+}
+
+/* Snow Casino — Aurora After Dark. Plain dimensions precede every modern
+   enhancement so Chrome 66-class TV WebViews retain a complete play surface. */
+.snow-casino {
+  --game-accent: var(--brand-ice);
+  position: relative;
+  isolation: isolate;
+  color: hsl(0 0% 98%);
+  background-color: hsl(var(--brand-navy));
+  background-image:
+    radial-gradient(ellipse at 18% 0%, hsl(var(--brand-purple) / .34), transparent 45%),
+    radial-gradient(ellipse at 82% 5%, hsl(174 68% 35% / .24), transparent 42%),
+    linear-gradient(145deg, hsl(218 78% 12%), hsl(220 68% 7%) 58%, hsl(284 54% 9%));
+}
+.snow-casino--plum { --game-accent: 300 55% 59%; }
+.snow-casino--emerald { --game-accent: 154 58% 48%; }
+.snow-casino--sapphire { --game-accent: 206 78% 58%; }
+.snow-casino--ruby { --game-accent: 350 74% 57%; }
+.snow-casino--teal { --game-accent: 174 68% 48%; }
+.snow-casino__aurora { position:absolute; left:0; right:0; top:0; height:34%; pointer-events:none; opacity:.55; background:linear-gradient(105deg, transparent 12%, hsl(var(--brand-ice) / .12) 38%, hsl(var(--brand-purple) / .15) 58%, transparent 84%); transform:skewY(-3deg); }
+.snow-casino__vignette { position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none; box-shadow:inset 0 0 110px 28px hsl(220 75% 3% / .72); }
+.snow-game-body { z-index:1; padding-left:8px; padding-right:8px; }
+.snow-game-topbar { height:58px; min-height:58px; display:flex; align-items:center; justify-content:space-between; padding:0 2px; }
+.snow-game-topbar__right { display:flex; align-items:center; margin-left:auto; }
+.snow-game-topbar__right > * + * { margin-left:12px; }
+.snow-game-heading { position:absolute; left:25%; right:25%; text-align:center; pointer-events:none; }
+.snow-game-heading h1 { margin:0; font-family:Montserrat,sans-serif; font-size:26px; line-height:1; font-weight:900; text-transform:uppercase; }
+.snow-game-heading span { display:block; margin-top:5px; color:hsl(var(--game-accent)); font-size:12px; font-weight:800; text-transform:uppercase; }
+.snow-chip-badge { width:164px; height:54px; display:flex; align-items:center; padding:7px 13px; border:1px solid hsl(var(--brand-gold) / .66); border-radius:8px; background:hsl(219 60% 8% / .88); box-shadow:inset 0 1px hsl(0 0% 100% / .08); }
+.snow-chip-badge svg { width:25px; color:hsl(var(--brand-gold)); margin-right:10px; }
+.snow-chip-badge span { display:flex; flex-direction:column; line-height:1; }
+.snow-chip-badge small { color:hsl(var(--brand-ice)); font-size:10px; font-weight:900; }
+.snow-chip-badge strong { margin-top:4px; font-size:21px; font-variant-numeric:tabular-nums; }
+.snow-game-panel { border:1px solid hsl(var(--game-accent) / .34); border-radius:8px; background:linear-gradient(180deg,hsl(220 52% 10% / .94),hsl(220 64% 6% / .94)); box-shadow:inset 0 1px hsl(0 0% 100% / .06),0 16px 35px hsl(220 80% 2% / .42); }
+.snow-game-table { border:2px solid hsl(var(--brand-gold) / .58) !important; background:radial-gradient(ellipse at top,hsl(var(--game-accent) / .28),hsl(218 55% 10%) 54%,hsl(220 66% 6%)) !important; box-shadow:inset 0 0 70px hsl(220 80% 2% / .58),0 20px 42px hsl(220 80% 2% / .55) !important; }
+.snow-game-action { color:hsl(220 75% 8%); border-color:hsl(var(--brand-gold)); background:linear-gradient(180deg,hsl(45 71% 76%),hsl(39 52% 53%)); box-shadow:inset 0 1px hsl(0 0% 100% / .55),0 6px 14px hsl(220 80% 2% / .42); }
+.snow-bet-chip { width:64px; height:64px; border-radius:50%; border:3px dashed hsl(var(--brand-gold) / .62); color:hsl(var(--brand-ice)); background:hsl(220 48% 13%); font-size:17px; font-weight:900; }
+.snow-bet-chip.is-selected { color:hsl(220 75% 8%); border-style:solid; background:radial-gradient(circle at 35% 25%,hsl(45 80% 82%),hsl(39 50% 52%)); }
+.snow-result-banner { min-width:260px; padding:10px 18px; border:1px solid; border-radius:8px; text-align:center; background:hsl(220 56% 8% / .96); }
+.snow-result-banner strong { display:block; font-size:24px; font-family:Montserrat,sans-serif; }
+.snow-result-banner--win { border-color:hsl(153 65% 55%); color:hsl(153 72% 78%); }
+.snow-result-banner--lose { border-color:hsl(350 70% 58%); color:hsl(350 78% 81%); }
+.snow-result-banner--push,.snow-result-banner--info { border-color:hsl(var(--brand-ice)); color:hsl(var(--brand-ice)); }
+.snow-fairness { font-size:14px; }
+.snow-fairness__toggle { min-height:38px; border:1px solid hsl(var(--brand-ice) / .45); }
+.snow-fairness__details { max-height:130px; overflow:auto; margin-top:8px; padding:10px; border:1px solid hsl(var(--brand-ice) / .24); border-radius:6px; color:hsl(210 22% 82%); background:hsl(220 70% 4% / .88); font:12px monospace; overflow-wrap:anywhere; }
+.snow-fairness__details p { margin:3px 0; }
+.snow-game-fx { position:absolute; left:0; right:0; top:0; bottom:0; z-index:50; width:100%; height:100%; pointer-events:none; }
+.snow-wheel-stage { padding:18px; }
+.snow-wheel-layout { width:100%; height:100%; display:flex; align-items:center; justify-content:center; gap:7%; }
+.snow-wheel-wrap { position:relative; width:420px; height:420px; flex:none; filter:drop-shadow(0 22px 22px hsl(220 80% 2% / .58)); }
+.snow-wheel-visual { width:420px; height:420px; will-change:transform; }
+.snow-wheel-visual canvas { display:block; width:420px; height:420px; }
+.snow-wheel-pointer { position:absolute; left:50%; top:-5px; z-index:3; width:0; height:0; margin-left:-18px; border-left:18px solid transparent; border-right:18px solid transparent; border-top:30px solid hsl(var(--brand-gold)); filter:drop-shadow(0 4px 4px hsl(220 80% 2% / .7)); }
+.snow-wheel-controls { width:360px; display:flex; flex-direction:column; align-items:stretch; gap:12px; text-align:center; }
+.snow-wheel-spin { width:100%; min-height:76px; font-size:24px; }
+
+.snow-playing-card { flex:none; width:82px; height:123px; border:2px solid hsl(220 34% 18%); border-radius:7px; color:hsl(220 45% 12%); background:linear-gradient(150deg,hsl(0 0% 100%),hsl(206 28% 88%)); box-shadow:0 9px 18px hsl(220 80% 2% / .48); animation:snow-card-in 320ms ease-out both; }
+.snow-playing-card.is-compact { width:66px; height:99px; }
+.snow-playing-card.is-back { border-color:hsl(var(--brand-gold)); background-color:hsl(216 65% 25%); background-image:repeating-linear-gradient(45deg,hsl(216 65% 25%) 0,hsl(216 65% 25%) 6px,hsl(var(--brand-ice) / .35) 7px,hsl(var(--brand-ice) / .35) 8px); }
+.snow-playing-card.is-highlighted,.snow-playing-card.is-held,.snow-playing-card.is-focused { border-color:hsl(var(--brand-gold)); box-shadow:0 0 0 3px hsl(var(--brand-gold) / .55),0 9px 18px hsl(220 80% 2% / .5); }
+.snow-card-corner { position:absolute; top:5px; left:7px; font-size:17px; line-height:.9; font-weight:900; font-style:normal; }
+.snow-card-corner i { display:block; margin-top:4px; font-style:normal; }
+.snow-card-corner--bottom { top:auto; left:auto; right:7px; bottom:5px; transform:rotate(180deg); }
+.snow-card-suit { position:absolute; left:0; right:0; top:32%; text-align:center; font-size:38px; font-weight:900; }
+.snow-card-corner.is-red,.snow-card-suit.is-red { color:hsl(351 74% 43%); }
+.snow-card-held { position:absolute; left:50%; top:-20px; transform:translateX(-50%); padding:2px 7px; border-radius:4px; color:hsl(220 65% 8%); background:hsl(var(--brand-gold)); font-size:10px; font-weight:900; }
+.snow-card-slot { flex:none; width:82px; height:123px; border:2px dashed hsl(var(--brand-ice) / .22); border-radius:7px; background:hsl(0 0% 100% / .025); }
+@keyframes snow-card-in { from { opacity:0; transform:translateY(-18px) rotate(-4deg); } to { opacity:1; transform:none; } }
+
+.snow-lobby { min-height:100vh; overflow:hidden; padding:5vh 5vw; padding:max(env(safe-area-inset-top),5vh) max(env(safe-area-inset-right),5vw) max(env(safe-area-inset-bottom),5vh) max(env(safe-area-inset-left),5vw); }
+.snow-lobby__title { margin:2px 0 3px; font:900 34px/1 Montserrat,sans-serif; text-transform:uppercase; }
+.snow-lobby__subtitle { margin:0; color:hsl(var(--brand-ice) / .82); font-size:15px; }
+.snow-lobby__grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,minmax(180px,1fr)); margin:15px auto 0; max-width:1180px; gap:16px; }
+.snow-lobby-tile { position:relative; min-height:190px; overflow:hidden; padding:16px; border:1px solid hsl(var(--tile-accent) / .45); border-radius:8px; color:hsl(0 0% 98%); background:linear-gradient(145deg,hsl(219 58% 12%),hsl(220 70% 6%)); box-shadow:inset 0 1px hsl(0 0% 100% / .07),0 12px 26px hsl(220 80% 2% / .46); text-align:left; }
+.snow-lobby-tile--ice { --tile-accent: var(--brand-ice); }
+.snow-lobby-tile--plum { --tile-accent: 300 55% 59%; }
+.snow-lobby-tile--emerald { --tile-accent: 154 58% 48%; }
+.snow-lobby-tile--sapphire { --tile-accent: 206 78% 58%; }
+.snow-lobby-tile--ruby { --tile-accent: 350 74% 57%; }
+.snow-lobby-tile--teal { --tile-accent: 174 68% 48%; }
+.snow-lobby-tile[data-tv-focused="true"] { transform:scale(1.035); box-shadow:0 0 0 3px hsl(var(--tile-accent)),0 0 24px hsl(var(--tile-accent) / .45),0 15px 30px hsl(220 80% 2% / .62) !important; }
+.snow-lobby-tile h2 { position:relative; z-index:2; margin:0; font:900 23px/1.1 Montserrat,sans-serif; }
+.snow-lobby-tile p { position:relative; z-index:2; max-width:55%; margin:8px 0 0; color:hsl(210 20% 86%); font-size:14px; line-height:1.25; }
+.snow-lobby-tile__status { position:absolute; left:16px; bottom:14px; color:hsl(var(--brand-gold)); font-size:11px; font-weight:900; text-transform:uppercase; }
+.snow-game-art { position:absolute; right:3px; bottom:2px; width:50%; height:78%; fill:hsl(var(--tile-accent) / .14); stroke:hsl(var(--tile-accent)); stroke-width:3; filter:drop-shadow(0 0 9px hsl(var(--tile-accent) / .3)); }
+.snow-lobby__footer { max-width:1180px; margin:13px auto 0; display:flex; align-items:center; justify-content:space-between; color:hsl(210 20% 78%); font-size:14px; }
+.snow-lobby__coming { padding:7px 12px; border-left:3px solid hsl(var(--brand-gold)); background:hsl(220 55% 8% / .75); }
+
+.native-low-memory .snow-casino__aurora,.native-low-memory .snow-game-fx { display:none; }
+.native-low-memory .snow-casino__vignette { box-shadow:inset 0 0 45px hsl(220 75% 3% / .55); }
+.native-low-memory .snow-lobby-tile,.native-low-memory .snow-game-panel,.native-low-memory .snow-playing-card { box-shadow:none; }
+.native-low-memory .snow-lobby-tile[data-tv-focused="true"] { transform:none; }
+@media (prefers-reduced-motion:reduce) { .snow-casino * { animation-duration:.01ms !important; transition-duration:.01ms !important; } .snow-game-fx,.snow-casino__aurora { display:none; } }
+@media (max-height:760px) {
+  .tv-game-shell { padding:5vh 5vw; }
+  .snow-game-topbar { height:48px; min-height:48px; }
+  .snow-chip-badge { width:150px; height:45px; }
+  .snow-chip-badge strong { font-size:18px; }
+  .snow-lobby__title { font-size:28px; }
+  .snow-lobby__grid { grid-template-rows:repeat(2,minmax(155px,1fr)); gap:12px; margin-top:10px; }
+  .snow-lobby-tile { min-height:155px; }
+  .snow-playing-card { width:68px; height:102px; }
+  .snow-playing-card.is-compact { width:56px; height:84px; }
+  .snow-card-slot { width:68px; height:102px; }
+  .snow-wheel-wrap,.snow-wheel-visual,.snow-wheel-visual canvas { width:330px !important; height:330px !important; }
 }
 .tv-game-body > * { flex: 0 0 auto; }
 .tv-game-board {
@@ -272,3 +384,307 @@
 }
 
 
+
+/* ---------------------------------------------------------------------------
+   Games corrective pass: legacy-safe fallbacks, global Reduced FX, focus
+   treatment, and the landscape Roulette surface. Chrome 66 is the floor, so
+   every rule below states plain longhand values before any enhancement.
+   --------------------------------------------------------------------------- */
+
+/* Absolute-layer fallbacks for WebViews without the `inset` shorthand. */
+.no-inset,
+.snow-casino__aurora,
+.snow-casino__vignette,
+.snow-game-fx,
+.snow-rl-wheel-visual,
+.snow-rl-ball-track { top:0; right:0; bottom:0; left:0; }
+.snow-casino__aurora { bottom:auto; }
+
+/* Spacing fallbacks for WebViews without flex `gap`. */
+.snow-rl-wheelkind__row > * + *,
+.snow-rl-denoms__row > * + *,
+.snow-rl-actions > * + * { margin-left:10px; }
+.snow-rl-side > * + * { margin-top:10px; }
+.snow-rl-main > * + * { margin-top:8px; }
+
+/* One crisp focus treatment for the whole games section; space is reserved by
+   the transparent outline so nothing clips on a TV edge. */
+.snow-casino [data-tv-focused="true"],
+.snow-lobby [data-tv-focused="true"] {
+  outline:3px solid hsl(var(--brand-gold));
+  outline-offset:2px;
+  transform:scale(1.03);
+  z-index:5;
+}
+.snow-casino button,
+.snow-lobby button { outline:3px solid transparent; outline-offset:2px; }
+.snow-casino [aria-disabled="true"] { opacity:.5; }
+
+/* Headline hierarchy: the top bar carries the title, the surface gets the room. */
+.snow-game-heading { position:absolute; left:22%; right:22%; text-align:center; pointer-events:none; }
+.snow-game-heading span { display:block; color:hsl(var(--game-accent)); font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+
+/* Global Reduced FX / low memory: keep every state cue, cut the cost. */
+html[data-game-fx="reduced"] .snow-casino__aurora,
+html[data-game-fx="reduced"] .snow-game-fx { display:none; }
+html[data-game-fx="reduced"] .snow-casino__vignette { box-shadow:inset 0 0 40px hsl(220 75% 3% / .5); }
+html[data-game-fx="reduced"] .snow-casino *,
+html[data-game-fx="reduced"] .snow-lobby * {
+  animation-duration:180ms !important;
+  transition-duration:120ms !important;
+  filter:none !important;
+  box-shadow:none;
+}
+html[data-game-fx="reduced"] .snow-casino [data-tv-focused="true"],
+html[data-game-fx="reduced"] .snow-lobby [data-tv-focused="true"] { transform:none; outline-width:4px; }
+html[data-game-fx="reduced"] .snow-rl-callout,
+html[data-game-fx="reduced"] .snow-result-banner { border-width:2px; }
+
+/* ---- Roulette: landscape TV surface ---- */
+.snow-rl-layout { flex:1 1 0; min-height:0; display:flex; align-items:stretch; }
+.snow-rl-side { width:32%; max-width:360px; min-width:220px; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; margin-right:14px; }
+.snow-rl-main { flex:1 1 0; min-width:0; display:flex; flex-direction:column; }
+.snow-rl-wheel-wrap { position:relative; width:100%; max-width:300px; }
+.snow-rl-wheel { position:relative; width:100%; }
+.snow-rl-wheel-visual { position:relative; }
+.snow-rl-wheel-visual canvas { display:block; margin:0 auto; }
+.snow-rl-ball-track { position:absolute; pointer-events:none; }
+.snow-rl-ball { position:absolute; left:50%; top:9px; width:13px; height:13px; margin-left:-6px; border-radius:50%; background:radial-gradient(circle at 30% 30%,#fff,#cbd5e1); }
+.snow-rl-pointer { position:absolute; left:50%; top:-6px; z-index:3; width:0; height:0; margin-left:-13px; border-left:13px solid transparent; border-right:13px solid transparent; border-top:22px solid hsl(var(--brand-gold)); }
+.snow-rl-label { display:block; color:hsl(var(--brand-ice)); font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+.snow-rl-wheelkind { width:100%; }
+.snow-rl-wheelkind__row { display:flex; margin-top:5px; }
+.snow-rl-toggle { flex:1 1 0; min-height:38px; padding:6px 8px; border:2px solid hsl(var(--brand-gold) / .4); border-radius:6px; color:hsl(var(--brand-ice)); background:hsl(220 48% 12%); font-size:12px; font-weight:900; text-transform:uppercase; }
+.snow-rl-toggle.is-active { color:hsl(220 75% 8%); border-color:hsl(var(--brand-gold)); background:linear-gradient(180deg,hsl(45 71% 76%),hsl(39 52% 53%)); }
+.snow-rl-callout { width:100%; display:flex; align-items:center; justify-content:space-between; padding:6px 12px; border:2px solid hsl(var(--brand-gold) / .55); border-radius:8px; background:hsl(220 60% 7% / .95); }
+.snow-rl-callout strong { font:900 30px/1 Montserrat,sans-serif; font-variant-numeric:tabular-nums; }
+.snow-rl-callout span { font-size:12px; color:hsl(210 20% 82%); }
+.snow-rl-callout em { font-style:normal; font-weight:900; font-variant-numeric:tabular-nums; }
+.snow-rl-callout em.is-up { color:hsl(153 68% 66%); }
+.snow-rl-callout em.is-down { color:hsl(350 76% 72%); }
+.snow-rl-callout--red { border-color:hsl(350 74% 57%); }
+.snow-rl-callout--black { border-color:hsl(215 25% 55%); }
+.snow-rl-callout--green { border-color:hsl(154 58% 48%); }
+
+.snow-rl-felt { flex:1 1 0; min-height:0; padding:8px; border:2px solid hsl(var(--brand-gold) / .5); border-radius:10px; background:radial-gradient(ellipse at top,#0f5132 0%,#064e3b 45%,#022c22 100%); }
+.snow-rl-board { display:flex; }
+.snow-rl-zeros { display:flex; flex-direction:column; width:42px; flex:0 0 auto; }
+.snow-rl-numbers { flex:1 1 0; min-width:0; display:grid; grid-template-rows:repeat(3,1fr); grid-auto-flow:column; grid-auto-columns:1fr; }
+.snow-rl-cols { display:flex; flex-direction:column; width:58px; flex:0 0 auto; }
+.snow-rl-cell { position:relative; display:flex; align-items:center; justify-content:center; margin:1px; padding:2px; border:1px solid hsl(0 0% 100% / .16); border-radius:4px; color:#fff; font-weight:900; }
+.snow-rl-cell--red { background:#b3182a; }
+.snow-rl-cell--black { background:#0a0a0a; }
+.snow-rl-cell--green { background:#15803d; }
+.snow-rl-cell--neutral { background:hsl(220 30% 22%); }
+.snow-rl-cell.is-won { outline:3px solid hsl(153 65% 55%); }
+.snow-rl-cell.is-lost { opacity:.45; }
+.snow-rl-chip { position:absolute; right:-2px; top:-4px; min-width:22px; height:20px; padding:0 3px; display:flex; align-items:center; justify-content:center; border:2px solid hsl(45 80% 82%); border-radius:10px; color:hsl(220 65% 8%); background:hsl(var(--brand-gold)); font-size:10px; font-weight:900; }
+.snow-rl-num { height:38px; font-size:14px; }
+.snow-rl-zero { flex:1 1 0; font-size:15px; }
+.snow-rl-zero--tall { min-height:118px; }
+.snow-rl-col { flex:1 1 0; font-size:9px; line-height:1.05; text-transform:uppercase; text-align:center; }
+.snow-rl-dozens { display:grid; grid-template-columns:repeat(3,1fr); margin-top:2px; }
+.snow-rl-evens { display:grid; grid-template-columns:repeat(6,1fr); margin-top:2px; }
+.snow-rl-outside { height:34px; font-size:11px; text-transform:uppercase; }
+
+.snow-rl-controls { display:flex; align-items:flex-end; margin-top:8px; }
+.snow-rl-denoms { flex:0 0 auto; }
+.snow-rl-denoms__row { display:flex; margin-top:4px; }
+.snow-rl-denom { width:46px; height:46px; border:3px solid hsl(var(--brand-gold) / .45); border-radius:50%; color:hsl(var(--brand-ice)); background:hsl(220 45% 14%); font-size:14px; font-weight:900; }
+.snow-rl-denom.is-active { color:hsl(220 75% 8%); border-color:hsl(45 80% 82%); background:linear-gradient(180deg,hsl(45 71% 76%),hsl(39 52% 53%)); }
+.snow-rl-total { margin-left:18px; padding:4px 12px; border-left:3px solid hsl(var(--brand-gold)); }
+.snow-rl-total small { display:block; color:hsl(var(--brand-ice)); font-size:10px; font-weight:900; text-transform:uppercase; }
+.snow-rl-total strong { font:900 24px/1 Montserrat,sans-serif; font-variant-numeric:tabular-nums; }
+.snow-rl-actions { display:flex; align-items:center; margin-left:auto; }
+.snow-rl-spin { min-width:150px; min-height:52px; font-size:19px; }
+.snow-rl-note { margin:4px 0 0; color:hsl(45 82% 76%); font-size:12px; font-weight:700; }
+.snow-rl-error { margin:4px 0 0; color:hsl(350 84% 82%); font-size:13px; font-weight:800; }
+.snow-rl-seed { margin:4px 0 0; color:hsl(210 16% 66%); font:11px monospace; overflow-wrap:anywhere; }
+.snow-fairness__ok { color:hsl(153 68% 70%); font-weight:800; }
+
+@media (max-height:760px) {
+  .snow-rl-side { width:28%; max-width:280px; margin-right:10px; }
+  .snow-rl-wheel-wrap { max-width:230px; }
+  .snow-rl-num { height:30px; font-size:12px; }
+  .snow-rl-zero--tall { min-height:92px; }
+  .snow-rl-outside { height:28px; font-size:10px; }
+  .snow-rl-denom { width:40px; height:40px; font-size:13px; }
+  .snow-rl-spin { min-height:46px; font-size:17px; }
+  .snow-rl-callout strong { font-size:24px; }
+}
+@media (min-height:1000px) {
+  .tv-game-body { max-width:96rem; }
+  .snow-rl-num { height:52px; font-size:18px; }
+  .snow-rl-outside { height:44px; font-size:14px; }
+  .snow-rl-denom { width:58px; height:58px; font-size:17px; }
+  .snow-rl-spin { min-height:64px; font-size:22px; }
+}
+
+/* Daily Spin surface + the ice accent used by the wheel and the lobby. */
+.snow-casino--ice { --game-accent:195 84% 62%; }
+.snow-wheel-stage { display:flex; align-items:center; justify-content:center; }
+.snow-wheel-layout { display:flex; align-items:center; justify-content:center; width:100%; }
+.snow-wheel-wrap { position:relative; flex:0 0 auto; margin-right:24px; }
+.snow-wheel-visual { position:relative; transform-origin:50% 50%; }
+.snow-wheel-visual canvas { display:block; max-width:100%; }
+.snow-wheel-pointer { position:absolute; left:50%; top:-8px; z-index:3; width:0; height:0; margin-left:-16px; border-left:16px solid transparent; border-right:16px solid transparent; border-top:26px solid hsl(var(--brand-gold)); }
+.snow-wheel-controls { flex:1 1 0; min-width:0; max-width:26rem; text-align:center; }
+.snow-wheel-controls > * + * { margin-top:10px; }
+.snow-wheel-loading { display:flex; align-items:center; justify-content:center; color:hsl(210 22% 84%); font-weight:700; }
+.snow-wheel-loading svg { margin-right:8px; }
+.snow-wheel-spin { width:100%; min-height:64px; font-size:22px; }
+@media (max-height:760px) {
+  .snow-wheel-wrap { max-width:300px; margin-right:16px; }
+  .snow-wheel-spin { min-height:52px; font-size:19px; }
+}
+@media (max-width:900px) {
+  .snow-wheel-layout { flex-direction:column; }
+  .snow-wheel-wrap { margin-right:0; margin-bottom:12px; }
+}
+
+/* ===========================================================================
+   Snow Casino — distinct game surfaces (Slots cabinet, Blackjack rail,
+   Video Poker console, Hold'em runway) plus the true compact card scale.
+   Chrome 66 is the floor: every rule states plain longhand values first and
+   only then any modern enhancement.
+   =========================================================================== */
+
+/* Absolute-layer fallbacks for WebViews without the `inset` shorthand.
+   These are DESCENDANT layers only — never html/body. */
+.snow-card-face,
+.snow-slot-overlay,
+.snow-slot-reel__shade,
+.snow-slot-cell__win { top:0; right:0; bottom:0; left:0; position:absolute; }
+
+/* Flex-gap fallbacks, scoped to actual game rows. */
+.snow-hand > * + *,
+.snow-vp-hand > * + *,
+.snow-ch-row > * + *,
+.snow-slot-reels > * + *,
+.snow-game-actions > * + *,
+.snow-bet-row > * + * { margin-left:10px; }
+
+/* One focus treatment for the whole section: crisp outline, tiny growth,
+   reserved space. Nothing in the games may exceed 1.04. */
+.snow-casino [data-tv-focused="true"],
+.snow-lobby [data-tv-focused="true"] { transform:scale(1.03); }
+.snow-casino [data-tv-focused="true"][aria-disabled="true"] { transform:none; outline-style:dashed; }
+
+/* ---- Shared card scale: compact really is compact at 720p ---- */
+.snow-hand,
+.snow-vp-hand,
+.snow-ch-row { display:flex; align-items:flex-end; justify-content:center; flex-wrap:nowrap; }
+.snow-playing-card.is-compact,
+.snow-card-slot.is-compact { width:62px; height:93px; }
+@media (max-height:760px) {
+  .snow-playing-card { width:62px; height:93px; }
+  .snow-card-slot { width:62px; height:93px; }
+  .snow-playing-card.is-compact,
+  .snow-card-slot.is-compact { width:50px; height:75px; }
+  .snow-playing-card .snow-card-suit { font-size:26px; }
+  .snow-playing-card .snow-card-corner { font-size:13px; }
+}
+@media (min-height:1000px) {
+  .snow-playing-card,
+  .snow-card-slot { width:100px; height:150px; }
+  .snow-playing-card.is-compact,
+  .snow-card-slot.is-compact { width:78px; height:117px; }
+  .snow-playing-card .snow-card-suit { font-size:46px; }
+}
+/* A hand that has to hold 7+ cards fans instead of overflowing. */
+.snow-hand--fan { justify-content:flex-start; }
+.snow-hand--fan .snow-playing-card + .snow-playing-card { margin-left:-26px; }
+.snow-hand--fan.is-wide .snow-playing-card + .snow-playing-card { margin-left:-40px; }
+
+/* ---- SLOTS: compact premium cabinet ---- */
+.snow-slot-stage { flex:1 1 0; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.snow-slot-cabinet { position:relative; width:100%; max-width:52rem; padding:10px; border:2px solid hsl(var(--brand-gold) / .6); border-radius:12px; background:linear-gradient(180deg,hsl(292 46% 16%),hsl(288 60% 8%)); box-shadow:inset 0 1px hsl(0 0% 100% / .12),0 18px 34px hsl(220 80% 2% / .55); }
+.snow-slot-marquee { display:block; margin:0 auto 8px; padding:4px 16px; width:auto; max-width:100%; border:2px solid hsl(var(--brand-gold)); border-radius:7px; color:hsl(292 60% 10%); background:linear-gradient(180deg,hsl(45 80% 82%),hsl(39 55% 55%)); font:900 16px/1 Montserrat,sans-serif; letter-spacing:.16em; text-align:center; text-transform:uppercase; }
+.snow-slot-window { position:relative; padding:6px; border:2px solid hsl(var(--brand-gold) / .5); border-radius:9px; background:linear-gradient(180deg,hsl(288 55% 6%),hsl(220 70% 4%)); box-shadow:inset 0 6px 16px hsl(220 90% 1% / .8); }
+.snow-slot-reels { display:flex; align-items:stretch; justify-content:center; }
+.snow-slot-reel { position:relative; flex:1 1 0; min-width:0; max-width:114px; overflow:hidden; border:1px solid hsl(var(--brand-gold) / .3); border-radius:6px; background:linear-gradient(180deg,hsl(220 60% 7%),hsl(220 70% 4%)); }
+.snow-slot-reel__shade { pointer-events:none; z-index:2; background:linear-gradient(180deg,hsl(220 90% 1% / .72) 0,transparent 18%,transparent 82%,hsl(220 90% 1% / .72) 100%); }
+.snow-slot-strip { position:relative; transform:translateY(0); }
+.snow-slot-strip.is-moving { will-change:transform; }
+.snow-slot-cell { display:flex; align-items:center; justify-content:center; }
+.snow-slot-cell__win { z-index:1; pointer-events:none; border-radius:4px; background:hsl(45 90% 60% / .2); box-shadow:inset 0 0 0 2px hsl(var(--brand-gold) / .85); }
+.snow-slot-payline { position:absolute; left:2px; right:2px; z-index:3; height:2px; background:hsl(var(--brand-gold) / .32); }
+.snow-slot-overlay { z-index:4; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.snow-slot-callout { padding:8px 18px; border:2px solid hsl(var(--brand-gold)); border-radius:9px; background:hsl(292 60% 8% / .95); color:hsl(45 90% 82%); font:900 26px/1.1 Montserrat,sans-serif; text-align:center; }
+.snow-slot-callout small { display:block; margin-top:4px; font-size:13px; letter-spacing:.08em; }
+.snow-slot-controls { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-top:9px; }
+.snow-slot-bet { display:flex; align-items:center; }
+.snow-slot-bet > * + * { margin-left:8px; }
+.snow-slot-bet__value { min-width:74px; padding:5px 10px; border:2px solid hsl(var(--brand-gold) / .6); border-radius:7px; color:hsl(45 90% 82%); background:hsl(220 70% 4%); font:900 22px/1 Montserrat,sans-serif; font-variant-numeric:tabular-nums; text-align:center; }
+.snow-slot-spin { min-width:180px; min-height:56px; font-size:21px; }
+.snow-slot-token { display:inline-flex; align-items:center; justify-content:center; width:100%; height:100%; border-radius:6px; font:900 15px/1 Montserrat,sans-serif; letter-spacing:.04em; }
+.snow-slot-token--wild { color:hsl(292 60% 10%); background:linear-gradient(180deg,hsl(45 88% 78%),hsl(39 60% 50%)); box-shadow:inset 0 0 0 2px hsl(0 0% 100% / .35); }
+.snow-slot-token--bonus { color:hsl(0 0% 100%); background:linear-gradient(180deg,hsl(292 62% 48%),hsl(288 70% 26%)); box-shadow:inset 0 0 0 2px hsl(292 80% 74% / .55); }
+.snow-slot-token--low { color:hsl(45 88% 80%); background:hsl(220 55% 11%); box-shadow:inset 0 0 0 1px hsl(45 70% 60% / .4); font-size:19px; }
+.snow-slot-token--high { color:hsl(196 90% 86%); background:hsl(206 60% 16%); box-shadow:inset 0 0 0 1px hsl(196 80% 60% / .45); }
+.snow-slot-info { display:flex; align-items:stretch; margin-top:8px; }
+.snow-slot-info > * + * { margin-left:10px; }
+.snow-slot-info > div { flex:1 1 0; min-width:0; padding:7px 10px; }
+.snow-slot-info b { color:hsl(var(--brand-gold)); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.snow-slot-info ul { margin:4px 0 0; padding:0; list-style:none; font-size:12px; color:hsl(210 20% 84%); }
+.snow-slot-info li { display:flex; justify-content:space-between; }
+@media (max-height:760px) {
+  .snow-slot-cabinet { max-width:44rem; padding:7px; }
+  .snow-slot-marquee { font-size:13px; margin-bottom:5px; }
+  .snow-slot-callout { font-size:20px; }
+  .snow-slot-spin { min-height:46px; min-width:150px; font-size:18px; }
+  .snow-slot-bet__value { font-size:18px; min-width:62px; }
+  .snow-slot-info { font-size:11px; }
+}
+@media (min-height:1000px) {
+  .snow-slot-cabinet { max-width:64rem; padding:14px; }
+  .snow-slot-marquee { font-size:20px; }
+  .snow-slot-reel { max-width:150px; }
+  .snow-slot-spin { min-height:66px; font-size:24px; }
+}
+
+/* ---- BLACKJACK: dealer rail + shoe ---- */
+.snow-bj-table { flex:1 1 0; min-height:0; display:flex; flex-direction:column; justify-content:space-between; padding:10px 12px; border:2px solid hsl(var(--brand-gold) / .5); border-radius:12px; background:radial-gradient(ellipse at top,hsl(154 45% 20%),hsl(160 55% 9%) 55%,hsl(165 60% 6%)); box-shadow:inset 0 0 60px hsl(220 80% 2% / .6); }
+.snow-bj-rail { position:relative; display:flex; align-items:center; justify-content:space-between; padding-bottom:6px; border-bottom:2px solid hsl(var(--brand-gold) / .35); }
+.snow-bj-shoe { width:34px; height:52px; flex:0 0 auto; border:2px solid hsl(var(--brand-gold) / .55); border-radius:5px; background:repeating-linear-gradient(135deg,hsl(216 65% 24%) 0,hsl(216 65% 24%) 5px,hsl(196 70% 70% / .3) 6px,hsl(196 70% 70% / .3) 7px); }
+.snow-bj-seat { display:flex; flex-direction:column; align-items:center; flex:1 1 0; min-width:0; }
+.snow-bj-seat__label { color:hsl(var(--brand-gold)); font-size:11px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.snow-bj-total { display:inline-block; min-width:52px; margin-top:3px; padding:2px 10px; border:2px solid hsl(var(--brand-gold) / .6); border-radius:20px; background:hsl(220 60% 7% / .9); color:hsl(45 90% 84%); font:900 18px/1.2 Montserrat,sans-serif; font-variant-numeric:tabular-nums; }
+.snow-bj-total.is-bust { border-color:hsl(350 74% 60%); color:hsl(350 84% 82%); }
+.snow-bj-hint { color:hsl(210 18% 76%); font-size:13px; font-style:italic; text-align:center; }
+@media (min-height:1000px) { .snow-bj-total { font-size:23px; } }
+
+/* ---- VIDEO POKER: five-card console ---- */
+.snow-vp-console { flex:1 1 0; min-height:0; display:flex; flex-direction:column; justify-content:center; padding:10px; border:2px solid hsl(206 78% 58% / .5); border-radius:12px; background:linear-gradient(180deg,hsl(206 60% 14%),hsl(214 68% 7%)); box-shadow:inset 0 1px hsl(0 0% 100% / .08); }
+.snow-vp-hand { padding:6px 0; }
+.snow-vp-slot { position:relative; background:transparent; border:0; padding:0; }
+.snow-vp-hold { display:block; margin:0 auto 4px; width:fit-content; padding:2px 9px; border-radius:4px; color:hsl(214 70% 10%); background:hsl(var(--brand-gold)); font:900 11px/1.4 Montserrat,sans-serif; letter-spacing:.12em; }
+.snow-vp-hold.is-off { color:hsl(206 30% 72%); background:hsl(214 50% 16%); }
+.snow-vp-paytable { margin-top:8px; display:grid; grid-template-columns:repeat(3,1fr); font-size:12px; }
+.snow-vp-paytable > div { display:flex; justify-content:space-between; padding:2px 8px; border-bottom:1px solid hsl(206 60% 40% / .25); }
+.snow-vp-paytable b { color:hsl(45 88% 80%); font-variant-numeric:tabular-nums; }
+@media (max-height:760px) { .snow-vp-paytable { font-size:11px; } }
+
+/* ---- CASINO HOLD'EM: community runway ---- */
+.snow-ch-table { flex:1 1 0; min-height:0; display:flex; flex-direction:column; justify-content:space-between; padding:9px 12px; border:2px solid hsl(174 68% 48% / .5); border-radius:12px; background:radial-gradient(ellipse at top,hsl(174 45% 18%),hsl(180 55% 8%) 55%,hsl(186 60% 6%)); }
+.snow-ch-zone { display:flex; align-items:center; justify-content:center; }
+.snow-ch-zone__label { flex:0 0 auto; width:86px; color:hsl(174 70% 70%); font-size:11px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.snow-ch-runway { padding:6px; border-top:2px solid hsl(174 68% 48% / .35); border-bottom:2px solid hsl(174 68% 48% / .35); background:hsl(180 60% 6% / .5); }
+.snow-ch-rank { padding:2px 10px; border:2px solid hsl(174 68% 48% / .6); border-radius:20px; color:hsl(174 70% 82%); background:hsl(186 60% 7% / .9); font:900 14px/1.4 Montserrat,sans-serif; }
+.snow-ch-versus { display:flex; align-items:center; justify-content:center; margin-top:4px; }
+.snow-ch-versus > * + * { margin-left:12px; }
+.snow-ch-versus em { color:hsl(45 88% 78%); font-style:normal; font-weight:900; }
+
+/* ---- Shared action rows ---- */
+.snow-game-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; }
+.snow-bet-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; }
+.snow-game-note { margin:3px 0 0; color:hsl(210 18% 78%); font-size:12px; text-align:center; }
+.snow-game-error { margin:3px 0 0; color:hsl(350 84% 82%); font-size:13px; font-weight:800; text-align:center; }
+
+/* At 1080p and above the whole section scales up instead of becoming an island. */
+@media (min-height:1000px) {
+  .snow-lobby__grid { max-width:96rem; grid-template-rows:repeat(2,minmax(230px,1fr)); }
+  .snow-lobby__footer { max-width:96rem; }
+  .snow-lobby__title { font-size:44px; }
+  .snow-bet-chip { width:76px; height:76px; font-size:20px; }
+}
