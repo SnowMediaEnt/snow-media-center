@@ -32,6 +32,24 @@ export const GameShell = ({ accent, children, className }: { accent: GameAccent;
   );
 };
 
+export const SnowCoinBalance = ({
+  balance,
+  status,
+  className,
+}: {
+  balance: number | null;
+  status?: string;
+  className?: string;
+}) => {
+  const { t } = useTranslation();
+  return (
+    <div className={cn('snow-chip-badge', className)} aria-label={t('games.shared.balanceAria')}>
+      {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
+      <span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
+    </div>
+  );
+};
+
 export const GameTopBar = forwardRef<HTMLButtonElement, {
   onBack: () => void;
   backLabel: string;
@@ -71,10 +89,7 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
           </Button>
         )}
         {showBalance && (
-          <div className="snow-chip-badge" aria-label={t('games.shared.balanceAria')}>
-            {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
-            <span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
-          </div>
+          <SnowCoinBalance balance={balance} status={status} />
         )}
       </div>
     </header>

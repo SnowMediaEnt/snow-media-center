@@ -4,7 +4,7 @@ import { Coins, Gauge, Minus, Plus, RotateCcw, Snowflake, Sparkles, Target, Trop
 import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
 import { GameFxCanvas } from './shared/GameFxCanvas';
-import { GameShell } from './shared/GameUI';
+import { GameShell, SnowCoinBalance } from './shared/GameUI';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useGameLifecycle } from './shared/gameLifecycle';
@@ -166,7 +166,7 @@ const readBestDrop = (): number => {
 
 const Plinko = ({ onBack }: PlinkoProps) => {
   const { user } = useAuth();
-  const { balance } = useGameSocket();
+  const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { play } = useGameAudio();
@@ -443,6 +443,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           >
             <Sparkles aria-hidden="true" /> {reducedFx ? 'FX Low' : 'FX Full'}
           </Button>
+          {user && <SnowCoinBalance balance={balance} status={status} className="snow-plinko-wallet" />}
           {user ? (
             <div className="snow-plinko-score-badge" aria-label={`Snow Coin net ${sessionCoinNet.toLocaleString()}`}>
               <Coins aria-hidden="true" />

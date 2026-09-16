@@ -24,7 +24,8 @@
   z-index: 6;
   min-height: 66px;
   display: grid;
-  grid-template-columns: minmax(205px, 1fr) auto minmax(570px, 1fr);
+  grid-template-columns: minmax(205px, 1fr) auto minmax(700px, 1fr);
+  column-gap: 16px;
   align-items: center;
 }
 
@@ -860,7 +861,7 @@
    targets and type than the compact 720p fallback below. */
 @media (min-width: 1600px) and (min-height: 900px) {
   .snow-trivia .snow-game-body { max-width: 96rem; }
-  .snow-trivia__topbar { min-height: 72px; grid-template-columns: minmax(260px, 1fr) auto minmax(625px, 1fr); }
+  .snow-trivia__topbar { min-height: 72px; grid-template-columns: minmax(260px, 1fr) auto minmax(750px, 1fr); column-gap: 20px; }
   .snow-trivia__back { min-height: 58px; font-size: 16px; }
   .snow-trivia__brand strong { font-size: 28px; }
   .snow-trivia__mode { min-width: 172px; min-height: 56px; }
@@ -876,7 +877,7 @@
    composition expand instead of leaving a 1280px island in the center. */
 @media (min-width: 2500px) and (min-height: 1400px) {
   .snow-trivia .snow-game-body { max-width: 188rem; gap: 18px; }
-  .snow-trivia__topbar { min-height: 116px; grid-template-columns: minmax(520px, 1fr) auto minmax(1100px, 1fr); }
+  .snow-trivia__topbar { min-height: 116px; grid-template-columns: minmax(520px, 1fr) auto minmax(1100px, 1fr); column-gap: 30px; }
   .snow-trivia__back { min-width: 310px; min-height: 88px; border-radius: 18px; font-size: 25px; }
   .snow-trivia__brand-icon { width: 88px; height: 88px; margin-right: 20px; border-radius: 25px; }
   .snow-trivia__brand-icon svg { width: 52px; height: 52px; }
@@ -942,7 +943,7 @@
 /* 720p is supported as a compact fallback, not the design target. */
 @media (max-height: 820px) {
   .snow-trivia .snow-game-body { max-width: 72rem; gap: 5px; }
-  .snow-trivia__topbar { min-height: 48px; grid-template-columns: minmax(165px, 1fr) auto minmax(445px, 1fr); }
+  .snow-trivia__topbar { min-height: 48px; grid-template-columns: minmax(165px, 1fr) auto minmax(520px, 1fr); column-gap: 10px; }
   .snow-trivia__back { min-width: 155px; min-height: 43px; font-size: 12px; }
   .snow-trivia__brand-icon { width: 39px; height: 39px; margin-right: 8px; border-radius: 11px; }
   .snow-trivia__brand-icon svg { width: 23px; height: 23px; }

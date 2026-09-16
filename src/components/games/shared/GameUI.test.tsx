@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { BetChip, FairnessPanel, GamePanel, GameShell, GameTopBar, ResultBanner } from './GameUI';
+import { BetChip, FairnessPanel, GamePanel, GameShell, GameTopBar, ResultBanner, SnowCoinBalance } from './GameUI';
 import { PlayingCard } from './PlayingCard';
 import { GameArtwork } from './GameArtwork';
 import { isActivatable, isSelectKey } from './tvActivate';
@@ -56,6 +56,11 @@ describe('shared game UI', () => {
     expect(screen.getByText('Roulette · Place bets')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /fxFull/i }));
     expect(onToggleFx).toHaveBeenCalledTimes(1);
+  });
+
+  it('formats the reusable Snow Coin wallet for custom game headers', () => {
+    render(<SnowCoinBalance balance={1000000} status="connected" />);
+    expect(screen.getByLabelText('games.shared.balanceAria').textContent).toContain('1,000,000');
   });
 
   it('draws decorative artwork that is hidden from assistive tech', () => {
