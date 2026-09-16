@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS public.ai_tiers (
 INSERT INTO public.ai_tiers (feature, tier, model, gems, label, blurb, sort) VALUES
   ('chat',  'free',    'gpt-5.4-nano',  0.01, 'Snow AI',         'Quick answers, included with your gems',        0),
   ('chat',  'premium', 'gpt-5.6-terra', 0.50, 'Snow AI Premium', 'Sharper, deeper answers from a top model',      1),
-  ('image', 'free',    'gpt-image-2',   1.00, 'Standard',        'Good backgrounds in seconds',                   0),
+  ('image', 'free',    'google/gemini-2.5-flash-image', 1.00, 'Standard', 'Good backgrounds in seconds',       0),
   ('image', 'premium', 'gpt-image-2',   4.00, 'Premium',         'Full-detail, photoreal backgrounds',            1)
 ON CONFLICT (feature, tier) DO NOTHING;
 

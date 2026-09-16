@@ -181,9 +181,13 @@ serve(async (req) => {
       }
       premium = settled.charge;
     }
+    // The app sends free pictures to generate-hf-image (Gemini). If this
+    // function is asked for a free one anyway, use the free row only when it
+    // names an OpenAI model; a gateway id like google/... falls back.
+    const freeRowModel = (await loadTier('image', 'free'))?.model;
     const imageModel = premium
       ? premium.model
-      : (await loadTier('image', 'free'))?.model || FREE_IMAGE_MODEL;
+      : (freeRowModel && !freeRowModel.includes('/') ? freeRowModel : FREE_IMAGE_MODEL);
 
     console.log('Generating image with prompt:', prompt, 'size:', size, 'model:', imageModel);
 
