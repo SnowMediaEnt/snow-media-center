@@ -7,6 +7,7 @@ export type GameAudioCue =
   | 'select'
   | 'card'
   | 'reelStop'
+  | 'collectorFeed'
   | 'win'
   | 'lose'
   | 'bonus'
@@ -346,6 +347,10 @@ function buildCue(voice: ActiveVoice, cue: GameAudioCue, volume: number): void {
       break;
     case 'reelStop':
       addTone(voice, { type: 'triangle', duration: 0.085, gain: 0.12, frequencies: [[0, 190], [0.08, 118]] }, volume);
+      break;
+    case 'collectorFeed':
+      addTone(voice, { type: 'sine', duration: 0.3, gain: 0.11, frequencies: [[0, 392], [0.12, 587], [0.28, 880]] }, volume);
+      addNoise(voice, { duration: 0.09, gain: 0.022, delay: 0.16 }, volume);
       break;
     case 'win':
       addTone(voice, { type: 'sine', duration: 0.42, gain: 0.13, frequencies: [[0, 523], [0.13, 659], [0.27, 784], [0.4, 1047]] }, volume);

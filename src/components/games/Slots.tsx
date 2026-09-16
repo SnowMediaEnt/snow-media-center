@@ -129,14 +129,22 @@ function FrostCollector({
   triggered: boolean;
 }) {
   const { t } = useTranslation();
-  const fill = Math.round((meter.progress / meter.threshold) * 100);
+  const ratio = meter.threshold > 0 ? meter.progress / meter.threshold : 0;
+  // Keep the exact counter private. The lantern communicates momentum through
+  // a deliberately capped visual fill, so a bonus always remains a surprise.
+  const fill = meter.progress === 0 ? 5 : Math.min(90, Math.round(8 + ratio * 82));
   const near = meter.progress >= meter.threshold - 2;
+  const heat = near ? 'near' : ratio >= 0.62 ? 'hot' : ratio >= 0.28 ? 'warm' : 'cold';
+  const state = triggered
+    ? t('games.slots.collector.bursting')
+    : t(`games.slots.collector.${heat}`);
   return (
     <div
-      className={`snow-slot-collector snow-slot-collector--${color}${active ? ' is-fed' : ''}${triggered ? ' is-triggered' : ''}${near ? ' is-near' : ''}`}
+      className={`snow-slot-collector snow-slot-collector--${color} is-${heat}${active ? ' is-fed' : ''}${triggered ? ' is-triggered' : ''}`}
       style={{ '--collector-fill': `${fill}%` } as CSSProperties}
       data-testid={`slot-collector-${color}`}
-      aria-label={t(`games.slots.collector.${color}Aria`, { progress: meter.progress, threshold: meter.threshold })}
+      data-heat={heat}
+      aria-label={t(`games.slots.collector.${color}Aria`, { state })}
     >
       <span className="snow-slot-collector__energy" aria-hidden="true" />
       <span className="snow-slot-collector__cap" aria-hidden="true" />
@@ -144,7 +152,7 @@ function FrostCollector({
       <span className="snow-slot-collector__base" aria-hidden="true" />
       <span className="snow-slot-collector__copy">
         <b>{t(`games.slots.collector.${color}`)}</b>
-        <strong>{meter.progress}<small>/{meter.threshold}</small></strong>
+        <strong>{state}</strong>
         <em>{t(`games.slots.collector.${color}Prize`)}</em>
       </span>
     </div>
@@ -362,6 +370,8 @@ const Slots = ({ onBack }: SlotsProps) => {
       playSound('bonus');
     } else if (settled.totalPayout > 0) {
       playSound('win');
+    } else if (collectorHits.length > 0) {
+      playSound('collectorFeed', { volume: 0.76 });
     } else if (collectorHits.length === 0) {
       playSound('lose', { volume: 0.55 });
     }

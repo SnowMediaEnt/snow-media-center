@@ -168,8 +168,8 @@
 .snow-slot-crown__ways b { color: hsl(47 94% 75%); font-size: 19px; }
 
 /* Snowfall Trio — three prominent physical-style lanterns immediately above
-   the reels. Fill height is driven by the server's real persisted n/N state;
-   all motion is a short CSS transform/opacity burst, never a JS render loop. */
+   the reels. Fill height follows real persisted progress, while the exact
+   counter/trigger remains hidden. Motion stays CSS-only for TV hardware. */
 .snow-slot-collector-bank {
   position: relative;
   z-index: 3;
@@ -307,11 +307,10 @@
   display: block;
   margin-top: 3px;
   color: hsl(0 0% 100%);
-  font: 900 24px/.92 Montserrat, sans-serif;
-  font-variant-numeric: tabular-nums;
+  font: 900 14px/.96 Montserrat, sans-serif;
+  letter-spacing: .06em;
   text-shadow: 0 0 9px hsl(var(--collector-color) / .66);
 }
-.snow-slot-collector__copy strong small { font-size: 12px; color: hsl(208 29% 77%); }
 .snow-slot-collector__copy em {
   display: block;
   margin-top: 4px;
@@ -337,17 +336,29 @@
 }
 .snow-slot-collector.is-fed .snow-slot-collector__energy { animation: snow-slot-feed 720ms cubic-bezier(.1, .8, .2, 1) both; }
 .snow-slot-collector.is-fed .snow-slot-collector__glass i { filter: brightness(1.55); }
+.snow-slot-collector.is-warm .snow-slot-collector__glass { animation: snow-slot-warm 3.1s ease-in-out infinite; }
+.snow-slot-collector.is-hot .snow-slot-collector__glass { animation: snow-slot-hot 1.65s ease-in-out infinite; }
 .snow-slot-collector.is-near { animation: snow-slot-ready 2.2s ease-in-out infinite; }
 .snow-slot-collector.is-triggered { animation: snow-slot-trigger 720ms cubic-bezier(.25, .7, .3, 1) both; }
 .snow-slot-collector.is-triggered .snow-slot-collector__glass {
   box-shadow: inset 0 0 12px hsl(0 0% 100% / .8), 0 0 25px hsl(var(--collector-bright));
 }
+.snow-slot-collector.is-triggered .snow-slot-collector__glass i { height: 100%; }
 
 @keyframes snow-slot-feed {
   0% { opacity: 0; transform: translateY(34px) scale(.35); }
   28% { opacity: 1; }
   82% { opacity: .95; }
   100% { opacity: 0; transform: translateY(-68px) scale(1.25); }
+}
+@keyframes snow-slot-warm {
+  0%, 100% { box-shadow: inset 0 0 9px hsl(216 80% 2% / .8), 0 0 9px hsl(var(--collector-color) / .3); }
+  50% { box-shadow: inset 0 0 13px hsl(var(--collector-color) / .28), 0 0 15px hsl(var(--collector-color) / .46); }
+}
+@keyframes snow-slot-hot {
+  0%, 100% { filter: brightness(1); transform: translate3d(0, 0, 0); }
+  47% { filter: brightness(1.16); transform: translate3d(-1px, 0, 0); }
+  53% { filter: brightness(1.24); transform: translate3d(1px, 0, 0); }
 }
 @keyframes snow-slot-ready {
   0%, 100% { transform: translate3d(0, 0, 0); box-shadow: inset 0 0 15px hsl(var(--collector-color) / .18), 0 0 10px hsl(var(--collector-color) / .2); }
@@ -952,7 +963,7 @@
   .snow-slot-collector__base { bottom: 4px; }
   .snow-slot-collector__glass { top: 11px; bottom: 11px; }
   .snow-slot-collector__copy b { font-size: 8px; }
-  .snow-slot-collector__copy strong { font-size: 18px; }
+  .snow-slot-collector__copy strong { font-size: 10px; }
   .snow-slot-collector__copy em { margin-top: 2px; font-size: 7px; }
   .snow-slot-screen { padding-top: 5px; padding-bottom: 5px; }
   .snow-slot-layout .snow-slot-controls { min-height: 62px; padding-top: 5px; padding-bottom: 5px; }
@@ -996,8 +1007,7 @@
   .snow-slot-collector__base { bottom: 8px; }
   .snow-slot-collector__glass { top: 17px; bottom: 17px; }
   .snow-slot-collector__copy b { font-size: 13px; }
-  .snow-slot-collector__copy strong { font-size: 31px; }
-  .snow-slot-collector__copy strong small { font-size: 15px; }
+  .snow-slot-collector__copy strong { font-size: 18px; }
   .snow-slot-collector__copy em { font-size: 11px; }
   .snow-slot-screen { padding: 13px 27px; }
   .snow-slot-layout .snow-slot-window { padding: 9px; border-width: 4px; }
@@ -1089,8 +1099,7 @@
   .snow-slot-collector__glass { top: 28px; bottom: 28px; border-width: 3px; border-radius: 13px 13px 18px 18px; }
   .snow-slot-collector__glass::after { top: 8px; bottom: 9px; left: 9px; width: 5px; }
   .snow-slot-collector__copy b { font-size: 20px; }
-  .snow-slot-collector__copy strong { margin-top: 6px; font-size: 52px; }
-  .snow-slot-collector__copy strong small { font-size: 25px; }
+  .snow-slot-collector__copy strong { margin-top: 6px; font-size: 30px; }
   .snow-slot-collector__copy em { margin-top: 7px; font-size: 17px; }
   .snow-slot-collector__energy { left: 61px; bottom: -140px; width: 15px; height: 142px; }
 
@@ -1215,6 +1224,8 @@ html[data-game-fx="reduced"] .snow-vp-stage .snow-vp-console::after { box-shadow
 
 html[data-game-fx="reduced"] .snow-slot-collector,
 .native-low-memory .snow-slot-collector { animation: none !important; }
+html[data-game-fx="reduced"] .snow-slot-collector__glass,
+.native-low-memory .snow-slot-collector__glass { animation: none !important; }
 html[data-game-fx="reduced"] .snow-slot-collector__energy,
 .native-low-memory .snow-slot-collector__energy { display: none; }
 html[data-game-fx="reduced"] .snow-slot-collector__glass i { transition-duration: 120ms; }
@@ -1223,6 +1234,7 @@ html[data-game-fx="reduced"] .snow-slot-collector.is-fed,
 
 @media (prefers-reduced-motion: reduce) {
   .snow-slot-collector,
-  .snow-slot-collector__energy { animation: none !important; }
+  .snow-slot-collector__energy,
+  .snow-slot-collector__glass { animation: none !important; }
   .snow-slot-collector__glass i { transition: none; }
 }
