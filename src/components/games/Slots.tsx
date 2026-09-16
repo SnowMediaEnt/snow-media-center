@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Loader2, Minus, Plus } from 'lucide-react';
+import { Loader2, Minus, Plus, Volume2, VolumeX } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
-import { FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar } from './shared/GameUI';
+import { GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar } from './shared/GameUI';
 import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
@@ -13,12 +13,12 @@ import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
+import { useGameAudio } from './shared/gameAudio';
 import {
   CYCLE_CELLS, MIN_TRAVEL_CELLS, REELS, RENDER_CELLS, ROWS,
   buildCells, computeSettleTarget, cyclePx, gridToColumns, pickLandingIndex,
   validateGrid, visibleSymbolsAt, winningCellsFor, withLanding,
 } from './shared/slotsReel';
-import type { GameFairInfo } from './shared/gameTypes';
 import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';
@@ -43,7 +43,9 @@ const PREMIUM_SYMBOLS = [
 /** Rendered nodes per reel: 12 recycled cells plus 3 seamless wrap clones. */
 export const SLOTS_RENDER_CELLS = RENDER_CELLS;
 
-const cellHeightFor = (h: number) => (h <= 760 ? 78 : h >= 1000 ? 156 : 96);
+const cellHeightFor = (w: number, h: number) => (
+  w >= 2500 && h >= 1600 ? 312 : h <= 760 ? 78 : h >= 1000 ? 156 : 96
+);
 
 interface SpinResult {
   grid: string[][]; // [row][reel]
@@ -56,7 +58,48 @@ interface SpinResult {
   freeSpinsRemaining: number;
   multiplier: number;
   triggeredFreeSpins: number;
+  basePayout: number;
+  collectorPayout: number;
+  collectors: CollectorState;
 }
+
+type CollectorColor = 'red' | 'blue' | 'yellow';
+interface CollectorMeter {
+  progress: number;
+  threshold: number;
+  hit: boolean;
+  triggered: boolean;
+  multiplier: number;
+  payout: number;
+}
+type CollectorState = Record<CollectorColor, CollectorMeter>;
+
+const COLLECTOR_COLORS: CollectorColor[] = ['red', 'blue', 'yellow'];
+const COLLECTOR_DEFAULTS: CollectorState = {
+  red: { progress: 0, threshold: 15, hit: false, triggered: false, multiplier: 0, payout: 0 },
+  blue: { progress: 0, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0 },
+  yellow: { progress: 0, threshold: 34, hit: false, triggered: false, multiplier: 0, payout: 0 },
+};
+
+const readCollectors = (value: unknown, fallback: CollectorState = COLLECTOR_DEFAULTS): CollectorState => {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return Object.fromEntries(COLLECTOR_COLORS.map((color) => {
+    const raw = source[color] && typeof source[color] === 'object'
+      ? source[color] as Record<string, unknown>
+      : {};
+    const threshold = Number(raw.threshold);
+    const safeThreshold = Number.isInteger(threshold) && threshold > 0 ? threshold : fallback[color].threshold;
+    const progress = Number(raw.progress);
+    return [color, {
+      progress: Number.isInteger(progress) ? Math.max(0, Math.min(safeThreshold - 1, progress)) : fallback[color].progress,
+      threshold: safeThreshold,
+      hit: raw.hit === true,
+      triggered: raw.triggered === true,
+      multiplier: Number.isFinite(Number(raw.multiplier)) ? Math.max(0, Number(raw.multiplier)) : 0,
+      payout: Number.isFinite(Number(raw.payout)) ? Math.max(0, Number(raw.payout)) : 0,
+    }];
+  })) as CollectorState;
+};
 
 /** Branded token — no emoji anywhere in the primary symbol set. */
 function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number }) {
@@ -77,19 +120,54 @@ function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number
   );
 }
 
-type FocusId = 'back' | 'fx' | 'betMinus' | 'betPlus' | 'spin' | 'fair';
+function FrostCollector({
+  color, meter, active, triggered,
+}: {
+  color: CollectorColor;
+  meter: CollectorMeter;
+  active: boolean;
+  triggered: boolean;
+}) {
+  const { t } = useTranslation();
+  const fill = Math.round((meter.progress / meter.threshold) * 100);
+  const near = meter.progress >= meter.threshold - 2;
+  return (
+    <div
+      className={`snow-slot-collector snow-slot-collector--${color}${active ? ' is-fed' : ''}${triggered ? ' is-triggered' : ''}${near ? ' is-near' : ''}`}
+      style={{ '--collector-fill': `${fill}%` } as CSSProperties}
+      data-testid={`slot-collector-${color}`}
+      aria-label={t(`games.slots.collector.${color}Aria`, { progress: meter.progress, threshold: meter.threshold })}
+    >
+      <span className="snow-slot-collector__energy" aria-hidden="true" />
+      <span className="snow-slot-collector__cap" aria-hidden="true" />
+      <span className="snow-slot-collector__glass" aria-hidden="true"><i /></span>
+      <span className="snow-slot-collector__base" aria-hidden="true" />
+      <span className="snow-slot-collector__copy">
+        <b>{t(`games.slots.collector.${color}`)}</b>
+        <strong>{meter.progress}<small>/{meter.threshold}</small></strong>
+        <em>{t(`games.slots.collector.${color}Prize`)}</em>
+      </span>
+    </div>
+  );
+}
+
+type FocusId = 'back' | 'sound' | 'fx' | 'betMinus' | 'betPlus' | 'spin';
 type ReelMode = 'idle' | 'spin' | 'settle';
 interface SettlePlan { from: number; target: number; start: number; duration: number }
 
 const Slots = ({ onBack }: SlotsProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const userId = user?.id;
   const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { muted, play: playSound, toggleMuted } = useGameAudio();
   useTvActivate(activateFocused);
 
-  const [cellHeight, setCellHeight] = useState(() => cellHeightFor(typeof window === 'undefined' ? 900 : window.innerHeight));
+  const [cellHeight, setCellHeight] = useState(() => (
+    typeof window === 'undefined' ? cellHeightFor(1600, 900) : cellHeightFor(window.innerWidth, window.innerHeight)
+  ));
   const [bet, setBet] = useState<number>(10);
   const [spinning, setSpinning] = useState(false);
   const [reelCells, setReelCells] = useState<string[][]>(() => Array.from({ length: REELS }, () => buildCells()));
@@ -100,21 +178,30 @@ const Slots = ({ onBack }: SlotsProps) => {
   const [result, setResult] = useState<SpinResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [fair, setFair] = useState<GameFairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
   /** ONE tokenized celebration: a win and a free-spin award share one overlay. */
-  const [callout, setCallout] = useState<{ token: number; payout: number; freeSpins: number } | null>(null);
+  const [callout, setCallout] = useState<{
+    token: number;
+    payout: number;
+    freeSpins: number;
+    collectorBonuses: { color: CollectorColor; multiplier: number }[];
+  } | null>(null);
   const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
+  const [collectors, setCollectors] = useState<CollectorState>(COLLECTOR_DEFAULTS);
+  const [collectorFx, setCollectorFx] = useState<{
+    token: number;
+    hits: CollectorColor[];
+    triggers: CollectorColor[];
+  } | null>(null);
   const [focus, setFocus] = useState<FocusId>('spin');
 
   const inFlight = useRef(false);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
+  const soundBtnRef = useRef<HTMLButtonElement>(null);
   const fxBtnRef = useRef<HTMLButtonElement>(null);
   const minusBtnRef = useRef<HTMLButtonElement>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
-  const fairBtnRef = useRef<HTMLButtonElement>(null);
 
   // ---- Reel motion: DOM-driven, never React state per frame ----
   const stripRefs = useRef<Array<HTMLDivElement | null>>(Array(REELS).fill(null));
@@ -131,6 +218,8 @@ const Slots = ({ onBack }: SlotsProps) => {
   const pendingRef = useRef<{ epoch: number; settled: SpinResult; columns: string[][] } | null>(null);
   const calloutTokenRef = useRef(0);
   const calloutTimerRef = useRef<number | null>(null);
+  const collectorFxTimerRef = useRef<number | null>(null);
+  const collectorStateEpochRef = useRef(0);
 
   const inFreeSpins = freeSpinsRemaining > 0;
   const canBet = inFreeSpins || bet <= (balance ?? 0);
@@ -140,13 +229,12 @@ const Slots = ({ onBack }: SlotsProps) => {
 
   /** Rows contain ONLY targets that are usable right now. */
   const focusRows = useMemo<FocusRows>(() => [
-    ['back', 'fx'],
+    ['back', 'sound', 'fx'],
     [
       ...(betStepUsable && betIdx > 0 ? ['betMinus'] : []),
       ...(betStepUsable && betIdx < BETS.length - 1 ? ['betPlus'] : []),
       ...(spinUsable ? ['spin'] : []),
     ],
-    ['fair'],
   ], [betStepUsable, betIdx, spinUsable]);
 
   // Re-home whenever a phase or availability change makes the target unusable.
@@ -172,12 +260,31 @@ const Slots = ({ onBack }: SlotsProps) => {
     const target =
       focus === 'spin' ? spinBtnRef.current
         : focus === 'back' ? backBtnRef.current
+          : focus === 'sound' ? soundBtnRef.current
           : focus === 'fx' ? fxBtnRef.current
             : focus === 'betMinus' ? minusBtnRef.current
-              : focus === 'betPlus' ? plusBtnRef.current
-                : fairBtnRef.current;
+              : plusBtnRef.current;
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }, [focus]);
+
+  // Load the actual persisted meter row whenever the player changes bet. Old
+  // servers simply fail this optional read and the slots screen still works.
+  useEffect(() => {
+    const epoch = collectorStateEpochRef.current + 1;
+    collectorStateEpochRef.current = epoch;
+    setCollectors(readCollectors(null));
+    if (!userId || status !== 'connected' || typeof gameSocket.getSlotsState !== 'function') return;
+    let cancelled = false;
+    void gameSocket.getSlotsState(bet).then((resp) => {
+      if (cancelled || epoch !== collectorStateEpochRef.current || resp?.ok !== true) return;
+      setCollectors(readCollectors(resp.collectors));
+      if (Number.isInteger(resp.freeSpinsRemaining) && resp.freeSpinsRemaining > 0) {
+        setFreeSpinsRemaining(resp.freeSpinsRemaining);
+        setMultiplier(Number(resp.multiplier) || 1);
+      }
+    }).catch(() => { /* additive feature: a legacy server remains playable */ });
+    return () => { cancelled = true; };
+  }, [bet, status, userId]);
 
   const paint = useCallback((reel: number) => {
     const el = stripRefs.current[reel];
@@ -196,7 +303,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   useEffect(() => {
     let queued = 0;
     const onResize = () => {
-      const next = cellHeightFor(window.innerHeight);
+      const next = cellHeightFor(window.innerWidth, window.innerHeight);
       const previous = cellHeightRef.current;
       if (next === previous) return;
       const ratio = next / previous;
@@ -236,22 +343,49 @@ const Slots = ({ onBack }: SlotsProps) => {
     setResult(settled);
     setFreeSpinsRemaining(settled.freeSpinsRemaining);
     setMultiplier(settled.multiplier || 1);
+    setCollectors(settled.collectors);
     setWinningCells(settled.totalPayout > 0 ? winningCellsFor(columns, settled.wins) : Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
     setSpinning(false);
     inFlight.current = false;
+
+    const collectorHits = COLLECTOR_COLORS.filter((color) => settled.collectors[color].hit);
+    const collectorTriggers = COLLECTOR_COLORS.filter((color) => settled.collectors[color].triggered);
+    if (collectorHits.length > 0) {
+      const token = calloutTokenRef.current + 1;
+      calloutTokenRef.current = token;
+      setCollectorFx({ token, hits: collectorHits, triggers: collectorTriggers });
+      if (collectorFxTimerRef.current !== null) life.clearTimer(collectorFxTimerRef.current);
+      collectorFxTimerRef.current = life.timeout(() => setCollectorFx(null), reducedRef.current ? 700 : 1800);
+    }
+
+    if (collectorTriggers.length > 0 || settled.triggeredFreeSpins > 0) {
+      playSound('bonus');
+    } else if (settled.totalPayout > 0) {
+      playSound('win');
+    } else if (collectorHits.length === 0) {
+      playSound('lose', { volume: 0.55 });
+    }
 
     if (settled.totalPayout > 0 || settled.triggeredFreeSpins > 0) {
       const token = calloutTokenRef.current + 1;
       calloutTokenRef.current = token;
       if (calloutTimerRef.current !== null) life.clearTimer(calloutTimerRef.current);
-      setCallout({ token, payout: settled.totalPayout, freeSpins: settled.triggeredFreeSpins });
+      setCallout({
+        token,
+        payout: settled.totalPayout,
+        freeSpins: settled.triggeredFreeSpins,
+        collectorBonuses: collectorTriggers.map((color) => ({
+          color,
+          multiplier: settled.collectors[color].multiplier,
+        })),
+      });
       calloutTimerRef.current = life.timeout(() => {
         // Back-to-back results each get their full duration: only the newest
         // token is allowed to clear the overlay.
         if (calloutTokenRef.current === token) setCallout(null);
       }, reducedRef.current ? 1200 : 2400);
     }
-  }, [life]);
+  }, [life, playSound]);
 
   // Latest cells, readable from the animation loop without re-subscribing.
   const reelCellsRef = useRef(reelCells);
@@ -290,6 +424,7 @@ const Slots = ({ onBack }: SlotsProps) => {
           planRef.current[reel] = null;
           modeRef.current[reel] = 'idle';
           promote(reel, false);
+          playSound('reelStop', { volume: 0.62 });
           if (reel === REELS - 1) finished = true;
         } else {
           active = true;
@@ -300,7 +435,7 @@ const Slots = ({ onBack }: SlotsProps) => {
     if (active) loopRef.current = life.raf(loop);
     else lastFrameRef.current = 0;
     if (finished) commitResult();
-  }, [life, paint, promote, commitResult]);
+  }, [life, paint, promote, playSound, commitResult]);
 
   const ensureLoop = useCallback(() => {
     if (loopRef.current === null) loopRef.current = life.raf(loop);
@@ -338,7 +473,7 @@ const Slots = ({ onBack }: SlotsProps) => {
     setNotice(null);
     setResult(null);
     setLandedWindows(null);
-    setFair(null);
+    collectorStateEpochRef.current += 1;
     setWinningCells(Array.from({ length: REELS }, () => Array(ROWS).fill(false)));
     setSpinning(true);
 
@@ -369,9 +504,11 @@ const Slots = ({ onBack }: SlotsProps) => {
           freeSpinsRemaining: resp.freeSpinsRemaining ?? 0,
           multiplier: resp.multiplier ?? 1,
           triggeredFreeSpins: resp.triggeredFreeSpins ?? 0,
+          basePayout: resp.basePayout ?? resp.totalPayout ?? 0,
+          collectorPayout: resp.collectorPayout ?? 0,
+          collectors: readCollectors(resp.collectors, collectors),
         };
         pendingRef.current = { epoch, settled, columns };
-        if (resp.fair) setFair(resp.fair);
 
         const baseDelay = reducedRef.current ? 160 : 340;
         const stagger = reducedRef.current ? 90 : 170;
@@ -414,13 +551,11 @@ const Slots = ({ onBack }: SlotsProps) => {
       setErrorMsg(t('games.slots.errorSpinFailed'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spinning, user, canBet, bet, inFreeSpins, balance, life, stopMotion, ensureLoop, promote]);
+  }, [spinning, user, canBet, bet, inFreeSpins, balance, collectors, life, stopMotion, ensureLoop, promote]);
 
   // A spin in flight or still stopping owns Back: no committed wager is dropped.
   const motionActive = () => modeRef.current.some((mode) => mode !== 'idle');
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     isBusy: () => spinning || inFlight.current || motionActive(),
     onBlocked: () => {
       setNotice(t('games.shared.finishSpinFirst'));
@@ -449,22 +584,39 @@ const Slots = ({ onBack }: SlotsProps) => {
 
   return (
     <GameShell accent="plum" className="snow-machine-game snow-slots-game">
-      <GameTopBar
-        ref={backBtnRef}
-        onBack={requestBack}
-        backLabel={t('games.slots.back')}
-        balance={balance}
-        status={status}
-        title={t('games.slots.marquee')}
-        phase={inFreeSpins ? t('games.slots.freeSpinsBanner', { remaining: freeSpinsRemaining, multiplier }) : t('games.slots.spinToWin')}
-        backFocused={focus === 'back'}
-        onBackFocus={() => setFocus('back')}
-        reducedFx={reducedFx}
-        onToggleFx={toggleReducedFx}
-        fxRef={fxBtnRef}
-        fxFocused={focus === 'fx'}
-        onFxFocus={() => setFocus('fx')}
-      />
+      <div className="snow-slot-topbar-wrap">
+        <GameTopBar
+          ref={backBtnRef}
+          onBack={requestBack}
+          backLabel={t('games.slots.back')}
+          balance={balance}
+          status={status}
+          title={t('games.slots.marquee')}
+          phase={inFreeSpins ? t('games.slots.freeSpinsBanner', { remaining: freeSpinsRemaining, multiplier }) : t('games.slots.spinToWin')}
+          backFocused={focus === 'back'}
+          onBackFocus={() => setFocus('back')}
+          reducedFx={reducedFx}
+          onToggleFx={toggleReducedFx}
+          fxRef={fxBtnRef}
+          fxFocused={focus === 'fx'}
+          onFxFocus={() => setFocus('fx')}
+        />
+        <Button
+          ref={soundBtnRef}
+          type="button"
+          variant="navy"
+          size="sm"
+          onFocus={() => setFocus('sound')}
+          onClick={(event) => toggleMuted(event.nativeEvent)}
+          aria-label={muted ? t('games.slots.soundTurnOn') : t('games.slots.soundTurnOff')}
+          aria-pressed={muted}
+          data-tv-focused={focus === 'sound' ? 'true' : 'false'}
+          className="snow-slot-sound-toggle"
+        >
+          {muted ? <VolumeX /> : <Volume2 />}
+          <span>{muted ? t('games.slots.soundOff') : t('games.slots.soundOn')}</span>
+        </Button>
+      </div>
 
       <div className="snow-slot-stage snow-machine-stage">
         <div className="snow-slot-layout">
@@ -476,6 +628,22 @@ const Slots = ({ onBack }: SlotsProps) => {
                 <small>{t('games.slots.subtitleWildScatter')}</small>
               </div>
               <span className="snow-slot-crown__ways">5 × 3<br /><b>243</b></span>
+            </div>
+
+            <div className="snow-slot-collector-bank" aria-label={t('games.slots.collector.bankLabel')}>
+              <span className="snow-slot-collector-bank__title">
+                <b>{t('games.slots.collector.title')}</b>
+                <small>{t('games.slots.collector.subtitle')}</small>
+              </span>
+              {COLLECTOR_COLORS.map((color) => (
+                <FrostCollector
+                  key={`${color}-${collectorFx?.token ?? 0}`}
+                  color={color}
+                  meter={collectors[color]}
+                  active={collectorFx?.hits.includes(color) ?? false}
+                  triggered={collectorFx?.triggers.includes(color) ?? false}
+                />
+              ))}
             </div>
 
             <div className="snow-slot-screen">
@@ -522,6 +690,13 @@ const Slots = ({ onBack }: SlotsProps) => {
                       {callout.freeSpins > 0 && (
                         <small>
                           {t('games.slots.freeSpinsCallout')} · {t('games.slots.freeSpinsAwarded', { count: callout.freeSpins })}
+                        </small>
+                      )}
+                      {callout.collectorBonuses.length > 0 && (
+                        <small className="snow-slot-callout__trio">
+                          {t('games.slots.collector.bonusCallout')} · {callout.collectorBonuses.map(({ color, multiplier }) => (
+                            `${t(`games.slots.collector.${color}`)} ${multiplier}×`
+                          )).join(' + ')}
                         </small>
                       )}
                     </div>
@@ -618,6 +793,12 @@ const Slots = ({ onBack }: SlotsProps) => {
                 {result && result.scatterCount > 0 && (
                   <li><span>{t('games.slots.scatters', { count: result.scatterCount })}</span></li>
                 )}
+                {result && result.collectorPayout > 0 && (
+                  <li className="snow-slot-status-panel__collector">
+                    <span>{t('games.slots.collector.bonusWin')}</span>
+                    <strong>+{result.collectorPayout.toLocaleString()}</strong>
+                  </li>
+                )}
                 {result && result.totalPayout > 0 && (
                   <li className="snow-slot-status-panel__total"><span>{result.freeSpin && multiplier > 1
                     ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
@@ -629,15 +810,10 @@ const Slots = ({ onBack }: SlotsProps) => {
         </div>
       </div>
 
-      <FairnessPanel
-        ref={fairBtnRef}
-        fair={fair}
-        open={showFair}
-        onToggle={() => setShowFair((v) => !v)}
-        focused={focus === 'fair'}
-        onFocus={() => setFocus('fair')}
-        labels={{ title: t('games.slots.provablyFair'), note: t('games.slots.spinToRevealSeed') }}
-      />
+      <div className="snow-slot-rules-note">
+        <b>{t('games.slots.rulesTitle')}</b>
+        <span>{t('games.slots.rulesOdds')}</span>
+      </div>
     </GameShell>
   );
 };

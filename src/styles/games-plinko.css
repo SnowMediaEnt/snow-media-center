@@ -188,6 +188,8 @@
 
 .snow-plinko-puck {
   position: absolute;
+  top: 5%;
+  left: 50%;
   z-index: 7;
   display: flex;
   align-items: center;
@@ -200,12 +202,27 @@
   background: radial-gradient(circle at 32% 27%, #fffbe4, #f5d46e 39%, #b67a18 73%, #5c3705);
   box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 18px rgba(246, 210, 98, .76), 0 6px 10px rgba(0, 3, 13, .56);
   opacity: 0;
-  transform: translate(-50%, -50%);
-  transition: left 110ms ease-in, top 110ms ease-in, opacity 90ms linear;
+  margin-top: clamp(-23.5px, -2.1cqh, -13.5px);
+  margin-left: clamp(-23.5px, -2.1cqh, -13.5px);
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  transform-origin: center;
+  transition: opacity 90ms linear;
+  will-change: transform;
 }
 .snow-plinko-puck[data-visible='true'] { opacity: 1; }
-.snow-plinko-puck svg { width: 58%; height: 58%; }
-.snow-plinko.is-dropping .snow-plinko-puck { animation: snow-plinko-puck-glow .52s ease-in-out infinite alternate; }
+.snow-plinko-puck svg { position: relative; z-index: 1; width: 58%; height: 58%; }
+.snow-plinko-puck::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 210, 98, .5), rgba(101, 224, 237, .14) 48%, transparent 72%);
+  opacity: .45;
+  pointer-events: none;
+  transform: scale(.78);
+}
+.snow-plinko.is-dropping .snow-plinko-puck::after { animation: snow-plinko-puck-glow .52s ease-in-out infinite alternate; }
 
 .snow-plinko-buckets {
   position: absolute;
@@ -352,8 +369,8 @@
 .snow-plinko.is-impact .snow-plinko-machine { animation: snow-plinko-impact .52s ease-out both; }
 
 @keyframes snow-plinko-puck-glow {
-  from { box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 12px rgba(246, 210, 98, .55), 0 6px 10px rgba(0, 3, 13, .56); }
-  to { box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 25px rgba(246, 210, 98, .9), 0 6px 10px rgba(0, 3, 13, .56); }
+  from { opacity: .34; transform: scale(.78); }
+  to { opacity: .82; transform: scale(1.16); }
 }
 
 @keyframes snow-plinko-impact {
@@ -370,12 +387,12 @@
 .native-low-memory .snow-plinko-puck,
 .native-low-memory .snow-plinko-pegs span { box-shadow: none; }
 
-.native-low-memory .snow-plinko.is-dropping .snow-plinko-puck,
+.native-low-memory .snow-plinko.is-dropping .snow-plinko-puck::after,
 .native-low-memory .snow-plinko.is-impact .snow-plinko-machine,
-[data-game-fx='reduced'] .snow-plinko.is-dropping .snow-plinko-puck,
+[data-game-fx='reduced'] .snow-plinko.is-dropping .snow-plinko-puck::after,
 [data-game-fx='reduced'] .snow-plinko.is-impact .snow-plinko-machine { animation: none; }
 
-[data-game-fx='reduced'] .snow-plinko-puck { transition-duration: 35ms; }
+[data-game-fx='reduced'] .snow-plinko-puck { transition: opacity 35ms linear; }
 
 /* 4K output: preserve the roomy 1080p hierarchy instead of leaving a small
    1280px island in the middle of a 3840px panel. */
@@ -514,7 +531,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .snow-plinko-puck { transition-duration: 35ms; }
-  .snow-plinko.is-dropping .snow-plinko-puck,
+  .snow-plinko-puck { transition: opacity 35ms linear; }
+  .snow-plinko.is-dropping .snow-plinko-puck::after,
   .snow-plinko.is-impact .snow-plinko-machine { animation: none; }
 }

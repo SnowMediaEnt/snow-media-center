@@ -24,7 +24,7 @@
   z-index: 6;
   min-height: 66px;
   display: grid;
-  grid-template-columns: minmax(205px, 1fr) auto minmax(440px, 1fr);
+  grid-template-columns: minmax(205px, 1fr) auto minmax(570px, 1fr);
   align-items: center;
 }
 
@@ -163,6 +163,90 @@
   font-weight: 900;
 }
 
+.snow-trivia__sound {
+  width: 50px;
+  min-width: 50px;
+  height: 50px;
+  min-height: 50px;
+  padding: 0;
+  border: 1px solid hsl(var(--trivia-accent) / .48);
+  border-radius: 11px;
+  color: hsl(var(--trivia-accent));
+}
+
+.snow-trivia__sound svg {
+  width: 21px;
+  height: 21px;
+}
+
+.snow-trivia__sound[aria-pressed="true"] {
+  color: hsl(210 18% 67%);
+  border-color: hsl(214 19% 48% / .48);
+  background: hsl(220 52% 8% / .96);
+}
+
+.snow-trivia__mode {
+  position: relative;
+  min-width: 154px;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  border: 1px solid hsl(209 92% 65% / .7);
+  border-radius: 11px;
+  color: white;
+  background:
+    linear-gradient(90deg, hsl(220 85% 35% / .94), hsl(218 65% 13% / .98) 64%),
+    hsl(220 65% 9%);
+  box-shadow: inset 0 1px hsl(0 0% 100% / .12), 0 0 18px hsl(210 88% 52% / .13);
+}
+
+.snow-trivia__mode::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  background: linear-gradient(180deg, hsl(350 83% 55%) 0 34%, hsl(215 88% 56%) 34% 67%, hsl(45 92% 62%) 67%);
+}
+
+.snow-trivia__mode > svg {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  margin-right: 9px;
+  color: hsl(45 93% 70%);
+}
+
+.snow-trivia__mode > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.snow-trivia__mode small {
+  color: hsl(208 70% 78%);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-trivia__mode strong {
+  margin-top: 4px;
+  font: 900 12px/1 Montserrat, system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.snow-trivia__mode--mixed {
+  border-color: hsl(277 80% 68% / .58);
+  background: linear-gradient(110deg, hsl(275 66% 31% / .92), hsl(220 65% 10%) 67%);
+}
+
 .snow-trivia__progress {
   min-height: 47px;
   display: flex;
@@ -214,6 +298,24 @@
   letter-spacing: .035em;
 }
 
+.snow-trivia__free-play > span {
+  white-space: nowrap;
+}
+
+.snow-trivia__free-play > i {
+  margin-left: 9px;
+  padding: 4px 7px;
+  border: 1px solid hsl(var(--trivia-accent) / .25);
+  border-radius: 20px;
+  color: hsl(210 22% 74%);
+  background: hsl(219 62% 8% / .82);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
 .snow-trivia__free-play svg {
   width: 16px;
   height: 16px;
@@ -234,10 +336,21 @@
 }
 
 .snow-trivia__stage--screen { --trivia-accent: 327 84% 68%; --trivia-accent-deep: 327 72% 40%; }
+.snow-trivia__stage--snow { --trivia-accent: 205 94% 69%; --trivia-accent-deep: 218 82% 40%; }
 .snow-trivia__stage--world { --trivia-accent: 162 76% 56%; --trivia-accent-deep: 164 72% 31%; }
 .snow-trivia__stage--music { --trivia-accent: 282 82% 72%; --trivia-accent-deep: 279 67% 43%; }
 .snow-trivia__stage--sports { --trivia-accent: 42 92% 63%; --trivia-accent-deep: 34 83% 39%; }
 .snow-trivia__stage--nature { --trivia-accent: 111 68% 61%; --trivia-accent-deep: 124 57% 33%; }
+
+.snow-trivia__stage--snow .snow-trivia__question-card {
+  border-color: hsl(207 94% 72% / .68);
+  background:
+    radial-gradient(circle at 50% -8%, hsl(202 95% 76% / .25), transparent 48%),
+    linear-gradient(125deg, hsl(350 72% 29% / .2), transparent 31%),
+    linear-gradient(235deg, hsl(46 84% 49% / .14), transparent 32%),
+    linear-gradient(155deg, hsl(220 72% 13% / .98), hsl(218 78% 7% / .98));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .13), 0 0 34px hsl(208 90% 53% / .15);
+}
 
 .snow-trivia__question-card {
   position: relative;
@@ -719,9 +832,11 @@
    targets and type than the compact 720p fallback below. */
 @media (min-width: 1600px) and (min-height: 900px) {
   .snow-trivia .snow-game-body { max-width: 96rem; }
-  .snow-trivia__topbar { min-height: 72px; }
+  .snow-trivia__topbar { min-height: 72px; grid-template-columns: minmax(260px, 1fr) auto minmax(625px, 1fr); }
   .snow-trivia__back { min-height: 58px; font-size: 16px; }
   .snow-trivia__brand strong { font-size: 28px; }
+  .snow-trivia__mode { min-width: 172px; min-height: 56px; }
+  .snow-trivia__mode strong { font-size: 14px; }
   .snow-trivia__question-card h2 { font-size: 38px; }
   .snow-trivia-answer { min-height: 136px; grid-template-columns: 72px minmax(0, 1fr) 48px; padding: 18px 21px; }
   .snow-trivia-answer__letter { width: 58px; height: 58px; font-size: 25px; }
@@ -733,7 +848,7 @@
    composition expand instead of leaving a 1280px island in the center. */
 @media (min-width: 2500px) and (min-height: 1400px) {
   .snow-trivia .snow-game-body { max-width: 188rem; gap: 18px; }
-  .snow-trivia__topbar { min-height: 116px; grid-template-columns: minmax(390px, 1fr) auto minmax(760px, 1fr); }
+  .snow-trivia__topbar { min-height: 116px; grid-template-columns: minmax(520px, 1fr) auto minmax(1100px, 1fr); }
   .snow-trivia__back { min-width: 310px; min-height: 88px; border-radius: 18px; font-size: 25px; }
   .snow-trivia__brand-icon { width: 88px; height: 88px; margin-right: 20px; border-radius: 25px; }
   .snow-trivia__brand-icon svg { width: 52px; height: 52px; }
@@ -745,12 +860,20 @@
   .snow-trivia-stat strong { font-size: 30px; }
   .snow-trivia-stat--streak { min-width: 140px; }
   .snow-trivia__toolbar > * + * { margin-left: 15px; }
+  .snow-trivia__mode { min-width: 290px; min-height: 82px; border-radius: 18px; }
+  .snow-trivia__mode > svg { width: 38px; height: 38px; margin-right: 15px; }
+  .snow-trivia__mode small { font-size: 12px; }
+  .snow-trivia__mode strong { margin-top: 6px; font-size: 22px; }
+  .snow-trivia__mode::after { width: 12px; }
+  .snow-trivia__sound { width: 82px; min-width: 82px; height: 82px; min-height: 82px; border-radius: 18px; }
+  .snow-trivia__sound svg { width: 34px; height: 34px; }
   .snow-trivia__fx { min-width: 168px; min-height: 82px; border-radius: 18px; font-size: 21px; }
   .snow-trivia__progress { min-height: 75px; padding: 0 9px; }
   .snow-trivia__round > span { min-width: 220px; font-size: 20px; }
   .snow-trivia__progress-track { width: 470px; height: 14px; margin-left: 22px; }
   .snow-trivia__free-play { font-size: 20px; }
   .snow-trivia__free-play svg { width: 26px; height: 26px; margin-right: 11px; }
+  .snow-trivia__free-play > i { margin-left: 15px; padding: 7px 12px; font-size: 13px; }
   .snow-trivia__stage { grid-template-rows: minmax(250px, .78fr) minmax(500px, 1.42fr) minmax(150px, .46fr); gap: 22px; }
   .snow-trivia__question-card { padding: 38px 190px; border-radius: 44px; }
   .snow-trivia__category { margin-bottom: 18px; padding: 11px 22px; border-radius: 34px; font-size: 18px; }
@@ -791,7 +914,7 @@
 /* 720p is supported as a compact fallback, not the design target. */
 @media (max-height: 820px) {
   .snow-trivia .snow-game-body { max-width: 72rem; gap: 5px; }
-  .snow-trivia__topbar { min-height: 48px; grid-template-columns: minmax(165px, 1fr) auto minmax(330px, 1fr); }
+  .snow-trivia__topbar { min-height: 48px; grid-template-columns: minmax(165px, 1fr) auto minmax(445px, 1fr); }
   .snow-trivia__back { min-width: 155px; min-height: 43px; font-size: 12px; }
   .snow-trivia__brand-icon { width: 39px; height: 39px; margin-right: 8px; border-radius: 11px; }
   .snow-trivia__brand-icon svg { width: 23px; height: 23px; }
@@ -802,12 +925,19 @@
   .snow-trivia-stat small { font-size: 7px; }
   .snow-trivia-stat strong { font-size: 14px; }
   .snow-trivia-stat--streak { min-width: 66px; }
+  .snow-trivia__mode { min-width: 123px; min-height: 41px; border-radius: 9px; }
+  .snow-trivia__mode > svg { width: 17px; height: 17px; margin-right: 6px; }
+  .snow-trivia__mode small { font-size: 6px; }
+  .snow-trivia__mode strong { margin-top: 3px; font-size: 9px; }
+  .snow-trivia__sound { width: 41px; min-width: 41px; height: 41px; min-height: 41px; border-radius: 9px; }
+  .snow-trivia__sound svg { width: 17px; height: 17px; }
   .snow-trivia__fx { min-width: 82px; min-height: 41px; font-size: 11px; }
   .snow-trivia__progress { min-height: 35px; }
   .snow-trivia__round > span { min-width: 105px; font-size: 9px; }
   .snow-trivia__progress-track { width: 205px; height: 6px; margin-left: 8px; }
   .snow-trivia__free-play { font-size: 9px; }
   .snow-trivia__free-play svg { width: 13px; height: 13px; }
+  .snow-trivia__free-play > i { margin-left: 5px; padding: 2px 5px; font-size: 6px; }
   .snow-trivia__stage { grid-template-rows: minmax(94px, .72fr) minmax(164px, 1.38fr) minmax(62px, .45fr); gap: 7px; }
   .snow-trivia__question-card { padding: 11px 76px 12px; border-radius: 18px; }
   .snow-trivia__category { margin-bottom: 5px; padding: 4px 9px; font-size: 8px; }

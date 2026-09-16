@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure motion math is exported for deterministic tests. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Gauge, RotateCcw, Snowflake, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
@@ -10,6 +11,7 @@ import { useGameLifecycle } from './shared/gameLifecycle';
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useGameAudio } from './shared/gameAudio';
 import '@/styles/games-plinko.css';
 
 interface PlinkoProps {
@@ -23,8 +25,24 @@ const ROWS = 10;
 const STARTING_POINTS = 100;
 const STEP_X = 7;
 const BEST_DROP_KEY = 'snow-plinko-best-drop-v1';
+const FULL_DROP_MS = 1560;
+const REDUCED_DROP_MS = 190;
 
-const RISK_MODES: Array<{
+export interface PlinkoMotionPoint {
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+  offset: number;
+  easing: string;
+}
+
+export interface PlinkoMotion {
+  points: PlinkoMotionPoint[];
+  finalSlot: number;
+}
+
+export const PLINKO_RISK_MODES: Array<{
   id: Risk;
   label: string;
   note: string;
@@ -34,13 +52,13 @@ const RISK_MODES: Array<{
     id: 'chill',
     label: 'Chill',
     note: 'Soft landings',
-    multipliers: [4, 2, 1.5, 1.2, 1, 0.8, 1, 1.2, 1.5, 2, 4],
+    multipliers: [4, 2, 1.5, 1.2, 1, 0.7, 1, 1.2, 1.5, 2, 4],
   },
   {
     id: 'classic',
     label: 'Classic',
     note: 'Balanced board',
-    multipliers: [10, 4, 2, 1.2, 0.6, 0.4, 0.6, 1.2, 2, 4, 10],
+    multipliers: [11.5, 4.6, 2.3, 1.4, 0.7, 0.5, 0.7, 1.4, 2.3, 4.6, 11.5],
   },
   {
     id: 'wild',
@@ -51,6 +69,74 @@ const RISK_MODES: Array<{
 ];
 
 const formatMultiplier = (value: number) => `${Number.isInteger(value) ? value : value.toFixed(1)}×`;
+
+/**
+ * Convert the ten random left/right decisions into one deterministic motion
+ * track. Each row has a short squash on the peg followed by a sideways kick;
+ * later rows are slightly quicker to give the puck a believable acceleration.
+ */
+export const buildPlinkoMotion = (path: readonly boolean[]): PlinkoMotion => {
+  const rowWeights = path.map((_, index) => Math.max(.67, 1 - index * .035));
+  const landingWeight = .7;
+  const totalWeight = rowWeights.reduce((total, weight) => total + weight, landingWeight);
+  const points: PlinkoMotionPoint[] = [{
+    x: 50,
+    y: 5,
+    rotation: 0,
+    scale: 1,
+    offset: 0,
+    easing: 'cubic-bezier(.28,.68,.28,1)',
+  }];
+  let rights = 0;
+  let elapsed = 0;
+
+  path.forEach((right, row) => {
+    const weight = rowWeights[row];
+    const pegX = 50 + (rights - row / 2) * STEP_X;
+    const pegY = 15 + row * 6.15;
+    elapsed += weight * .61;
+    points.push({
+      x: pegX,
+      y: pegY - .45,
+      rotation: right ? -7 : 7,
+      scale: .88,
+      offset: elapsed / totalWeight,
+      easing: 'cubic-bezier(.18,.74,.28,1)',
+    });
+
+    if (right) rights += 1;
+    elapsed += weight * .39;
+    points.push({
+      x: 50 + (rights - (row + 1) / 2) * STEP_X,
+      y: pegY + 2.15,
+      rotation: right ? 17 : -17,
+      scale: 1.045,
+      offset: elapsed / totalWeight,
+      easing: 'cubic-bezier(.3,.05,.45,1)',
+    });
+  });
+
+  points.push({
+    x: 50 + (rights - path.length / 2) * STEP_X,
+    y: 85,
+    rotation: 0,
+    scale: 1,
+    offset: 1,
+    easing: 'cubic-bezier(.16,.78,.24,1)',
+  });
+
+  return { points, finalSlot: rights };
+};
+
+const motionTransform = (
+  point: Pick<PlinkoMotionPoint, 'x' | 'y' | 'rotation' | 'scale'>,
+  width: number,
+  height: number,
+) => {
+  const x = ((point.x - 50) / 100) * width;
+  const y = ((point.y - 5) / 100) * height;
+  return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotate(${point.rotation}deg) scale(${point.scale})`;
+};
 
 /** A single random word supplies every bounce; there is no server or wager. */
 const randomWord = (): number => {
@@ -75,11 +161,12 @@ const readBestDrop = (): number => {
 const Plinko = ({ onBack }: PlinkoProps) => {
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
   useTvActivate(activateFocused);
 
   const [risk, setRisk] = useState<Risk>('classic');
   const [dropping, setDropping] = useState(false);
-  const [puck, setPuck] = useState({ x: 50, y: 5, visible: false });
+  const [puckVisible, setPuckVisible] = useState(false);
   const [landing, setLanding] = useState<number | null>(null);
   const [lastAward, setLastAward] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -98,9 +185,12 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const wildRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLButtonElement>(null);
   const resetRef = useRef<HTMLButtonElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const puckRef = useRef<HTMLDivElement>(null);
+  const puckAnimation = useRef<Animation | null>(null);
   const dropEpoch = useRef(0);
 
-  const activeMode = RISK_MODES.find((mode) => mode.id === risk) ?? RISK_MODES[1];
+  const activeMode = PLINKO_RISK_MODES.find((mode) => mode.id === risk) ?? PLINKO_RISK_MODES[1];
   const canReset = !dropping && (score > 0 || drops > 0);
   const focusRows = useMemo<FocusRows>(() => [
     ['back', 'fx'],
@@ -150,7 +240,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     onExit: onBack,
   });
 
-  const finishDrop = useCallback((slot: number, mode: typeof RISK_MODES[number], epoch: number) => {
+  const finishDrop = useCallback((slot: number, mode: typeof PLINKO_RISK_MODES[number], epoch: number) => {
     if (!life.isMounted() || epoch !== dropEpoch.current) return;
     const multiplier = mode.multipliers[slot];
     const award = Math.round(STARTING_POINTS * multiplier);
@@ -161,6 +251,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     setStreak((current) => (multiplier >= 1.2 ? current + 1 : 0));
     setDropping(false);
     setImpact(true);
+    play('plinkoLand');
+    if (multiplier >= 4) play('bonus', { volume: 0.72 });
     life.timeout(() => setImpact(false), reducedFx ? 180 : 650);
 
     if (award > bestDrop) {
@@ -168,43 +260,84 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       try { localStorage.setItem(BEST_DROP_KEY, String(award)); } catch { /* storage unavailable */ }
     }
     if (multiplier >= 4) setBurstKey((current) => (current ?? 0) + 1);
-  }, [bestDrop, life, reducedFx]);
+  }, [bestDrop, life, play, reducedFx]);
+
+  useEffect(() => () => {
+    dropEpoch.current += 1;
+    puckAnimation.current?.cancel();
+  }, []);
+
+  const playMotion = useCallback((motion: PlinkoMotion, duration: number, reduced: boolean) => {
+    const puckElement = puckRef.current;
+    const boardElement = boardRef.current;
+    if (!puckElement || !boardElement) return;
+
+    puckAnimation.current?.cancel();
+    puckAnimation.current = null;
+    puckElement.style.transition = 'none';
+
+    const bounds = boardElement.getBoundingClientRect();
+    // Non-layout environments (including rendered unit tests) report zeroes.
+    // The fallback dimensions preserve a valid deterministic transform track.
+    const width = bounds.width || boardElement.clientWidth || 900;
+    const height = bounds.height || boardElement.clientHeight || 560;
+    const source = reduced
+      ? [motion.points[0], { ...motion.points[motion.points.length - 1], offset: 1, scale: 1, rotation: 0 }]
+      : motion.points;
+
+    const impactPoints = reduced
+      ? [motion.points[Math.min(1, motion.points.length - 1)]]
+      : motion.points.slice(1, -1).filter((_, index) => index % 2 === 0);
+    impactPoints.forEach((point) => {
+      life.timeout(() => play('plinkoPeg', { volume: 0.7 }), Math.max(0, point.offset * duration));
+    });
+    const frames = source.map((point) => ({
+      transform: motionTransform(point, width, height),
+      offset: point.offset,
+      easing: point.easing,
+    }));
+
+    puckElement.style.transform = frames[0].transform;
+    if (typeof puckElement.animate === 'function') {
+      puckAnimation.current = puckElement.animate(frames, {
+        duration,
+        fill: 'forwards',
+        iterations: 1,
+      });
+      return;
+    }
+
+    // Old Fire TV WebViews do not always expose Web Animations. Drive the
+    // exact same track with short transform-only transitions in that case.
+    source.slice(1).forEach((point, index) => {
+      const previousOffset = source[index].offset;
+      const segmentMs = Math.max(16, (point.offset - previousOffset) * duration);
+      life.timeout(() => {
+        if (!puckRef.current) return;
+        puckRef.current.style.transition = `transform ${segmentMs}ms ${point.easing}`;
+        puckRef.current.style.transform = motionTransform(point, width, height);
+      }, Math.max(0, previousOffset * duration));
+    });
+  }, [life, play]);
 
   const dropPuck = useCallback(() => {
     if (dropping) return;
     const mode = activeMode;
     const word = randomWord();
     const path = Array.from({ length: ROWS }, (_, index) => ((word >>> index) & 1) === 1);
-    const finalSlot = path.reduce((total, right) => total + (right ? 1 : 0), 0);
+    const motion = buildPlinkoMotion(path);
     const epoch = ++dropEpoch.current;
-    const stepMs = reducedFx ? 42 : 130;
-    let rights = 0;
+    const duration = reducedFx ? REDUCED_DROP_MS : FULL_DROP_MS;
 
     setLanding(null);
     setLastAward(null);
     setBackNote(null);
     setImpact(false);
     setDropping(true);
-    setPuck({ x: 50, y: 5, visible: true });
-
-    const advance = (row: number) => {
-      if (!life.isMounted() || epoch !== dropEpoch.current) return;
-      if (row >= ROWS) {
-        setPuck({ x: 50 + (finalSlot - ROWS / 2) * STEP_X, y: 85, visible: true });
-        life.timeout(() => finishDrop(finalSlot, mode, epoch), reducedFx ? 70 : 210);
-        return;
-      }
-      if (path[row]) rights += 1;
-      setPuck({
-        x: 50 + (rights - (row + 1) / 2) * STEP_X,
-        y: 15 + row * 6.15,
-        visible: true,
-      });
-      life.timeout(() => advance(row + 1), stepMs);
-    };
-
-    life.timeout(() => advance(0), reducedFx ? 20 : 80);
-  }, [activeMode, dropping, finishDrop, life, reducedFx]);
+    setPuckVisible(true);
+    playMotion(motion, duration, reducedFx);
+    life.timeout(() => finishDrop(motion.finalSlot, mode, epoch), duration);
+  }, [activeMode, dropping, finishDrop, life, playMotion, reducedFx]);
 
   const resetSession = useCallback(() => {
     if (dropping) return;
@@ -213,7 +346,13 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     setStreak(0);
     setLanding(null);
     setLastAward(null);
-    setPuck({ x: 50, y: 5, visible: false });
+    puckAnimation.current?.cancel();
+    puckAnimation.current = null;
+    if (puckRef.current) {
+      puckRef.current.style.transition = 'none';
+      puckRef.current.style.transform = 'translate3d(0, 0, 0) rotate(0deg) scale(1)';
+    }
+    setPuckVisible(false);
   }, [dropping]);
 
   const pegs = useMemo(() => Array.from({ length: ROWS }, (_, row) => (
@@ -271,7 +410,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             <i /><i /><i /><i /><i />
           </div>
 
-          <div className="snow-plinko-board">
+          <div ref={boardRef} className="snow-plinko-board">
             <div className="snow-plinko-board__aurora" aria-hidden="true" />
             <div className="snow-plinko-gate" aria-hidden="true"><span /><Snowflake /><span /></div>
             <div className="snow-plinko-pegs" aria-hidden="true">
@@ -280,9 +419,10 @@ const Plinko = ({ onBack }: PlinkoProps) => {
               ))}
             </div>
             <div
+              ref={puckRef}
               className="snow-plinko-puck"
-              data-visible={puck.visible ? 'true' : 'false'}
-              style={{ left: `${puck.x}%`, top: `${puck.y}%` }}
+              data-visible={puckVisible ? 'true' : 'false'}
+              data-motion={reducedFx ? 'reduced' : 'bouncy'}
               aria-hidden="true"
             >
               <Snowflake />
@@ -316,7 +456,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           </div>
 
           <div className="snow-plinko-modes" role="group" aria-label="Risk mode">
-            {RISK_MODES.map((mode) => {
+            {PLINKO_RISK_MODES.map((mode) => {
               const ref = mode.id === 'chill' ? chillRef : mode.id === 'classic' ? classicRef : wildRef;
               return (
                 <Button

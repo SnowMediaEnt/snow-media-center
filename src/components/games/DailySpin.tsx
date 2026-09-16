@@ -6,14 +6,14 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
 import { supabase } from '@/integrations/supabase/client';
-import { FairnessPanel, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
 import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
-import type { GameFairInfo } from './shared/gameTypes';
+import { useGameAudio } from './shared/gameAudio';
 import '@/styles/games-wheels.css';
 
 interface DailySpinProps {
@@ -41,6 +41,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const { balance, status } = useGameSocket();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const life = useGameLifecycle();
+  const { play } = useGameAudio();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wheelMeasureRef = useRef<HTMLDivElement>(null);
@@ -48,7 +49,6 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
-  const fairRef = useRef<HTMLButtonElement>(null);
   const inFlight = useRef(false);
   /** Bumped per claim: an ack from an older claim can never rotate a new wheel. */
   const claimEpoch = useRef(0);
@@ -60,10 +60,8 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const [loadingCooldown, setLoadingCooldown] = useState(true);
   const [lastWin, setLastWin] = useState<{ prize: number; jackpot: boolean } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [fair, setFair] = useState<GameFairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
-  const [zone, setZone] = useState<'back' | 'fx' | 'spin' | 'fair'>('spin');
+  const [zone, setZone] = useState<'back' | 'fx' | 'spin'>('spin');
   const [backNote, setBackNote] = useState<string | null>(null);
 
   // One OK/Select press activates the focused control exactly once.
@@ -265,16 +263,14 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   useEffect(() => {
     let target = zone;
     if (target === 'spin' && !spinReachable) target = 'back';
-    if (target === 'fair' && !fair) target = 'back';
     if (target !== zone) { setZone(target); return; }
     const el = target === 'back' ? backBtnRef.current
       : target === 'fx' ? fxRef.current
-      : target === 'spin' ? spinBtnRef.current
-      : fairRef.current;
+      : spinBtnRef.current;
     el?.focus({ preventScroll: true });
-  }, [zone, spinReachable, fair]);
+  }, [zone, spinReachable]);
 
-  // D-pad graph: Back <-> FX on the top row, Spin, then Fairness below.
+  // D-pad graph: Back <-> FX on the top row, Spin below.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
@@ -283,7 +279,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       // Consume every arrow so native spatial focus cannot diverge from the
       // single data-tv-focused marker, even at a graph boundary.
       e.preventDefault();
-      const down = () => (spinReachable ? 'spin' : fair ? 'fair' : null);
+      const down = () => (spinReachable ? 'spin' : null);
       if (zone === 'back') {
         if (dir === 'right') setZone('fx');
         else if (dir === 'down') { const n = down(); if (n) setZone(n); }
@@ -292,18 +288,13 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
         else if (dir === 'down') { const n = down(); if (n) setZone(n); }
       } else if (zone === 'spin') {
         if (dir === 'up') setZone('back');
-        else if (dir === 'down' && fair) setZone('fair');
-      } else if (zone === 'fair' && dir === 'up') {
-        setZone(spinReachable ? 'spin' : 'back');
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [zone, spinReachable, fair]);
+  }, [zone, spinReachable]);
 
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     // A spin in flight or its settle animation must never be abandoned.
     isBusy: () => spinning || inFlight.current,
     onBlocked: () => {
@@ -319,7 +310,6 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     const epoch = ++claimEpoch.current;
     setErrorMsg(null);
     setLastWin(null);
-    setFair(null);
     setSpinning(true);
 
     const startRot = rotRef.current;
@@ -392,13 +382,15 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
           const eased = 1 - Math.pow(1 - p, 3);
           setRot(liveRot + (targetRot - liveRot) * eased);
           if (p < 1) { life.raf(animate2); return; }
+          if (!life.isMounted() || epoch !== claimEpoch.current) return;
           if (wheelVisualRef.current) wheelVisualRef.current.style.willChange = 'auto';
           setSpinning(false);
           setLastWin({ prize: resp.prize, jackpot: resp.prize === 2000 });
+          play('reelStop');
+          play(resp.prize === 2000 ? 'bonus' : 'win');
           setCelebrate(true);
           life.timeout(() => setCelebrate(false), reducedFx ? 1200 : 2500);
           setNextClaimAt(new Date(Date.now() + COOLDOWN_MS));
-          if (resp.fair) setFair(resp.fair);
           try { gameSocket.refreshBalance(); } catch { /* balance refreshes on next event */ }
           settle();
         };
@@ -422,7 +414,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       setErrorMsg(t('games.dailySpin.spinError'));
       settle();
     }
-  }, [spinning, nextClaimAt, setRot, life, reducedFx, t]);
+  }, [spinning, nextClaimAt, setRot, life, play, reducedFx, t]);
 
   const remaining = nextClaimAt ? nextClaimAt.getTime() - now : 0;
   const eligible = !nextClaimAt && !loadingCooldown && !!user;
@@ -530,17 +522,6 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
               {spinning ? <><Loader2 className="animate-spin" /> {t('games.dailySpin.spinning')}</> : <><Gift /> {t('games.dailySpin.spin')}</>}
             </Button>
 
-            {fair && (
-              <FairnessPanel
-                ref={fairRef}
-                fair={fair}
-                open={showFair}
-                focused={zone === 'fair'}
-                onFocus={() => setZone('fair')}
-                onToggle={() => setShowFair((value) => !value)}
-                labels={{ title: t('games.dailySpin.provablyFair'), note: t('games.dailySpin.fairVerify') }}
-              />
-            )}
           </section>
         </div>
       </GamePanel>

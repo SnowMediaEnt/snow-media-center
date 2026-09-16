@@ -567,6 +567,33 @@
   transform: translate(-50%, -50%);
 }
 
+.snow-bj-sealed-note {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 360px;
+  justify-content: center;
+  padding: 10px 18px;
+  border: 1px solid hsl(var(--bj-gold) / .7);
+  border-radius: 999px;
+  color: hsl(48 92% 82%);
+  background: linear-gradient(180deg, hsl(219 65% 13% / .97), hsl(220 75% 6% / .97));
+  box-shadow: 0 0 24px hsl(var(--bj-gold) / .2);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  transform: translate(-50%, -50%);
+}
+
+.snow-bj-sealed-note span {
+  color: hsl(var(--bj-gold));
+  animation: snow-bj-sealed-pulse 850ms ease-in-out infinite alternate;
+}
+
 .snow-blackjack .snow-result-banner {
   min-width: 286px;
   padding: 9px 24px;
@@ -600,11 +627,61 @@
   box-shadow: inset 0 1px hsl(0 0% 100% / .07), 0 12px 25px hsl(220 90% 2% / .36);
 }
 
+.snow-blackjack--bet .snow-bj-controls {
+  min-height: 146px;
+}
+
 .snow-bj-controls__row {
   min-height: 55px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.snow-bj-controls__row--bet {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.snow-bj-variants {
+  width: min(100%, 760px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.snow-blackjack .snow-bj-variant {
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 7px 13px;
+  border: 1px solid hsl(var(--bj-ice) / .24);
+  border-radius: 10px;
+  color: hsl(190 54% 81%);
+  background: linear-gradient(180deg, hsl(214 54% 17%), hsl(220 67% 8%));
+  text-align: left;
+}
+
+.snow-blackjack .snow-bj-variant span {
+  color: hsl(190 75% 92%);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .035em;
+}
+
+.snow-blackjack .snow-bj-variant small {
+  margin-top: 2px;
+  color: hsl(194 32% 66%);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.snow-blackjack .snow-bj-variant.is-selected {
+  border-color: hsl(var(--bj-gold) / .85);
+  background: linear-gradient(180deg, hsl(208 55% 22%), hsl(218 65% 10%));
+  box-shadow: inset 3px 0 hsl(var(--bj-gold)), 0 0 18px hsl(var(--bj-gold) / .12);
 }
 
 .snow-bj-controls__label {
@@ -700,11 +777,16 @@
 }
 
 .snow-blackjack .snow-bj-action[data-tv-focused="true"],
-.snow-blackjack .snow-bet-chip[data-tv-focused="true"] {
+.snow-blackjack .snow-bet-chip[data-tv-focused="true"],
+.snow-blackjack .snow-bj-variant[data-tv-focused="true"] {
   outline: 3px solid hsl(var(--bj-ice));
   outline-offset: 3px;
   box-shadow: 0 0 0 2px hsl(220 70% 5%), 0 0 24px hsl(var(--bj-ice) / .5), inset 0 1px hsl(0 0% 100% / .5) !important;
   transform: scale(1.035);
+}
+
+.snow-bj-live-rules {
+  text-align: center;
 }
 
 .snow-bj-controls__stake {
@@ -776,6 +858,11 @@
   to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
 }
 
+@keyframes snow-bj-sealed-pulse {
+  from { opacity: .55; transform: scale(.88) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1.12) rotate(8deg); }
+}
+
 @media (max-height: 760px) {
   .snow-blackjack .snow-game-body { gap: 5px; }
   .snow-bj-stage { padding-top: 1px; }
@@ -806,7 +893,14 @@
   .snow-bj-stake { margin-right: 9px; }
   .snow-bj-stake__chip { font-size: 11px; line-height: 30px; }
   .snow-blackjack .snow-bj-controls { min-height: 67px; padding: 5px 12px 4px; }
+  .snow-blackjack--bet .snow-bj-controls { min-height: 112px; }
   .snow-bj-controls__row { min-height: 48px; }
+  .snow-bj-controls__row--bet { gap: 5px; }
+  .snow-bj-variants { width: min(100%, 640px); gap: 6px; }
+  .snow-blackjack .snow-bj-variant { min-height: 34px; padding: 4px 10px; }
+  .snow-blackjack .snow-bj-variant span { font-size: 10px; }
+  .snow-blackjack .snow-bj-variant small { display: none; }
+  .snow-bj-sealed-note { min-width: 310px; padding: 7px 13px; font-size: 10px; }
   .snow-bj-controls__label { min-width: 138px; font-size: 10px; }
   .snow-bj-controls__chip { width: 28px; height: 28px; font-size: 9px; line-height: 24px; }
   .snow-blackjack .snow-bet-chip { width: 46px; height: 46px; min-height: 46px; font-size: 13px; }
@@ -853,6 +947,83 @@
   .snow-blackjack .snow-bj-action svg { width: 30px; height: 30px; }
   .snow-bj-controls__note .snow-game-note,
   .snow-bj-controls__note .snow-game-error { font-size: 12px; }
+}
+
+/* Some 4K Android/Fire TV WebViews expose the physical 3840×2160 viewport
+   instead of a 1920×1080 CSS viewport. Expand the whole table in that case so
+   it remains a lounge-sized game, not a tall 1080p island in the center. */
+@media (min-width: 2500px) and (min-height: 1400px) {
+  .snow-blackjack .snow-game-body { max-width: 188rem; gap: 16px; }
+  .snow-blackjack .snow-game-topbar { height: 104px; min-height: 104px; }
+  .snow-blackjack .snow-game-back { min-width: 220px; min-height: 76px; font-size: 24px; }
+  .snow-blackjack .snow-game-fx-toggle { min-height: 66px; padding-right: 24px; padding-left: 24px; font-size: 21px; }
+  .snow-blackjack .snow-chip-badge { width: 265px; height: 76px; }
+  .snow-blackjack .snow-chip-badge small { font-size: 14px; }
+  .snow-blackjack .snow-chip-badge strong { font-size: 31px; }
+  .snow-blackjack .snow-game-heading span { font-size: 22px; }
+
+  .snow-bj-stage { padding: 8px 30px 0; }
+  .snow-blackjack .snow-bj-table { padding: 21px; border-width: 2px; border-radius: 50% 50% 48px 48px / 10% 10% 48px 48px; }
+  .snow-bj-table__felt { grid-template-rows: minmax(0, 1fr) 118px minmax(0, 1fr); padding: 35px 62px 40px; border-width: 4px; border-radius: 48% 48% 28px 28px / 9% 9% 28px 28px; }
+  .snow-bj-zone { grid-template-columns: 200px minmax(0, 1fr) 200px; }
+  .snow-bj-seat__heading { min-height: 53px; margin-bottom: 8px; }
+  .snow-blackjack .snow-bj-seat__label { padding: 8px 22px; border-radius: 32px; font-size: 20px; }
+  .snow-bj-seat__label i { width: 10px; height: 10px; margin-right: 11px; }
+  .snow-blackjack .snow-bj-total { min-width: 92px; padding: 7px 21px; border-radius: 32px; font-size: 35px; }
+  .snow-bj-hand-well,
+  .snow-blackjack .snow-hand { min-height: 245px; }
+  .snow-blackjack .snow-playing-card.tv-game-card { width: 192px !important; height: 288px !important; border-width: 4px; border-radius: 19px; }
+  .snow-blackjack .snow-playing-card.is-compact.tv-game-card { width: 141px !important; height: 212px !important; }
+  .snow-blackjack .snow-card-corner { top: 11px; left: 13px; font-size: 34px; }
+  .snow-blackjack .snow-card-corner--bottom { top: auto; right: 13px; bottom: 11px; left: auto; }
+  .snow-blackjack .snow-card-suit { font-size: 80px; }
+  .snow-blackjack .snow-hand--fan .snow-playing-card + .snow-playing-card { margin-left: -48px; }
+  .snow-blackjack .snow-hand--fan.is-wide .snow-playing-card + .snow-playing-card { margin-left: -69px; }
+  .snow-bj-empty-hand { width: 166px; height: 112px; }
+  .snow-bj-empty-hand span { width: 69px; height: 99px; border-radius: 10px; }
+  .snow-blackjack .snow-bj-hint { max-width: 610px; font-size: 19px; }
+  .snow-blackjack .snow-bj-shoe { width: 139px; height: 120px; border-radius: 15px 15px 24px 24px; }
+  .snow-bj-shoe__card { top: 13px; width: 72px; height: 86px; border-radius: 7px; }
+  .snow-bj-shoe__card--one { left: 16px; }
+  .snow-bj-shoe__card--two { left: 34px; }
+  .snow-bj-shoe__card--three { left: 51px; }
+  .snow-bj-shoe__mouth { right: 10px; bottom: 11px; left: 10px; height: 21px; }
+  .snow-bj-shoe-label { width: 34px; height: 34px; font-size: 14px; line-height: 32px; }
+  .snow-bj-zone__ornament { font-size: 27px; }
+  .snow-bj-zone__ornament--player svg { width: 77px; height: 77px; }
+  .snow-bj-seat-marker { width: 67px; height: 67px; font-size: 30px; line-height: 65px; }
+  .snow-bj-medallion { width: 125px; height: 125px; margin: 0 24px; border-width: 3px; }
+  .snow-bj-medallion svg { top: 16px; left: 16px; width: 86px; height: 86px; }
+  .snow-bj-medallion strong { font-size: 40px; }
+  .snow-bj-stake,
+  .snow-bj-stake__chip { width: 83px; height: 83px; }
+  .snow-bj-stake { margin-right: 24px; }
+  .snow-bj-stake__chip { border-width: 5px; font-size: 24px; line-height: 73px; }
+  .snow-bj-sealed-note { min-width: 575px; gap: 14px; padding: 16px 29px; font-size: 19px; }
+  .snow-blackjack .snow-result-banner { min-width: 458px; padding: 14px 38px; border-radius: 45px; }
+  .snow-blackjack .snow-result-banner strong { font-size: 32px; }
+  .snow-blackjack .snow-result-banner div { font-size: 19px; }
+
+  .snow-blackjack .snow-bj-controls { min-height: 154px; padding: 18px 32px 13px; border-radius: 19px; }
+  .snow-blackjack--bet .snow-bj-controls { min-height: 255px; }
+  .snow-bj-controls__row { min-height: 107px; }
+  .snow-bj-controls__row--bet { gap: 13px; }
+  .snow-bj-variants { width: min(100%, 1220px); gap: 16px; }
+  .snow-blackjack .snow-bj-variant { min-height: 77px; padding: 11px 21px; border-radius: 16px; }
+  .snow-blackjack .snow-bj-variant span { font-size: 19px; }
+  .snow-blackjack .snow-bj-variant small { margin-top: 4px; font-size: 14px; }
+  .snow-bj-controls__label { min-width: 300px; padding-right: 26px; font-size: 22px; }
+  .snow-bj-controls__chip { width: 53px; height: 53px; margin-right: 14px; font-size: 18px; line-height: 47px; }
+  .snow-blackjack .snow-bet-row > * + * { margin-left: 12px; }
+  .snow-blackjack .snow-bet-chip { width: 106px; height: 106px; min-height: 106px; border-width: 5px; font-size: 29px; }
+  .snow-blackjack .snow-bj-action { min-width: 300px; min-height: 106px; padding: 0 48px; border-width: 3px; border-radius: 16px; font-size: 29px; }
+  .snow-blackjack .snow-bj-action svg { width: 48px; height: 48px; margin-right: 16px; }
+  .snow-bj-controls__stake { min-width: 180px; margin-right: 29px; padding-right: 29px; }
+  .snow-bj-controls__stake span { width: 62px; height: 62px; font-size: 19px; line-height: 56px; }
+  .snow-bj-controls__stake small { max-width: 96px; margin-left: 13px; font-size: 14px; }
+  .snow-bj-controls__note { min-height: 21px; }
+  .snow-bj-controls__note .snow-game-note,
+  .snow-bj-controls__note .snow-game-error { font-size: 19px; }
 }
 
 @media (max-width: 980px) {

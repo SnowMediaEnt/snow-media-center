@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
-import { BetChip, FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { BetChip, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
 import { PlayingCard } from './shared/PlayingCard';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
@@ -13,7 +13,8 @@ import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
-import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import type { GameCardValue } from './shared/gameTypes';
+import { useGameAudio } from './shared/gameAudio';
 import '@/styles/games-blackjack.css';
 
 interface BlackjackProps {
@@ -23,7 +24,34 @@ interface BlackjackProps {
 const BETS = [10, 25, 50, 100];
 
 type Phase = 'bet' | 'playing' | 'settled';
-type FocusId = 'back' | 'fx' | 'deal' | 'hit' | 'stand' | 'double' | 'again' | 'fair' | `chip-${number}`;
+type BlackjackVariantId = 'classic' | 'single_deck' | 'double_reveal';
+type FocusId = 'back' | 'fx' | 'deal' | 'hit' | 'stand' | 'double' | 'again' | `variant-${number}` | `chip-${number}`;
+
+const BLACKJACK_VARIANTS: ReadonlyArray<{
+  id: BlackjackVariantId;
+  label: string;
+  kicker: string;
+  rules: string;
+}> = [
+  {
+    id: 'classic',
+    label: 'Classic 21',
+    kicker: 'Six-deck lounge table',
+    rules: 'Finite shoe · dealer stands soft 17 · blackjack pays 3:2',
+  },
+  {
+    id: 'single_deck',
+    label: 'Single Deck',
+    kicker: 'One deck until the cut card',
+    rules: 'Finite deck · dealer stands soft 17 · blackjack pays 3:2',
+  },
+  {
+    id: 'double_reveal',
+    label: 'Double Reveal',
+    kicker: 'Your double card stays sealed',
+    rules: 'Dealer finishes first · your last card flips at settlement',
+  },
+];
 
 const computeBjTotal = (cards: GameCardValue[]): number => {
   let total = 0;
@@ -51,7 +79,26 @@ interface BlackjackAck {
   canStand?: boolean;
   canDouble?: boolean;
   net?: number;
-  fair?: GameFairInfo;
+  variant?: BlackjackVariantId;
+  rules?: {
+    label?: string;
+    deckCount?: number;
+    penetration?: number;
+    dealerStandsSoft17?: boolean;
+    blackjackPayout?: string;
+    doubleRule?: string;
+    faceDownDouble?: boolean;
+  };
+  shoe?: {
+    id?: string;
+    cardsRemaining?: number;
+    shuffleAt?: number;
+    shufflePending?: boolean;
+  };
+  doubled?: boolean;
+  doubleCardFaceDown?: boolean;
+  doubleCardIndex?: number | null;
+  preDoublePlayerTotal?: number | null;
 }
 
 type BlackjackActionIconName = 'deal' | 'hit' | 'stand' | 'double' | 'again';
@@ -158,10 +205,22 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
   useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('bet');
   const [bet, setBet] = useState<number>(10);
+  const [variant, setVariant] = useState<BlackjackVariantId>(() => {
+    if (typeof window === 'undefined') return 'classic';
+    try {
+      const saved = window.localStorage.getItem('snow-blackjack-variant-v1');
+      return BLACKJACK_VARIANTS.some((table) => table.id === saved)
+        ? saved as BlackjackVariantId
+        : 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -170,18 +229,20 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [dealerHand, setDealerHand] = useState<GameCardValue[]>([]);
   const [dealerUp, setDealerUp] = useState<GameCardValue[]>([]);
   const [playerTotal, setPlayerTotal] = useState(0);
+  const [preDoublePlayerTotal, setPreDoublePlayerTotal] = useState<number | null>(null);
   const [dealerUpTotal, setDealerUpTotal] = useState(0);
   const [dealerTotal, setDealerTotal] = useState(0);
-  const [serverSeedHash, setServerSeedHash] = useState('');
   const [canHit, setCanHit] = useState(false);
   const [canStand, setCanStand] = useState(false);
   const [canDouble, setCanDouble] = useState(false);
 
   const [settleStatus, setSettleStatus] = useState<string | null>(null);
   const [net, setNet] = useState(0);
-  const [fair, setFair] = useState<GameFairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
   const [revealedDealer, setRevealedDealer] = useState(0);
+  const [doubleCardIndex, setDoubleCardIndex] = useState<number | null>(null);
+  const [doubleCardRevealed, setDoubleCardRevealed] = useState(true);
+  const [shoe, setShoe] = useState<BlackjackAck['shoe'] | null>(null);
+  const [serverRules, setServerRules] = useState<BlackjackAck['rules'] | null>(null);
 
   // Never let the first paint claim that Deal is focused while auth or the
   // balance is still loading (or when the selected wager cannot be covered).
@@ -196,21 +257,24 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const standRef = useRef<HTMLButtonElement>(null);
   const doubleRef = useRef<HTMLButtonElement>(null);
   const againRef = useRef<HTMLButtonElement>(null);
-  const fairRef = useRef<HTMLButtonElement>(null);
+  const variantRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   /** Bumped per hand: an ack from an older hand can never mutate a newer one. */
   const roundEpoch = useRef(0);
   /** Carries the intended post-reveal action without making it focusable early. */
   const focusAgainAfterReveal = useRef(false);
+  const soundedRoundEpoch = useRef(-1);
 
-  const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+  const dealerRevealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+  const revealComplete = dealerRevealComplete && doubleCardRevealed;
   const dealUsable = !!user && balance !== null && balance >= bet;
+  const selectedVariant = BLACKJACK_VARIANTS.find((table) => table.id === variant) ?? BLACKJACK_VARIANTS[0];
 
   /**
    * The focus graph holds ONLY targets the player can use right now: Back and
    * Reduced FX are always reachable, chips only while affordable, actions only
    * while the server says they are legal, Play Again only once the dealer
-   * reveal has finished, Fairness only when there is something to show.
+   * reveal has finished.
    * Capability (not the in-flight flag) decides membership, so the focused
    * transaction button is retained while its ack is pending instead of the
    * remote jumping away mid-hand.
@@ -223,7 +287,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
           .map((amount, i) => (balance >= amount ? `chip-${i}` : null))
           .filter((id): id is string => id !== null)
         : [];
-      return [top, [...chips, ...(dealUsable ? ['deal'] : [])]];
+      return [
+        top,
+        BLACKJACK_VARIANTS.map((_, index) => `variant-${index}`),
+        [...chips, ...(dealUsable ? ['deal'] : [])],
+      ];
     }
     if (phase === 'playing') {
       return [top, [
@@ -232,12 +300,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         ...(canDouble ? ['double'] : []),
       ]];
     }
-    return [
-      top,
-      revealComplete ? ['again'] : [],
-      fair || serverSeedHash ? ['fair'] : [],
-    ];
-  }, [phase, balance, user, dealUsable, canHit, canStand, canDouble, revealComplete, fair, serverSeedHash]);
+    return [top, revealComplete ? ['again'] : []];
+  }, [phase, balance, user, dealUsable, canHit, canStand, canDouble, revealComplete]);
 
   // Render from the availability-filtered graph too, so a balance/auth change
   // cannot leave a one-frame visual ring on Deal before state is re-homed.
@@ -269,13 +333,19 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
             : visibleFocus === 'stand' ? standRef.current
               : visibleFocus === 'double' ? doubleRef.current
                 : visibleFocus === 'again' ? againRef.current
-                  : visibleFocus === 'fair' ? fairRef.current
+                  : visibleFocus.startsWith('variant-')
+                    ? variantRefs.current[Number(visibleFocus.split('-')[1])]
                     : chipRefs.current[Number(visibleFocus.split('-')[1])];
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }, [visibleFocus, phase]);
 
   const applyAck = useCallback((resp: BlackjackAck) => {
     if (typeof resp?.bet === 'number') setBet(resp.bet);
+    if (resp.variant && BLACKJACK_VARIANTS.some((table) => table.id === resp.variant)) {
+      setVariant(resp.variant);
+    }
+    if (resp.rules) setServerRules(resp.rules);
+    if (resp.shoe) setShoe(resp.shoe);
     if (resp?.status === 'player_turn') {
       setPhase('playing');
       setPlayerHand(resp.playerHand ?? []);
@@ -286,10 +356,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanHit(!!resp.canHit);
       setCanStand(!!resp.canStand);
       setCanDouble(!!resp.canDouble);
-      if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
       setSettleStatus(null);
       setNet(0);
-      setFair(null);
+      setDoubleCardIndex(null);
+      setDoubleCardRevealed(true);
+      setPreDoublePlayerTotal(null);
       setFocus(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
     } else if (resp?.status) {
       focusAgainAfterReveal.current = true;
@@ -304,7 +375,18 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanHit(false);
       setCanStand(false);
       setCanDouble(false);
-      if (resp.fair) setFair(resp.fair);
+      const finalPlayer = resp.playerHand ?? [];
+      const requestedIndex = typeof resp.doubleCardIndex === 'number'
+        ? resp.doubleCardIndex
+        : finalPlayer.length - 1;
+      const hasSealedDouble = !!resp.doubleCardFaceDown
+        && requestedIndex >= 0
+        && requestedIndex < finalPlayer.length;
+      setDoubleCardIndex(hasSealedDouble ? requestedIndex : null);
+      setDoubleCardRevealed(!hasSealedDouble);
+      setPreDoublePlayerTotal(typeof resp.preDoublePlayerTotal === 'number'
+        ? resp.preDoublePlayerTotal
+        : null);
       setFocus('back');
       setRevealedDealer(Math.min(1, dHand.length));
     }
@@ -328,8 +410,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setCanHit(false);
     setCanStand(false);
     setCanDouble(false);
-    setShowFair(false);
     setRevealedDealer(0);
+    setDoubleCardIndex(null);
+    setDoubleCardRevealed(true);
+    setPreDoublePlayerTotal(null);
     setFocus(dealUsable ? 'deal' : 'back');
   }, [dealUsable]);
 
@@ -356,11 +440,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setBusy(true);
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
-      const resp = await gameSocket.dealBlackjack(bet, seed);
+      const resp = await gameSocket.dealBlackjack(bet, seed, variant);
       // An ack that lands after unmount, or after a newer hand started, must
       // not touch state or schedule timers.
       if (!life.isMounted() || epoch !== roundEpoch.current) return;
-      if (resp?.ok) applyAck(resp);
+      if (resp?.ok) {
+        play('card');
+        applyAck(resp);
+      }
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
       if (life.isMounted() && epoch === roundEpoch.current) setError(t('games.blackjack.errorDealFailed'));
@@ -369,7 +456,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, bet, applyAck, life]);
+  }, [busy, user, balance, bet, variant, applyAck, life, play]);
 
   const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
     if (inFlight.current || busy) return;
@@ -383,7 +470,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         which === 'stand' ? await gameSocket.stand() :
         await gameSocket.double();
       if (!life.isMounted() || epoch !== roundEpoch.current) return;
-      if (resp?.ok) applyAck(resp);
+      if (resp?.ok) {
+        if (which === 'hit' || which === 'double') play('card');
+        applyAck(resp);
+      }
       else handleErrorAck(resp?.error ?? 'error');
     } catch {
       if (life.isMounted() && epoch === roundEpoch.current) setError(t('games.blackjack.errorTableUnreachable'));
@@ -392,7 +482,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, applyAck, life]);
+  }, [busy, applyAck, life, play]);
 
   const playAgain = () => {
     focusAgainAfterReveal.current = false;
@@ -402,9 +492,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setDealerUp([]);
     setSettleStatus(null);
     setNet(0);
-    setFair(null);
-    setShowFair(false);
     setRevealedDealer(0);
+    setDoubleCardIndex(null);
+    setDoubleCardRevealed(true);
+    setPreDoublePlayerTotal(null);
     setFocus(dealUsable ? 'deal' : 'back');
   };
 
@@ -413,9 +504,36 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     if (phase !== 'settled') return;
     if (revealedDealer >= dealerHand.length) return;
     const base = revealedDealer === 0 ? 250 : 550;
-    const id = life.timeout(() => setRevealedDealer((n) => n + 1), reducedFx ? Math.max(120, Math.round(base / 2)) : base);
+    const id = life.timeout(() => {
+      setRevealedDealer((n) => n + 1);
+      play('card', { volume: 0.7 });
+    }, reducedFx ? Math.max(120, Math.round(base / 2)) : base);
     return () => life.clearTimer(id);
-  }, [phase, revealedDealer, dealerHand.length, reducedFx, life]);
+  }, [phase, revealedDealer, dealerHand.length, reducedFx, life, play]);
+
+  // Double Reveal deliberately waits until the dealer has completed every
+  // draw, then turns the player's one final card. The result and chips are
+  // already authoritative; this timer controls presentation only.
+  useEffect(() => {
+    if (!dealerRevealComplete || doubleCardIndex === null || doubleCardRevealed) return;
+    const id = life.timeout(
+      () => {
+        setDoubleCardRevealed(true);
+        play('card', { volume: 0.85 });
+      },
+      reducedFx ? 180 : 650,
+    );
+    return () => life.clearTimer(id);
+  }, [dealerRevealComplete, doubleCardIndex, doubleCardRevealed, reducedFx, life, play]);
+
+  useEffect(() => {
+    if (phase !== 'settled' || !revealComplete || !settleStatus) return;
+    if (soundedRoundEpoch.current === roundEpoch.current) return;
+    soundedRoundEpoch.current = roundEpoch.current;
+    if (settleStatus === 'blackjack') play('bonus');
+    else if (settleStatus === 'win' || settleStatus === 'dealer_bust') play('win');
+    else if (settleStatus === 'lose' || settleStatus === 'bust') play('lose');
+  }, [phase, play, revealComplete, settleStatus]);
 
   /**
    * D-pad focus movement only. Every arrow is consumed while the table is on
@@ -437,13 +555,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [focusRows]);
 
   const shownDealerTotal = phase === 'settled'
-    ? (revealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
+    ? (dealerRevealComplete ? dealerTotal : computeBjTotal(dealerHand.slice(0, revealedDealer)))
     : dealerUpTotal;
+  const shownPlayerTotal = phase === 'settled' && !doubleCardRevealed
+    ? (preDoublePlayerTotal ?? computeBjTotal(playerHand.slice(0, doubleCardIndex ?? playerHand.length)))
+    : playerTotal;
 
   const [backNote, setBackNote] = useState<string | null>(null);
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     // A live hand, an ack in flight, or a dealer reveal still running keeps the
     // player on the table: the wager is already committed.
     isBusy: () => busy || inFlight.current || phase === 'playing' || (phase === 'settled' && !revealComplete),
@@ -488,7 +607,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         balance={balance}
         status={status}
         title={t('games.blackjack.title')}
-        phase={t('games.blackjack.subheading')}
+        phase={`${selectedVariant.label} · ${selectedVariant.kicker}`}
         backFocused={visibleFocus === 'back'}
         onBackFocus={() => setFocus('back')}
         reducedFx={reducedFx}
@@ -537,6 +656,12 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
               </div>
               <span className="snow-bj-centerline__rule" aria-hidden="true" />
               {banner && <div className="snow-bj-result">{banner}</div>}
+              {phase === 'settled' && !doubleCardRevealed && (
+                <div className="snow-bj-sealed-note" role="status">
+                  <span aria-hidden="true">◆</span>
+                  Dealer finishes first — your double card is sealed
+                </div>
+              )}
             </div>
 
             <div className="snow-bj-zone snow-bj-zone--player">
@@ -547,15 +672,21 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 <div className="snow-bj-seat__heading">
                   <span className="snow-bj-seat__label"><i aria-hidden="true" />{t('games.blackjack.you')}</span>
                   {phase !== 'bet' && (
-                    <span className={`snow-bj-total${playerTotal > 21 ? ' is-bust' : ''}`}>
-                      {playerTotal}
+                    <span className={`snow-bj-total${shownPlayerTotal > 21 ? ' is-bust' : ''}`}>
+                      {doubleCardRevealed ? shownPlayerTotal : `${shownPlayerTotal}+?`}
                     </span>
                   )}
                 </div>
                 <div className="snow-bj-hand-well">
                   {phase === 'bet'
                     ? <><EmptyHand /><p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p></>
-                    : <Hand cards={playerHand} highlight={phase === 'settled' && settleStatus === 'blackjack'} />}
+                    : <Hand
+                      cards={playerHand}
+                      faceDownAfter={phase === 'settled' && !doubleCardRevealed && doubleCardIndex !== null
+                        ? doubleCardIndex
+                        : undefined}
+                      highlight={phase === 'settled' && settleStatus === 'blackjack'}
+                    />}
                 </div>
               </div>
               <div className="snow-bj-zone__ornament snow-bj-zone__ornament--player" aria-hidden="true">
@@ -572,6 +703,27 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       <GamePanel className="snow-bj-controls">
         {phase === 'bet' && (
           <div className="snow-bj-controls__row snow-bj-controls__row--bet">
+            <div className="snow-bj-variants" role="group" aria-label="Blackjack table">
+              {BLACKJACK_VARIANTS.map((table, index) => (
+                <Button
+                  key={table.id}
+                  ref={(element) => { variantRefs.current[index] = element; }}
+                  type="button"
+                  variant="navy"
+                  aria-pressed={variant === table.id}
+                  data-tv-focused={visibleFocus === `variant-${index}` ? 'true' : 'false'}
+                  className={`snow-bj-variant${variant === table.id ? ' is-selected' : ''}`}
+                  onFocus={() => setFocus(`variant-${index}`)}
+                  onClick={() => {
+                    setVariant(table.id);
+                    try { window.localStorage.setItem('snow-blackjack-variant-v1', table.id); } catch { /* TV storage can be locked */ }
+                  }}
+                >
+                  <span>{table.label}</span>
+                  <small>{table.kicker}</small>
+                </Button>
+              ))}
+            </div>
             <div className="snow-bj-controls__label">
               <span className="snow-bj-controls__chip" aria-hidden="true">◆</span>
               <strong>{t('games.blackjack.chooseBet')}</strong>
@@ -691,27 +843,17 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         <div className="snow-bj-controls__note">
           {error && <p className="snow-game-error">{error}</p>}
           {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
-          {phase === 'bet' && !error && <p className="snow-game-note">{t('games.blackjack.freshSeedNote')}</p>}
+          {phase === 'bet' && !error && <p className="snow-game-note">{selectedVariant.rules}</p>}
+          {phase !== 'bet' && !error && (
+            <p className="snow-game-note snow-bj-live-rules">
+              {serverRules?.deckCount ?? (variant === 'single_deck' ? 1 : 6)}-deck finite shoe
+              {' · '}dealer stands soft 17{' · '}blackjack 3:2
+              {shoe?.cardsRemaining !== undefined ? ` · ${shoe.cardsRemaining} cards remain` : ''}
+              {shoe?.shufflePending ? ' · shuffle after this hand' : ''}
+            </p>
+          )}
         </div>
       </GamePanel>
-
-      <FairnessPanel
-        ref={fairRef}
-        fair={fair}
-        hash={serverSeedHash}
-        open={showFair}
-        onToggle={() => setShowFair((s) => !s)}
-        focused={visibleFocus === 'fair'}
-        onFocus={() => setFocus('fair')}
-        labels={{
-          title: t('games.blackjack.provablyFair'),
-          hash: t('games.blackjack.fairServerSeedHash'),
-          server: t('games.blackjack.fairServerSeed'),
-          client: t('games.blackjack.fairClientSeed'),
-          nonce: t('games.blackjack.fairNonce'),
-          note: t('games.blackjack.fairVerifyNote'),
-        }}
-      />
     </GameShell>
   );
 };
