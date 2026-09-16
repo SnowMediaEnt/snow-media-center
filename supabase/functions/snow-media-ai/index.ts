@@ -14,6 +14,7 @@ import {
   gpt54NanoCostUsd,
   gpt54NanoReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
+import { chargePremium, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -146,6 +147,36 @@ serve(async (req) => {
     if (!message) {
       throw new Error('Message is required');
     }
+
+    // Which level of AI. Free is what it always was. Premium is the top
+    // model, paid in Snow Gems here on the server before the model is asked;
+    // use_trial asks for the account's one free premium sample.
+    const tier = readTier(body);
+    let premium: PremiumCharge | null = null;
+    if (tier === 'premium') {
+      const settled = await chargePremium({
+        feature: 'chat',
+        userId,
+        userEmail,
+        useTrial: readUseTrial(body),
+        description: `Snow AI Premium — "${message.slice(0, 50)}${message.length > 50 ? '…' : ''}"`,
+      });
+      if (!settled.ok) {
+        const status = settled.error === 'premium_requires_signin' ? 401 : settled.error === 'insufficient_gems' ? 402 : 400;
+        return new Response(JSON.stringify({
+          error: settled.error,
+          needed: settled.needed ?? null,
+          balance: settled.balance ?? null,
+          message: settled.error === 'insufficient_gems'
+            ? `Premium needs ${settled.needed} Snow Gems. Top up from the Dashboard.`
+            : settled.error === 'premium_requires_signin'
+              ? 'Sign in to use Premium AI.'
+              : 'Premium AI is not available right now.',
+        }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      premium = settled.charge;
+    }
+    const chatModel = premium ? premium.model : 'gpt-5.4-nano';
 
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -429,7 +460,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-nano',
+        model: chatModel,
         instructions: systemPrompt,
         input: message,
         tools: [
@@ -557,6 +588,9 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       throw new Error('Failed to get AI response');
     }
 
+    if (!response.ok && premium) {
+      await premium.refund();
+    }
     const data = await response.json();
     console.log('AI Response for user', userId, ':', data.usage);
 
@@ -668,14 +702,14 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
         user_id: userId,
         user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'chat',
-        model: 'gpt-5.4-nano',
+        model: chatModel,
         prompt: message,
 
         response_preview: assistantContent,
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,
         total_tokens: totalTokens,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.01 : anonCostUsd),
+        cost_credits: isOwnerEmail(userEmail) ? 0 : premium ? premium.charged : (caller.authed ? 0.01 : anonCostUsd),
         status: 'ok',
       });
       await enforceThreshold();
@@ -720,7 +754,12 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
       response: assistantContent,
       conversationId: savedConversationId,
       functionCall,
-      usage: data.usage || { total_tokens: 0 }
+      usage: data.usage || { total_tokens: 0 },
+      tier,
+      model: chatModel,
+      // Premium is charged here; the app must not deduct again.
+      charged_gems: premium ? premium.charged : 0,
+      trial_used: premium ? premium.trialUsed : false,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

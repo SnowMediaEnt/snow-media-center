@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
+import { loadAiTiers, getPreferredTier, setPreferredTier, premiumTrialUsed, describeReceipt, type AiTier, type AiTierPair } from '@/lib/aiTiers';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
@@ -46,7 +47,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   const [adminMessage, setAdminMessage] = useState('');
   const [adminSubject, setAdminSubject] = useState('');
   const [aiMessage, setAiMessage] = useState('');
-  const [aiChat, setAiChat] = useState<Array<{role: 'user' | 'ai', content: string, timestamp: Date}>>([]);
+  const [aiChat, setAiChat] = useState<Array<{role: 'user' | 'ai', content: string, timestamp: Date, tier?: AiTier, premiumContent?: string | null}>>([]);
+  // Two levels of chat AI. Snow AI is included; Premium is the top model and
+  // costs Snow Gems, charged by the server on every premium message. The
+  // comparison sends one message through both and shows both answers; the
+  // Premium half is the account's one free sample.
+  const [chatTier, setChatTier] = useState<AiTier>(() => getPreferredTier('chat'));
+  const [chatTiers, setChatTiers] = useState<AiTierPair | null>(null);
+  const [chatTrialUsed, setChatTrialUsed] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -433,7 +441,29 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
   }, [activeTab, unlockAudioPlayback]);
   
   const { user } = useAuth();
-  const { profile, checkCredits, deductCredits } = useUserProfile();
+  const { profile, checkCredits, deductCredits, fetchProfile } = useUserProfile();
+  useEffect(() => {
+    let cancelled = false;
+    void loadAiTiers().then((t) => { if (!cancelled) setChatTiers(t.chat); });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setChatTrialUsed(true); return; }
+    void premiumTrialUsed('chat').then((used) => { if (!cancelled) setChatTrialUsed(used); });
+    return () => { cancelled = true; };
+  }, [user]);
+  const chatPremium = chatTiers?.premium ?? null;
+  const effectiveChatTier: AiTier = chatTier === 'premium' && chatPremium && user ? 'premium' : 'free';
+  const chatCompareAvailable = !!chatPremium && !!user && !chatTrialUsed;
+  const toggleChatTier = () => {
+    if (!chatPremium) return;
+    if (!user) { toast({ title: 'Sign in for Premium', description: 'Premium answers need a signed-in account with Snow Gems.' }); return; }
+    const next: AiTier = effectiveChatTier === 'premium' ? 'free' : 'premium';
+    setChatTier(next);
+    setPreferredTier('chat', next);
+    try { trackEvent('ai_tier_select', 'ai', { feature: 'chat', tier: next }); } catch { /* ignore */ }
+  };
   // toast hoisted earlier (see useToast() near voiceRepliesEnabled).
   const { tickets, messages, loading, fetchTicketMessages, createTicket, sendMessage: sendTicketMessage, closeTicket, deleteTicket } = useSupportTickets(user);
   const {
@@ -667,16 +697,29 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     }
   }, [onNavigate, profile, stopVoicePlayback, toast]);
 
-  const sendAiMessage = async (messageOverride?: string) => {
+  /** The JSON the function sent with a non-2xx, for its own wording. */
+  const readInvokeFailure = async (error: unknown): Promise<{ error?: string; message?: string; needed?: number | null }> => {
+    try {
+      const res = (error as { context?: Response }).context;
+      return res ? await res.clone().json() : {};
+    } catch { return {}; }
+  };
+
+  const sendAiMessage = async (messageOverride?: string, opts?: { compare?: boolean }) => {
     const messageToSend = typeof messageOverride === 'string' ? messageOverride : aiMessage;
     if (!messageToSend.trim()) return;
 
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
+    const compareRun = !!opts?.compare && chatCompareAvailable;
+    const tier: AiTier = compareRun ? 'free' : effectiveChatTier;
+    const premiumGems = chatPremium?.gems ?? 0;
 
     // Anonymous users use the free AI tier (gated server-side).
-    // Signed-in users keep the existing credit-check behavior.
+    // Signed-in users keep the existing credit-check behavior. Premium is
+    // charged by the server, but a balance below the price is refused here
+    // first so the message is never sent and rolled back.
     if (user) {
-      const aiCost = 0.01;
+      const aiCost = tier === 'premium' ? premiumGems : 0.01;
       if (!isOwnerAdmin && !checkCredits(aiCost)) {
         toast({
           title: "Insufficient Snow Gems",
@@ -701,19 +744,49 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
 
     try {
       const currentVersion = await fetch('/version.json').then(r => r.json()).then(d => d.currentVersion).catch(() => undefined);
+      const baseBody = {
+        message: userMessage,
+        userId: user?.id,
+        // Anon: don't persist; signed-in: persist conversations as before.
+        conversationId: user ? activeAIConversationId : null,
+        saveConversation: !!user,
+        currentVersion,
+        device_id: getDeviceId(),
+      };
+      // The comparison asks the top model too, as the free sample, without
+      // saving that half to the conversation.
+      const premiumRun = compareRun
+        ? supabase.functions.invoke('snow-media-ai', {
+            body: { ...baseBody, saveConversation: false, tier: 'premium', use_trial: true },
+          })
+        : null;
       const { data, error } = await supabase.functions.invoke('snow-media-ai', {
-        body: {
-          message: userMessage,
-          userId: user?.id,
-          // Anon: don't persist; signed-in: persist conversations as before.
-          conversationId: user ? activeAIConversationId : null,
-          saveConversation: !!user,
-          currentVersion,
-          device_id: getDeviceId(),
-        }
+        body: tier === 'premium' ? { ...baseBody, tier: 'premium' } : baseBody,
       });
+      try { trackEvent('ai_message_tier', 'ai', { tier: compareRun ? 'compare' : tier }); } catch { /* ignore */ }
 
-      if (error) throw error;
+      if (error) {
+        const failure = await readInvokeFailure(error);
+        if (failure.error === 'insufficient_gems' || failure.error === 'premium_requires_signin' || failure.error === 'premium_disabled') {
+          setAiChat(prev => prev.slice(0, -1));
+          toast({ title: 'Premium AI', description: failure.message || 'Premium is not available right now.', variant: 'destructive' });
+          voiceControlsRef.current?.setVoiceState('idle');
+          voiceControlsRef.current?.restoreFocus();
+          return;
+        }
+        throw error;
+      }
+      let premiumText: string | null = null;
+      if (premiumRun) {
+        const p = await premiumRun;
+        const pd = p.data as { response?: string; message?: string; trial_used?: boolean; charged_gems?: number } | null;
+        premiumText = pd?.response || pd?.message || null;
+        if (pd?.trial_used) setChatTrialUsed(true);
+        if (premiumText) {
+          const receipt = describeReceipt(pd ? { tier: 'premium', trial_used: pd.trial_used, charged_gems: pd.charged_gems } : null);
+          if (receipt) toast({ title: 'Snow AI Premium', description: receipt });
+        }
+      }
 
       // Free-AI gate denied (flag off / cap reached / rate-limited / paused).
       if (data && (data as { blocked?: boolean }).blocked) {
@@ -740,14 +813,23 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       }
 
       if (user && !isOwnerAdmin) {
-        await deductCredits(0.01, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
+        if (tier === 'premium') {
+          // Charged server-side; refresh the balance and say what it cost.
+          const receipt = describeReceipt(data as { tier?: AiTier; charged_gems?: number; trial_used?: boolean });
+          if (receipt) toast({ title: 'Snow AI Premium', description: receipt });
+          void fetchProfile();
+        } else {
+          await deductCredits(0.01, `Snow Media AI Chat - "${userMessage.substring(0, 50)}..."`);
+        }
       }
 
       const responseText = data.response || data.message;
       setAiChat(prev => [...prev, {
         role: 'ai',
         content: responseText,
-        timestamp: new Date()
+        timestamp: new Date(),
+        tier: compareRun ? 'free' : tier,
+        premiumContent: premiumText,
       }]);
 
       if (voiceModeRef.current && responseText) {
@@ -857,11 +939,13 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         ...(aiChat.length > 0 ? [{ id: 'message-scroll', type: 'scroll' }] : []),
         { id: 'ai-input', type: 'input' },
         { id: 'ai-voice', type: 'button' },
+        ...(chatPremium ? [{ id: 'ai-tier', type: 'button' }] : []),
+        ...(chatCompareAvailable ? [{ id: 'ai-compare', type: 'button' }] : []),
         { id: 'ai-send', type: 'button' },
         ...aiHistoryItems,
       ];
     }
-  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded, aiChat.length]);
+  }, [activeTab, showNewTicketForm, selectedTicket, tickets, aiConversations, embedded, aiChat.length, chatPremium, chatCompareAvailable]);
 
   const focusTextFieldById = useCallback((id: string) => {
     const elements = getFocusableElements();
@@ -1040,7 +1124,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           // From the input bar, voice, or send buttons, jump down to the first
           // saved chat (the three input-row controls sit on the same row, so
           // Down should leave the row entirely, not cycle within it).
-          if (currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send') {
+          if (currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-tier' || currentFocusId === 'ai-compare' || currentFocusId === 'ai-send') {
             if (firstAiHistoryIndex !== -1) {
               setFocusIndex(firstAiHistoryIndex);
               return;
@@ -1074,7 +1158,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
           break;
 
         case 'ArrowUp':
-          if (activeTab === 'ai' && ['ai-input', 'ai-voice', 'ai-send'].includes(currentFocusId) && aiMessageScrollIndex !== -1) {
+          if (activeTab === 'ai' && ['ai-input', 'ai-voice', 'ai-tier', 'ai-compare', 'ai-send'].includes(currentFocusId) && aiMessageScrollIndex !== -1) {
             setFocusIndex(aiMessageScrollIndex);
             return;
           }
@@ -1093,7 +1177,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             }
             return;
           }
-          if (embedded && (focusIndex === 0 || currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send')) {
+          if (embedded && (focusIndex === 0 || currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-tier' || currentFocusId === 'ai-compare' || currentFocusId === 'ai-send')) {
             void hideKeyboardForDpad(active ?? target);
             setEmbeddedFocusActive(false);
             forceSupportScrollTop();
@@ -1212,6 +1296,10 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
             onNavigate?.('community');
           } else if (currentFocusId === 'ai-send') {
             sendAiMessage();
+          } else if (currentFocusId === 'ai-tier') {
+            toggleChatTier();
+          } else if (currentFocusId === 'ai-compare') {
+            void sendAiMessage(undefined, { compare: true });
           } else if (currentFocusId === 'ai-voice') {
             const btn = document.querySelector('[data-focus-id="ai-voice"] button') as HTMLButtonElement | null;
             btn?.click();
@@ -1234,7 +1322,7 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     const el = containerRef.current?.querySelector(`[data-focus-id="${currentFocusId}"]`) as HTMLElement;
     if (!el) return;
 
-    const isInputRow = currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-send';
+    const isInputRow = currentFocusId === 'ai-input' || currentFocusId === 'ai-voice' || currentFocusId === 'ai-tier' || currentFocusId === 'ai-compare' || currentFocusId === 'ai-send';
     const isTextInputFocus = ['new-subject', 'new-message', 'reply-input', 'ai-input'].includes(currentFocusId);
 
     // Scroll the focused element into view so the input row / Hear reply / Send
@@ -1818,7 +1906,27 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                         {msg.timestamp.toLocaleTimeString()}
                       </span>
                     </div>
-                    <p className="text-white whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'ai' && msg.premiumContent ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-white/15 bg-black/25 p-3">
+                          <p className="text-xs uppercase tracking-wide text-brand-ice/80 mb-1">Snow AI · included</p>
+                          <p className="text-white whitespace-pre-wrap">{msg.content}</p>
+                        </div>
+                        <div className="rounded-xl border border-brand-gold/60 bg-brand-gold/10 p-3">
+                          <p className="text-xs uppercase tracking-wide text-brand-gold mb-1">
+                            Snow AI Premium{chatPremium ? ` · ${chatPremium.gems} gems a message` : ''}
+                          </p>
+                          <p className="text-white whitespace-pre-wrap">{msg.premiumContent}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-white whitespace-pre-wrap">
+                        {msg.content}
+                        {msg.role === 'ai' && msg.tier === 'premium' && (
+                          <span className="ml-2 align-middle text-[10px] uppercase tracking-wide rounded-full bg-brand-gold text-black px-2 py-0.5">Premium</span>
+                        )}
+                      </p>
+                    )}
                     {msg.role === 'ai' && pendingTtsMessageIndex === index && (
                       <button
                         type="button"
@@ -1884,6 +1992,32 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
                   Hear reply
                 </Button>
               </div>
+              {chatPremium && (
+                <Button
+                  type="button"
+                  onClick={toggleChatTier}
+                  disabled={aiLoading}
+                  data-focus-id="ai-tier"
+                  title="Switch between Snow AI and Snow AI Premium"
+                  className={`px-4 py-3 transition-all duration-200 ${effectiveChatTier === 'premium'
+                    ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
+                    : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${focusRing('ai-tier')}`}
+                >
+                  {effectiveChatTier === 'premium' ? `Premium · ${chatPremium.gems}` : 'Free'}
+                </Button>
+              )}
+              {chatCompareAvailable && (
+                <Button
+                  type="button"
+                  onClick={() => void sendAiMessage(undefined, { compare: true })}
+                  disabled={aiLoading || !aiMessage.trim()}
+                  data-focus-id="ai-compare"
+                  title="Answer with both levels — the Premium one is free, once"
+                  className={`bg-brand-ice/20 border border-brand-ice/50 text-white px-4 py-3 transition-all duration-200 ${focusRing('ai-compare')}`}
+                >
+                  Compare · free once
+                </Button>
+              )}
               <Button 
                 onClick={() => sendAiMessage()}
                 disabled={aiLoading || !aiMessage.trim()}

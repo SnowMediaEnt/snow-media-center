@@ -13,6 +13,17 @@ import {
   storeGeneratedImage,
   DALLE3_HD_1024_COST_USD,
 } from '../_shared/ai-guard.ts';
+import { chargePremium, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
+
+/**
+ * gpt-image-1 takes three sizes. The app asks for the DALL-E widescreen
+ * (1792x1024) or square; map to the nearest.
+ */
+const premiumSize = (requested: string): '1024x1024' | '1536x1024' | '1024x1536' => {
+  const [w, h] = requested.split('x').map(Number);
+  if (!w || !h || w === h) return '1024x1024';
+  return w > h ? '1536x1024' : '1024x1536';
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -138,9 +149,47 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log('Generating image with prompt:', prompt, 'size:', size);
+    // Which level. Free stays DALL-E 3 as it always was. Premium is the image
+    // model in ai_tiers (gpt-image-1 by default), paid in Snow Gems here on
+    // the server before the model is asked; use_trial asks for the account's
+    // one free premium sample.
+    const tier = readTier(body);
+    let premium: PremiumCharge | null = null;
+    if (tier === 'premium') {
+      const settled = await chargePremium({
+        feature: 'image',
+        userId,
+        userEmail,
+        useTrial: readUseTrial(body),
+        description: `Premium AI image — "${prompt.slice(0, 50)}${prompt.length > 50 ? '…' : ''}"`,
+      });
+      if (!settled.ok) {
+        const status = settled.error === 'premium_requires_signin' ? 401 : settled.error === 'insufficient_gems' ? 402 : 400;
+        return new Response(JSON.stringify({
+          success: false,
+          error: settled.error,
+          needed: settled.needed ?? null,
+          balance: settled.balance ?? null,
+          details: settled.error === 'insufficient_gems'
+            ? `Premium needs ${settled.needed} Snow Gems. Top up from the Dashboard.`
+            : settled.error === 'premium_requires_signin'
+              ? 'Sign in to use Premium.'
+              : 'Premium images are not available right now.',
+        }), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      premium = settled.charge;
+    }
+    const imageModel = premium ? premium.model : 'dall-e-3';
+
+    console.log('Generating image with prompt:', prompt, 'size:', size, 'model:', imageModel);
 
     const enhancedPrompt = `Ultra high resolution background image: ${prompt}. Professional, cinematic quality, suitable for desktop wallpaper.`;
+
+    // gpt-image-1 answers in base64 by itself and rejects response_format;
+    // DALL-E 3 needs to be asked for it.
+    const requestBody = premium
+      ? { model: imageModel, prompt: enhancedPrompt, n: 1, size: premiumSize(size), quality: 'high' }
+      : { model: imageModel, prompt: enhancedPrompt, n: 1, size, quality: 'hd', response_format: 'b64_json' };
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
@@ -148,19 +197,14 @@ serve(async (req) => {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: enhancedPrompt,
-        n: 1,
-        size,
-        quality: 'hd',
-        response_format: 'b64_json',
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error('OpenAI API error:', errorData);
+      // Nothing was made, so the premium gems go back.
+      if (premium) await premium.refund();
       throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
     }
 
@@ -187,11 +231,11 @@ serve(async (req) => {
         user_id: userId,
         user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
         feature: 'image',
-        model: 'dall-e-3',
+        model: imageModel,
         prompt,
         response_preview: '[image]',
         total_tokens: 2000,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : (caller.authed ? 0.10 : DALLE3_HD_1024_COST_USD),
+        cost_credits: isOwnerEmail(userEmail) ? 0 : premium ? premium.charged : (caller.authed ? 0.10 : DALLE3_HD_1024_COST_USD),
         status: 'ok',
       });
       await enforceThreshold();
@@ -203,7 +247,7 @@ serve(async (req) => {
     await storeGeneratedImage({
       user_id: userId,
       user_email: caller.authed ? userEmail : `anon:${anonDeviceId}`,
-      model: 'dall-e-3',
+      model: imageModel,
       prompt,
       base64: imageData,
     });
@@ -228,6 +272,11 @@ serve(async (req) => {
       image: imageData,
       prompt,
       isAdmin: isOwnerEmail(userEmail),
+      tier,
+      model: imageModel,
+      // Premium is charged here; the app must not deduct again.
+      charged_gems: premium ? premium.charged : 0,
+      trial_used: premium ? premium.trialUsed : false,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

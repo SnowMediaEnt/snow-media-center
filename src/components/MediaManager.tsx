@@ -24,7 +24,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getDeviceId } from '@/lib/analytics';
+import { getDeviceId, trackEvent } from '@/lib/analytics';
+import { loadAiTiers, getPreferredTier, setPreferredTier, premiumTrialUsed, describeReceipt, type AiTier, type AiTierPair } from '@/lib/aiTiers';
 import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
@@ -39,6 +40,11 @@ type FocusElement =
   | 'back' 
   | 'prompt-input' 
   | 'generate-btn' 
+  | 'tier-btn'
+  | 'compare-btn'
+  | 'compare-keep-free'
+  | 'compare-keep-premium'
+  | 'compare-close'
   | 'asset-type' 
   | 'file-input' 
   | `asset-${number}` 
@@ -75,7 +81,7 @@ const saveAnonActiveId = (id: string | null) => { try { if (id) localStorage.set
 const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user, session } = useAuth();
-  const { profile, checkCredits, deductCredits } = useUserProfile();
+  const { profile, checkCredits, deductCredits, fetchProfile } = useUserProfile();
   const { toast } = useToast();
   
   const [uploading, setUploading] = useState(false);
@@ -245,8 +251,15 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           return;
         }
 
+        // The comparison card closes first.
+        if (focusedElement.startsWith('compare-keep-') || focusedElement === 'compare-close') {
+          setCompare(null);
+          setFocusedElement('generate-btn');
+          return;
+        }
+
         // Level 5: If at top of MediaManager (prompt-input or generate-btn), exit to parent
-        if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn' || focusedElement === 'back') {
+        if (focusedElement === 'prompt-input' || focusedElement === 'generate-btn' || focusedElement === 'tier-btn' || focusedElement === 'compare-btn' || focusedElement === 'back') {
           onBack();
           return;
         }
@@ -269,7 +282,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             setFocusedElement('prompt-input');
           } else if (focusedElement === 'prompt-input') {
             setFocusedElement('generate-btn');
-          } else if (focusedElement === 'generate-btn') {
+          } else if (focusedElement === 'generate-btn' || focusedElement === 'tier-btn' || focusedElement === 'compare-btn') {
+            setFocusedElement(compare ? 'compare-keep-free' : 'asset-type');
+          } else if (focusedElement.startsWith('compare-keep-') || focusedElement === 'compare-close') {
             setFocusedElement('asset-type');
           } else if (focusedElement === 'asset-type') {
             setFocusedElement('file-input');
@@ -296,10 +311,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           if (focusedElement === 'prompt-input') {
             if (embedded) onBack();
             else setFocusedElement('back');
-          } else if (focusedElement === 'generate-btn') {
+          } else if (focusedElement === 'generate-btn' || focusedElement === 'tier-btn' || focusedElement === 'compare-btn') {
             setFocusedElement('prompt-input');
-          } else if (focusedElement === 'asset-type') {
+          } else if (focusedElement.startsWith('compare-keep-') || focusedElement === 'compare-close') {
             setFocusedElement('generate-btn');
+          } else if (focusedElement === 'asset-type') {
+            setFocusedElement(compare ? 'compare-keep-free' : 'generate-btn');
           } else if (focusedElement === 'file-input') {
             setFocusedElement('asset-type');
           } else if (focusedElement.startsWith('asset-delete-')) {
@@ -320,6 +337,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         case 'ArrowRight':
           if (focusedElement === 'prompt-input') {
             setFocusedElement('generate-btn');
+          } else if (focusedElement === 'generate-btn') {
+            if (premiumTier) setFocusedElement('tier-btn');
+          } else if (focusedElement === 'tier-btn') {
+            if (compareAvailable) setFocusedElement('compare-btn');
+          } else if (focusedElement === 'compare-keep-free') {
+            setFocusedElement('compare-keep-premium');
+          } else if (focusedElement === 'compare-keep-premium') {
+            setFocusedElement('compare-close');
           } else if (focusedElement.startsWith('asset-toggle-')) {
             const itemId = focusedElement.replace('asset-toggle-', '');
             setFocusedElement(`asset-delete-${itemId}`);
@@ -334,6 +359,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         case 'ArrowLeft':
           if (focusedElement === 'generate-btn') {
             setFocusedElement('prompt-input');
+          } else if (focusedElement === 'tier-btn') {
+            setFocusedElement('generate-btn');
+          } else if (focusedElement === 'compare-btn') {
+            setFocusedElement('tier-btn');
+          } else if (focusedElement === 'compare-keep-premium') {
+            setFocusedElement('compare-keep-free');
+          } else if (focusedElement === 'compare-close') {
+            setFocusedElement('compare-keep-premium');
           } else if (focusedElement.startsWith('asset-delete-')) {
             const itemId = focusedElement.replace('asset-delete-', '');
             setFocusedElement(`asset-toggle-${itemId}`);
@@ -351,6 +384,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
             promptInputRef.current?.focus();
           } else if (focusedElement === 'generate-btn') {
             handleGenerateImage();
+          } else if (focusedElement === 'tier-btn') {
+            toggleTier();
+          } else if (focusedElement === 'compare-btn') {
+            void handleCompare();
+          } else if (focusedElement === 'compare-keep-free') {
+            void keepFromCompare('free');
+          } else if (focusedElement === 'compare-keep-premium') {
+            void keepFromCompare('premium');
+          } else if (focusedElement === 'compare-close') {
+            setCompare(null);
+            setFocusedElement('generate-btn');
           } else if (focusedElement === 'file-input') {
             fileInputRef.current?.click();
           } else if (focusedElement.startsWith('asset-toggle-')) {
@@ -451,6 +495,46 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
   };
 
   const imageConfig = getOptimalImageConfig();
+
+  // Two levels of image AI. Standard is the included model; Premium is the
+  // top image model and costs Snow Gems, charged by the server on every
+  // premium call. The comparison runs the same prompt through both, and the
+  // Premium side is the account's one free sample.
+  const [imageTier, setImageTier] = useState<AiTier>(() => getPreferredTier('image'));
+  const [tiers, setTiers] = useState<AiTierPair | null>(null);
+  const [trialUsed, setTrialUsed] = useState(true);
+  const [comparing, setComparing] = useState(false);
+  const [compare, setCompare] = useState<{
+    prompt: string;
+    free: string | null;
+    premium: string | null;
+    freeError: string | null;
+    premiumError: string | null;
+    note: string | null;
+  } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void loadAiTiers().then((t) => { if (!cancelled) setTiers(t.image); });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setTrialUsed(true); return; }
+    void premiumTrialUsed('image').then((used) => { if (!cancelled) setTrialUsed(used); });
+    return () => { cancelled = true; };
+  }, [user]);
+  const premiumTier = tiers?.premium ?? null;
+  // Premium that is switched off in the table falls back to Standard.
+  const effectiveTier: AiTier = imageTier === 'premium' && premiumTier ? 'premium' : 'free';
+  const tierCost = effectiveTier === 'premium' && premiumTier ? premiumTier.gems : imageConfig.credits * 0.01;
+  const compareAvailable = !!premiumTier && !!user && !trialUsed;
+  const toggleTier = () => {
+    if (!premiumTier) return;
+    const next: AiTier = effectiveTier === 'premium' ? 'free' : 'premium';
+    setImageTier(next);
+    setPreferredTier('image', next);
+    try { trackEvent('ai_tier_select', 'ai', { feature: 'image', tier: next }); } catch { /* ignore */ }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -586,7 +670,12 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
 
 
 
-  const handleGenerateImage = async (skipAnonWarning = false) => {
+  /** Reads the JSON body off a failed fetch, for the server's own wording. */
+  const readFailure = async (response: Response): Promise<{ error?: string; details?: string; needed?: number | null }> => {
+    try { return await response.json(); } catch { return {}; }
+  };
+
+  const handleGenerateImage = async (skipAnonWarning = false, opts?: { tier?: AiTier }) => {
     if (!generatePrompt.trim()) {
       toast({
         title: "Prompt required",
@@ -629,7 +718,14 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
       return;
     }
 
-    const imageCost = imageConfig.credits * 0.01;
+    const tier: AiTier = opts?.tier ?? effectiveTier;
+    const premiumGems = premiumTier?.gems ?? 0;
+    if (tier === 'premium' && anonMode) {
+      toast({ title: 'Sign in for Premium', description: 'Premium images need a signed-in account with Snow Gems.' });
+      return;
+    }
+    // Premium is charged by the server; the free tier is charged here as before.
+    const imageCost = tier === 'premium' ? premiumGems : imageConfig.credits * 0.01;
     const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
     if (!anonMode && !isOwnerAdmin && !checkCredits(imageCost)) {
       toast({
@@ -670,18 +766,25 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
         headers['Authorization'] = `Bearer ${currentSession.access_token}`;
       }
 
-      const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
+      const endpoint = tier === 'premium' ? 'generate-ai-image' : 'generate-hf-image';
+      const response = await fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/${endpoint}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          prompt: enhancedPrompt,
-          width,
-          height,
-          device_id: getDeviceId(),
-        })
+        body: JSON.stringify(tier === 'premium'
+          ? { prompt: enhancedPrompt, size: imageConfig.size, tier: 'premium', device_id: getDeviceId() }
+          : { prompt: enhancedPrompt, width, height, device_id: getDeviceId() }),
       });
 
       const result = await response.json().catch(() => ({}));
+      try { trackEvent('ai_image_generate', 'ai', { tier, ok: response.ok }); } catch { /* ignore */ }
+      if (response.status === 402) {
+        toast({
+          title: 'Not enough Snow Gems',
+          description: result?.details || `Premium needs ${premiumGems} Snow Gems. Top up from the Dashboard.`,
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Free-AI gate denied (anon only).
       if (result?.blocked) {
@@ -734,6 +837,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
           title: "Image complete!",
           description: `Your AI-generated background is ready. (Admin: free)`,
         });
+      } else if (tier === 'premium') {
+        // Charged server-side; only refresh the balance and say what happened.
+        await fetchProfile();
+        toast({ title: 'Premium image complete!', description: describeReceipt(result) ?? 'Your background is ready.' });
       } else {
         const creditDeducted = await deductCredits(imageCost, `AI Image Generation - ${generatePrompt}`);
         if (!creditDeducted) {
@@ -769,6 +876,88 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
     }
   };
 
+
+  /**
+   * The same prompt through both levels, side by side. The Standard side costs
+   * its normal gems; the Premium side is the account's one free sample (the
+   * server decides, and charges the normal Premium price if it was already
+   * used). Nothing is saved until the viewer keeps one.
+   */
+  const handleCompare = async () => {
+    const prompt = generatePrompt.trim();
+    if (!prompt || comparing || generating) return;
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession?.user) {
+      toast({ title: 'Sign in to compare', description: 'The comparison needs a signed-in account.' });
+      return;
+    }
+    const isOwnerAdmin = user?.email?.toLowerCase() === 'joshua.perez@snowmediaent.com';
+    const standardCost = imageConfig.credits * 0.01;
+    if (!isOwnerAdmin && !checkCredits(standardCost)) {
+      toast({ title: 'Insufficient Snow Gems', description: `The Standard side costs ${standardCost.toFixed(2)} Snow Gems.`, variant: 'destructive' });
+      return;
+    }
+    setComparing(true);
+    setCompare({ prompt, free: null, premium: null, freeError: null, premiumError: null, note: null });
+    try { trackEvent('ai_compare', 'ai', { feature: 'image' }); } catch { /* ignore */ }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${currentSession.access_token}` };
+    const maxDim = 1536;
+    const width = Math.round(Math.min(screenInfo.width, maxDim) / 64) * 64;
+    const height = Math.round(Math.min(screenInfo.height, maxDim) / 64) * 64;
+    const freeRun = fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-hf-image`, {
+      method: 'POST', headers, body: JSON.stringify({ prompt, width, height, device_id: getDeviceId() }),
+    }).then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) }));
+    const premiumRun = fetch(`https://falmwzhvxoefvkfsiylp.supabase.co/functions/v1/generate-ai-image`, {
+      method: 'POST', headers, body: JSON.stringify({ prompt, size: imageConfig.size, tier: 'premium', use_trial: true, device_id: getDeviceId() }),
+    }).then(async (r) => ({ ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) }));
+    const [free, premium] = await Promise.all([freeRun, premiumRun]);
+    const freeImage = free.ok && free.body?.image ? String(free.body.image) : null;
+    const premiumImage = premium.ok && premium.body?.image ? String(premium.body.image) : null;
+    if (freeImage && !isOwnerAdmin) void deductCredits(standardCost, `AI Image Generation (compare) - ${prompt}`);
+    if (premium.body?.trial_used) setTrialUsed(true);
+    const note = premium.body?.trial_used
+      ? 'The Premium side was your free sample.'
+      : premium.ok && premium.body?.charged_gems
+        ? `${premium.body.charged_gems} Snow Gems used for the Premium side.`
+        : null;
+    setCompare({
+      prompt,
+      free: freeImage,
+      premium: premiumImage,
+      freeError: freeImage ? null : String(free.body?.error || free.body?.details || 'Standard did not answer.'),
+      premiumError: premiumImage ? null : String(premium.body?.details || premium.body?.error || 'Premium did not answer.'),
+      note,
+    });
+    void fetchProfile();
+    setComparing(false);
+    setFocusedElement('compare-keep-free');
+  };
+
+  /** Saves one side of the comparison as a background, and remembers the choice as the default level. */
+  const keepFromCompare = async (which: 'free' | 'premium') => {
+    const image = which === 'free' ? compare?.free : compare?.premium;
+    if (!compare || !image) return;
+    try {
+      const blob = await (await fetch(image)).blob();
+      const file = new File([blob], `ai-generated-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      await uploadAsset(file, 'background', uploadForm.section, `AI Generated (${which === 'premium' ? 'Premium' : 'Standard'}): ${compare.prompt}`);
+      setImageTier(which);
+      setPreferredTier('image', which);
+      try { trackEvent('ai_compare_keep', 'ai', { feature: 'image', tier: which }); } catch { /* ignore */ }
+      toast({
+        title: which === 'premium' ? 'Premium is now your level' : 'Standard is now your level',
+        description: which === 'premium' && premiumTier
+          ? `Saved. Premium images cost ${premiumTier.gems} Snow Gems each; switch back any time.`
+          : 'Saved. Switch to Premium any time from the button next to Generate.',
+      });
+      setCompare(null);
+      setGeneratePrompt('');
+      setFocusedElement('generate-btn');
+      setTimeout(() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    } catch (e) {
+      toast({ title: 'Could not save it', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+    }
+  };
 
   const groupedAssets = assets.reduce((acc, asset) => {
     const key = `${asset.asset_type}-${asset.section}`;
@@ -820,7 +1009,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   </span>
                 </div>
                 <p className="text-sm text-purple-200">
-                  Cost: {(imageConfig.credits * 0.01).toFixed(2)} Snow Gems - {imageConfig.description}
+                  {effectiveTier === 'premium' && premiumTier
+                    ? `Premium: ${premiumTier.gems} Snow Gems per image - ${premiumTier.blurb ?? premiumTier.model}`
+                    : `Cost: ${(imageConfig.credits * 0.01).toFixed(2)} Snow Gems - ${imageConfig.description}`}
                 </p>
                 {user && profile && (
                   <p className="text-sm text-purple-200">
@@ -845,10 +1036,10 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                   disabled={generating}
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2 flex-wrap">
                 <Button
                   onClick={() => handleGenerateImage()}
-                  disabled={generating || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < (imageConfig.credits * 0.01))}
+                  disabled={generating || comparing || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < tierCost)}
                   data-focus-id="generate-btn"
                   className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
                 >
@@ -861,10 +1052,100 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
                     'Generate'
                   )}
                 </Button>
+                {premiumTier && (
+                  <Button
+                    type="button"
+                    onClick={toggleTier}
+                    disabled={generating || comparing}
+                    data-focus-id="tier-btn"
+                    title="Switch between Standard and Premium"
+                    className={`transition-all ${effectiveTier === 'premium'
+                      ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
+                      : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${getFocusClass('tier-btn')}`}
+                  >
+                    {effectiveTier === 'premium' ? `Premium · ${premiumTier.gems} gems` : `Standard · ${(imageConfig.credits * 0.01).toFixed(0)} gem`}
+                  </Button>
+                )}
+                {compareAvailable && (
+                  <Button
+                    type="button"
+                    onClick={() => void handleCompare()}
+                    disabled={generating || comparing || !generatePrompt.trim()}
+                    data-focus-id="compare-btn"
+                    className={`bg-brand-ice/20 border border-brand-ice/50 text-white hover:bg-brand-ice/30 transition-all ${getFocusClass('compare-btn')}`}
+                  >
+                    {comparing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    See the difference · free once
+                  </Button>
+                )}
               </div>
             </div>
           </div>
         </Card>
+        )}
+
+        {/* Standard against Premium, same prompt, side by side. */}
+        {compare && (
+          <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-2xl font-quicksand font-bold text-white">Standard or Premium?</h2>
+              <p className="text-sm text-brand-ice/80 truncate max-w-full">"{compare.prompt}"</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(['free', 'premium'] as const).map((side) => {
+                const img = side === 'free' ? compare.free : compare.premium;
+                const err = side === 'free' ? compare.freeError : compare.premiumError;
+                const id = side === 'free' ? 'compare-keep-free' : 'compare-keep-premium';
+                const title = side === 'free' ? 'Standard' : 'Premium';
+                return (
+                  <div key={side} className={`rounded-2xl overflow-hidden border ${side === 'premium' ? 'border-brand-gold/60' : 'border-white/15'} bg-black/30`}>
+                    <div className="aspect-video bg-black/50 flex items-center justify-center">
+                      {img ? (
+                        <img src={img} alt={`${title} result`} className="w-full h-full object-cover" />
+                      ) : comparing ? (
+                        <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
+                      ) : (
+                        <p className="text-sm text-white/60 px-4 text-center">{err}</p>
+                      )}
+                    </div>
+                    <div className="p-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className={`font-quicksand font-bold ${side === 'premium' ? 'text-brand-gold' : 'text-white'}`}>{title}</p>
+                        <p className="text-xs text-white/60">
+                          {side === 'premium' && premiumTier ? `${premiumTier.gems} gems per image after this` : `${(imageConfig.credits * 0.01).toFixed(0)} gem per image`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => void keepFromCompare(side)}
+                        disabled={!img || comparing}
+                        data-focus-id={id}
+                        className={`${side === 'premium'
+                          ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
+                          : 'bg-white/15 border border-white/30 text-white hover:bg-white/25'} ${getFocusClass(id)}`}
+                      >
+                        Keep {title}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+              <p className="text-sm text-brand-ice/80">
+                {compare.note ?? 'Standard costs its normal gems. Premium here is your free sample.'}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setCompare(null); setFocusedElement('generate-btn'); }}
+                data-focus-id="compare-close"
+                className={`border-white/25 bg-white/5 text-white ${getFocusClass('compare-close')}`}
+              >
+                Close
+              </Button>
+            </div>
+          </Card>
         )}
 
         {/* Upload Section */}
