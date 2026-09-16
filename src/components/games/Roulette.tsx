@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, Trash2 } from 'lucide-react';
+import { Check, CircleDot, Coins, Gem, Loader2, RotateCw, Trash2, Trophy, Undo2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
@@ -11,7 +11,8 @@ import { useGameLifecycle } from './shared/gameLifecycle';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { isBackKey, useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
+import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
+import '@/styles/games-wheels.css';
 
 interface RouletteProps {
   onBack: () => void;
@@ -69,6 +70,9 @@ interface RouletteCellProps {
  */
 export const RouletteCell = memo(({ id, label, type, selection, color, className = '', children, placed, won, lost, spinning, focused, register, onFocus, onPlace }: RouletteCellProps) => {
   const bg = color === 'red' ? 'snow-rl-cell--red' : color === 'black' ? 'snow-rl-cell--black' : color === 'green' ? 'snow-rl-cell--green' : 'snow-rl-cell--neutral';
+  const accessibleLabel = label
+    ?? (typeof children === 'string' || typeof children === 'number' ? String(children) : undefined)
+    ?? (selection === null || selection === undefined ? undefined : String(selection));
   return (
     <button
       type="button"
@@ -78,7 +82,7 @@ export const RouletteCell = memo(({ id, label, type, selection, color, className
       aria-disabled={spinning ? 'true' : undefined}
       data-tv-focused={focused ? 'true' : 'false'}
       className={`snow-rl-cell ${bg} ${className} ${won ? 'is-won' : ''} ${lost ? 'is-lost' : ''}`}
-      aria-label={label || String(selection)}
+      aria-label={accessibleLabel}
     >
       {children ?? label ?? String(selection)}
       {placed && <span className="snow-rl-chip">{placed.amount}</span>}
@@ -119,6 +123,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
 
   // Wheel animation
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wheelMeasureRef = useRef<HTMLDivElement>(null);
   const wheelVisualRef = useRef<HTMLDivElement>(null);
   const ballVisualRef = useRef<HTMLDivElement>(null);
   const wheelRotationRef = useRef(0);
@@ -293,27 +298,40 @@ const Roulette = ({ onBack }: RouletteProps) => {
     if (ballVisualRef.current) ballVisualRef.current.style.willChange = 'transform';
 
     const startRot = wheelRotationRef.current;
-    let animStart = performance.now();
-    let pausedAt: number | null = null;
-    let elapsedBase = 0;
+    let idleLastFrame = performance.now();
+    let idleElapsed = 0;
     let idleRaf: number | null = null;
     let resolved = false;
     let landed = false;
 
-    const animateIdle = (t: number) => {
-      if (landed || resolved) return;
-      if (life.isHidden()) {
-        // Pause visual work only; the spin request is untouched.
-        if (pausedAt === null) { pausedAt = t; elapsedBase += t - animStart; }
-        idleRaf = life.raf(animateIdle);
-        return;
-      }
-      if (pausedAt !== null) { animStart = t; pausedAt = null; }
-      const elapsed = elapsedBase + (t - animStart);
-      setWheelVisuals(startRot + elapsed * (reducedFx ? 0.35 : 0.6), -elapsed * (reducedFx ? 0.5 : 0.9));
-      idleRaf = life.raf(animateIdle);
+    const scheduleIdle = () => {
+      if (!landed && !resolved && !life.isHidden() && idleRaf === null) idleRaf = life.raf(animateIdle);
     };
-    idleRaf = life.raf(animateIdle);
+    const animateIdle = (t: number) => {
+      idleRaf = null;
+      if (landed || resolved) return;
+      if (life.isHidden()) return;
+      idleElapsed += Math.max(0, t - idleLastFrame);
+      idleLastFrame = t;
+      setWheelVisuals(startRot + idleElapsed * (reducedFx ? 0.35 : 0.6), -idleElapsed * (reducedFx ? 0.5 : 0.9));
+      scheduleIdle();
+    };
+    const stopIdleVisibility = life.onVisibilityChange((hidden) => {
+      if (hidden) {
+        life.cancelRaf(idleRaf);
+        idleRaf = null;
+      } else {
+        idleLastFrame = performance.now();
+        scheduleIdle();
+      }
+    });
+    const stopIdleAnimation = () => {
+      resolved = true;
+      life.cancelRaf(idleRaf);
+      idleRaf = null;
+      stopIdleVisibility();
+    };
+    scheduleIdle();
 
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
@@ -322,8 +340,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
         wheel,
         clientSeed: seed,
       });
-      resolved = true;
-      life.cancelRaf(idleRaf);
+      stopIdleAnimation();
 
       if (!resp?.ok) {
         landed = true;
@@ -338,7 +355,6 @@ const Roulette = ({ onBack }: RouletteProps) => {
       const liveWheel = wheelRotationRef.current;
       const liveBall = ballRotationRef.current;
       const targetRot = computeTarget(resp.result.number as SlotNum, liveWheel);
-      let landStart = performance.now();
       const dur = reducedFx ? 1200 : 4200;
       const fromRot = liveWheel;
       const fromBall = liveBall;
@@ -346,11 +362,16 @@ const Roulette = ({ onBack }: RouletteProps) => {
       // turn, then add whole reverse turns so it settles on a multiple of 360.
       const ballRemainder = ((fromBall % 360) + 360) % 360;
       const ballTarget = fromBall - ballRemainder - 360 * (reducedFx ? 1 : 4);
-      let landPaused: number | null = null;
       let landElapsed = 0;
+      let landLastFrame = performance.now();
+      let landRaf: number | null = null;
+      let stopLandVisibility = () => {};
 
       const settle = () => {
         landed = true;
+        life.cancelRaf(landRaf);
+        landRaf = null;
+        stopLandVisibility();
         retireWillChange();
         setWheelVisuals(targetRot, ballTarget);
         const sr: SpinResult = {
@@ -385,22 +406,32 @@ const Roulette = ({ onBack }: RouletteProps) => {
         setFocusId(`denom-${denomRef.current}`);
       };
 
+      const scheduleLand = () => {
+        if (!landed && !life.isHidden() && landRaf === null) landRaf = life.raf(land);
+      };
       const land = (t: number) => {
-        if (life.isHidden()) {
-          if (landPaused === null) { landPaused = t; landElapsed += t - landStart; }
-          life.raf(land);
-          return;
-        }
-        if (landPaused !== null) { landStart = t; landPaused = null; }
-        const p = Math.min(1, (landElapsed + (t - landStart)) / dur);
+        landRaf = null;
+        if (landed || life.isHidden()) return;
+        landElapsed += Math.max(0, t - landLastFrame);
+        landLastFrame = t;
+        const p = Math.min(1, landElapsed / dur);
         const eased = 1 - Math.pow(1 - p, 3);
         setWheelVisuals(fromRot + (targetRot - fromRot) * eased, fromBall + (ballTarget - fromBall) * eased);
-        if (p < 1) life.raf(land);
+        if (p < 1) scheduleLand();
         else settle();
       };
-      life.raf(land);
+      stopLandVisibility = life.onVisibilityChange((hidden) => {
+        if (hidden) {
+          life.cancelRaf(landRaf);
+          landRaf = null;
+        } else {
+          landLastFrame = performance.now();
+          scheduleLand();
+        }
+      });
+      scheduleLand();
     } catch {
-      life.cancelRaf(idleRaf);
+      stopIdleAnimation();
       retireWillChange();
       setSpinning(false);
       setBusy(false);
@@ -442,7 +473,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
         const bet = cellBets.current.get(focusId);
         if (bet) { e.preventDefault(); decrementChipOn(bet.type, bet.selection); return; }
       }
-      const dir = arrowDir(e);
+      const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
       moveFocus(dir);
@@ -469,16 +500,19 @@ const Roulette = ({ onBack }: RouletteProps) => {
     setFocusId((current) => (current === 'num-00' ? 'num-0' : current));
   }, [wheel]);
 
-  // Draw wheel, sized from the rendered container
-  useEffect(() => {
+  // Draw wheel from the rendered TV slot. Resize only redraws the static
+  // bitmap; the bounded spin itself remains transform-only.
+  const drawWheel = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const order = wheel === 'american' ? AM_ORDER : EU_ORDER;
     const dpr = Math.min(window.devicePixelRatio || 1, reducedFx ? 1 : 2);
-    const measured = canvas.parentElement?.getBoundingClientRect().width ?? 0;
-    const size = Math.max(180, Math.round(measured || 300));
+    const measured = wheelMeasureRef.current?.clientWidth
+      || wheelMeasureRef.current?.getBoundingClientRect().width
+      || 0;
+    const size = Math.max(210, Math.round(measured || 340));
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
     canvas.style.width = `${size}px`;
@@ -486,11 +520,29 @@ const Roulette = ({ onBack }: RouletteProps) => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
     const cx = size / 2, cy = size / 2;
-    const rOuter = size / 2 - 6;
-    const rInner = rOuter - Math.max(26, size * 0.12);
+    const rCase = size / 2 - Math.max(3, size * 0.01);
+    const rOuter = rCase - size * 0.065;
+    const rInner = rOuter - Math.max(32, size * 0.145);
     const n = order.length;
     const seg = (Math.PI * 2) / n;
     const startOffset = -Math.PI / 2 - seg / 2;
+
+    const caseGrad = ctx.createRadialGradient(cx - size * 0.12, cy - size * 0.16, size * 0.03, cx, cy, rCase);
+    caseGrad.addColorStop(0, '#fff1b0');
+    caseGrad.addColorStop(0.28, '#c9942e');
+    caseGrad.addColorStop(0.58, '#51300b');
+    caseGrad.addColorStop(0.76, '#e1b74e');
+    caseGrad.addColorStop(1, '#241504');
+    ctx.beginPath();
+    ctx.arc(cx, cy, rCase, 0, Math.PI * 2);
+    ctx.fillStyle = caseGrad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOuter + size * 0.022, 0, Math.PI * 2);
+    ctx.fillStyle = '#130c08';
+    ctx.fill();
+
     for (let i = 0; i < n; i++) {
       const a0 = startOffset + i * seg;
       const a1 = a0 + seg;
@@ -500,17 +552,31 @@ const Roulette = ({ onBack }: RouletteProps) => {
       ctx.arc(cx, cy, rInner, a1, a0, true);
       ctx.closePath();
       const col = colorOf(order[i]);
-      ctx.fillStyle = col === 'red' ? '#b91c1c' : col === 'black' ? '#0a0a0a' : '#15803d';
+      const pocketGrad = ctx.createRadialGradient(cx, cy, rInner, cx, cy, rOuter);
+      if (col === 'red') {
+        pocketGrad.addColorStop(0, '#5c0c1d');
+        pocketGrad.addColorStop(0.62, '#c3223d');
+        pocketGrad.addColorStop(1, '#681022');
+      } else if (col === 'black') {
+        pocketGrad.addColorStop(0, '#111b27');
+        pocketGrad.addColorStop(0.62, '#25364a');
+        pocketGrad.addColorStop(1, '#080d13');
+      } else {
+        pocketGrad.addColorStop(0, '#075c3c');
+        pocketGrad.addColorStop(0.62, '#15945f');
+        pocketGrad.addColorStop(1, '#06402b');
+      }
+      ctx.fillStyle = pocketGrad;
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(251,191,36,0.4)';
+      ctx.lineWidth = Math.max(1, size * 0.004);
+      ctx.strokeStyle = 'rgba(255,221,139,0.66)';
       ctx.stroke();
       const mid = a0 + seg / 2;
       ctx.save();
-      ctx.translate(cx + Math.cos(mid) * (rOuter - Math.max(11, size * 0.045)), cy + Math.sin(mid) * (rOuter - Math.max(11, size * 0.045)));
+      ctx.translate(cx + Math.cos(mid) * (rOuter - Math.max(13, size * 0.048)), cy + Math.sin(mid) * (rOuter - Math.max(13, size * 0.048)));
       ctx.rotate(mid + Math.PI / 2);
       ctx.fillStyle = '#fff';
-      ctx.font = `700 ${Math.max(8, Math.round(size * 0.031))}px system-ui, -apple-system, sans-serif`;
+      ctx.font = `900 ${Math.max(9, Math.round(size * 0.033))}px Montserrat, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(order[i]), 0, 0);
@@ -518,20 +584,57 @@ const Roulette = ({ onBack }: RouletteProps) => {
     }
     ctx.beginPath();
     ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = Math.max(4, size * 0.014);
+    ctx.strokeStyle = '#f6d579';
     ctx.stroke();
+
     ctx.beginPath();
-    ctx.arc(cx, cy, rInner - 6, 0, Math.PI * 2);
-    const grad = ctx.createRadialGradient(cx - 10, cy - 10, 4, cx, cy, rInner);
-    grad.addColorStop(0, '#fde68a');
-    grad.addColorStop(1, '#78350f');
-    ctx.fillStyle = grad;
+    ctx.arc(cx, cy, rInner - size * 0.018, 0, Math.PI * 2);
+    const bowl = ctx.createRadialGradient(cx - size * 0.09, cy - size * 0.1, size * 0.02, cx, cy, rInner);
+    bowl.addColorStop(0, '#f8df91');
+    bowl.addColorStop(0.16, '#ad7622');
+    bowl.addColorStop(0.25, '#17253a');
+    bowl.addColorStop(0.7, '#071424');
+    bowl.addColorStop(1, '#98661d');
+    ctx.fillStyle = bowl;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#d8aa43';
+    ctx.lineWidth = Math.max(2, size * 0.009);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.1, 0, Math.PI * 2);
+    const hub = ctx.createRadialGradient(cx - size * 0.025, cy - size * 0.03, 1, cx, cy, size * 0.1);
+    hub.addColorStop(0, '#fff0af');
+    hub.addColorStop(0.5, '#d09a31');
+    hub.addColorStop(1, '#53300a');
+    ctx.fillStyle = hub;
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, size * 0.008);
+    ctx.strokeStyle = '#f5d36e';
     ctx.stroke();
   }, [wheel, reducedFx]);
+
+  useEffect(() => {
+    drawWheel();
+    const target = wheelMeasureRef.current;
+    let observer: ResizeObserver | null = null;
+    let queued = 0;
+    const redraw = () => {
+      window.cancelAnimationFrame(queued);
+      queued = window.requestAnimationFrame(drawWheel);
+    };
+    if (target && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(redraw);
+      observer.observe(target);
+    }
+    window.addEventListener('resize', redraw);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', redraw);
+      window.cancelAnimationFrame(queued);
+    };
+  }, [drawWheel]);
 
   // SHA-256 verify
   useEffect(() => {
@@ -589,7 +692,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   }, []);
 
   return (
-    <main className="snow-casino snow-casino--ruby tv-game-shell" data-game-accent="ruby">
+    <main className="snow-casino snow-casino--ruby tv-game-shell snow-wheels-game snow-roulette-game" data-game-accent="ruby">
       <div className="snow-casino__aurora" aria-hidden="true" /><div className="snow-casino__vignette" aria-hidden="true" />
       <div className="tv-game-body snow-game-body">
         <GameTopBar
@@ -609,22 +712,38 @@ const Roulette = ({ onBack }: RouletteProps) => {
           onFxFocus={() => setFocusId('fx')}
         />
 
-        {/* Landscape TV surface: wheel + summary left, board + controls right */}
+        {/* Landscape TV surface: sculpted wheel left, readable felt and console right. */}
         <div className="snow-rl-layout">
           <aside className="snow-rl-side">
-            <div className="snow-rl-wheel-wrap">
-              <span className="snow-rl-pointer" aria-hidden="true" />
-              <div className="snow-rl-wheel">
+            <header className="snow-rl-side__header">
+              <span aria-hidden="true"><Gem /></span>
+              <div><small>{t('games.roulette.wheel')}</small><strong>SMC ROULETTE</strong></div>
+            </header>
+
+            <div className="snow-rl-wheel-shell">
+              <div className="snow-rl-wheel-wrap">
+                <span className="snow-rl-pointer" aria-hidden="true"><i /></span>
+                <div ref={wheelMeasureRef} className="snow-rl-wheel">
                 <div ref={wheelVisualRef} className="snow-rl-wheel-visual"><canvas ref={canvasRef} className="block" /></div>
                 <div ref={ballVisualRef} className="snow-rl-ball-track" aria-hidden="true"><span className="snow-rl-ball" /></div>
+                  <span className="snow-rl-wheel-hub" aria-hidden="true"><Gem /><b>SMC</b></span>
+                </div>
               </div>
+              <div className="snow-rl-wheel-caption" aria-hidden="true"><span /> <b>SNOW CASINO</b> <span /></div>
             </div>
 
-            {result && (
+            {result ? (
               <div className={`snow-rl-callout snow-rl-callout--${result.color}`} role="status" aria-live="polite">
+                <span className="snow-rl-callout__icon" aria-hidden="true"><Trophy /></span>
                 <strong>{result.number}</strong>
-                <span>{t('games.roulette.payoutChips', { amount: result.totalPayout.toLocaleString() })}</span>
+                <span><small>{t('games.roulette.payoutChips', { amount: result.totalPayout.toLocaleString() })}</small>
                 <em className={result.net > 0 ? 'is-up' : result.net < 0 ? 'is-down' : ''}>{result.net > 0 ? '+' : ''}{result.net.toLocaleString()}</em>
+                </span>
+              </div>
+            ) : (
+              <div className="snow-rl-callout snow-rl-callout--idle" aria-hidden="true">
+                <span className="snow-rl-callout__icon"><CircleDot /></span>
+                <span><small>{t('games.roulette.placeYourBets')}</small><em>{wheel === 'european' ? t('games.roulette.wheelEuropean') : t('games.roulette.wheelAmerican')}</em></span>
               </div>
             )}
 
@@ -651,7 +770,17 @@ const Roulette = ({ onBack }: RouletteProps) => {
           </aside>
 
           <section className="snow-rl-main">
+            <header className="snow-rl-table-head">
+              <div className="snow-rl-table-head__title">
+                <span aria-hidden="true"><CircleDot /></span>
+                <div><small>{wheel === 'european' ? t('games.roulette.wheelEuropean') : t('games.roulette.wheelAmerican')}</small><strong>{t('games.roulette.placeYourBets')}</strong></div>
+              </div>
+              <div className="snow-rl-table-head__wager">
+                <Coins aria-hidden="true" /><span><small>{t('games.roulette.totalBet')}</small><strong>{totalBet.toLocaleString()}</strong></span>
+              </div>
+            </header>
             <div className="snow-rl-felt">
+              <div className="snow-rl-felt__brand" aria-hidden="true"><Gem /><span>SMC</span></div>
               <div className="snow-rl-board">
                 <div className="snow-rl-zeros">
                   {wheel === 'american' ? (
@@ -709,105 +838,109 @@ const Roulette = ({ onBack }: RouletteProps) => {
               </div>
             </div>
 
-            <div className="snow-rl-controls">
-              <div className="snow-rl-denoms">
-                <span className="snow-rl-label">{t('games.roulette.chipInHand')}</span>
-                <div className="snow-rl-denoms__row">
-                  {DENOMS.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      ref={registerFocus(`denom-${d}`)}
-                      onFocus={() => setFocusId(`denom-${d}`)}
-                      onClick={() => { if (!spinning) setDenom(d); }}
-                      aria-disabled={spinning ? 'true' : undefined}
-                      aria-pressed={denom === d}
-                      data-tv-focused={focusId === `denom-${d}` ? 'true' : 'false'}
-                      className={`snow-rl-denom ${denom === d ? 'is-active' : ''}`}
-                    >
-                      {d}
-                    </button>
-                  ))}
+            <div className="snow-rl-console">
+              <div className="snow-rl-controls">
+                <div className="snow-rl-denoms">
+                  <span className="snow-rl-label"><Coins aria-hidden="true" /> {t('games.roulette.chipInHand')}</span>
+                  <div className="snow-rl-denoms__row">
+                    {DENOMS.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        ref={registerFocus(`denom-${d}`)}
+                        onFocus={() => setFocusId(`denom-${d}`)}
+                        onClick={() => { if (!spinning) setDenom(d); }}
+                        aria-disabled={spinning ? 'true' : undefined}
+                        aria-pressed={denom === d}
+                        data-tv-focused={focusId === `denom-${d}` ? 'true' : 'false'}
+                        className={`snow-rl-denom ${denom === d ? 'is-active' : ''}`}
+                      >
+                        <span>{d}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="snow-rl-total">
+                  <small>{t('games.roulette.totalBet')}</small>
+                  <strong>{totalBet.toLocaleString()}</strong>
+                </div>
+
+                <div className="snow-rl-actions">
+                  <Button
+                    ref={registerFocus('undo')}
+                    onFocus={() => setFocusId('undo')}
+                    onClick={undoLast}
+                    aria-disabled={spinning || placements.length === 0 ? 'true' : undefined}
+                    data-tv-focused={focusId === 'undo' ? 'true' : 'false'}
+                    variant="navy"
+                    className="snow-game-action"
+                  >
+                    <Undo2 aria-hidden="true" /> {t('games.roulette.undo')}
+                  </Button>
+                  <Button
+                    ref={registerFocus('clear')}
+                    onFocus={() => setFocusId('clear')}
+                    onClick={clearBets}
+                    aria-disabled={spinning || chips.length === 0 ? 'true' : undefined}
+                    data-tv-focused={focusId === 'clear' ? 'true' : 'false'}
+                    variant="navy"
+                    className="snow-game-action"
+                  >
+                    <Trash2 aria-hidden="true" /> {t('games.roulette.clearBets')}
+                  </Button>
+                  <Button
+                    ref={registerFocus('spin')}
+                    onFocus={() => setFocusId('spin')}
+                    onClick={() => { if (canSpin) void doSpin(); }}
+                    aria-disabled={canSpin ? undefined : 'true'}
+                    data-tv-focused={focusId === 'spin' ? 'true' : 'false'}
+                    className="snow-game-action snow-rl-spin"
+                  >
+                    {spinning ? <><Loader2 className="animate-spin" /> {t('games.roulette.spinning')}</> : <><RotateCw aria-hidden="true" /> {t('games.roulette.spin')}</>}
+                  </Button>
                 </div>
               </div>
 
-              <div className="snow-rl-total">
-                <small>{t('games.roulette.totalBet')}</small>
-                <strong>{totalBet.toLocaleString()}</strong>
-              </div>
+              <div className="snow-rl-console__status">
+                {balance !== null && totalBet > balance && chips.length > 0 && (
+                  <p className="snow-rl-note">{t('games.roulette.betExceedsBalance')}</p>
+                )}
+                {balance === null && <p className="snow-rl-note">{t('games.roulette.loadingChips')}</p>}
+                {error && <p className="snow-rl-error" role="status">{error}</p>}
+                {backNote && <p className="snow-rl-note" role="status">{backNote}</p>}
 
-              <div className="snow-rl-actions">
-                <Button
-                  ref={registerFocus('undo')}
-                  onFocus={() => setFocusId('undo')}
-                  onClick={undoLast}
-                  aria-disabled={spinning || placements.length === 0 ? 'true' : undefined}
-                  data-tv-focused={focusId === 'undo' ? 'true' : 'false'}
-                  variant="navy"
-                  className="snow-game-action"
-                >
-                  {t('games.roulette.undo')}
-                </Button>
-                <Button
-                  ref={registerFocus('clear')}
-                  onFocus={() => setFocusId('clear')}
-                  onClick={clearBets}
-                  aria-disabled={spinning || chips.length === 0 ? 'true' : undefined}
-                  data-tv-focused={focusId === 'clear' ? 'true' : 'false'}
-                  variant="navy"
-                  className="snow-game-action"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> {t('games.roulette.clearBets')}
-                </Button>
-                <Button
-                  ref={registerFocus('spin')}
-                  onFocus={() => setFocusId('spin')}
-                  onClick={() => { if (canSpin) void doSpin(); }}
-                  aria-disabled={canSpin ? undefined : 'true'}
-                  data-tv-focused={focusId === 'spin' ? 'true' : 'false'}
-                  className="snow-game-action snow-rl-spin"
-                >
-                  {spinning ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> {t('games.roulette.spinning')}</> : t('games.roulette.spin')}
-                </Button>
-              </div>
-            </div>
-
-            {balance !== null && totalBet > balance && chips.length > 0 && (
-              <p className="snow-rl-note">{t('games.roulette.betExceedsBalance')}</p>
-            )}
-            {balance === null && <p className="snow-rl-note">{t('games.roulette.loadingChips')}</p>}
-            {error && <p className="snow-rl-error" role="status">{error}</p>}
-            {backNote && <p className="snow-rl-note" role="status">{backNote}</p>}
-
-            {fair && (
-              <div className="snow-fairness">
-                <button
-                  type="button"
-                  ref={registerFocus('fair-toggle')}
-                  onFocus={() => setFocusId('fair-toggle')}
-                  onClick={() => setShowFair((s) => !s)}
-                  data-tv-focused={focusId === 'fair-toggle' ? 'true' : 'false'}
-                  className="snow-fairness__toggle"
-                >
-                  {t('games.roulette.provablyFair')}
-                </button>
-                {showFair && (
-                  <div className="snow-fairness__details" role="dialog" aria-label={t('games.roulette.provablyFair')}>
-                    <p><b>{t('games.roulette.fairServerSeedHash')}</b> {fair.serverSeedHash}</p>
-                    <p><b>{t('games.roulette.fairServerSeed')}</b> {fair.serverSeed}</p>
-                    <p><b>{t('games.roulette.fairClientSeed')}</b> {fair.clientSeed}</p>
-                    <p><b>{t('games.roulette.fairNonce')}</b> {fair.nonce}</p>
-                    <p>
-                      <b>{t('games.roulette.fairVerifyLabel')}</b>{' '}
-                      {verifyOk === null ? t('games.roulette.fairChecking') : verifyOk
-                        ? <span className="snow-fairness__ok"><Check className="w-3 h-3" /> {t('games.roulette.fairMatches')}</span>
-                        : t('games.roulette.fairMismatch')}
-                    </p>
+                {fair && (
+                  <div className="snow-fairness">
+                    <button
+                      type="button"
+                      ref={registerFocus('fair-toggle')}
+                      onFocus={() => setFocusId('fair-toggle')}
+                      onClick={() => setShowFair((s) => !s)}
+                      data-tv-focused={focusId === 'fair-toggle' ? 'true' : 'false'}
+                      className="snow-fairness__toggle"
+                    >
+                      {t('games.roulette.provablyFair')}
+                    </button>
+                    {showFair && (
+                      <div className="snow-fairness__details" role="dialog" aria-label={t('games.roulette.provablyFair')}>
+                        <p><b>{t('games.roulette.fairServerSeedHash')}</b> {fair.serverSeedHash}</p>
+                        <p><b>{t('games.roulette.fairServerSeed')}</b> {fair.serverSeed}</p>
+                        <p><b>{t('games.roulette.fairClientSeed')}</b> {fair.clientSeed}</p>
+                        <p><b>{t('games.roulette.fairNonce')}</b> {fair.nonce}</p>
+                        <p>
+                          <b>{t('games.roulette.fairVerifyLabel')}</b>{' '}
+                          {verifyOk === null ? t('games.roulette.fairChecking') : verifyOk
+                            ? <span className="snow-fairness__ok"><Check className="w-3 h-3" /> {t('games.roulette.fairMatches')}</span>
+                            : t('games.roulette.fairMismatch')}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
+                {serverSeedHash && !fair && <p className="snow-rl-seed">{t('games.roulette.seedHash', { hash: serverSeedHash })}</p>}
               </div>
-            )}
-            {serverSeedHash && !fair && <p className="snow-rl-seed">{t('games.roulette.seedHash', { hash: serverSeedHash })}</p>}
+            </div>
           </section>
         </div>
       </div>

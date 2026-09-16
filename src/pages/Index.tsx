@@ -63,6 +63,9 @@ const BlackjackGame = lazy(() => import('@/components/games/Blackjack'));
 const VideoPokerGame = lazy(() => import('@/components/games/VideoPoker'));
 const RouletteGame = lazy(() => import('@/components/games/Roulette'));
 const CasinoHoldemGame = lazy(() => import('@/components/games/CasinoHoldem'));
+const PlinkoGame = lazy(() => import('@/components/games/Plinko'));
+const TVTriviaGame = lazy(() => import('@/components/games/TVTrivia'));
+const DiceLoungeGame = lazy(() => import('@/components/games/DiceLounge'));
 const WelcomePopup = lazy(() => import('@/components/WelcomePopup'));
 const MediaBarPrompt = lazy(() => import('@/components/MediaBarPrompt'));
 const AutoUpdatePrompt = lazy(() => import('@/components/AutoUpdatePrompt'));
@@ -382,6 +385,9 @@ const RouteSwitch = memo(({ currentView, goBack, navigateTo, layoutMode, onLayou
     {currentView === 'game-video-poker' && <VideoPokerGame onBack={goBack} />}
     {currentView === 'game-roulette' && <RouletteGame onBack={goBack} />}
     {currentView === 'game-casino-holdem' && <CasinoHoldemGame onBack={goBack} />}
+    {currentView === 'game-plinko' && <PlinkoGame onBack={goBack} />}
+    {currentView === 'game-tv-trivia' && <TVTriviaGame onBack={goBack} />}
+    {currentView === 'game-dice-lounge' && <DiceLoungeGame onBack={goBack} />}
     {currentView === 'support-tickets' && <SupportTicketSystem onBack={goBack} />}
     {currentView === 'ai-conversations' && <AIConversationSystem onBack={goBack} />}
     {currentView === 'create-ai-conversation' && <AIConversationSystem onBack={goBack} />}
@@ -473,9 +479,11 @@ const Index = () => {
       const target = sessionStorage.getItem('post_auth_view');
       if (target) {
         sessionStorage.removeItem('post_auth_view');
-        navigateTo(target as any);
+        navigateTo(target);
       }
-    } catch {}
+    } catch {
+      // Session storage can be unavailable in restricted browser contexts.
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   

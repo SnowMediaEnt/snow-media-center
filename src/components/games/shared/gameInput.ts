@@ -42,6 +42,19 @@ export const arrowDir = (event: KeyboardEvent): ArrowDir | null => {
 };
 
 /**
+ * Arrow direction in the document's visual order. RTL layouts reverse the
+ * horizontal placement of grid/flex children, so a physical Left press must
+ * advance through source-order controls instead of moving backward through
+ * them. Up and Down are unchanged.
+ */
+export const visualArrowDir = (event: KeyboardEvent): ArrowDir | null => {
+  const direction = arrowDir(event);
+  if (direction !== 'left' && direction !== 'right') return direction;
+  if (typeof document === 'undefined' || document.documentElement.dir !== 'rtl') return direction;
+  return direction === 'left' ? 'right' : 'left';
+};
+
+/**
  * Terminal round outcomes: the server has CONFIRMED there is no live round any
  * more, so keeping a local playing/dealt/decision phase would trap the player
  * behind a Back guard forever. A transport timeout or an unknown failure is

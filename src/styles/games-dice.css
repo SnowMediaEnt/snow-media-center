@@ -1,0 +1,925 @@
+/* Dice Lounge — a self-contained, free-play TV table. Motion is one-shot and
+   transform-only; every expensive flourish has a low-memory/reduced-FX exit. */
+
+.snow-dice-game .snow-game-topbar {
+  position: relative;
+  z-index: 10;
+}
+
+.snow-dice-game .snow-game-body {
+  max-width: 96rem;
+}
+
+.snow-dice-stage {
+  flex: 1 1 0 !important;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.snow-dice-layout {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  column-gap: 14px;
+}
+
+.snow-dice-table {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 22px 16px;
+  border: 4px solid hsl(43 67% 55%);
+  border-radius: 30px 30px 74px 74px;
+  color: hsl(0 0% 97%);
+  background-color: hsl(191 62% 8%);
+  background-image:
+    radial-gradient(ellipse at 50% 4%, hsl(180 65% 28% / .72), transparent 48%),
+    radial-gradient(ellipse at 50% 92%, hsl(207 77% 11% / .78), transparent 58%),
+    linear-gradient(145deg, hsl(176 57% 14%), hsl(189 67% 8%) 58%, hsl(218 69% 7%));
+  box-shadow:
+    inset 0 0 0 3px hsl(48 88% 83% / .13),
+    inset 0 -24px 46px hsl(220 88% 2% / .45),
+    0 19px 38px hsl(220 88% 2% / .64);
+}
+
+.snow-dice-table::before,
+.snow-dice-table::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.snow-dice-table::before {
+  left: 7%;
+  right: 7%;
+  top: 92px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(48 89% 72% / .55), transparent);
+}
+
+.snow-dice-table::after {
+  left: 20%;
+  right: 20%;
+  bottom: 95px;
+  height: 65px;
+  border-radius: 50%;
+  background: hsl(178 78% 51% / .055);
+  box-shadow: 0 0 55px hsl(177 85% 50% / .11);
+}
+
+.snow-dice-table__rail {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  bottom: 8px;
+  z-index: 0;
+  pointer-events: none;
+  border: 1px solid hsl(45 83% 72% / .34);
+  border-radius: 23px 23px 66px 66px;
+  box-shadow: inset 0 0 25px hsl(197 83% 73% / .07);
+}
+
+.snow-dice-table__header,
+.snow-dice-tray,
+.snow-dice-result,
+.snow-dice-controls {
+  position: relative;
+  z-index: 1;
+}
+
+.snow-dice-table__header {
+  min-height: 68px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 11px;
+}
+
+.snow-dice-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.snow-dice-brand__seal {
+  width: 55px;
+  height: 55px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  border: 2px solid hsl(47 88% 73%);
+  border-radius: 50%;
+  color: hsl(48 94% 79%);
+  background: radial-gradient(circle at 34% 27%, hsl(190 71% 43%), hsl(203 74% 18%) 54%, hsl(219 73% 7%));
+  box-shadow: 0 0 0 4px hsl(190 60% 7%), 0 0 18px hsl(184 75% 55% / .32);
+}
+
+.snow-dice-mark {
+  width: 35px;
+  height: 35px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.6;
+}
+
+.snow-dice-brand > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.snow-dice-brand small {
+  color: hsl(185 52% 74%);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-dice-brand strong {
+  margin-top: 5px;
+  color: hsl(47 93% 80%);
+  font: 900 28px/1 Montserrat, sans-serif;
+  letter-spacing: .13em;
+  text-shadow: 0 2px hsl(218 76% 5%), 0 0 15px hsl(47 88% 61% / .3);
+}
+
+.snow-dice-session {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.snow-dice-session > * + * {
+  margin-left: 7px;
+}
+
+.snow-dice-session > span {
+  min-width: 76px;
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(190 68% 58% / .38);
+  border-radius: 8px;
+  color: hsl(188 80% 82%);
+  background: hsl(216 72% 6% / .84);
+  box-shadow: inset 0 0 13px hsl(188 74% 47% / .08);
+}
+
+.snow-dice-session small {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.snow-dice-session b {
+  margin-top: 3px;
+  color: hsl(47 94% 80%);
+  font: 900 21px/1 Montserrat, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.snow-dice-tray {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding: 11px 18px 17px;
+  border: 2px solid hsl(47 76% 60% / .58);
+  border-radius: 20px 20px 39px 39px;
+  background-color: hsl(186 60% 7%);
+  background-image:
+    radial-gradient(ellipse at center, hsl(173 51% 20% / .86), hsl(184 62% 8%) 68%),
+    linear-gradient(90deg, hsl(186 75% 52% / .035) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(186 75% 52% / .035) 1px, transparent 1px);
+  background-size: auto, 34px 34px, 34px 34px;
+  box-shadow:
+    inset 0 0 52px hsl(218 85% 2% / .5),
+    inset 0 0 0 5px hsl(215 65% 6% / .56),
+    0 0 0 3px hsl(44 61% 28% / .34);
+}
+
+.snow-dice-tray__label {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 5px 10px;
+  color: hsl(188 71% 77%);
+  text-transform: uppercase;
+}
+
+.snow-dice-tray__label span {
+  font: 900 13px/1 Montserrat, sans-serif;
+  letter-spacing: .14em;
+}
+
+.snow-dice-tray__label small {
+  color: hsl(188 25% 72%);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .055em;
+}
+
+.snow-dice-row {
+  min-height: 143px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-dice-row > * + * {
+  margin-left: 17px;
+}
+
+.snow-die {
+  position: relative;
+  width: 122px;
+  height: 122px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 4px solid hsl(206 31% 74%);
+  border-radius: 19px;
+  color: hsl(216 67% 10%);
+  background-color: hsl(204 33% 93%);
+  background-image:
+    radial-gradient(circle at 31% 23%, hsl(0 0% 100%), transparent 45%),
+    linear-gradient(145deg, hsl(0 0% 100%), hsl(202 28% 85%) 72%, hsl(210 28% 73%));
+  box-shadow:
+    inset 0 0 0 2px hsl(0 0% 100% / .7),
+    inset -7px -9px 15px hsl(210 40% 44% / .19),
+    0 13px 20px hsl(218 88% 2% / .62);
+  transform-origin: 50% 58%;
+}
+
+.snow-die::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -13px;
+  height: 12px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: hsl(218 88% 2% / .34);
+}
+
+.snow-die__face {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 18px;
+  bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  align-items: center;
+  justify-items: center;
+}
+
+.snow-die__pip {
+  width: 21px;
+  height: 21px;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, hsl(200 29% 44%), hsl(216 70% 10%) 62%, hsl(221 81% 5%));
+  box-shadow: inset 0 2px 3px hsl(219 90% 2% / .52), 0 1px hsl(0 0% 100% / .42);
+}
+
+.snow-die[data-face="1"] .snow-die__pip,
+.snow-die[data-face="5"] .snow-die__pip:nth-child(3) {
+  background: radial-gradient(circle at 34% 28%, hsl(10 91% 68%), hsl(348 76% 43%) 61%, hsl(343 82% 24%));
+}
+
+.snow-die__number {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  color: hsl(213 44% 29% / .52);
+  font: 900 10px/1 Montserrat, sans-serif;
+}
+
+.snow-die__hold {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: -17px;
+  z-index: 3;
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid hsl(192 60% 49% / .42);
+  border-radius: 14px;
+  color: hsl(192 33% 75%);
+  background: hsl(216 67% 8%);
+  box-shadow: 0 4px 8px hsl(218 85% 2% / .45);
+  font: 900 9px/1 Montserrat, sans-serif;
+  letter-spacing: .13em;
+  opacity: 0;
+}
+
+.snow-die__hold svg {
+  width: 12px !important;
+  height: 12px !important;
+  margin-right: 5px;
+}
+
+.snow-die.is-holdable .snow-die__hold,
+.snow-die.is-held .snow-die__hold,
+.snow-die[data-tv-focused="true"] .snow-die__hold {
+  opacity: 1;
+}
+
+/* A settled die is display content, not a faded disabled control. It is kept
+   out of the focus graph with tabindex=-1 while its face remains legible. */
+.snow-dice-game .snow-die[aria-disabled="true"] { opacity: 1; }
+
+.snow-die.is-held {
+  border-color: hsl(46 88% 59%);
+  background-image:
+    radial-gradient(circle at 31% 23%, hsl(51 100% 96%), transparent 45%),
+    linear-gradient(145deg, hsl(48 94% 88%), hsl(42 72% 65%) 72%, hsl(36 55% 50%));
+  box-shadow:
+    inset 0 0 0 2px hsl(0 0% 100% / .6),
+    inset -7px -9px 15px hsl(36 65% 31% / .22),
+    0 0 0 4px hsl(46 82% 56% / .24),
+    0 13px 22px hsl(218 88% 2% / .62);
+  transform: translateY(-6px);
+}
+
+.snow-die.is-held .snow-die__hold {
+  color: hsl(220 72% 7%);
+  border-color: hsl(48 90% 71%);
+  background: linear-gradient(180deg, hsl(49 95% 82%), hsl(40 68% 55%));
+  opacity: 1;
+}
+
+.snow-die.is-empty {
+  color: hsl(194 57% 55% / .42);
+  border-style: dashed;
+  background-image:
+    linear-gradient(135deg, transparent 38%, hsl(195 68% 47% / .08) 39%, hsl(195 68% 47% / .08) 46%, transparent 47%),
+    linear-gradient(45deg, transparent 38%, hsl(195 68% 47% / .07) 39%, hsl(195 68% 47% / .07) 46%, transparent 47%);
+  background-size: 27px 27px;
+}
+
+.snow-die.is-empty .snow-dice-mark {
+  width: 58px;
+  height: 58px;
+  stroke-width: 2.5;
+}
+
+.snow-die.is-rolling {
+  animation: snow-die-tumble 620ms cubic-bezier(.2, .76, .2, 1) both;
+}
+
+.snow-die.is-rolling:nth-child(2) { animation-delay: 35ms; }
+.snow-die.is-rolling:nth-child(3) { animation-delay: 70ms; }
+.snow-die.is-rolling:nth-child(4) { animation-delay: 105ms; }
+.snow-die.is-rolling:nth-child(5) { animation-delay: 140ms; }
+
+@keyframes snow-die-tumble {
+  0% { transform: translate3d(0, 0, 0) rotate(0); }
+  22% { transform: translate3d(-5px, -19px, 0) rotate(-9deg); }
+  48% { transform: translate3d(6px, -8px, 0) rotate(8deg); }
+  72% { transform: translate3d(-3px, -3px, 0) rotate(-4deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0); }
+}
+
+.snow-dice-result {
+  min-height: 72px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-top: 9px;
+  padding: 8px 15px;
+  border: 1px solid hsl(188 67% 53% / .43);
+  border-radius: 11px;
+  background: linear-gradient(90deg, hsl(215 70% 6% / .94), hsl(194 64% 12% / .92), hsl(215 70% 6% / .94));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .07);
+}
+
+.snow-dice-result.is-banked {
+  border-color: hsl(46 87% 61% / .72);
+  background: linear-gradient(90deg, hsl(222 71% 7%), hsl(45 55% 19%), hsl(222 71% 7%));
+}
+
+.snow-dice-result__icon {
+  width: 43px;
+  height: 43px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid hsl(47 87% 70% / .7);
+  border-radius: 50%;
+  color: hsl(48 94% 77%);
+  background: hsl(214 70% 7%);
+  font-size: 22px;
+}
+
+.snow-dice-result__copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  margin-left: 12px;
+  column-gap: 11px;
+}
+
+.snow-dice-result__copy small {
+  grid-column: 1 / -1;
+  color: hsl(188 54% 70%);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .15em;
+}
+
+.snow-dice-result__copy strong {
+  color: hsl(0 0% 98%);
+  font: 900 20px/1.1 Montserrat, sans-serif;
+}
+
+.snow-dice-result__copy em {
+  overflow: hidden;
+  color: hsl(205 19% 76%);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snow-dice-result__score {
+  min-width: 66px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: hsl(48 94% 77%);
+  font: 900 31px/1 Montserrat, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.snow-dice-result__score small {
+  margin-top: 3px;
+  color: hsl(190 45% 72%);
+  font-size: 8px;
+  letter-spacing: .15em;
+}
+
+.snow-dice-controls {
+  min-height: 80px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 7px;
+  padding: 8px 12px;
+  border: 2px solid hsl(44 66% 50% / .54);
+  border-radius: 11px 11px 34px 34px;
+  background: linear-gradient(180deg, hsl(216 48% 16%), hsl(219 72% 6%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), inset 0 -9px 17px hsl(220 90% 2% / .42);
+}
+
+.snow-dice-controls > button + button {
+  margin-left: 12px;
+}
+
+.snow-dice-game .snow-dice-action {
+  min-width: 220px;
+  min-height: 59px;
+  padding: 7px 25px;
+  border-width: 3px;
+  border-radius: 11px;
+  font: 900 18px/1 Montserrat, sans-serif;
+  letter-spacing: .06em;
+}
+
+.snow-dice-game .snow-dice-action > svg {
+  width: 26px !important;
+  height: 26px !important;
+  margin-right: 3px;
+}
+
+.snow-dice-game .snow-dice-action--bank {
+  color: hsl(190 87% 88%);
+  border: 3px solid hsl(190 73% 57%);
+  background: linear-gradient(180deg, hsl(194 66% 28%), hsl(207 73% 12%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .18), 0 7px 15px hsl(220 88% 2% / .45);
+}
+
+.snow-dice-controls__note {
+  max-width: 145px;
+  margin: 0 0 0 16px;
+  color: hsl(192 22% 66%);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.snow-dice-back-note {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 8;
+  margin: 0;
+  padding: 5px 13px;
+  border: 1px solid hsl(47 82% 65% / .55);
+  border-radius: 7px;
+  color: hsl(47 93% 83%);
+  background: hsl(218 74% 5% / .96);
+  font-size: 11px;
+  font-weight: 800;
+  transform: translateX(-50%);
+}
+
+.snow-dice-scorecard {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid hsl(196 73% 57% / .45);
+  border-radius: 17px;
+  color: hsl(0 0% 96%);
+  background-color: hsl(218 69% 7%);
+  background-image:
+    radial-gradient(ellipse at 50% 0%, hsl(197 67% 27% / .42), transparent 40%),
+    linear-gradient(155deg, hsl(211 60% 14%), hsl(221 70% 6%) 64%, hsl(267 49% 9%));
+  box-shadow: inset 0 0 0 2px hsl(195 85% 80% / .08), 0 17px 34px hsl(220 88% 2% / .56);
+}
+
+.snow-dice-scorecard > header {
+  min-height: 72px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 10px 13px;
+  border-bottom: 1px solid hsl(194 73% 55% / .32);
+  background: linear-gradient(180deg, hsl(200 54% 22% / .66), hsl(215 65% 9% / .72));
+}
+
+.snow-dice-scorecard > header > span {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  border: 2px solid hsl(47 88% 68%);
+  border-radius: 50%;
+  color: hsl(47 94% 77%);
+  background: hsl(218 72% 6%);
+}
+
+.snow-dice-scorecard > header svg {
+  width: 20px;
+  height: 20px;
+}
+
+.snow-dice-scorecard header div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.snow-dice-scorecard header small {
+  color: hsl(193 55% 72%);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .17em;
+}
+
+.snow-dice-scorecard header strong {
+  margin-top: 4px;
+  color: hsl(47 94% 80%);
+  font: 900 18px/1 Montserrat, sans-serif;
+  letter-spacing: .08em;
+}
+
+.snow-dice-scorecard ol {
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 8px 9px;
+  list-style: none;
+}
+
+.snow-dice-scorecard li {
+  position: relative;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid hsl(194 63% 48% / .15);
+  border-radius: 7px;
+}
+
+.snow-dice-scorecard li.is-current {
+  border-color: hsl(47 85% 60% / .58);
+  background: linear-gradient(90deg, hsl(46 65% 30% / .42), hsl(191 59% 18% / .35));
+  box-shadow: inset 0 0 0 1px hsl(47 91% 72% / .14);
+}
+
+.snow-dice-scorecard__rank {
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  border: 1px solid hsl(193 60% 54% / .38);
+  border-radius: 50%;
+  color: hsl(190 68% 77%);
+  background: hsl(218 65% 6% / .75);
+  font: 900 10px/1 Montserrat, sans-serif;
+}
+
+.snow-dice-scorecard li > span:nth-child(2) {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.snow-dice-scorecard li b {
+  overflow: hidden;
+  color: hsl(0 0% 96%);
+  font-size: 11px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.snow-dice-scorecard li small {
+  margin-top: 3px;
+  color: hsl(193 30% 69%);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.snow-dice-scorecard li i {
+  flex: 0 0 auto;
+  margin-left: 5px;
+  color: hsl(48 94% 77%);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.snow-dice-scorecard__tip {
+  min-height: 72px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin: 0 9px 9px;
+  padding: 9px 11px;
+  border: 1px solid hsl(47 72% 55% / .32);
+  border-radius: 9px;
+  color: hsl(204 21% 76%);
+  background: hsl(219 67% 6% / .72);
+}
+
+.snow-dice-scorecard__tip > svg {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-right: 9px;
+  color: hsl(47 88% 72%);
+}
+
+.snow-dice-scorecard__tip p {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.snow-dice-scorecard__tip b {
+  display: block;
+  margin-bottom: 3px;
+  color: hsl(47 91% 78%);
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+
+/* 720p fallback: retain the full five-die row and readable controls. */
+@media (max-height: 760px) {
+  .snow-dice-layout { grid-template-columns: minmax(0, 1fr) 250px; column-gap: 9px; }
+  .snow-dice-table { padding: 10px 13px 9px; border-width: 3px; border-radius: 20px 20px 50px 50px; }
+  .snow-dice-table__rail { border-radius: 14px 14px 43px 43px; }
+  .snow-dice-table__header { min-height: 51px; padding-bottom: 7px; }
+  .snow-dice-brand__seal { width: 40px; height: 40px; margin-right: 9px; }
+  .snow-dice-brand__seal .snow-dice-mark { width: 26px; height: 26px; }
+  .snow-dice-brand small { font-size: 8px; }
+  .snow-dice-brand strong { margin-top: 3px; font-size: 21px; }
+  .snow-dice-session > span { min-width: 61px; height: 40px; }
+  .snow-dice-session b { font-size: 17px; }
+  .snow-dice-tray { padding: 7px 10px 10px; border-radius: 13px 13px 27px 27px; }
+  .snow-dice-tray__label { padding-bottom: 8px; }
+  .snow-dice-tray__label span { font-size: 10px; }
+  .snow-dice-tray__label small { font-size: 8px; }
+  .snow-dice-row { min-height: 109px; }
+  .snow-dice-row > * + * { margin-left: 10px; }
+  .snow-die { width: 92px; height: 92px; border-width: 3px; border-radius: 14px; }
+  .snow-die__face { left: 13px; right: 13px; top: 13px; bottom: 13px; }
+  .snow-die__pip { width: 16px; height: 16px; }
+  .snow-die__hold { left: 8px; right: 8px; top: -13px; min-height: 22px; font-size: 7px; }
+  .snow-die__hold svg { width: 10px !important; height: 10px !important; }
+  .snow-die.is-empty .snow-dice-mark { width: 43px; height: 43px; }
+  .snow-dice-result { min-height: 58px; margin-top: 6px; padding: 5px 10px; }
+  .snow-dice-result__icon { width: 35px; height: 35px; font-size: 18px; }
+  .snow-dice-result__copy { margin-left: 9px; }
+  .snow-dice-result__copy strong { font-size: 16px; }
+  .snow-dice-result__copy em { font-size: 9px; }
+  .snow-dice-result__score { min-width: 54px; font-size: 25px; }
+  .snow-dice-controls { min-height: 65px; margin-top: 5px; padding: 5px 8px; border-radius: 8px 8px 25px 25px; }
+  .snow-dice-game .snow-dice-action { min-width: 185px; min-height: 49px; padding: 5px 16px; font-size: 15px; }
+  .snow-dice-game .snow-dice-action > svg { width: 21px !important; height: 21px !important; }
+  .snow-dice-controls__note { max-width: 120px; font-size: 8px; }
+  .snow-dice-scorecard > header { min-height: 57px; padding: 7px 9px; }
+  .snow-dice-scorecard > header > span { width: 33px; height: 33px; margin-right: 7px; }
+  .snow-dice-scorecard header strong { font-size: 15px; }
+  .snow-dice-scorecard ol { padding: 5px 7px; }
+  .snow-dice-scorecard li { min-height: 40px; padding: 3px 5px; }
+  .snow-dice-scorecard__rank { width: 21px; height: 21px; margin-right: 6px; font-size: 8px; }
+  .snow-dice-scorecard li b { font-size: 9px; }
+  .snow-dice-scorecard li small { font-size: 8px; }
+  .snow-dice-scorecard li i { font-size: 6px; }
+  .snow-dice-scorecard__tip { min-height: 54px; margin: 0 7px 7px; padding: 6px 8px; }
+  .snow-dice-scorecard__tip p,
+  .snow-dice-scorecard__tip b { font-size: 8px; }
+}
+
+/* 1080p is the reference composition. */
+@media (min-height: 1000px) and (max-height: 1399px) {
+  .snow-dice-layout { grid-template-columns: minmax(0, 1fr) 340px; column-gap: 18px; }
+  .snow-dice-table { padding: 24px 29px 22px; border-width: 5px; border-radius: 40px 40px 94px 94px; }
+  .snow-dice-table__rail { border-radius: 31px 31px 85px 85px; }
+  .snow-dice-table__header { min-height: 86px; padding-bottom: 16px; }
+  .snow-dice-brand__seal { width: 68px; height: 68px; margin-right: 16px; }
+  .snow-dice-brand__seal .snow-dice-mark { width: 43px; height: 43px; }
+  .snow-dice-brand small { font-size: 12px; }
+  .snow-dice-brand strong { margin-top: 7px; font-size: 35px; }
+  .snow-dice-session > * + * { margin-left: 10px; }
+  .snow-dice-session > span { min-width: 96px; height: 65px; }
+  .snow-dice-session small { font-size: 10px; }
+  .snow-dice-session b { font-size: 27px; }
+  .snow-dice-tray { padding: 16px 25px 23px; border-width: 3px; border-radius: 27px 27px 51px 51px; }
+  .snow-dice-tray__label { padding-bottom: 15px; }
+  .snow-dice-tray__label span { font-size: 17px; }
+  .snow-dice-tray__label small { font-size: 13px; }
+  .snow-dice-row { min-height: 190px; }
+  .snow-dice-row > * + * { margin-left: 24px; }
+  .snow-die { width: 158px; height: 158px; border-width: 5px; border-radius: 24px; }
+  .snow-die__face { left: 23px; right: 23px; top: 23px; bottom: 23px; }
+  .snow-die__pip { width: 27px; height: 27px; }
+  .snow-die__hold { left: 19px; right: 19px; top: -22px; min-height: 35px; font-size: 11px; }
+  .snow-die__hold svg { width: 15px !important; height: 15px !important; }
+  .snow-die.is-empty .snow-dice-mark { width: 75px; height: 75px; }
+  .snow-dice-result { min-height: 92px; margin-top: 13px; padding: 11px 20px; }
+  .snow-dice-result__icon { width: 55px; height: 55px; font-size: 28px; }
+  .snow-dice-result__copy { margin-left: 16px; column-gap: 15px; }
+  .snow-dice-result__copy small { font-size: 10px; }
+  .snow-dice-result__copy strong { font-size: 26px; }
+  .snow-dice-result__copy em { font-size: 14px; }
+  .snow-dice-result__score { min-width: 88px; font-size: 40px; }
+  .snow-dice-controls { min-height: 103px; margin-top: 11px; padding: 11px 17px; border-radius: 15px 15px 46px 46px; }
+  .snow-dice-game .snow-dice-action { min-width: 285px; min-height: 75px; padding: 9px 31px; font-size: 23px; }
+  .snow-dice-game .snow-dice-action > svg { width: 33px !important; height: 33px !important; }
+  .snow-dice-controls__note { max-width: 185px; margin-left: 22px; font-size: 12px; }
+  .snow-dice-scorecard > header { min-height: 92px; padding: 13px 17px; }
+  .snow-dice-scorecard > header > span { width: 52px; height: 52px; }
+  .snow-dice-scorecard > header svg { width: 27px; height: 27px; }
+  .snow-dice-scorecard header small { font-size: 10px; }
+  .snow-dice-scorecard header strong { font-size: 23px; }
+  .snow-dice-scorecard ol { padding: 11px 12px; }
+  .snow-dice-scorecard li { min-height: 60px; padding: 7px 10px; }
+  .snow-dice-scorecard__rank { width: 32px; height: 32px; margin-right: 10px; font-size: 12px; }
+  .snow-dice-scorecard li b { font-size: 14px; }
+  .snow-dice-scorecard li small { font-size: 11px; }
+  .snow-dice-scorecard li i { font-size: 8px; }
+  .snow-dice-scorecard__tip { min-height: 91px; margin: 0 12px 12px; padding: 12px 14px; }
+  .snow-dice-scorecard__tip > svg { width: 31px; height: 31px; }
+  .snow-dice-scorecard__tip p,
+  .snow-dice-scorecard__tip b { font-size: 11px; }
+}
+
+/* Native 4K WebViews occasionally expose the physical CSS viewport. Expand
+   the table instead of leaving a 1536px island in the middle of the screen. */
+@media (min-height: 1600px) and (min-width: 2500px) {
+  .snow-dice-game .snow-game-body { max-width: 180rem; gap: 20px; }
+  .snow-dice-game .snow-game-topbar { height: 104px; min-height: 104px; }
+  .snow-dice-game .snow-game-back { min-width: 220px; min-height: 76px; font-size: 24px; }
+  .snow-dice-game .snow-game-fx-toggle { min-height: 66px; padding-left: 24px; padding-right: 24px; font-size: 21px; }
+  .snow-dice-game .snow-chip-badge { width: 265px; height: 76px; }
+  .snow-dice-game .snow-chip-badge small { font-size: 14px; }
+  .snow-dice-game .snow-chip-badge strong { font-size: 31px; }
+  .snow-dice-game .snow-game-heading span { font-size: 22px; }
+  .snow-dice-layout { grid-template-columns: minmax(0, 1fr) 470px; column-gap: 28px; }
+  .snow-dice-table { padding: 38px 46px 34px; border-width: 7px; border-radius: 58px 58px 135px 135px; }
+  .snow-dice-table__rail { border-radius: 47px 47px 122px 122px; }
+  .snow-dice-table__header { min-height: 128px; padding-bottom: 23px; }
+  .snow-dice-brand__seal { width: 96px; height: 96px; margin-right: 23px; }
+  .snow-dice-brand__seal .snow-dice-mark { width: 61px; height: 61px; }
+  .snow-dice-brand small { font-size: 17px; }
+  .snow-dice-brand strong { font-size: 50px; }
+  .snow-dice-session > span { min-width: 132px; height: 91px; }
+  .snow-dice-session small { font-size: 14px; }
+  .snow-dice-session b { font-size: 38px; }
+  .snow-dice-tray { padding: 25px 38px 34px; border-width: 4px; border-radius: 39px 39px 73px 73px; }
+  .snow-dice-tray__label span { font-size: 23px; }
+  .snow-dice-tray__label small { font-size: 18px; }
+  .snow-dice-row { min-height: 278px; }
+  .snow-dice-row > * + * { margin-left: 36px; }
+  .snow-die { width: 226px; height: 226px; border-width: 7px; border-radius: 34px; }
+  .snow-die__face { left: 33px; right: 33px; top: 33px; bottom: 33px; }
+  .snow-die__pip { width: 39px; height: 39px; }
+  .snow-die__hold { left: 27px; right: 27px; top: -31px; min-height: 49px; font-size: 16px; }
+  .snow-die.is-empty .snow-dice-mark { width: 106px; height: 106px; }
+  .snow-dice-result { min-height: 132px; margin-top: 19px; padding: 16px 29px; }
+  .snow-dice-result__icon { width: 79px; height: 79px; font-size: 39px; }
+  .snow-dice-result__copy strong { font-size: 37px; }
+  .snow-dice-result__copy small { font-size: 14px; }
+  .snow-dice-result__copy em { font-size: 20px; }
+  .snow-dice-result__score { min-width: 126px; font-size: 57px; }
+  .snow-dice-controls { min-height: 147px; margin-top: 16px; border-radius: 22px 22px 66px 66px; }
+  .snow-dice-game .snow-dice-action { min-width: 405px; min-height: 107px; font-size: 33px; }
+  .snow-dice-game .snow-dice-action > svg { width: 47px !important; height: 47px !important; }
+  .snow-dice-controls__note { max-width: 265px; font-size: 17px; }
+  .snow-dice-scorecard > header { min-height: 132px; }
+  .snow-dice-scorecard > header > span { width: 73px; height: 73px; }
+  .snow-dice-scorecard header strong { font-size: 33px; }
+  .snow-dice-scorecard header small { font-size: 14px; }
+  .snow-dice-scorecard li { min-height: 86px; padding: 10px 15px; }
+  .snow-dice-scorecard__rank { width: 46px; height: 46px; font-size: 17px; }
+  .snow-dice-scorecard li b { font-size: 20px; }
+  .snow-dice-scorecard li small { font-size: 16px; }
+  .snow-dice-scorecard li i { font-size: 12px; }
+  .snow-dice-scorecard__tip { min-height: 129px; }
+  .snow-dice-scorecard__tip p,
+  .snow-dice-scorecard__tip b { font-size: 16px; }
+}
+
+@media (max-width: 1120px) {
+  .snow-dice-layout { grid-template-columns: minmax(0, 1fr) 215px; }
+  .snow-dice-row > * + * { margin-left: 7px; }
+  .snow-die { width: 82px; height: 82px; }
+  .snow-die__pip { width: 14px; height: 14px; }
+  .snow-dice-session > span:nth-child(3) { display: none; }
+  .snow-dice-scorecard li { min-height: 37px; }
+}
+
+[dir="rtl"] .snow-dice-brand__seal,
+[dir="rtl"] .snow-dice-scorecard > header > span,
+[dir="rtl"] .snow-dice-scorecard__rank,
+[dir="rtl"] .snow-dice-scorecard__tip > svg { margin-left: 10px; margin-right: 0; }
+[dir="rtl"] .snow-dice-session > * + *,
+[dir="rtl"] .snow-dice-row > * + *,
+[dir="rtl"] .snow-dice-controls > button + button { margin-left: 0; margin-right: 12px; }
+[dir="rtl"] .snow-dice-result__copy { margin-left: 0; margin-right: 12px; }
+[dir="rtl"] .snow-dice-controls__note { margin-left: 0; margin-right: 16px; }
+
+.native-low-memory .snow-dice-table,
+.native-low-memory .snow-dice-tray,
+.native-low-memory .snow-die,
+.native-low-memory .snow-dice-scorecard,
+.native-low-memory .snow-dice-controls { box-shadow: none; }
+
+html[data-game-fx="reduced"] .snow-die.is-rolling {
+  animation-duration: 150ms;
+  animation-delay: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-die.is-rolling {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}

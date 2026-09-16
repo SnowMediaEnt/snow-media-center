@@ -1,0 +1,520 @@
+/* Snow Plinko — a TV-first, free-play cabinet. The base composition targets
+   1080p and scales upward for 4K; one compact query preserves a 720p fallback. */
+
+.snow-plinko .tv-game-body {
+  max-width: 118rem;
+  gap: 1.15cqh;
+}
+
+.snow-plinko .snow-plinko-topbar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 6.2cqh;
+  align-items: center;
+  min-height: 62px;
+}
+
+.snow-plinko-back { min-width: 210px; }
+
+.snow-plinko-heading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.snow-plinko-heading__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  margin-right: 13px;
+  border: 2px solid rgba(188, 239, 247, .66);
+  border-radius: 50%;
+  color: #bff6ff;
+  background: radial-gradient(circle at 34% 28%, #207c9d, #0a2949 67%, #041328);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .25), 0 0 22px rgba(75, 213, 236, .2);
+}
+
+.snow-plinko-heading__mark svg { width: 25px; height: 25px; }
+.snow-plinko-heading h1 { margin: 0; font: 900 27px/1 Montserrat, Arial, sans-serif; letter-spacing: .025em; text-transform: uppercase; }
+.snow-plinko-heading p { margin: 5px 0 0; color: #80e6d1; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+
+.snow-plinko-topbar__right { display: flex; align-items: center; margin-left: auto; }
+.snow-plinko-fx { min-width: 112px; min-height: 45px; border-color: rgba(154, 230, 240, .45); }
+.snow-plinko-fx svg { margin-right: 7px; }
+
+.snow-plinko-score-badge {
+  display: flex;
+  align-items: center;
+  min-width: 185px;
+  min-height: 56px;
+  margin-left: 12px;
+  padding: 7px 15px;
+  border: 1px solid rgba(239, 199, 93, .66);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(13, 41, 71, .98), rgba(4, 17, 35, .98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .1), 0 8px 18px rgba(0, 4, 16, .28);
+}
+.snow-plinko-score-badge > svg { width: 25px; height: 25px; margin-right: 12px; color: #f4c94f; }
+.snow-plinko-score-badge span { display: flex; flex-direction: column; }
+.snow-plinko-score-badge small { color: #a7dbe4; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.snow-plinko-score-badge strong { margin-top: 3px; color: #fff4ba; font: 900 24px/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+
+.snow-plinko .snow-plinko-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px;
+  border: 1px solid rgba(129, 225, 235, .35);
+  border-radius: 23px;
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(55, 164, 182, .17), transparent 45%),
+    linear-gradient(150deg, rgba(8, 31, 58, .98), rgba(3, 13, 31, .99));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 22px 48px rgba(0, 3, 13, .48);
+  overflow: hidden;
+}
+
+.snow-plinko-machine {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  margin-right: 17px;
+  padding: 10px 12px 8px;
+  border: 2px solid rgba(230, 188, 78, .58);
+  border-radius: 20px;
+  background: linear-gradient(150deg, #152f4d, #08172c 54%, #030c1d);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .03), inset 0 0 42px rgba(0, 4, 15, .56), 0 13px 26px rgba(0, 2, 12, .4);
+}
+
+.snow-plinko-marquee {
+  position: relative;
+  display: flex;
+  flex: 0 0 7.5cqh;
+  align-items: center;
+  min-height: 62px;
+  padding: 8px 22px;
+  border: 1px solid rgba(174, 233, 242, .4);
+  border-radius: 13px 13px 8px 8px;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(83, 221, 239, .2), transparent 35%),
+    linear-gradient(115deg, #09274b, #17305b 52%, #261341);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .13), 0 6px 14px rgba(0, 3, 14, .33);
+  overflow: hidden;
+}
+.snow-plinko-marquee > span { display: flex; width: 39px; height: 39px; align-items: center; justify-content: center; margin-right: 13px; border-radius: 50%; color: #09213b; background: linear-gradient(145deg, #e7fbff, #69cedd); }
+.snow-plinko-marquee > span svg { width: 23px; height: 23px; }
+.snow-plinko-marquee div { display: flex; flex-direction: column; }
+.snow-plinko-marquee strong { font: 900 23px/1 Montserrat, Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.snow-plinko-marquee small { margin-top: 5px; color: #8fdae5; font-size: 9px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+.snow-plinko-marquee > i { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: #e9c660; box-shadow: 0 0 9px rgba(247, 210, 98, .55); }
+.snow-plinko-marquee > i + i { margin-left: 3.2%; }
+
+.snow-plinko-board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 8px 4px 0;
+  border: 2px solid rgba(143, 225, 237, .52);
+  border-radius: 16px 16px 9px 9px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(72, 216, 216, .28), transparent 51%),
+    linear-gradient(160deg, #0b3f58 0%, #092c4d 43%, #07172f 100%);
+  box-shadow: inset 0 0 68px rgba(0, 5, 20, .62), inset 0 1px rgba(255, 255, 255, .15);
+  overflow: hidden;
+}
+
+.snow-plinko-board::before,
+.snow-plinko-board::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 8%;
+  pointer-events: none;
+}
+.snow-plinko-board::before { left: 0; background: linear-gradient(90deg, rgba(4, 14, 34, .85), transparent); }
+.snow-plinko-board::after { right: 0; background: linear-gradient(-90deg, rgba(4, 14, 34, .85), transparent); }
+
+.snow-plinko-board__aurora {
+  position: absolute;
+  top: -27%;
+  left: 8%;
+  width: 84%;
+  height: 58%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(105, 231, 227, .15), rgba(110, 73, 190, .08) 45%, transparent 72%);
+  pointer-events: none;
+}
+
+.snow-plinko-gate {
+  position: absolute;
+  top: 1.7%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  width: 102px;
+  height: 49px;
+  margin-left: -51px;
+  color: #d7faff;
+}
+.snow-plinko-gate span { flex: 1 1 auto; height: 11px; border: 1px solid #d8b85d; background: linear-gradient(#e3c66e, #76531b); }
+.snow-plinko-gate span:first-child { border-radius: 15px 2px 2px 15px; }
+.snow-plinko-gate span:last-child { border-radius: 2px 15px 15px 2px; }
+.snow-plinko-gate svg { width: 39px; height: 39px; padding: 8px; border: 2px solid #e5c667; border-radius: 50%; background: #0b2747; box-shadow: 0 0 13px rgba(115, 225, 239, .3); }
+
+.snow-plinko-pegs span {
+  position: absolute;
+  z-index: 2;
+  width: clamp(9px, 1.55cqh, 17px);
+  height: clamp(9px, 1.55cqh, 17px);
+  border: 2px solid rgba(243, 222, 157, .88);
+  border-radius: 50%;
+  background: radial-gradient(circle at 33% 29%, #ffffff, #a3e8ed 38%, #408ba0 66%, #102e4e 100%);
+  box-shadow: 0 0 9px rgba(103, 221, 232, .34), 0 3px 4px rgba(0, 4, 16, .55);
+  transform: translate(-50%, -50%);
+}
+
+.snow-plinko-puck {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(27px, 4.2cqh, 47px);
+  height: clamp(27px, 4.2cqh, 47px);
+  border: 3px solid #fff2af;
+  border-radius: 50%;
+  color: #071a33;
+  background: radial-gradient(circle at 32% 27%, #fffbe4, #f5d46e 39%, #b67a18 73%, #5c3705);
+  box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 18px rgba(246, 210, 98, .76), 0 6px 10px rgba(0, 3, 13, .56);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: left 110ms ease-in, top 110ms ease-in, opacity 90ms linear;
+}
+.snow-plinko-puck[data-visible='true'] { opacity: 1; }
+.snow-plinko-puck svg { width: 58%; height: 58%; }
+.snow-plinko.is-dropping .snow-plinko-puck { animation: snow-plinko-puck-glow .52s ease-in-out infinite alternate; }
+
+.snow-plinko-buckets {
+  position: absolute;
+  right: 2.5%;
+  bottom: 1.7%;
+  left: 2.5%;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  height: 13.8%;
+  min-height: 48px;
+}
+
+.snow-plinko-bucket {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0 2px;
+  padding: 0 2px 9px;
+  border: 1px solid rgba(160, 227, 235, .38);
+  border-top: 4px solid rgba(225, 197, 116, .62);
+  border-radius: 3px 3px 9px 9px;
+  background: linear-gradient(180deg, rgba(6, 25, 49, .2), rgba(8, 31, 57, .94));
+  box-shadow: inset 0 -8px 18px rgba(33, 132, 148, .12);
+}
+.snow-plinko-bucket span { color: #d8f5f7; font: 900 clamp(9px, 1.45cqh, 15px)/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.snow-plinko-bucket.is-hot { border-top-color: #f0c94e; background: linear-gradient(180deg, rgba(75, 46, 8, .2), rgba(92, 55, 8, .86)); }
+.snow-plinko-bucket.is-hot span { color: #ffe894; }
+.snow-plinko-bucket.is-winner { border-color: #9ef4dc; background: linear-gradient(180deg, rgba(43, 217, 167, .3), rgba(9, 105, 83, .95)); box-shadow: inset 0 0 20px rgba(135, 255, 221, .24), 0 0 20px rgba(84, 240, 194, .46); }
+.snow-plinko-bucket.is-winner span { color: #f4fffb; transform: scale(1.14); }
+
+.snow-plinko-machine__footer {
+  display: flex;
+  flex: 0 0 3.7cqh;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 31px;
+  padding: 5px 12px 0;
+  color: #819baa;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .13em;
+}
+.snow-plinko-machine__footer p { margin: 0; color: #d9f1f1; font-size: 11px; letter-spacing: .02em; text-transform: none; }
+
+.snow-plinko-console {
+  display: flex;
+  flex: 0 0 365px;
+  min-width: 335px;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid rgba(129, 225, 235, .36);
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(15, 45, 75, .98), rgba(4, 17, 36, .99));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 13px 27px rgba(0, 3, 14, .37);
+}
+
+.snow-plinko-console__head { display: flex; align-items: center; flex: 0 0 auto; padding-bottom: 13px; border-bottom: 1px solid rgba(141, 219, 229, .23); }
+.snow-plinko-console__head > span { display: flex; width: 48px; height: 48px; flex: 0 0 48px; align-items: center; justify-content: center; margin-right: 11px; border: 1px solid rgba(248, 207, 91, .55); border-radius: 12px; color: #ffe28b; background: rgba(5, 19, 41, .7); }
+.snow-plinko-console__head > span svg { width: 25px; height: 25px; }
+.snow-plinko-console__head div { display: flex; flex: 1 1 auto; flex-direction: column; }
+.snow-plinko-console__head small { color: #8acbd5; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.snow-plinko-console__head strong { margin-top: 4px; font: 900 21px/1 Montserrat, Arial, sans-serif; text-transform: uppercase; }
+.snow-plinko-console__head > svg { width: 25px; color: #73d5df; }
+
+.snow-plinko-modes { display: flex; flex-direction: column; margin-top: 12px; }
+.snow-plinko-mode {
+  display: flex;
+  width: 100%;
+  min-height: 57px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  padding: 8px 12px;
+  border: 2px solid rgba(120, 208, 220, .26);
+  border-radius: 10px;
+  color: #e8fbfc;
+  background: linear-gradient(145deg, rgba(14, 49, 79, .9), rgba(6, 24, 47, .96));
+  text-align: left;
+}
+.snow-plinko-mode > span { display: flex; flex-direction: column; }
+.snow-plinko-mode b { font: 900 15px/1 Montserrat, Arial, sans-serif; text-transform: uppercase; }
+.snow-plinko-mode small { margin-top: 5px; color: #86b9c3; font-size: 9px; font-weight: 800; }
+.snow-plinko-mode em { display: flex; width: 49px; height: 34px; align-items: center; justify-content: center; border: 1px solid rgba(237, 204, 111, .35); border-radius: 8px; color: #f3d984; background: rgba(2, 12, 27, .52); font: normal 900 14px/1 Montserrat, Arial, sans-serif; }
+.snow-plinko-mode.is-active { border-color: #f0cc68; color: #071a32; background: linear-gradient(145deg, #ffeaa5, #c69532); box-shadow: inset 0 1px rgba(255,255,255,.48), 0 5px 13px rgba(0, 5, 17, .4); }
+.snow-plinko-mode.is-active small { color: #445263; }
+.snow-plinko-mode.is-active em { border-color: rgba(7, 26, 50, .24); color: #071a32; background: rgba(255, 255, 255, .35); }
+.snow-plinko-mode[aria-disabled='true'] { opacity: .6; }
+
+.snow-plinko-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 4px; border: 1px solid rgba(129, 213, 224, .23); border-radius: 10px; background: rgba(2, 13, 29, .48); }
+.snow-plinko-stats > div { display: flex; min-height: 59px; align-items: center; justify-content: center; flex-direction: column; border-right: 1px solid rgba(129, 213, 224, .18); }
+.snow-plinko-stats > div:last-child { border-right: 0; }
+.snow-plinko-stats small { color: #83b6c0; font-size: 8px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.snow-plinko-stats strong { margin-top: 5px; color: #fff0ae; font: 900 18px/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+
+.snow-plinko-callout { display: flex; min-height: 76px; align-items: center; margin-top: 11px; padding: 10px 12px; border: 1px solid rgba(115, 218, 230, .3); border-radius: 11px; background: linear-gradient(135deg, rgba(8, 36, 65, .9), rgba(8, 26, 51, .95)); }
+.snow-plinko-callout.has-result { border-color: rgba(247, 208, 95, .55); background: linear-gradient(135deg, rgba(76, 52, 12, .77), rgba(20, 29, 48, .98)); }
+.snow-plinko-callout__icon { display: flex; width: 47px; height: 47px; flex: 0 0 47px; align-items: center; justify-content: center; margin-right: 12px; border-radius: 50%; color: #d9faff; background: radial-gradient(circle at 35% 30%, #26849b, #0a2948); }
+.snow-plinko-callout__icon svg { width: 25px; height: 25px; }
+.snow-plinko-callout div { display: flex; min-width: 0; flex-direction: column; }
+.snow-plinko-callout small { color: #87bdc5; font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.snow-plinko-callout strong { margin-top: 5px; overflow: hidden; color: #f6fdfa; font: 900 17px/1.1 Montserrat, Arial, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+
+.snow-plinko-board-high {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 105px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 11px;
+  border: 1px solid rgba(229, 193, 91, .3);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 24% 50%, rgba(238, 199, 87, .14), transparent 34%),
+    linear-gradient(145deg, rgba(13, 36, 61, .88), rgba(3, 15, 32, .78));
+  overflow: hidden;
+}
+.snow-plinko-board-high::before,
+.snow-plinko-board-high::after { content: ''; position: absolute; top: 50%; width: 23%; height: 1px; background: linear-gradient(90deg, transparent, rgba(236, 205, 116, .4)); }
+.snow-plinko-board-high::before { left: 0; }
+.snow-plinko-board-high::after { right: 0; transform: rotate(180deg); }
+.snow-plinko-board-high > span { display: flex; width: 66px; height: 66px; flex: 0 0 66px; align-items: center; justify-content: center; margin-right: 13px; border: 2px solid rgba(240, 204, 99, .62); border-radius: 50%; color: #ffe590; background: radial-gradient(circle, rgba(28, 78, 102, .9), rgba(5, 23, 46, .98)); box-shadow: inset 0 0 0 5px rgba(230, 196, 96, .07), 0 0 18px rgba(236, 202, 102, .16); }
+.snow-plinko-board-high > span svg { width: 34px; height: 34px; }
+.snow-plinko-board-high > div { position: relative; z-index: 1; display: flex; flex-direction: column; }
+.snow-plinko-board-high small { color: #8fc6ce; font-size: 8px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+.snow-plinko-board-high strong { margin-top: 3px; color: #ffe38a; font: 900 31px/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.snow-plinko-board-high em { margin-top: 6px; color: #9db9c0; font-size: 8px; font-style: normal; font-weight: 800; }
+
+.snow-plinko-note { margin: 7px 0 0; color: #ffd889; font-size: 11px; font-weight: 900; text-align: center; }
+.snow-plinko-actions { display: flex; padding-top: 11px; }
+.snow-plinko-drop { display: flex; flex: 1 1 auto; min-height: 76px; align-items: center; justify-content: center; border: 2px solid #f2cd67; border-radius: 13px; color: #06172d; background: linear-gradient(180deg, #fff0ae, #d1a23d); box-shadow: inset 0 1px rgba(255, 255, 255, .7), 0 8px 17px rgba(0, 3, 13, .42); }
+.snow-plinko-drop__disc { display: flex; width: 43px; height: 43px; flex: 0 0 43px; align-items: center; justify-content: center; margin-right: 11px; border: 2px solid rgba(8, 28, 49, .62); border-radius: 50%; background: rgba(255, 255, 255, .28); }
+.snow-plinko-drop__disc svg { width: 24px !important; height: 24px !important; }
+.snow-plinko-drop > span:last-child { display: flex; flex-direction: column; text-align: left; }
+.snow-plinko-drop b { font: 900 18px/1 Montserrat, Arial, sans-serif; text-transform: uppercase; }
+.snow-plinko-drop small { margin-top: 5px; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.snow-plinko-drop[aria-disabled='true'] { color: #17354b; background: linear-gradient(180deg, #cdeaf0, #75b8c5); }
+.snow-plinko-reset { width: 82px; min-height: 76px; margin-left: 8px; flex-direction: column; border: 1px solid rgba(127, 215, 226, .4); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.snow-plinko-reset svg { width: 19px; height: 19px; margin-bottom: 6px; }
+.snow-plinko-disclaimer { margin: 9px 0 0; color: #668c98; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+
+.snow-plinko.is-impact .snow-plinko-machine { animation: snow-plinko-impact .52s ease-out both; }
+
+@keyframes snow-plinko-puck-glow {
+  from { box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 12px rgba(246, 210, 98, .55), 0 6px 10px rgba(0, 3, 13, .56); }
+  to { box-shadow: 0 0 0 3px rgba(6, 26, 50, .65), 0 0 25px rgba(246, 210, 98, .9), 0 6px 10px rgba(0, 3, 13, .56); }
+}
+
+@keyframes snow-plinko-impact {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(3px); }
+  100% { transform: translateY(0); }
+}
+
+/* Low-memory and accessibility modes retain every state cue while removing
+   decorative motion and expensive depth. */
+.native-low-memory .snow-plinko-stage,
+.native-low-memory .snow-plinko-machine,
+.native-low-memory .snow-plinko-console,
+.native-low-memory .snow-plinko-puck,
+.native-low-memory .snow-plinko-pegs span { box-shadow: none; }
+
+.native-low-memory .snow-plinko.is-dropping .snow-plinko-puck,
+.native-low-memory .snow-plinko.is-impact .snow-plinko-machine,
+[data-game-fx='reduced'] .snow-plinko.is-dropping .snow-plinko-puck,
+[data-game-fx='reduced'] .snow-plinko.is-impact .snow-plinko-machine { animation: none; }
+
+[data-game-fx='reduced'] .snow-plinko-puck { transition-duration: 35ms; }
+
+/* 4K output: preserve the roomy 1080p hierarchy instead of leaving a small
+   1280px island in the middle of a 3840px panel. */
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .snow-plinko .tv-game-body { max-width: 192rem; }
+  .snow-plinko-topbar { min-height: 88px; }
+  .snow-plinko-back { min-width: 290px; min-height: 70px; font-size: 21px; }
+  .snow-plinko-heading__mark { width: 66px; height: 66px; margin-right: 18px; }
+  .snow-plinko-heading__mark svg { width: 36px; height: 36px; }
+  .snow-plinko-heading h1 { font-size: 39px; }
+  .snow-plinko-heading p { margin-top: 7px; font-size: 16px; }
+  .snow-plinko-fx { min-width: 155px; min-height: 64px; font-size: 18px; }
+  .snow-plinko-score-badge { min-width: 265px; min-height: 78px; margin-left: 17px; padding: 10px 21px; }
+  .snow-plinko-score-badge > svg { width: 36px; height: 36px; margin-right: 16px; }
+  .snow-plinko-score-badge small { font-size: 13px; }
+  .snow-plinko-score-badge strong { font-size: 34px; }
+  .snow-plinko-stage { padding: 24px; border-radius: 31px; }
+  .snow-plinko-machine { margin-right: 25px; padding: 15px 17px 11px; border-radius: 27px; }
+  .snow-plinko-marquee { min-height: 88px; padding: 11px 31px; border-radius: 18px 18px 11px 11px; }
+  .snow-plinko-marquee > span { width: 56px; height: 56px; margin-right: 18px; }
+  .snow-plinko-marquee > span svg { width: 33px; height: 33px; }
+  .snow-plinko-marquee strong { font-size: 33px; }
+  .snow-plinko-marquee small { margin-top: 7px; font-size: 13px; }
+  .snow-plinko-marquee > i { width: 12px; height: 12px; }
+  .snow-plinko-board { margin-top: 12px; border-radius: 22px 22px 12px 12px; }
+  .snow-plinko-gate { width: 145px; height: 70px; margin-left: -72px; }
+  .snow-plinko-gate svg { width: 56px; height: 56px; padding: 11px; }
+  .snow-plinko-machine__footer { min-height: 44px; padding-right: 17px; padding-left: 17px; font-size: 12px; }
+  .snow-plinko-machine__footer p { font-size: 16px; }
+  .snow-plinko-console { flex-basis: 520px; min-width: 480px; padding: 23px; border-radius: 25px; }
+  .snow-plinko-console__head { padding-bottom: 18px; }
+  .snow-plinko-console__head > span { width: 68px; height: 68px; flex-basis: 68px; margin-right: 16px; border-radius: 17px; }
+  .snow-plinko-console__head > span svg { width: 36px; height: 36px; }
+  .snow-plinko-console__head small { font-size: 13px; }
+  .snow-plinko-console__head strong { margin-top: 6px; font-size: 30px; }
+  .snow-plinko-console__head > svg { width: 36px; }
+  .snow-plinko-modes { margin-top: 17px; }
+  .snow-plinko-mode { min-height: 81px; margin-bottom: 10px; padding: 11px 17px; border-radius: 14px; }
+  .snow-plinko-mode b { font-size: 21px; }
+  .snow-plinko-mode small { margin-top: 7px; font-size: 13px; }
+  .snow-plinko-mode em { width: 70px; height: 48px; font-size: 20px; }
+  .snow-plinko-stats { margin-top: 6px; border-radius: 14px; }
+  .snow-plinko-stats > div { min-height: 84px; }
+  .snow-plinko-stats small { font-size: 11px; }
+  .snow-plinko-stats strong { margin-top: 7px; font-size: 26px; }
+  .snow-plinko-callout { min-height: 108px; margin-top: 16px; padding: 14px 17px; border-radius: 16px; }
+  .snow-plinko-callout__icon { width: 67px; height: 67px; flex-basis: 67px; margin-right: 17px; }
+  .snow-plinko-callout__icon svg { width: 36px; height: 36px; }
+  .snow-plinko-callout small { font-size: 13px; }
+  .snow-plinko-callout strong { margin-top: 7px; font-size: 24px; }
+  .snow-plinko-board-high { min-height: 150px; margin-top: 16px; border-radius: 17px; }
+  .snow-plinko-board-high > span { width: 94px; height: 94px; flex-basis: 94px; margin-right: 19px; }
+  .snow-plinko-board-high > span svg { width: 48px; height: 48px; }
+  .snow-plinko-board-high small { font-size: 11px; }
+  .snow-plinko-board-high strong { margin-top: 5px; font-size: 44px; }
+  .snow-plinko-board-high em { margin-top: 9px; font-size: 11px; }
+  .snow-plinko-actions { padding-top: 16px; }
+  .snow-plinko-drop { min-height: 108px; border-radius: 18px; }
+  .snow-plinko-drop__disc { width: 62px; height: 62px; flex-basis: 62px; margin-right: 16px; }
+  .snow-plinko-drop__disc svg { width: 34px !important; height: 34px !important; }
+  .snow-plinko-drop b { font-size: 26px; }
+  .snow-plinko-drop small { margin-top: 7px; font-size: 13px; }
+  .snow-plinko-reset { width: 116px; min-height: 108px; margin-left: 12px; font-size: 14px; }
+  .snow-plinko-reset svg { width: 27px; height: 27px; margin-bottom: 9px; }
+  .snow-plinko-disclaimer { margin-top: 13px; font-size: 11px; }
+}
+
+/* 720p is a fallback for older boxes and editor previews. Keep the exact same
+   cabinet and readable remote targets, but remove nonessential air. */
+@media (max-height: 800px) {
+  .snow-plinko .tv-game-body { gap: 5px; }
+  .snow-plinko-topbar { flex-basis: 54px; min-height: 54px; }
+  .snow-plinko-back { min-width: 175px; min-height: 46px; padding-right: 14px; padding-left: 14px; font-size: 13px; }
+  .snow-plinko-heading__mark { width: 38px; height: 38px; margin-right: 9px; }
+  .snow-plinko-heading__mark svg { width: 21px; height: 21px; }
+  .snow-plinko-heading h1 { font-size: 21px; }
+  .snow-plinko-heading p { margin-top: 3px; font-size: 8px; }
+  .snow-plinko-fx { min-width: 94px; min-height: 39px; padding: 5px 9px; font-size: 11px; }
+  .snow-plinko-score-badge { min-width: 150px; min-height: 48px; margin-left: 8px; padding: 5px 10px; }
+  .snow-plinko-score-badge > svg { width: 21px; height: 21px; margin-right: 8px; }
+  .snow-plinko-score-badge small { font-size: 7px; }
+  .snow-plinko-score-badge strong { font-size: 18px; }
+  .snow-plinko-stage { padding: 9px; border-radius: 16px; }
+  .snow-plinko-machine { margin-right: 10px; padding: 6px 8px 5px; border-radius: 14px; }
+  .snow-plinko-marquee { min-height: 44px; padding: 5px 13px; border-radius: 9px 9px 5px 5px; }
+  .snow-plinko-marquee > span { width: 29px; height: 29px; margin-right: 9px; }
+  .snow-plinko-marquee > span svg { width: 17px; height: 17px; }
+  .snow-plinko-marquee strong { font-size: 16px; }
+  .snow-plinko-marquee small { margin-top: 3px; font-size: 7px; }
+  .snow-plinko-marquee > i { width: 6px; height: 6px; }
+  .snow-plinko-board { margin: 5px 2px 0; border-radius: 10px 10px 6px 6px; }
+  .snow-plinko-gate { width: 74px; height: 36px; margin-left: -37px; }
+  .snow-plinko-gate span { height: 8px; }
+  .snow-plinko-gate svg { width: 30px; height: 30px; padding: 6px; }
+  .snow-plinko-buckets { min-height: 36px; }
+  .snow-plinko-bucket { margin: 0 1px; padding-bottom: 6px; border-top-width: 3px; }
+  .snow-plinko-machine__footer { min-height: 22px; padding: 3px 7px 0; font-size: 6px; }
+  .snow-plinko-machine__footer p { font-size: 8px; }
+  .snow-plinko-console { flex-basis: 295px; min-width: 280px; padding: 10px; border-radius: 12px; }
+  .snow-plinko-console__head { padding-bottom: 8px; }
+  .snow-plinko-console__head > span { width: 35px; height: 35px; flex-basis: 35px; margin-right: 8px; border-radius: 8px; }
+  .snow-plinko-console__head > span svg { width: 19px; height: 19px; }
+  .snow-plinko-console__head small { font-size: 7px; }
+  .snow-plinko-console__head strong { margin-top: 3px; font-size: 16px; }
+  .snow-plinko-console__head > svg { width: 19px; }
+  .snow-plinko-modes { margin-top: 7px; }
+  .snow-plinko-mode { min-height: 43px; margin-bottom: 4px; padding: 5px 8px; border-radius: 7px; }
+  .snow-plinko-mode b { font-size: 11px; }
+  .snow-plinko-mode small { margin-top: 3px; font-size: 7px; }
+  .snow-plinko-mode em { width: 38px; height: 26px; font-size: 10px; }
+  .snow-plinko-stats { margin-top: 2px; border-radius: 7px; }
+  .snow-plinko-stats > div { min-height: 43px; }
+  .snow-plinko-stats small { font-size: 6px; }
+  .snow-plinko-stats strong { margin-top: 3px; font-size: 13px; }
+  .snow-plinko-callout { min-height: 51px; margin-top: 6px; padding: 6px 8px; border-radius: 7px; }
+  .snow-plinko-callout__icon { width: 34px; height: 34px; flex-basis: 34px; margin-right: 8px; }
+  .snow-plinko-callout__icon svg { width: 19px; height: 19px; }
+  .snow-plinko-callout small { font-size: 7px; }
+  .snow-plinko-callout strong { margin-top: 3px; font-size: 12px; }
+  .snow-plinko-board-high { min-height: 57px; margin-top: 6px; border-radius: 7px; }
+  .snow-plinko-board-high > span { width: 38px; height: 38px; flex-basis: 38px; margin-right: 8px; border-width: 1px; }
+  .snow-plinko-board-high > span svg { width: 21px; height: 21px; }
+  .snow-plinko-board-high small { font-size: 6px; }
+  .snow-plinko-board-high strong { margin-top: 2px; font-size: 18px; }
+  .snow-plinko-board-high em { margin-top: 3px; font-size: 6px; }
+  .snow-plinko-note { margin-top: 4px; font-size: 8px; }
+  .snow-plinko-actions { padding-top: 6px; }
+  .snow-plinko-drop { min-height: 53px; border-radius: 9px; }
+  .snow-plinko-drop__disc { width: 32px; height: 32px; flex-basis: 32px; margin-right: 7px; }
+  .snow-plinko-drop__disc svg { width: 18px !important; height: 18px !important; }
+  .snow-plinko-drop b { font-size: 13px; }
+  .snow-plinko-drop small { margin-top: 3px; font-size: 7px; }
+  .snow-plinko-reset { width: 63px; min-height: 53px; margin-left: 5px; font-size: 8px; }
+  .snow-plinko-reset svg { width: 14px; height: 14px; margin-bottom: 3px; }
+  .snow-plinko-disclaimer { margin-top: 5px; font-size: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-plinko-puck { transition-duration: 35ms; }
+  .snow-plinko.is-dropping .snow-plinko-puck,
+  .snow-plinko.is-impact .snow-plinko-machine { animation: none; }
+}
