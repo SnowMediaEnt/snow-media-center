@@ -549,3 +549,36 @@
   .snow-plinko.is-dropping .snow-plinko-puck::after,
   .snow-plinko.is-impact .snow-plinko-machine { animation: none; }
 }
+
+/* Keep intrinsic header widths and optional statistics from pushing playable
+   controls outside the TV safe area. These rules also work in older WebViews. */
+.snow-plinko .snow-plinko-topbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+.snow-plinko-back { justify-self: start; }
+.snow-plinko-heading { min-width: 0; justify-self: start; }
+.snow-plinko-heading h1 { font-size: clamp(18px, 1.65vw, 39px); }
+.snow-plinko-heading p { white-space: normal; }
+.snow-plinko-topbar__right { min-width: 0; }
+.snow-plinko-console { min-height: 0; }
+.snow-plinko-console > * { flex-shrink: 0; }
+.snow-plinko-console .snow-plinko-board-high { flex: 1 1 0; min-height: 0; }
+.snow-plinko-actions { margin-top: auto; }
+.snow-plinko-mode[data-tv-focused='true'] {
+  outline: 3px solid #d6fbff;
+  outline-offset: 2px;
+  transform: none;
+}
+@media (max-width: 1500px) {
+  .snow-plinko .snow-plinko-topbar { column-gap: 8px; }
+  .snow-plinko-back { min-width: 150px; padding-left: 12px; padding-right: 12px; }
+  .snow-plinko-heading__mark { display: none; }
+  .snow-plinko .snow-plinko-wallet,
+  .snow-plinko .snow-plinko-score-badge { width: 140px; min-width: 140px; margin-left: 8px; padding: 5px 8px; }
+  .snow-plinko .snow-plinko-wallet strong,
+  .snow-plinko .snow-plinko-score-badge strong { font-size: 18px; }
+}
+@media (max-height: 900px) {
+  .snow-plinko-console .snow-plinko-board-high { display: none; }
+}

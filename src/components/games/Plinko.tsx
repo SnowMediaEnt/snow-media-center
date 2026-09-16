@@ -209,7 +209,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const canReset = !dropping && (score > 0 || drops > 0);
   const focusRows = useMemo<FocusRows>(() => [
     ['back', 'fx'],
-    ...(dropping ? [] : [['chill', 'classic', 'wild']]),
+    ...(dropping ? [] : [['chill'], ['classic'], ['wild']]),
     ...(!dropping && user ? [['betDown', 'betUp']] : []),
     ['drop', ...(canReset ? ['reset'] : [])],
   ], [dropping, canReset, user]);
