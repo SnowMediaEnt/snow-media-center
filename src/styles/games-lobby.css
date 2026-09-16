@@ -143,6 +143,33 @@
   min-width: 122px;
 }
 
+.snow-lobby__leaderboard { min-width: 150px; }
+.snow-lobby__leaderboard svg { width: 18px; height: 18px; }
+
+.snow-lounge-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 4vh 5vw; background: rgba(1, 7, 20, .86); backdrop-filter: blur(8px); }
+.snow-lounge-card { width: min(1180px, 92vw); max-height: 88vh; overflow: auto; padding: 22px; border: 2px solid rgba(103, 218, 231, .65); border-radius: 24px; color: white; background: radial-gradient(circle at 50% 0, rgba(80, 196, 220, .18), transparent 42%), linear-gradient(150deg, #102a4b, #071226 63%, #160c28); box-shadow: 0 30px 90px rgba(0, 0, 0, .65), inset 0 1px rgba(255,255,255,.13); }
+.snow-lounge-card > header { display: flex; align-items: center; justify-content: space-between; }
+.snow-lounge-card > header > span { display: flex; align-items: center; gap: 12px; color: #f0ca66; font: 900 25px/1 Montserrat, sans-serif; letter-spacing: .08em; }
+.snow-lounge-card > header svg { width: 28px; height: 28px; }
+.snow-lounge-name { display: grid; grid-template-columns: 44px minmax(0, 1fr) 140px; align-items: end; gap: 12px; margin-top: 18px; padding: 15px; border: 1px solid rgba(111, 215, 230, .3); border-radius: 15px; background: rgba(3, 13, 31, .72); }
+.snow-lounge-name > svg { align-self: center; width: 34px; height: 34px; color: #79d9e6; }
+.snow-lounge-name label { display: flex; min-width: 0; flex-direction: column; }
+.snow-lounge-name small { margin-bottom: 6px; color: #add2df; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.snow-lounge-name input { min-width: 0; height: 47px; padding: 0 13px; border: 2px solid rgba(102, 211, 225, .5); border-radius: 10px; color: white; background: #07162c; font: 800 18px Montserrat, sans-serif; outline: none; }
+.snow-lounge-name input:focus { border-color: #f0ca66; box-shadow: 0 0 0 4px rgba(240, 202, 102, .18); }
+.snow-lounge-error { margin: 10px 0 0; color: #ffb2bd; text-align: center; }
+.snow-lounge-leaders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-top: 18px; }
+.snow-lounge-leaders > div { min-width: 0; padding: 13px; border: 1px solid rgba(115, 203, 220, .26); border-radius: 15px; background: rgba(3, 12, 29, .72); }
+.snow-lounge-leaders h3 { margin: 0 0 10px; color: #8ce4ef; font: 900 15px Montserrat, sans-serif; text-transform: uppercase; }
+.snow-lounge-leaders ol { margin: 0; padding: 0; list-style: none; }
+.snow-lounge-leaders li { min-height: 50px; display: grid; grid-template-columns: 27px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+.snow-lounge-leaders li > b { color: #f0ca66; }
+.snow-lounge-leaders li > span { min-width: 0; overflow: hidden; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.snow-lounge-leaders li small { display: block; margin-top: 3px; color: #829fb3; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.snow-lounge-leaders li > strong { color: #f5d578; font-variant-numeric: tabular-nums; }
+.snow-lounge-leaders li.is-empty { display: flex; justify-content: center; color: #829fb3; font-size: 11px; }
+@media (max-width: 980px) { .snow-lounge-leaders { grid-template-columns: 1fr; } }
+
 .snow-games-lobby .snow-lobby__grid {
   flex: 1 1 0;
   min-height: 0;

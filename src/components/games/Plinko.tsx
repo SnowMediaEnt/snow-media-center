@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- pure motion math is exported for deterministic tests. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gauge, RotateCcw, Snowflake, Sparkles, Target, Trophy, Zap } from 'lucide-react';
+import { Coins, Gauge, Minus, Plus, RotateCcw, Snowflake, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
 import { GameFxCanvas } from './shared/GameFxCanvas';
@@ -12,6 +12,10 @@ import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameAudio } from './shared/gameAudio';
+import { useAuth } from '@/hooks/useAuth';
+import { useGameSocket } from '@/hooks/useGameSocket';
+import { gameSocket } from '@/lib/gameSocket';
+import { readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-plinko.css';
 
 interface PlinkoProps {
@@ -19,7 +23,7 @@ interface PlinkoProps {
 }
 
 type Risk = 'chill' | 'classic' | 'wild';
-type FocusId = 'back' | 'fx' | Risk | 'drop' | 'reset';
+type FocusId = 'back' | 'fx' | Risk | 'betDown' | 'betUp' | 'drop' | 'reset';
 
 const ROWS = 10;
 const STARTING_POINTS = 100;
@@ -27,6 +31,8 @@ const STEP_X = 7;
 const BEST_DROP_KEY = 'snow-plinko-best-drop-v1';
 const FULL_DROP_MS = 1560;
 const REDUCED_DROP_MS = 190;
+const ARCADE_BETS = [10, 25, 50, 100];
+const BET_STORAGE_KEY = 'snow-plinko-bet-v1';
 
 export interface PlinkoMotionPoint {
   x: number;
@@ -159,6 +165,8 @@ const readBestDrop = (): number => {
 };
 
 const Plinko = ({ onBack }: PlinkoProps) => {
+  const { user } = useAuth();
+  const { balance } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { play } = useGameAudio();
@@ -169,6 +177,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const [puckVisible, setPuckVisible] = useState(false);
   const [landing, setLanding] = useState<number | null>(null);
   const [lastAward, setLastAward] = useState<number | null>(null);
+  const [lastCoinAward, setLastCoinAward] = useState<number | null>(null);
+  const [bet, setBet] = useState(() => readSavedBet(BET_STORAGE_KEY));
   const [score, setScore] = useState(0);
   const [drops, setDrops] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -184,6 +194,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const classicRef = useRef<HTMLButtonElement>(null);
   const wildRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLButtonElement>(null);
+  const betDownRef = useRef<HTMLButtonElement>(null);
+  const betUpRef = useRef<HTMLButtonElement>(null);
   const resetRef = useRef<HTMLButtonElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const puckRef = useRef<HTMLDivElement>(null);
@@ -191,12 +203,15 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const dropEpoch = useRef(0);
 
   const activeMode = PLINKO_RISK_MODES.find((mode) => mode.id === risk) ?? PLINKO_RISK_MODES[1];
+  const betIndex = Math.max(0, ARCADE_BETS.indexOf(bet));
+  const canAfford = !user || (balance !== null && balance >= bet);
   const canReset = !dropping && (score > 0 || drops > 0);
   const focusRows = useMemo<FocusRows>(() => [
     ['back', 'fx'],
     ...(dropping ? [] : [['chill', 'classic', 'wild']]),
+    ...(!dropping && user ? [['betDown', 'betUp']] : []),
     ['drop', ...(canReset ? ['reset'] : [])],
-  ], [dropping, canReset]);
+  ], [dropping, canReset, user]);
 
   const refFor = useCallback((id: FocusId): HTMLButtonElement | null => {
     if (id === 'back') return backRef.current;
@@ -205,6 +220,8 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     if (id === 'classic') return classicRef.current;
     if (id === 'wild') return wildRef.current;
     if (id === 'reset') return resetRef.current;
+    if (id === 'betDown') return betDownRef.current;
+    if (id === 'betUp') return betUpRef.current;
     return dropRef.current;
   }, []);
 
@@ -240,12 +257,15 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     onExit: onBack,
   });
 
-  const finishDrop = useCallback((slot: number, mode: typeof PLINKO_RISK_MODES[number], epoch: number) => {
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
+
+  const finishDrop = useCallback((slot: number, mode: typeof PLINKO_RISK_MODES[number], epoch: number, coinAward: number | null = null) => {
     if (!life.isMounted() || epoch !== dropEpoch.current) return;
     const multiplier = mode.multipliers[slot];
     const award = Math.round(STARTING_POINTS * multiplier);
     setLanding(slot);
     setLastAward(award);
+    setLastCoinAward(coinAward);
     setScore((current) => current + award);
     setDrops((current) => current + 1);
     setStreak((current) => (multiplier >= 1.2 ? current + 1 : 0));
@@ -320,24 +340,49 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     });
   }, [life, play]);
 
-  const dropPuck = useCallback(() => {
-    if (dropping) return;
+  const dropPuck = useCallback(async () => {
+    if (dropping || !canAfford) return;
     const mode = activeMode;
-    const word = randomWord();
-    const path = Array.from({ length: ROWS }, (_, index) => ((word >>> index) & 1) === 1);
-    const motion = buildPlinkoMotion(path);
     const epoch = ++dropEpoch.current;
     const duration = reducedFx ? REDUCED_DROP_MS : FULL_DROP_MS;
 
     setLanding(null);
     setLastAward(null);
+    setLastCoinAward(null);
     setBackNote(null);
     setImpact(false);
     setDropping(true);
     setPuckVisible(true);
+    let path: boolean[];
+    let coinAward: number | null = null;
+    if (user) {
+      try {
+        const response = await gameSocket.playArcade({
+          game: 'plinko', bet, risk: mode.id,
+          clientSeed: crypto.getRandomValues(new Uint32Array(2)).join('-'),
+        });
+        if (!response?.ok || !Array.isArray(response.path)) {
+          setDropping(false);
+          setPuckVisible(false);
+          setBackNote(response?.error === 'insufficient_balance' ? 'Not enough Snow Coins for this drop.' : 'The Plinko server missed that drop. Try again.');
+          return;
+        }
+        path = response.path.map(Boolean).slice(0, ROWS);
+        coinAward = Number(response.payout) || 0;
+      } catch {
+        setDropping(false);
+        setPuckVisible(false);
+        setBackNote('The Plinko server is unavailable. Try again.');
+        return;
+      }
+    } else {
+      const word = randomWord();
+      path = Array.from({ length: ROWS }, (_, index) => ((word >>> index) & 1) === 1);
+    }
+    const motion = buildPlinkoMotion(path);
     playMotion(motion, duration, reducedFx);
-    life.timeout(() => finishDrop(motion.finalSlot, mode, epoch), duration);
-  }, [activeMode, dropping, finishDrop, life, playMotion, reducedFx]);
+    life.timeout(() => finishDrop(motion.finalSlot, mode, epoch, coinAward), duration);
+  }, [activeMode, bet, canAfford, dropping, finishDrop, life, playMotion, reducedFx, user]);
 
   const resetSession = useCallback(() => {
     if (dropping) return;
@@ -378,7 +423,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
 
         <div className="snow-plinko-heading">
           <span className="snow-plinko-heading__mark" aria-hidden="true"><Snowflake /></span>
-          <div><h1>Snow Plinko</h1><p>Free play · score only · no coins</p></div>
+          <div><h1>Snow Plinko</h1><p>{user ? `${bet} Snow Coin drop · server decided` : 'Guest free play · score only'}</p></div>
         </div>
 
         <div className="snow-plinko-topbar__right">
@@ -488,7 +533,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             {dropping ? (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Snowflake /></span><div><small>Puck in motion</small><strong>Watch it bounce</strong></div></>
             ) : lastAward !== null ? (
-              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>+{lastAward.toLocaleString()} points</strong></div></>
+              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>{lastCoinAward === null ? `+${lastAward.toLocaleString()} points` : `${lastCoinAward.toLocaleString()} Snow Coins returned`}</strong></div></>
             ) : (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Zap /></span><div><small>{activeMode.label} board ready</small><strong>Press OK to drop</strong></div></>
             )}
@@ -509,20 +554,27 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           {backNote && <p className="snow-plinko-note" role="status">{backNote}</p>}
 
           <div className="snow-plinko-actions">
+            {user && (
+              <div className="snow-plinko-wager" aria-label={`Wager ${bet} Snow Coins`}>
+                <Button ref={betDownRef} type="button" variant="navy" size="icon" aria-label="Lower wager" aria-disabled={betIndex === 0 || dropping ? 'true' : undefined} data-tv-focused={focus === 'betDown' ? 'true' : 'false'} onFocus={() => setFocus('betDown')} onClick={() => { if (betIndex > 0 && !dropping) setBet(ARCADE_BETS[betIndex - 1]); }}><Minus /></Button>
+                <span><Coins /><small>BET</small><b>{bet}</b></span>
+                <Button ref={betUpRef} type="button" variant="navy" size="icon" aria-label="Raise wager" aria-disabled={betIndex === ARCADE_BETS.length - 1 || dropping ? 'true' : undefined} data-tv-focused={focus === 'betUp' ? 'true' : 'false'} onFocus={() => setFocus('betUp')} onClick={() => { if (betIndex < ARCADE_BETS.length - 1 && !dropping) setBet(ARCADE_BETS[betIndex + 1]); }}><Plus /></Button>
+              </div>
+            )}
             <Button
               ref={dropRef}
               type="button"
               variant="gold"
               aria-label={dropping ? 'Puck dropping' : 'Drop puck'}
-              aria-disabled={dropping ? 'true' : undefined}
+              aria-disabled={dropping || !canAfford ? 'true' : undefined}
               data-busy={dropping ? 'true' : undefined}
               data-tv-focused={focus === 'drop' ? 'true' : 'false'}
               onFocus={() => setFocus('drop')}
-              onClick={dropPuck}
+              onClick={() => { void dropPuck(); }}
               className="snow-plinko-drop"
             >
               <span className="snow-plinko-drop__disc" aria-hidden="true"><Snowflake /></span>
-              <span><b>{dropping ? 'Dropping…' : 'Drop puck'}</b><small>100 starting points</small></span>
+              <span><b>{dropping ? 'Dropping…' : 'Drop puck'}</b><small>{user ? `${bet} Snow Coins` : 'Free guest drop'}</small></span>
             </Button>
             {canReset && (
               <Button
@@ -540,7 +592,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             )}
           </div>
 
-          <p className="snow-plinko-disclaimer">No purchases · no prizes · score resets on refresh</p>
+          <p className="snow-plinko-disclaimer">Free entertainment coins only · no purchase required · no cash value</p>
         </aside>
       </section>
 

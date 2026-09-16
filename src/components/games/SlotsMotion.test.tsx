@@ -34,9 +34,9 @@ const ack = (extra: Record<string, unknown> = {}) => ({
 });
 
 const COLLECTORS = {
-  red: { progress: 13, threshold: 15, hit: true, triggered: false, multiplier: 0, payout: 0 },
-  blue: { progress: 17, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0 },
-  yellow: { progress: 0, threshold: 34, hit: false, triggered: true, multiplier: 20, payout: 200 },
+  red: { progress: 13, threshold: 15, hit: true, triggered: false, multiplier: 0, payout: 0, sources: [{ reel: 0, row: 1 }] },
+  blue: { progress: 17, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0, sources: [] },
+  yellow: { progress: 0, threshold: 34, hit: true, triggered: true, multiplier: 20, payout: 200, sources: [{ reel: 3, row: 2 }] },
 };
 
 const strip = (reel: number) => screen.getByTestId(`slot-strip-${reel}`);
@@ -190,6 +190,7 @@ describe('Slots reel motion', () => {
     expect(screen.getByTestId('slot-collector-yellow').dataset.heat).toBe('cold');
     expect(screen.getByTestId('slot-collector-red').className).toContain('is-fed');
     expect(screen.getByTestId('slot-collector-yellow').className).toContain('is-triggered');
+    expect(document.querySelectorAll('.snow-slot-relic-flight')).toHaveLength(2);
     expect(document.querySelector('.snow-slot-callout__trio')?.textContent).toContain('games.slots.collector.bonusCallout');
   }, 15000);
 

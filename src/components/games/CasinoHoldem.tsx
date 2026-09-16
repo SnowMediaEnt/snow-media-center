@@ -14,6 +14,7 @@ import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import { useGameAudio } from './shared/gameAudio';
 import type { GameCardValue } from './shared/gameTypes';
+import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-holdem.css';
 
 interface CasinoHoldemProps {
@@ -45,7 +46,8 @@ interface HoldemAck {
   net?: number;
 }
 
-const ANTES = [10, 25, 50, 100];
+const ANTES = [...TV_BETS];
+const BET_STORAGE_KEY = 'snow-casino-holdem-bet-v1';
 
 type HoldemActionIconName = 'deal' | 'call' | 'raise' | 'fold' | 'again';
 
@@ -120,7 +122,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const labelRank = (k?: string) => (k ? (RANK_KEY[k] ? t(RANK_KEY[k]) : k.replace(/_/g, ' ')) : '');
 
   const [phase, setPhase] = useState<Phase>('bet');
-  const [ante, setAnte] = useState<number>(10);
+  const [ante, setAnte] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, ante), [ante]);
   const [raiseOptions, setRaiseOptions] = useState<RaiseOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

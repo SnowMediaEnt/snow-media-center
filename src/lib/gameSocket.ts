@@ -305,6 +305,20 @@ class GameSocketManager {
     return this.emitWithAck('ch_fold', {});
   }
 
+  async playArcade(payload: {
+    game: 'plinko' | 'dice' | 'trivia'; bet: number; risk?: string; dice?: number[];
+    correct?: number; total?: number; score?: number; difficulty?: string; mode?: string; clientSeed?: string;
+  }): Promise<any> {
+    const res = await this.emitWithAck('arcade_play', payload);
+    this.noteWager(payload.game, payload.bet, { mode: payload.risk ?? payload.difficulty ?? 'classic' });
+    return res;
+  }
+
+  async getLoungeState(): Promise<any> { return this.emitWithAck('lounge_state', undefined, 10000); }
+  async setGameName(gameName: string): Promise<any> {
+    return this.emitWithAck('lounge_set_name', { gameName }, 10000);
+  }
+
   disconnect() {
     this.currentToken = null;
     this.balance = null;

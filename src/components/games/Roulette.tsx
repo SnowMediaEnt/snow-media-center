@@ -13,6 +13,7 @@ import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { isBackKey, useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useGameAudio } from './shared/gameAudio';
+import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-wheels.css';
 
 interface RouletteProps {
@@ -22,7 +23,8 @@ interface RouletteProps {
 type WheelKind = 'european' | 'american';
 type SlotNum = number | '00';
 
-const DENOMS = [10, 25, 50, 100];
+const DENOMS = [...TV_BETS];
+const BET_STORAGE_KEY = 'snow-roulette-bet-v1';
 const RED_NUMS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const isRed = (n: number) => RED_NUMS.has(n);
 const colorOf = (n: SlotNum): 'red' | 'black' | 'green' => {
@@ -100,7 +102,8 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const { play } = useGameAudio();
 
   const [wheel, setWheel] = useState<WheelKind>('european');
-  const [denom, setDenom] = useState<number>(10);
+  const [denom, setDenom] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, denom), [denom]);
   // Single source of truth: every chip physically placed, newest last.
   const [placements, setPlacements] = useState<ChipPlacement[]>([]);
   const [busy, setBusy] = useState(false);

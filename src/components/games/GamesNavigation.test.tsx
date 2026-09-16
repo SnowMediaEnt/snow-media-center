@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe('Games hub D-pad navigation', () => {
-  it('renders all nine games plus Back, FX and sound controls', () => {
+  it('renders all nine games plus Back, leaderboard, FX and sound controls', () => {
     renderHub();
     expect(screen.getByText('games.hub.gameDailySpinName')).toBeTruthy();
     expect(screen.getByText('games.hub.gameCasinoHoldemName')).toBeTruthy();
@@ -48,7 +48,8 @@ describe('Games hub D-pad navigation', () => {
     expect(screen.getByText('games.hub.gameDiceLoungeName')).toBeTruthy();
     expect(screen.getByRole('button', { name: /games\.hub\.gameBlackjackName/ })).toBe(tile(3));
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
-    for (let i = 0; i <= 11; i++) expect(tile(i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Leaderboard' })).toBe(tile(10));
+    for (let i = 0; i <= 12; i++) expect(tile(i)).toBeTruthy();
   });
 
   it('keeps exactly one focused tile as the D-pad moves', () => {
@@ -82,10 +83,10 @@ describe('Games hub D-pad navigation', () => {
     expect(fireEvent.keyDown(window, { key: 'ArrowUp' })).toBe(false);
     expect(document.activeElement).toBe(tile(0));
 
-    act(() => tile(11).focus());
+    act(() => tile(12).focus());
     expect(fireEvent.keyDown(window, { key: 'ArrowRight' })).toBe(false);
     expect(fireEvent.keyDown(window, { key: 'ArrowDown' })).toBe(false);
-    expect(document.activeElement).toBe(tile(11));
+    expect(document.activeElement).toBe(tile(12));
   });
 
   it('yields arrows to a global modal without moving lobby focus', () => {
@@ -142,7 +143,7 @@ describe('Games hub D-pad navigation', () => {
 
   it('toggles reduced FX from the footer control without opening a game', () => {
     renderHub();
-    tile(10).focus();
+    tile(11).focus();
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onOpenGame).not.toHaveBeenCalled();
     expect(localStorage.getItem('snow-games-reduced-fx-v1')).toBe('true');
@@ -152,7 +153,7 @@ describe('Games hub D-pad navigation', () => {
     renderHub();
     act(() => tile(9).focus());
     fireEvent.keyDown(window, { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(tile(11));
+    expect(document.activeElement).toBe(tile(12));
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(localStorage.getItem('snow-games-muted-v1')).toBe('true');
     expect(onOpenGame).not.toHaveBeenCalled();
