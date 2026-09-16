@@ -18,8 +18,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useTVFocus } from '@/hooks/useTVFocus';
-import { isNativePlatform } from '@/utils/platform';
+import { gridNavigation, useTVFocus } from '@/hooks/useTVFocus';
+import { isFireTV, isNativePlatform } from '@/utils/platform';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import {
   AppManager,
@@ -32,10 +32,10 @@ interface DeviceCleanerProps {
   onBack: () => void;
 }
 
-/** Everything on this screen is a button or a card, so the highlight can reach
- *  every control without a hand-written navigation map. */
-const CLEANER_FOCUSABLE =
-  '[data-tv-focus-id], button:not([disabled]), a[href], [tabindex="0"]';
+/** Every control here carries a focus id and sits in the row grid below. */
+const CLEANER_FOCUSABLE = '[data-tv-focus-id]';
+/** How many apps the Fire TV "clear one at a time" list shows. */
+const FIRE_LIST_MAX = 12;
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Not opened in this long counts as unused. Two months is long enough that a
@@ -102,6 +102,10 @@ const LAST_RUN_KEY = 'smc-cleaner-last-run';
 const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
   const { toast } = useToast();
   const native = isNativePlatform();
+  // Fire OS has no screen where a third-party accessibility service can be
+  // switched on, so the automatic cache pass can never run there. Everything
+  // else works; caches go through Fire TV's own per-app page instead.
+  const fireTv = native && isFireTV();
 
   const [loading, setLoading] = useState(true);
   const [storage, setStorage] = useState<DeviceStorageInfo | null>(null);
@@ -279,6 +283,14 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
   /** Starts the cache pass. Resolves true when it is now running (or finished
    *  silently on a rooted box), false when the device cannot do it. */
   const startCachePass = useCallback(async (lines: string[]): Promise<boolean> => {
+    if (fireTv) {
+      finishRun([...lines, 'app caches: pick an app in the Fire TV list below to clear its cache']);
+      toast({
+        title: 'Caches are one app at a time on Fire TV',
+        description: 'Pick an app in the list further down and choose Clear cache on the page that opens.',
+      });
+      return true;
+    }
     const packages = cacheTargets.map((a) => a.packageName);
     if (!packages.length) {
       finishRun([...lines, 'no app caches worth clearing']);
@@ -308,7 +320,7 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
       toast({ title: 'Could not clear caches', description: msg, variant: 'destructive' });
       return false;
     }
-  }, [cacheTargets, finishRun, toast]);
+  }, [cacheTargets, finishRun, fireTv, toast]);
 
   // ---- the buttons --------------------------------------------------------
 
@@ -333,10 +345,32 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
     await startCachePass(lines);
   }, [busy, clearJunk, closeBackground, startCachePass]);
 
+  /** The apps the Fire TV list offers: biggest caches first when known,
+   *  otherwise the apps a person actually opens. */
+  const fireTargets = useMemo(() => cacheTargets.slice(0, FIRE_LIST_MAX), [cacheTargets]);
+
+  const openManageApps = useCallback(async () => {
+    try {
+      const { opened } = await AppManager.openManageApps();
+      if (opened) return;
+    } catch { /* fall through to the single-app page */ }
+    if (fireTargets[0]) {
+      try {
+        await AppManager.openAppSettings({ packageName: fireTargets[0].packageName, appName: fireTargets[0].appName });
+        return;
+      } catch { /* reported below */ }
+    }
+    toast({
+      title: 'Could not open the app list',
+      description: 'On the Fire TV home screen go to Settings → Applications → Manage Installed Applications, pick an app, then Clear cache.',
+    });
+  }, [fireTargets, toast]);
+
   const cachesOnly = useCallback(async () => {
     if (busy) return;
+    if (fireTv) { await openManageApps(); return; }
     await startCachePass([]);
-  }, [busy, startCachePass]);
+  }, [busy, fireTv, openManageApps, startCachePass]);
 
   const junkOnly = useCallback(async () => {
     if (busy) return;
@@ -421,8 +455,33 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
     }
   }, [toast]);
 
+  // The highlight walks rows, never the nearest thing on screen. Rows that
+  // are not rendered right now (Stop while idle, the gate on Fire TV, list
+  // entries past what is installed) are skipped at press time.
+  const rows = useMemo<string[][]>(() => {
+    const r: string[][] = [['cleaner-back', 'cleaner-refresh']];
+    if (busy) {
+      r.push(['cleaner-stop']);
+    } else {
+      r.push(['cleaner-all']);
+      r.push(['cleaner-caches', 'cleaner-memory']);
+      r.push(['cleaner-junk', 'cleaner-usage']);
+    }
+    if (fireTv) {
+      r.push(['cleaner-fire-list']);
+      fireTargets.forEach((_, i) => r.push([`cleaner-fire-app-${i}`]));
+    } else if (!a11y) {
+      r.push(['cleaner-gate-a11y']);
+    }
+    unused.slice(0, 12).forEach((_, i) => r.push([`cleaner-unused-info-${i}`, `cleaner-unused-remove-${i}`]));
+    unvetted.slice(0, 12).forEach((_, i) => r.push([`cleaner-check-info-${i}`, `cleaner-check-remove-${i}`]));
+    return r;
+  }, [a11y, busy, fireTargets, fireTv, unused, unvetted]);
+  const navigation = useMemo(() => gridNavigation(rows), [rows]);
+
   const focus = useTVFocus({
     focusableSelector: CLEANER_FOCUSABLE,
+    navigation,
     initialFocusId: 'cleaner-back',
     scrollWhenStuck: true,
     onBack,
@@ -460,7 +519,12 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
       className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain"
     >
       <div className={BACK_ROW}>
-        <BackButton onClick={onBack} label="Back to Support" data-tv-focus-id="cleaner-back" />
+        <BackButton
+          onClick={onBack}
+          label="Back to Support"
+          data-tv-focus-id="cleaner-back"
+          focused={focus.currentFocusId === 'cleaner-back'}
+        />
       </div>
 
       <div className="max-w-5xl mx-auto w-full space-y-5 pb-16">
@@ -614,8 +678,9 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
                       <span className="grid gap-0.5">
                         <span className="font-semibold">Clear app caches</span>
                         <span className="text-sm text-white/60">
-                          {cacheTargets.length} app{cacheTargets.length === 1 ? '' : 's'}
-                          {cacheTotal > 0 ? ` · ${formatBytes(cacheTotal)}` : ''}
+                          {fireTv
+                            ? 'Opens Fire TV\u2019s app list'
+                            : `${cacheTargets.length} app${cacheTargets.length === 1 ? '' : 's'}${cacheTotal > 0 ? ` · ${formatBytes(cacheTotal)}` : ''}`}
                         </span>
                       </span>
                     </Button>
@@ -673,8 +738,58 @@ const DeviceCleaner = ({ onBack }: DeviceCleanerProps) => {
               )}
             </Card>
 
+            {/* Fire TV: no switch exists, so caches go through Amazon's own app page */}
+            {fireTv && (
+              <Card className={`${card} border-sky-400/40 bg-sky-400/10`}>
+                <p className="font-semibold text-lg flex items-center gap-2 mb-2">
+                  <Settings2 className="w-6 h-6 text-sky-300" /> Fire TV clears caches one app at a time
+                </p>
+                <p className="text-white/80 mb-4">
+                  Fire TV has no setting that lets another app empty caches for you, so the Cleaner
+                  takes you to Fire TV&rsquo;s own page for each app instead. Pick an app below, choose
+                  <span className="font-semibold text-white"> Clear cache </span>
+                  on the page that opens, then press Back to land straight back here. Leftover
+                  files and background apps are still cleared in one press.
+                </p>
+                <Button
+                  onClick={() => void openManageApps()}
+                  size="lg"
+                  data-tv-focus-id="cleaner-fire-list"
+                  className="h-16 px-6 text-lg bg-sky-500 text-black hover:brightness-110 tv-ring tv-ring-contrast"
+                >
+                  <Settings2 className="w-6 h-6 mr-3" /> Open Fire TV&rsquo;s app list
+                </Button>
+                {fireTargets.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    {fireTargets.map((app, i) => (
+                      <div
+                        key={app.packageName}
+                        className="flex items-center gap-3 rounded-lg bg-black/25 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold truncate">{app.appName}</p>
+                          <p className="text-sm text-white/60 truncate">
+                            {app.cacheBytes > 0 ? `${formatBytes(app.cacheBytes)} of cache` : 'Cache size is hidden on Fire TV'}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => void openInfo(app)}
+                          variant="outline"
+                          size="sm"
+                          data-tv-focus-id={`cleaner-fire-app-${i}`}
+                          className="tv-ring border-white/20 bg-white/5"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Clear cache
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
+
             {/* Accessibility gate */}
-            {!a11y && (
+            {!a11y && !fireTv && (
               <Card className={`${card} border-amber-400/40 bg-amber-400/10`}>
                 <p className="font-semibold text-lg flex items-center gap-2 mb-2">
                   <Accessibility className="w-6 h-6 text-amber-300" /> One switch to turn on

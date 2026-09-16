@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -143,8 +144,26 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
          */
         override fun performEditorAction(actionCode: Int): Boolean {
             if (multiline) return super.performEditorAction(actionCode)
+            Log.d(TAG, "performEditorAction($actionCode) -> action")
             queueAction()
             return true
+        }
+
+        /**
+         * The third spelling of the same key. Some IMEs hand a single-line
+         * field a newline through commitText instead of an action or a key
+         * event. A lone "\n" (or a commit that ends in one) on a single-line
+         * field is that key; the newline itself has nowhere to go.
+         */
+        override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            if (!multiline && text != null && text.isNotEmpty() && text.endsWith("\n")) {
+                val head = text.subSequence(0, text.length - 1)
+                if (head.isNotEmpty()) super.commitText(head, newCursorPosition)
+                Log.d(TAG, "commitText newline on single-line field -> action")
+                queueAction()
+                return true
+            }
+            return super.commitText(text, newCursorPosition)
         }
 
         override fun sendKeyEvent(event: KeyEvent): Boolean {
@@ -160,7 +179,10 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
                 }
                 KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     if (multiline) return super.sendKeyEvent(event)
-                    if (event.action == KeyEvent.ACTION_DOWN) queueAction()
+                    if (event.action == KeyEvent.ACTION_DOWN) {
+                        Log.d(TAG, "IME enter key event -> action")
+                        queueAction()
+                    }
                     return true
                 }
             }
@@ -186,6 +208,7 @@ class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(cont
         }
 
         private companion object {
+            const val TAG = "SnowKeyboard"
             /** An action this close to a Back is the dismissal's own, not a press. */
             const val BACK_GUARD_MS = 600L
             /** How long an action waits for a Back that may still be on its way. */

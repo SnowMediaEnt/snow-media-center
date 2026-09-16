@@ -2,11 +2,61 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { EDITOR_ACTION_EVENT, isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
+import { trackEvent } from '@/lib/analytics';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
 
 export type TVFocusNavigationMap = Record<string, Partial<Record<Direction, NavTarget>>>;
+
+const focusIdUsable = (id: string) => {
+  if (typeof document === 'undefined') return false;
+  const el = document.querySelector<HTMLElement>(`[data-tv-focus-id="${id}"]`);
+  return !!el && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null;
+};
+
+/**
+ * A navigation map from rows of focus ids: top to bottom, each left to right.
+ *
+ * Up and Down keep the column where the next row has one, and skip rows
+ * whose control is missing or disabled at the moment of the press. Left and
+ * Right stay inside the row and stop at its ends. Nothing ever falls through
+ * to the spatial search, so the highlight cannot leap to whatever happens to
+ * be nearest on screen — which on a screen of stacked cards was two buttons
+ * past the one below.
+ */
+export const gridNavigation = (rows: string[][]): TVFocusNavigationMap => {
+  const map: TVFocusNavigationMap = {};
+  const vertical = (r: number, c: number, step: 1 | -1) => () => {
+    for (let rr = r + step; rr >= 0 && rr < rows.length; rr += step) {
+      const row = rows[rr];
+      if (!row.length) continue;
+      const pick = row[Math.min(c, row.length - 1)];
+      if (focusIdUsable(pick)) return pick;
+      const other = row.find(focusIdUsable);
+      if (other) return other;
+    }
+    return null;
+  };
+  const horizontal = (r: number, c: number, step: 1 | -1) => () => {
+    const row = rows[r];
+    for (let cc = c + step; cc >= 0 && cc < row.length; cc += step) {
+      if (focusIdUsable(row[cc])) return row[cc];
+    }
+    return null;
+  };
+  rows.forEach((row, r) => {
+    row.forEach((id, c) => {
+      map[id] = {
+        up: vertical(r, c, -1),
+        down: vertical(r, c, 1),
+        left: horizontal(r, c, -1),
+        right: horizontal(r, c, 1),
+      };
+    });
+  });
+  return map;
+};
 
 interface UseTVFocusOptions {
   enabled?: boolean;
@@ -56,6 +106,32 @@ const isEnterKey = (e: KeyboardEvent) =>
   e.key === 'Enter' || e.key === 'Select'
   || e.code === 'Enter' || e.code === 'NumpadEnter'
   || e.keyCode === 13 || e.keyCode === 23;
+
+/**
+ * A breadcrumb for the one thing that cannot be watched from here: which
+ * route the keyboard's Enter took on a real box, and what the page decided.
+ * Goes out as an analytics event, so a TV that "does nothing" on Next can be
+ * read back from the dashboard instead of guessed at. Only Enter on a text
+ * field is noted, never a character.
+ */
+const noteFieldEnter = (
+  path: 'keydown' | 'keyup' | 'keypress' | 'action',
+  event: KeyboardEvent | null,
+  field: HTMLInputElement | HTMLTextAreaElement,
+  editing: boolean,
+) => {
+  try {
+    trackEvent('tv_field_enter', 'debug', {
+      path,
+      key: event?.key ?? null,
+      keyCode: event?.keyCode ?? null,
+      composing: event?.isComposing ?? null,
+      editing,
+      len: field.value.length,
+      field: field.getAttribute('data-tv-focus-id') || field.id || field.tagName,
+    });
+  } catch { /* analytics must never break a key press */ }
+};
 
 /** Enter, or Space — both activate a focused control when not typing. */
 const isOkKey = (e: KeyboardEvent) =>
@@ -139,6 +215,27 @@ export const useTVFocus = ({
     }
     return false;
   }, [ownsElement]);
+  /**
+   * Is this field being typed in, so that an Enter means "done here"?
+   *
+   * Two kinds of proof are accepted. The first is what keyboardOpen() sees:
+   * a keyboard-shown report or a character going in. The second covers the
+   * boxes where neither ever reaches the page — the keyboard was asked for
+   * ON this field and it now holds text. Nobody asks for a keyboard on a
+   * field, types into it, then presses Enter meaning "open the keyboard";
+   * that Enter means "next". An EMPTY field with a keyboard asked for is
+   * still treated as "open it": a device that ignored the request must
+   * stay retryable, and skipping a blank field is the arrow keys' job.
+   */
+  const fieldIsBeingEdited = useCallback((el: HTMLInputElement | HTMLTextAreaElement) => {
+    if (keyboardOpen()) return true;
+    return imeElRef.current === el && el.value.length > 0;
+  }, [keyboardOpen]);
+  // When an Enter on a text field was last acted on, by any route. The
+  // keyup / keypress fallbacks below stand down within this window so one
+  // press can never walk two fields.
+  const lastEnterRef = useRef(0);
+  const ENTER_ECHO_MS = 800;
   // A native show that never settles must not hold the field hostage: after
   // this long the field becomes retryable again. A lapsed deadline is NOT
   // evidence of visibility — it only permits another request.
@@ -327,7 +424,12 @@ export const useTVFocus = ({
     if (isBackTop && scroller) {
       snapAllTVScrollToTop([scroller, containerRef.current]);
     } else {
-      target.scrollIntoView({ block, inline: 'nearest', behavior: 'smooth' });
+      // A smooth scroll on a Fire TV is a stutter, not a glide: the box
+      // repaints the whole page a handful of times over the animation and the
+      // viewer sees the list lurch. Jump straight there on those devices.
+      const lowMemory = typeof document !== 'undefined'
+        && document.documentElement.classList.contains('native-low-memory');
+      target.scrollIntoView({ block, inline: 'nearest', behavior: lowMemory ? 'auto' : 'smooth' });
     }
     currentIdRef.current = id;
     setCurrentFocusId(id);
@@ -447,6 +549,8 @@ export const useTVFocus = ({
       if (action !== 'next') return;
       const active = document.activeElement as HTMLElement | null;
       if (!ownsElement(active)) return;
+      lastEnterRef.current = Date.now();
+      noteFieldEnter('action', null, active, true);
       advanceFrom(active);
     };
     window.addEventListener(EDITOR_ACTION_EVENT, onAction);
@@ -591,11 +695,13 @@ export const useTVFocus = ({
       const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
       const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
       if (isEnterKey(event) && enterField) {
-        const editing = keyboardOpen();
+        const editing = fieldIsBeingEdited(enterField);
         // A multiline box keeps ordinary editing: Enter inserts a newline.
         if (enterField.tagName === 'TEXTAREA' && editing) return;
         event.preventDefault();
         event.stopPropagation();
+        lastEnterRef.current = now;
+        noteFieldEnter('keydown', event, enterField, editing);
         if (editing) advanceFrom(enterField);
         else activate();
         return;
@@ -626,9 +732,40 @@ export const useTVFocus = ({
       if (event.key === 'ArrowLeft') move('left');
       if (event.key === 'ArrowRight') move('right');
     };
+    // The keyboard's Enter does not always arrive as a clean keydown. With
+    // word prediction on, Amazon's keyboard can deliver it mid-composition
+    // (isComposing / keyCode 229), which the handler above must ignore — a
+    // composition Enter must never submit a form. What survives is the
+    // keypress (charCode 13) and the keyup: if one of those reaches an owned
+    // field that is being edited, and no Enter was acted on just now, it is
+    // the viewer's Next and is handled the same way.
+    const late = (event: KeyboardEvent, path: 'keyup' | 'keypress') => {
+      if (event.defaultPrevented) return;
+      const isEnter = isEnterKey(event) || (path === 'keypress' && event.charCode === 13);
+      if (!isEnter) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!ownsElement(active) || active.tagName === 'TEXTAREA') return;
+      const now = Date.now();
+      if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
+      if (now - lastDismissRef.current < DISMISS_GRACE_MS) return;
+      if (!fieldIsBeingEdited(active)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      lastEnterRef.current = now;
+      noteFieldEnter(path, event, active, true);
+      advanceFrom(active);
+    };
+    const onKeyUp = (event: KeyboardEvent) => late(event, 'keyup');
+    const onKeyPress = (event: KeyboardEvent) => late(event, 'keypress');
     window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [activate, advanceFrom, clearIme, enabled, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn]);
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('keypress', onKeyPress, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handler, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('keypress', onKeyPress, { capture: true });
+    };
+  }, [activate, advanceFrom, clearIme, enabled, fieldIsBeingEdited, findManagedElement, focusById, getAllElements, getElements, getId, keyboardOpen, move, openKeyboardOn, ownsElement]);
 
   const focusProps = useCallback((id: string) => ({
     'data-tv-focus-id': id,

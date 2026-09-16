@@ -892,6 +892,37 @@ class AppManagerPlugin : Plugin() {
   }
 
   /**
+   * The system's installed-apps list. On a Fire TV this is Amazon's "Manage
+   * Installed Applications", the one screen there with a Clear cache button
+   * per app — and the only route to another app's cache on that box, since
+   * Fire OS has no switch for third-party accessibility services. Several
+   * intents are tried because the Amazon one is not documented; the first
+   * that resolves wins, and `opened: false` says none did.
+   */
+  @PluginMethod
+  fun openManageApps(call: PluginCall) {
+    val attempts = listOf(
+      Intent("com.amazon.tv.settings.MANAGE_APPLICATIONS"),
+      Intent().setClassName("com.amazon.tv.settings.v2", "com.amazon.tv.settings.v2.tv.applications.ManageApplicationsActivity"),
+      Intent().setClassName("com.amazon.tv.settings", "com.amazon.tv.settings.tv.applications.ManageApplicationsActivity"),
+      Intent(Settings.ACTION_MANAGE_ALL_APPLICATIONS_SETTINGS),
+      Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS),
+    )
+    for (intent in attempts) {
+      try {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(context.packageManager) == null) continue
+        context.startActivity(intent)
+        call.resolve(JSObject().put("opened", true))
+        return
+      } catch (e: Exception) {
+        Log.w(TAG, "manage apps: ${e.message}")
+      }
+    }
+    call.resolve(JSObject().put("opened", false))
+  }
+
+  /**
    * Triggers the auto-cache-clear flow for one app:
    * 1. Tells the Accessibility Service which package to clear.
    * 2. Opens that app's App Info screen.

@@ -1,9 +1,9 @@
 {
-  "version": "1.7.2",
-  "versionCode": 32,
-  "releaseDate": "2026-09-15",
+  "version": "1.7.3",
+  "versionCode": 33,
+  "releaseDate": "2026-09-16",
   "size": "",
-  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.2.apk",
-  "changelog": "This one installs normally — no uninstall needed.\n\nWHAT'S NEW\nMovies & Series: the Player's Plex + VOD card, renamed so it says what it is.\nDevice Cleaner, in Support: clears every app's cache, closes background apps, removes leftover installer files, and lists apps nobody opens.\nAdmin dashboard works with the remote: every section scrolls and every button can be reached.\nTrials and purchases made on the TV now create your Snow Media customer record and website account on their own.\nYour login email now arrives after a trial or purchase.\nSnow Gems can be bought from the Dashboard: pick a pack, scan the code with your phone, pay there, and the gems land on your account by themselves.\nPremium AI: Chat and Image Gen can switch to the top models for Snow Gems, or stay free. Compare both on one prompt, once, for nothing.\nThe Player counts your service: how many channels, movies and series, shown next to All and on the account screen.\n\nFIXES\nPlex: any active Live TV line connects, nothing has to be added on file first.\nThe Movies tutorial no longer tells you to send a code.\nPressing up at the Player's top menu stays at the top instead of dropping back into the list.",
-  "releaseNotes": "Version 1.7.2 adds the Device Cleaner to Support, renames the Player's Plex card to Movies & Series, makes the Admin dashboard work with the remote, creates your customer record and website account automatically after a TV trial or purchase, and sends the login email. Plex now connects for any active Live TV line. Installs normally — no reinstall."
+  "downloadUrl": "https://snowmediaapps.com/smc/snow_media_center_1.7.3.apk",
+  "changelog": "This one installs normally — no uninstall needed.\n\nFIXES\nPlayer sign-in: the keyboard's Next, Done or Enter, and the remote's Play, move from Username to Password and on to Sign In.\nSupport and Device Cleaner: the highlight is a bright gold ring on every button, movement goes row by row instead of jumping, and lists no longer jolt when they scroll.\nHome: the Dashboard button's highlight is gold instead of black.\nDevice Cleaner on Fire TV: no Accessibility switch needed. Leftover files and background apps clear in one press, and app caches open on Fire TV's own app page, one app at a time.\nEverything in 1.7.2 is included.",
+  "releaseNotes": "Version 1.7.3 fixes the keyboard's Next key on the Player sign-in, makes the highlight bright and steady in Support and the Device Cleaner, gives the Home Dashboard button a gold highlight, and adds a Fire TV path for the Device Cleaner. Installs normally — no reinstall."
 }

@@ -492,6 +492,58 @@ describe('Enter and OK on a field', () => {
     expect(document.activeElement).toBe(password);
   });
 
+  it("Enter on a field the keyboard was asked for, once it holds text, moves on even with no keyboard report", async () => {
+    // The Fire TV case: the show request went out, the viewer typed, and the
+    // page never heard keyboardDidShow nor an input event it could own. The
+    // field has text and the keyboard was asked for on it — that Enter is Next.
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await ok(email);                                  // keyboard asked for
+    expect(state.showCalls).toBe(1);
+    email.value = 'me@x.com';                         // typed, no input event seen
+    await ok(email);
+    expect(document.activeElement).toBe(password);
+    expect(state.showCalls).toBe(2);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a keyup Enter on an edited field moves on when its keydown was lost to composition', async () => {
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await fireDidShow();
+    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
+    await ok(email, { keyCode: 229 });                // the composition keydown: ignored
+    expect(document.activeElement).toBe(email);
+    await act(async () => {
+      email.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(password);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a keyup Enter right after a handled keydown is an echo and does nothing', async () => {
+    const { getByLabelText } = render(<Harness />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await fireDidShow();
+    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
+    await ok(email);                                  // moves to password
+    expect(document.activeElement).toBe(password);
+    await act(async () => {
+      password.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(password);    // not walked again
+  });
+
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);

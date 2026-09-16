@@ -584,10 +584,12 @@
     0 0 32px 6px hsl(39 31% 60% / 0.7) !important;
 }
 .home-focus-surface[data-focused="true"][class*="--gradient-white"],
-.home-focus-surface[data-focused="true"][class*="bg-white"] {
+.home-focus-surface[data-focused="true"][class~="bg-white"] {
+  /* The Dashboard button. Was a near-black ring, which vanished against the
+     purple behind it; gold shows on the white button and on the purple. */
   box-shadow:
-    inset 0 0 0 4px hsl(0 0% 18% / 0.98),
-    0 0 32px 6px hsl(0 0% 18% / 0.7) !important;
+    inset 0 0 0 4px hsl(var(--brand-gold) / 0.98),
+    0 0 32px 6px hsl(var(--brand-gold) / 0.75) !important;
 }
 
 

@@ -74,6 +74,10 @@ export interface AppManagerPlugin {
   openAppSettings(options: { packageName: string; appName?: string }): Promise<void>;
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>;
   openAccessibilitySettings(): Promise<void>;
+  /** Opens the system's own installed-apps list (on Fire TV: Manage Installed
+   *  Applications, where each app has its Clear cache). `opened` is false when
+   *  the box has no such screen. */
+  openManageApps(): Promise<{ opened: boolean }>;
   /** Auto-taps Storage → Clear cache for the given package via Accessibility Service. */
   clearAppCache(options: { packageName: string }): Promise<void>;
   /** Opens a URL with Android ACTION_VIEW, optionally targeting a specific package. */
@@ -129,6 +133,7 @@ const webFallback: AppManagerPlugin = {
   async openAppSettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async isAccessibilityEnabled() { return { enabled: false }; },
   async openAccessibilitySettings() { throw new Error(WEB_UNSUPPORTED_MSG); },
+  async openManageApps() { return { opened: false }; },
   async clearAppCache() { throw new Error(WEB_UNSUPPORTED_MSG); },
   async openUrl({ url }) { window.open(url, '_blank', 'noopener,noreferrer'); },
   async isSpeechRecognitionAvailable() { return { available: false }; },

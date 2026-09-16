@@ -333,14 +333,33 @@
      the focused element's actual corner radius (rounded-3xl tiles get
      a rounded ring on high-DPI Android boxes). */
   outline: none !important;
+  /* Brand gold, 4px, same as every other ring in the app. The 3px ice ring
+     this used to be read as a thin white line from the sofa. */
   box-shadow:
-    0 0 0 3px hsl(var(--brand-ice) / 0.98),
-    0 0 18px 4px hsl(var(--brand-ice) / 0.42) !important;
+    0 0 0 4px hsl(var(--brand-gold) / 0.98),
+    0 0 22px 4px hsl(var(--brand-gold) / 0.5) !important;
   transform: scale(1.035);
-  border-color: hsl(var(--brand-ice) / 0.95) !important;
+  border-color: hsl(var(--brand-gold) / 0.95) !important;
   filter: brightness(1.08);
   position: relative;
   z-index: 30;
+}
+/* Fire TV / low-memory boxes: no grow and no brightness filter on focus.
+   Each of those forces a repaint of the card and its neighbours on every
+   D-pad move, which is the "janky" feel; the ring alone is the cue there. */
+.native-low-memory [data-tv-focused="true"] {
+  transform: none;
+  filter: none;
+  transition: none;
+}
+/* index.css strips box-shadow from anything whose class list carries a
+   `shadow-[…]` token on low-memory boxes (the Support tabs do, for their
+   active state). That rule outranks the ring above, so those controls had
+   no ring at all on a Fire TV. Put it back at higher specificity. */
+.native-low-memory [data-tv-focused="true"][class*="shadow-["] {
+  box-shadow:
+    0 0 0 4px hsl(var(--brand-gold) / 0.98),
+    0 0 22px 4px hsl(var(--brand-gold) / 0.5) !important;
 }
 
 /* Variant-aware focus glow — blue buttons get purple, gold gets white, purple gets gold */
@@ -348,18 +367,19 @@
 [data-tv-focused="true"][class*="--gradient-blue"],
 [data-tv-focused="true"][class*="bg-primary"] {
   box-shadow:
-    0 0 0 3px hsl(280 90% 65% / 0.98),
-    0 0 18px 4px hsl(280 90% 65% / 0.5) !important;
+    0 0 0 4px hsl(280 90% 65% / 0.98),
+    0 0 22px 4px hsl(280 90% 65% / 0.5) !important;
   border-color: hsl(280 90% 65% / 0.95) !important;
 }
 
 [data-tv-focused="true"][class*="bg-yellow"],
 [data-tv-focused="true"][class*="bg-amber"],
 [data-tv-focused="true"][class*="--gradient-gold"],
-[data-tv-focused="true"][variant="gold"] {
+[data-tv-focused="true"][variant="gold"],
+[data-tv-focused="true"][class*="bg-brand-gold"] {
   box-shadow:
-    0 0 0 3px hsl(0 0% 100% / 0.98),
-    0 0 18px 4px hsl(0 0% 100% / 0.55) !important;
+    0 0 0 4px hsl(0 0% 100% / 0.98),
+    0 0 22px 4px hsl(0 0% 100% / 0.55) !important;
   border-color: hsl(0 0% 100% / 0.95) !important;
 }
 
@@ -367,18 +387,23 @@
 [data-tv-focused="true"][class*="bg-violet"],
 [data-tv-focused="true"][class*="--gradient-purple"] {
   box-shadow:
-    0 0 0 3px hsl(45 95% 55% / 0.98),
-    0 0 18px 4px hsl(45 95% 55% / 0.5) !important;
+    0 0 0 4px hsl(45 95% 55% / 0.98),
+    0 0 22px 4px hsl(45 95% 55% / 0.5) !important;
   border-color: hsl(45 95% 55% / 0.95) !important;
 }
 
-/* White / light buttons (e.g. Dashboard) get a dark-grey selector */
+/* Solid white buttons (the Dashboard button on Home) keep the gold ring —
+   gold reads on white and on the purple behind it. This used to be a
+   near-black ring, and it used to match `bg-white/5` as well, which is the
+   translucent fill on most outline buttons in the app: every one of those
+   was getting a black ring on a dark panel, which is no ring at all.
+   `~=` matches the exact class token, so `bg-white/5` no longer qualifies. */
 [data-tv-focused="true"][class*="--gradient-white"],
-[data-tv-focused="true"][class*="bg-white"] {
+[data-tv-focused="true"][class~="bg-white"] {
   box-shadow:
-    0 0 0 3px hsl(0 0% 18% / 0.98),
-    0 0 18px 4px hsl(0 0% 18% / 0.55) !important;
-  border-color: hsl(0 0% 18% / 0.95) !important;
+    0 0 0 4px hsl(var(--brand-gold) / 0.98),
+    0 0 22px 4px hsl(var(--brand-gold) / 0.6) !important;
+  border-color: hsl(var(--brand-gold) / 0.95) !important;
 }
 
 [data-tv-focused="true"]:focus-visible,
