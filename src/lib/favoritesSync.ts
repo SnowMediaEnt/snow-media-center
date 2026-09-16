@@ -41,7 +41,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { isDemo } from '@/lib/demoMode';
-import type { FavChannel, XtreamCreds } from '@/lib/xtream';
+import { loadFavoritesData, saveFavoritesData, type FavChannel, type XtreamCreds } from '@/lib/xtream';
 
 const META_KEY = 'snow-livetv-favs-meta-v2';
 const STASH_PREFIX = 'snow-livetv-favs-byline:';
@@ -423,4 +423,113 @@ async function runPendingPush(): Promise<void> {
 export function flushFavoritesPush(): void {
   if (pushTimer != null) { window.clearTimeout(pushTimer); pushTimer = null; }
   void runPendingPush();
+}
+
+// ── every line at once ─────────────────────────────────────────────────────
+//
+// The Live TV pane shows all signed-in lines together, so favourites for
+// more than one line are live at the same time. The rule above stands: the
+// local list (FAVS_KEY_V2 + meta) belongs to the ACTIVE line — the one
+// prepareLocalForLine was last called with. Every other line lives in its
+// stash, and these four functions route each call to the right place so the
+// screen never has to know which line is which.
+
+const isActiveLine = (creds: XtreamCreds): boolean => {
+  const meta = loadMeta();
+  return !meta || meta.line === lineKey(creds);
+};
+
+/** The list for a line, wherever it lives. */
+export function loadFavoritesForLine(creds: XtreamCreds): Map<number, FavChannel> {
+  if (isDemo() || isActiveLine(creds)) return loadFavoritesData();
+  return toMap(restoreFor(lineKey(creds))?.favorites ?? []);
+}
+
+/** Save a line's list locally: the active line's to the local store, any other line's to its stash. */
+export function saveFavoritesForLine(creds: XtreamCreds, favorites: Map<number, FavChannel>): void {
+  if (isDemo() || isActiveLine(creds)) { saveFavoritesData(favorites); return; }
+  const key = lineKey(creds);
+  const prev = restoreFor(key);
+  stashFor(key, { favorites: [...favorites.values()], version: prev?.version ?? null, dirty: true });
+}
+
+const stashPushTimers = new Map<string, number>();
+const stashPending = new Map<string, { creds: XtreamCreds; favorites: FavChannel[]; onAdopt: (m: Map<number, FavChannel>) => void }>();
+
+/** Push a stashed line against the version its stash last saw; settle the stash from the answer. */
+async function pushStash(creds: XtreamCreds, list: FavChannel[]): Promise<Map<number, FavChannel> | null> {
+  const key = lineKey(creds);
+  const before = restoreFor(key);
+  const res = await setRemote(creds, list, before?.version ?? null);
+  if (!res) { stashFor(key, { favorites: list, version: before?.version ?? null, dirty: true }); return null; }
+  if (res.applied) { stashFor(key, { favorites: list, version: res.version, dirty: false }); return null; }
+  const merged = union(res.favorites, list);
+  const res2 = await setRemote(creds, [...merged.values()], res.version);
+  if (res2?.applied) { stashFor(key, { favorites: [...merged.values()], version: res2.version, dirty: false }); return merged; }
+  const final = res2 ? union(res2.favorites, [...merged.values()]) : merged;
+  stashFor(key, { favorites: [...final.values()], version: res2?.version ?? res.version, dirty: true });
+  return final;
+}
+
+/** Debounced push for whichever line changed. Same behaviour as scheduleFavoritesPush; different home. */
+export function scheduleFavoritesPushForLine(
+  creds: XtreamCreds,
+  favorites: Map<number, FavChannel>,
+  onAdopt: (m: Map<number, FavChannel>) => void,
+): void {
+  if (isDemo()) return;
+  if (isActiveLine(creds)) { scheduleFavoritesPush(creds, favorites, onAdopt); return; }
+  const key = lineKey(creds);
+  stashPending.set(key, { creds, favorites: [...favorites.values()], onAdopt });
+  const t = stashPushTimers.get(key);
+  if (t != null) window.clearTimeout(t);
+  stashPushTimers.set(key, window.setTimeout(() => {
+    stashPushTimers.delete(key);
+    const p = stashPending.get(key);
+    stashPending.delete(key);
+    if (!p) return;
+    void pushStash(p.creds, p.favorites).then((adopt) => { if (adopt) p.onAdopt(adopt); });
+  }, PUSH_DEBOUNCE_MS));
+}
+
+/**
+ * Reconcile one line with the cloud on load. The active line goes through
+ * reconcileFavoritesOnLoad unchanged; a stashed line follows the same rule
+ * against its stash: seed the cloud if it is empty, merge and push if the
+ * stash is dirty, otherwise adopt whatever is newer.
+ */
+export async function reconcileFavoritesForLine(
+  creds: XtreamCreds,
+  getLocal: () => Map<number, FavChannel>,
+): Promise<Map<number, FavChannel> | null> {
+  if (isDemo()) return null;
+  if (isActiveLine(creds)) return reconcileFavoritesOnLoad(creds, getLocal);
+  const key = lineKey(creds);
+  const cloud = await pull(creds);
+  if (!cloud) return null;
+  const stash = restoreFor(key);
+  const local = [...getLocal().values()];
+  if (cloud.favorites === null) {
+    if (local.length === 0) return null;
+    return pushStash(creds, local);
+  }
+  if (!stash) {
+    if (local.length === 0) {
+      stashFor(key, { favorites: cloud.favorites, version: cloud.version, dirty: false });
+      return toMap(cloud.favorites);
+    }
+    const merged = union(cloud.favorites, local);
+    stashFor(key, { favorites: [...merged.values()], version: cloud.version, dirty: true });
+    return (await pushStash(creds, [...merged.values()])) ?? merged;
+  }
+  if (stash.dirty) {
+    const merged = union(cloud.favorites, local);
+    stashFor(key, { favorites: [...merged.values()], version: cloud.version, dirty: true });
+    return (await pushStash(creds, [...merged.values()])) ?? merged;
+  }
+  if (stash.version !== cloud.version) {
+    stashFor(key, { favorites: cloud.favorites, version: cloud.version, dirty: false });
+    return toMap(cloud.favorites);
+  }
+  return null;
 }

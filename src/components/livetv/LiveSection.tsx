@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
-import { Loader2, Search, Star, Tv } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
-  saveFavoritesData,
+  loadSavedAccounts,
+  SAVED_ACCOUNTS_REFRESH_EVENT,
   getLiveCategories,
   getLiveStreams,
   getShortEpg,
@@ -19,7 +20,23 @@ import {
   type XtreamLiveStream,
   type EpgNowNext,
 } from '@/lib/xtream';
-import { prepareLocalForLine, reconcileFavoritesOnLoad, scheduleFavoritesPush, flushFavoritesPush } from '@/lib/favoritesSync';
+import {
+  prepareLocalForLine,
+  flushFavoritesPush,
+  loadFavoritesForLine,
+  saveFavoritesForLine,
+  scheduleFavoritesPushForLine,
+  reconcileFavoritesForLine,
+  lineKey,
+} from '@/lib/favoritesSync';
+import {
+  buildLines,
+  lineLabel,
+  loadHiddenCategories,
+  loadCollapsedLines,
+  saveCollapsedLines,
+  HIDDEN_CATEGORIES_EVENT,
+} from '@/lib/liveLines';
 import {
   countsAreFresh,
   expireCounts,
@@ -87,6 +104,31 @@ const formatTime = (ms?: number) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+/** One row of the category pane: a service header, Favorites, All, or a category — always with the line it belongs to. */
+interface CatEntry {
+  id: string;
+  name: string;
+  count?: number;
+  isFav?: boolean;
+  isAll?: boolean;
+  isHeader?: boolean;
+  collapsedHeader?: boolean;
+  line: XtreamCreds;
+  lineKey: string;
+  catId?: string;
+}
+const EMPTY_COUNTS: CatalogCounts = { total: null, byCat: {}, at: 0 };
+const EMPTY_FAVS: Map<number, FavChannel> = new Map();
+const favKey = (f: { stream_id: number; name: string }) => f.name.trim().toLowerCase();
+const toFav = (s: XtreamLiveStream): FavChannel => ({
+  stream_id: s.stream_id,
+  name: s.name,
+  num: s.num,
+  stream_icon: s.stream_icon,
+  category_id: s.category_id,
+  epg_channel_id: s.epg_channel_id,
+});
+
 const favToStream = (f: FavChannel): XtreamLiveStream => ({
   stream_id: f.stream_id,
   name: f.name,
@@ -97,8 +139,63 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
 });
 
 const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate }: Props) => {
-  const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  // ── every signed-in line, in one pane ──────────────────────────────────
+  // The active line (`creds`) drives Movies, Series and the account screen;
+  // here it is simply first. Every other saved account follows as its own
+  // group, so a viewer with two services scrolls one list instead of
+  // switching accounts.
+  const [lines, setLines] = useState<XtreamCreds[]>(() => [creds]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const saved = DEMO ? [] : await loadSavedAccounts().catch(() => []);
+      if (!cancelled) setLines(buildLines(creds, saved));
+    };
+    void load();
+    window.addEventListener(SAVED_ACCOUNTS_REFRESH_EVENT, load);
+    return () => { cancelled = true; window.removeEventListener(SAVED_ACCOUNTS_REFRESH_EVENT, load); };
+  }, [creds]);
+  const grouped = lines.length > 1;
+  const activeKey = lineKey(creds);
+
+  // Folded groups, remembered on the box.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsedLines());
+  const toggleCollapsed = useCallback((k: string) => {
+    setCollapsed((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k); else n.add(k);
+      saveCollapsedLines(n);
+      try { trackEvent('live_group_toggle', 'player', { collapsed: n.has(k) }); } catch { /* ignore */ }
+      return n;
+    });
+  }, []);
+
+  // Categories the viewer hid from Settings → Hide Categories, per line.
+  const [hidden, setHidden] = useState<Map<string, Set<string>>>(new Map());
+  useEffect(() => {
+    const read = () => setHidden(new Map(lines.map((l) => [lineKey(l), loadHiddenCategories(lineKey(l))])));
+    read();
+    window.addEventListener(HIDDEN_CATEGORIES_EVENT, read);
+    return () => window.removeEventListener(HIDDEN_CATEGORIES_EVENT, read);
+  }, [lines]);
+
+  // Which line a stream came from. Every list is tagged as it arrives, so
+  // playback, EPG and favourites resolve the right service without guessing.
+  const streamLineRef = useRef(new WeakMap<object, XtreamCreds>());
+  const tagLine = useCallback((list: XtreamLiveStream[], line: XtreamCreds) => {
+    for (const st of list) streamLineRef.current.set(st, line);
+    return list;
+  }, []);
+  const lineFor = useCallback(
+    (st: XtreamLiveStream | FavChannel | null | undefined): XtreamCreds => (st && streamLineRef.current.get(st)) || creds,
+    [creds],
+  );
+
+  const [categoriesByLine, setCategoriesByLine] = useState<Map<string, XtreamCategory[]>>(new Map());
+  const [catsLoading, setCatsLoading] = useState<Set<string>>(new Set());
+  const categoriesLoading = catsLoading.size > 0;
+  /** The active line's categories — what the weekly count and the first-focus rule look at. */
+  const categories = categoriesByLine.get(activeKey) ?? [];
 
   // Per-category lazy cache. Key is category_id (or ALL_ID for the explicit
   // "All channels" bucket). Favorites are NOT in here — they render from
@@ -109,26 +206,43 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // How many channels this line's service carries, remembered between
   // launches. Every list that arrives feeds it; the badges read from it, so a
   // category the viewer has not opened this session still shows its size.
-  const [counts, setCounts] = useState<CatalogCounts>(() => readCounts(creds, 'live'));
-  useEffect(() => { setCounts(readCounts(creds, 'live')); }, [creds]);
-  const noteCounts = useCallback((patch: { total?: number; byCat?: Record<string, number> }) => {
-    setCounts(recordCounts(creds, 'live', patch));
-  }, [creds]);
+  const [countsByLine, setCountsByLine] = useState<Map<string, CatalogCounts>>(new Map());
+  useEffect(() => { setCountsByLine(new Map(lines.map((l) => [lineKey(l), readCounts(l, 'live')]))); }, [lines]);
+  const noteCountsFor = useCallback((line: XtreamCreds, patch: { total?: number; byCat?: Record<string, number> }) => {
+    const next = recordCounts(line, 'live', patch);
+    setCountsByLine((prev) => new Map(prev).set(lineKey(line), next));
+  }, []);
+  const counts = countsByLine.get(activeKey) ?? EMPTY_COUNTS;
+  const noteCounts = useCallback((patch: { total?: number; byCat?: Record<string, number> }) => noteCountsFor(creds, patch), [creds, noteCountsFor]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [favorites, setFavorites] = useState<Map<number, FavChannel>>(() => loadFavoritesData());
+  // Favourites, one list per line. The active line's list is the local store;
+  // every other line's lives in its stash (favoritesSync routes both).
+  const [favsByLine, setFavsByLine] = useState<Map<string, Map<number, FavChannel>>>(
+    () => new Map([[activeKey, loadFavoritesData()]]),
+  );
+  const favoritesOf = useCallback((line: XtreamCreds) => favsByLine.get(lineKey(line)) ?? EMPTY_FAVS, [favsByLine]);
+  const isFav = useCallback((st: XtreamLiveStream | FavChannel | null | undefined) => !!st && favoritesOf(lineFor(st)).has(st.stream_id), [favoritesOf, lineFor]);
   // A list the cloud settled on (conflict merge, or another device's newer
   // copy). Saved and shown, but NOT marked as a local change — it came from
   // the server, so pushing it back would be a no-op at best.
-  const adoptFavorites = useCallback((m: Map<number, FavChannel>) => {
-    saveFavoritesData(m);
-    setFavorites(m);
+  const adoptFavoritesFor = useCallback((line: XtreamCreds, m: Map<number, FavChannel>) => {
+    saveFavoritesForLine(line, m);
+    setFavsByLine((prev) => new Map(prev).set(lineKey(line), m));
   }, []);
+  const commitFavorites = useCallback((line: XtreamCreds, n: Map<number, FavChannel>) => {
+    // Local first, cloud second: the list is already saved, so a failed push
+    // loses nothing on this device. Debounced. If the push finds another
+    // device wrote first, the merged list comes back through adoptFavoritesFor.
+    saveFavoritesForLine(line, n);
+    scheduleFavoritesPushForLine(line, n, (m) => adoptFavoritesFor(line, m));
+  }, [adoptFavoritesFor]);
   const toggleFavorite = useCallback((ch: XtreamLiveStream | FavChannel) => {
-    setFavorites(prev => {
-      const n = new Map(prev);
+    const line = lineFor(ch);
+    setFavsByLine((prev) => {
+      const n = new Map(prev.get(lineKey(line)) ?? EMPTY_FAVS);
       if (n.has(ch.stream_id)) n.delete(ch.stream_id);
       else n.set(ch.stream_id, {
         stream_id: ch.stream_id,
@@ -138,40 +252,106 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         category_id: ch.category_id,
         epg_channel_id: (ch as XtreamLiveStream).epg_channel_id,
       });
-      saveFavoritesData(n);
-      // Local first, cloud second: the list above is already saved, so a
-      // failed push loses nothing on this device. Debounced. If the push
-      // finds another device wrote first, the merged list comes back through
-      // adoptFavorites and replaces what we show.
-      scheduleFavoritesPush(creds, n, adoptFavorites);
-      return n;
+      commitFavorites(line, n);
+      return new Map(prev).set(lineKey(line), n);
     });
-  }, [creds, adoptFavorites]);
+  }, [lineFor, commitFavorites]);
 
-  // Pull the cloud copy for this line once per sign-in and reconcile it with
-  // what this device has (favoritesSync.ts owns the rule). Keyed on the line,
-  // not on the creds object, so a re-render with an equal creds object does
-  // not re-pull. A pending push is flushed on unmount so a toggle made just
-  // before leaving the screen is not lost.
-  const favLine = `${creds.host}|${creds.username}`;
+  /**
+   * A favourite that no longer plays is usually one the provider re-linked:
+   * the channel is still there under the same name, with a new stream id.
+   * Whenever a list arrives, every favourite of that line whose id is gone
+   * from it but whose name is in it is re-pointed at the current stream —
+   * and saved and pushed, so the fix reaches the cloud and other boxes. A
+   * partial (per-category) list only judges favourites of that category.
+   */
+  const healFavorites = useCallback((line: XtreamCreds, list: XtreamLiveStream[], catId: string | null) => {
+    setFavsByLine((prev) => {
+      const cur = prev.get(lineKey(line));
+      if (!cur || cur.size === 0 || list.length === 0) return prev;
+      const ids = new Set(list.map((st) => st.stream_id));
+      const byName = new Map<string, XtreamLiveStream>();
+      for (const st of list) { const k = favKey(st); if (!byName.has(k)) byName.set(k, st); }
+      const n = new Map(cur);
+      let changed = 0;
+      for (const f of cur.values()) {
+        if (ids.has(f.stream_id)) continue;
+        if (catId && f.category_id && String(f.category_id) !== catId) continue;
+        const hit = byName.get(favKey(f));
+        if (!hit || n.has(hit.stream_id)) continue;
+        n.delete(f.stream_id);
+        n.set(hit.stream_id, toFav(hit));
+        changed++;
+      }
+      if (!changed) return prev;
+      try { trackEvent('favorite_relinked', 'player', { service: line.serverLabel ?? null, count: changed, how: 'auto' }); } catch { /* ignore */ }
+      commitFavorites(line, n);
+      return new Map(prev).set(lineKey(line), n);
+    });
+  }, [commitFavorites]);
+
+  /** Hold OK on a favourite → "Refresh channel link": the same re-point, on demand, for one channel. */
+  const refreshFavorite = useCallback(async (f: XtreamLiveStream | FavChannel): Promise<'fixed' | 'same' | 'missing' | 'failed'> => {
+    const line = lineFor(f);
+    try {
+      const catId = f.category_id ? String(f.category_id) : undefined;
+      const inCat = catId ? await fetchLiveStreams(line, catId) : [];
+      tagLine(inCat, line);
+      let list = inCat;
+      let hit = list.find((st) => st.stream_id === f.stream_id) ? null : list.find((st) => favKey(st) === favKey(f));
+      if (list.some((st) => st.stream_id === f.stream_id)) return 'same';
+      if (!hit) {
+        list = tagLine(await fetchLiveStreams(line), line);
+        if (list.some((st) => st.stream_id === f.stream_id)) return 'same';
+        hit = list.find((st) => favKey(st) === favKey(f)) ?? null;
+      }
+      if (!hit) return 'missing';
+      const found = hit;
+      setFavsByLine((prev) => {
+        const n = new Map(prev.get(lineKey(line)) ?? EMPTY_FAVS);
+        n.delete(f.stream_id);
+        n.set(found.stream_id, toFav(found));
+        commitFavorites(line, n);
+        return new Map(prev).set(lineKey(line), n);
+      });
+      // The list this favourite came from is stale too: drop it so it refetches.
+      setStreamsByCat((prev) => { const n = new Map(prev); for (const k of n.keys()) if (k.startsWith(lineKey(line) + '|')) n.delete(k); return n; });
+      try { trackEvent('favorite_relinked', 'player', { service: line.serverLabel ?? null, count: 1, how: 'manual' }); } catch { /* ignore */ }
+      return 'fixed';
+    } catch {
+      return 'failed';
+    }
+  }, [lineFor, tagLine, commitFavorites]);
+
+  // Pull the cloud copy of every line once per sign-in and reconcile it with
+  // what this device has (favoritesSync.ts owns the rule). Keyed on the set
+  // of lines, not on the creds objects, so a re-render with equal objects
+  // does not re-pull. A pending push is flushed on unmount so a toggle made
+  // just before leaving the screen is not lost.
+  const linesKey = lines.map((l) => lineKey(l)).join(',');
   useEffect(() => {
     let cancelled = false;
-    // FIRST, synchronously: make the local list this line's. If the user just
-    // switched accounts, the previous line's favourites are stashed and this
-    // line's come back (or an empty list) before any network call, so a toggle
-    // made from here on touches the right line.
+    // FIRST, synchronously: make the local store the active line's. If the
+    // user just switched accounts, the previous line's favourites are stashed
+    // and this line's come back before any network call.
     const switched = prepareLocalForLine(creds, loadFavoritesData());
-    if (switched) adoptFavorites(switched);
-    // THEN the cloud. loadFavoritesData is passed as a GETTER so the local list
-    // is read after the pull resolves — a toggle made during the round-trip is
-    // merged, not overwritten.
-    void reconcileFavoritesOnLoad(creds, loadFavoritesData).then((next) => {
-      if (cancelled || !next) return;
-      adoptFavorites(next);
-    });
+    const initial = new Map<string, Map<number, FavChannel>>();
+    for (const line of lines) {
+      const k = lineKey(line);
+      initial.set(k, k === activeKey ? (switched ?? loadFavoritesData()) : loadFavoritesForLine(line));
+    }
+    setFavsByLine(initial);
+    // THEN the cloud, line by line. The local list is passed as a GETTER so it
+    // is read after the pull resolves — a toggle made during the round-trip
+    // is merged, not overwritten.
+    for (const line of lines) {
+      void reconcileFavoritesForLine(line, () => loadFavoritesForLine(line)).then((next) => {
+        if (cancelled || !next) return;
+        adoptFavoritesFor(line, next);
+      });
+    }
     return () => { cancelled = true; flushFavoritesPush(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [favLine]);
+  }, [linesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [volume, setVolume] = useState<number>(() => loadPlayerVolume());
   useEffect(() => { savePlayerVolume(volume); }, [volume]);
@@ -256,9 +436,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     };
   }, [fullscreen, playingChannelId, pokeBar]);
 
-  const epgCacheRef = useRef<Map<number, EpgNowNext>>(new Map());
-  const epgPendingRef = useRef<Set<number>>(new Set());
-  const epgQueueRef = useRef<number[]>([]);
+  // EPG, keyed by line AND stream: two services can reuse a stream id.
+  const epgCacheRef = useRef<Map<string, EpgNowNext>>(new Map());
+  const epgPendingRef = useRef<Set<string>>(new Set());
+  const epgQueueRef = useRef<{ key: string; line: XtreamCreds; id: number }[]>([]);
   const epgInFlightRef = useRef(0);
   const [, forceEpgTick] = useState(0);
 
@@ -271,96 +452,110 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     const onRefresh = () => {
       setStreamsByCat(new Map());
-      setAllChannels(null);
+      setAllByLine(new Map());
       allOptedInRef.current = false;
-      // The line-up may have grown or shrunk: measure it again.
-      setCounts(expireCounts(creds, 'live'));
+      // The line-ups may have grown or shrunk: measure them again.
+      setCountsByLine(new Map(lines.map((l) => [lineKey(l), expireCounts(l, 'live')])));
       countedRef.current = false;
       setRefreshTick(t => t + 1);
     };
     window.addEventListener(XTREAM_REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(XTREAM_REFRESH_EVENT, onRefresh);
-  }, [creds]);
+  }, [lines]);
 
-  // 1) Load categories on mount + on every refresh tick.
+  // 1) Load every line's categories on mount + on every refresh tick.
   useEffect(() => {
     let cancelled = false;
-    setCategoriesLoading(true);
-    (async () => {
-      try {
-        const cats = await fetchLiveCategories(creds).catch(() => [] as XtreamCategory[]);
+    setCatsLoading(new Set(lines.map((l) => lineKey(l))));
+    for (const line of lines) {
+      const k = lineKey(line);
+      fetchLiveCategories(line).catch(() => [] as XtreamCategory[]).then((cats) => {
         if (cancelled) return;
-        setCategories(cats);
-      } finally {
-        if (!cancelled) setCategoriesLoading(false);
-      }
-    })();
+        setCategoriesByLine((prev) => new Map(prev).set(k, cats));
+        setCatsLoading((prev) => { const n = new Set(prev); n.delete(k); return n; });
+      });
+    }
     return () => { cancelled = true; };
-  }, [creds, refreshTick]);
+  }, [lines, refreshTick]);
 
-  // Build visible category list (Favorites, All channels, then server cats).
-  const visibleCategories = useMemo(() => {
-    const base: { id: string; name: string; count?: number; isFav?: boolean; isAll?: boolean }[] = [
-      { id: FAV_ID, name: 'Favorites', count: favorites.size, isFav: true },
+  // Build the pane: per line, [service header when there is more than one
+  // line], Favorites, All channels, then that line's categories minus the
+  // hidden ones. A folded group shows only its header.
+  const visibleCategories = useMemo<CatEntry[]>(() => {
+    const out: CatEntry[] = [];
+    for (const line of lines) {
+      const k = lineKey(line);
+      if (grouped) out.push({ id: `${k}|__hdr__`, name: lineLabel(line), isHeader: true, collapsedHeader: collapsed.has(k), line, lineKey: k });
+      if (grouped && collapsed.has(k)) continue;
+      out.push({ id: `${k}|${FAV_ID}`, name: 'Favorites', count: favsByLine.get(k)?.size ?? 0, isFav: true, line, lineKey: k });
       // The whole service, so the viewer can see how many channels they have
       // without opening anything. Measured, not promised: no number shows
       // until a list has actually been counted.
-      { id: ALL_ID, name: 'All channels', isAll: true, count: streamsByCat.get(ALL_ID)?.length ?? counts.total ?? undefined },
-    ];
-    for (const c of categories) {
-      const key = String(c.category_id);
-      const cached = streamsByCat.get(key);
-      base.push({ id: key, name: c.category_name, count: cached ? cached.length : counts.byCat[key] });
+      const cnt = countsByLine.get(k);
+      const allId = `${k}|${ALL_ID}`;
+      out.push({ id: allId, name: 'All channels', isAll: true, count: streamsByCat.get(allId)?.length ?? cnt?.total ?? undefined, line, lineKey: k });
+      const hid = hidden.get(k);
+      for (const c of categoriesByLine.get(k) ?? []) {
+        const catId = String(c.category_id);
+        if (hid?.has(catId)) continue;
+        const id = `${k}|${catId}`;
+        const cached = streamsByCat.get(id);
+        out.push({ id, name: c.category_name, count: cached ? cached.length : cnt?.byCat[catId], line, lineKey: k, catId });
+      }
     }
-    return base;
-  }, [categories, streamsByCat, favorites.size, counts]);
+    return out;
+  }, [lines, grouped, collapsed, favsByLine, countsByLine, streamsByCat, hidden, categoriesByLine]);
 
-  // Clamp focus when category list shrinks (never clamp UP to "All channels").
-  // Once real categories have arrived, bump focus to the first real category
-  // (index 2) iff the user hasn't moved focus yet.
+  // Clamp focus when the list shrinks. Once real categories have arrived,
+  // land on the first real category of the first group iff the user hasn't
+  // moved focus yet.
+  const firstRealIdx = useMemo(
+    () => visibleCategories.findIndex((c) => !c.isHeader && !c.isFav && !c.isAll),
+    [visibleCategories],
+  );
   useEffect(() => {
     if (visibleCategories.length === 0) return;
     if (categoryIdx >= visibleCategories.length) {
       setCategoryIdx(visibleCategories.length - 1);
       return;
     }
-    if (
-      categories.length > 0 &&
-      !userMovedRef.current &&
-      categoryIdx < 2 &&
-      visibleCategories.length > 2
-    ) {
-      setCategoryIdx(2);
+    if (categories.length > 0 && !userMovedRef.current && firstRealIdx > 0 && categoryIdx < firstRealIdx) {
+      setCategoryIdx(firstRealIdx);
     }
-  }, [visibleCategories.length, categoryIdx, categories.length]);
+  }, [visibleCategories.length, categoryIdx, categories.length, firstRealIdx]);
 
-  const currentCat = visibleCategories[categoryIdx];
+  const currentCat: CatEntry | undefined = visibleCategories[categoryIdx];
 
-  // 2) Lazy-load the focused category's channels.
-  //    - Skip Favorites (rendered from metadata cache).
+  // 2) Lazy-load the focused category's channels, from its own line.
+  //    - Skip headers and Favorites (rendered from metadata cache).
   //    - "All channels" is STRICTLY opt-in: never auto-fetch on focus.
   useEffect(() => {
-    if (!currentCat) return;
-    if (currentCat.id === FAV_ID) return;
-    if (currentCat.id === ALL_ID && !allOptedInRef.current) return;
+    if (!currentCat || currentCat.isHeader || currentCat.isFav) return;
+    if (currentCat.isAll && !allOptedInRef.current) return;
     if (streamsByCat.has(currentCat.id)) return;
     let cancelled = false;
     const key = currentCat.id;
+    const line = currentCat.line;
+    const catId = currentCat.catId;
+    const isAll = !!currentCat.isAll;
     setLoadingCat(key);
-    const fetchPromise = key === ALL_ID
-      ? fetchLiveStreams(creds)
-      : fetchLiveStreams(creds, key);
+    const fetchPromise = isAll
+      ? fetchLiveStreams(line)
+      : fetchLiveStreams(line, catId);
     fetchPromise
       .then((list) => {
         if (cancelled) return;
+        tagLine(list, line);
         setStreamsByCat(prev => {
           const n = new Map(prev);
           n.set(key, list);
           return n;
         });
-        // A list in hand is a free measurement.
-        if (key === ALL_ID) noteCounts({ total: list.length, byCat: tallyByCategory(list) });
-        else noteCounts({ byCat: { [key]: list.length } });
+        // A list in hand is a free measurement, and a chance to re-link
+        // favourites the provider moved.
+        if (isAll) noteCountsFor(line, { total: list.length, byCat: tallyByCategory(list) });
+        else if (catId) noteCountsFor(line, { byCat: { [catId]: list.length } });
+        healFavorites(line, list, isAll ? null : (catId ?? null));
       })
       .catch(() => {
         if (cancelled) return;
@@ -375,27 +570,34 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setLoadingCat(prev => (prev === key ? null : prev));
       });
     return () => { cancelled = true; };
-  }, [currentCat, creds, streamsByCat, noteCounts]);
+  }, [currentCat, streamsByCat, noteCountsFor, tagLine, healFavorites]);
 
-  // Full-catalog channel list, fetched lazily ONLY when search is opened.
-  // Used to power search across every channel without bloating per-category caches.
-  const [allChannels, setAllChannels] = useState<XtreamLiveStream[] | null>(null);
+  // Full-catalog channel lists, one per line, fetched lazily ONLY when search
+  // is opened. Search runs across every line.
+  const [allByLine, setAllByLine] = useState<Map<string, XtreamLiveStream[]>>(new Map());
   const [allChannelsLoading, setAllChannelsLoading] = useState(false);
   useEffect(() => {
-    if (!searchOpen) return;
-    if (allChannels || allChannelsLoading) return;
+    if (!searchOpen || allChannelsLoading) return;
+    const missing = lines.filter((l) => !allByLine.has(lineKey(l)));
+    if (!missing.length) return;
     setAllChannelsLoading(true);
     let cancelled = false;
-    fetchLiveStreams(creds)
-      .then(list => {
+    Promise.all(missing.map((line) =>
+      fetchLiveStreams(line)
+        .then((list) => {
+          tagLine(list, line);
+          noteCountsFor(line, { total: list.length, byCat: tallyByCategory(list) });
+          healFavorites(line, list, null);
+          return [lineKey(line), list] as const;
+        })
+        .catch(() => [lineKey(line), [] as XtreamLiveStream[]] as const)))
+      .then((pairs) => {
         if (cancelled) return;
-        setAllChannels(list);
-        noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+        setAllByLine((prev) => { const n = new Map(prev); for (const [k, list] of pairs) n.set(k, list); return n; });
       })
-      .catch(() => { if (!cancelled) setAllChannels([]); })
       .finally(() => { if (!cancelled) setAllChannelsLoading(false); });
     return () => { cancelled = true; };
-  }, [searchOpen, allChannels, allChannelsLoading, creds, noteCounts]);
+  }, [searchOpen, lines, allByLine, allChannelsLoading, noteCountsFor, tagLine, healFavorites]);
 
   // The number next to "All channels" is the size of the whole service, and
   // the panel has no count call — so the line-up is measured once a week, on
@@ -431,23 +633,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (searchOpen) {
       const q = searchQuery.trim().toLowerCase();
       if (!q) return [];
-      const src = allChannels || [];
       const out: XtreamLiveStream[] = [];
-      for (const s of src) {
+      for (const line of lines) {
+        const src = allByLine.get(lineKey(line)) || [];
+        for (const s of src) {
+          if (out.length >= 500) break;
+          if (s.name.toLowerCase().includes(q)) out.push(s);
+        }
         if (out.length >= 500) break;
-        if (s.name.toLowerCase().includes(q)) out.push(s);
       }
       return out;
     }
-    if (!currentCat) return [];
-    if (currentCat.id === FAV_ID) return [...favorites.values()].map(favToStream);
+    if (!currentCat || currentCat.isHeader) return [];
+    if (currentCat.isFav) {
+      const favs = favsByLine.get(currentCat.lineKey) ?? EMPTY_FAVS;
+      return [...favs.values()].map((f) => {
+        const st = favToStream(f);
+        streamLineRef.current.set(st, currentCat.line);
+        return st;
+      });
+    }
     return streamsByCat.get(currentCat.id) || [];
-  }, [searchOpen, searchQuery, allChannels, currentCat, streamsByCat, favorites]);
+  }, [searchOpen, searchQuery, lines, allByLine, currentCat, streamsByCat, favsByLine]);
 
   const channelsLoading = searchOpen
     ? allChannelsLoading
-    : !!(currentCat && currentCat.id !== FAV_ID
-        && (currentCat.id !== ALL_ID || allOptedInRef.current)
+    : !!(currentCat && !currentCat.isHeader && !currentCat.isFav
+        && (!currentCat.isAll || allOptedInRef.current)
         && (loadingCat === currentCat.id || !streamsByCat.has(currentCat.id)));
 
   // Reset channel focus whenever the visible list changes context.
@@ -579,43 +791,46 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [categoryIdx, visibleCategories.length, searchOpen]);
 
   // EPG lazy fetch with concurrency cap
-  const enqueueEpg = useCallback((id: number) => {
-    if (epgCacheRef.current.has(id) || epgPendingRef.current.has(id)) return;
-    epgPendingRef.current.add(id);
-    epgQueueRef.current.push(id);
+  const epgKey = useCallback((st: XtreamLiveStream) => `${lineKey(lineFor(st))}:${st.stream_id}`, [lineFor]);
+  const epgFor = useCallback((st: XtreamLiveStream | null | undefined) => (st ? epgCacheRef.current.get(epgKey(st)) : undefined), [epgKey]);
+  const enqueueEpg = useCallback((st: XtreamLiveStream) => {
+    const key = epgKey(st);
+    if (epgCacheRef.current.has(key) || epgPendingRef.current.has(key)) return;
+    epgPendingRef.current.add(key);
+    epgQueueRef.current.push({ key, line: lineFor(st), id: st.stream_id });
     pumpEpg();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [creds]);
+  }, [epgKey, lineFor]);
 
   const pumpEpg = useCallback(() => {
     while (epgInFlightRef.current < EPG_MAX_CONCURRENT && epgQueueRef.current.length) {
-      const id = epgQueueRef.current.shift()!;
+      const { key, line, id } = epgQueueRef.current.shift()!;
       epgInFlightRef.current++;
-      fetchShortEpg(creds, id, 4)
-        .then(res => { epgCacheRef.current.set(id, pickNowNext(res.epg_listings || [])); })
-        .catch(() => { epgCacheRef.current.set(id, {}); })
+      fetchShortEpg(line, id, 4)
+        .then(res => { epgCacheRef.current.set(key, pickNowNext(res.epg_listings || [])); })
+        .catch(() => { epgCacheRef.current.set(key, {}); })
         .finally(() => {
           epgInFlightRef.current--;
-          epgPendingRef.current.delete(id);
+          epgPendingRef.current.delete(key);
           forceEpgTick(t => t + 1);
           if (epgQueueRef.current.length) pumpEpg();
         });
     }
-  }, [creds]);
+  }, []);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
     for (const v of virtualItems) {
       const s = visibleChannels[v.index];
-      if (s) enqueueEpg(s.stream_id);
+      if (s) enqueueEpg(s);
     }
-    if (focusedChannel) enqueueEpg(focusedChannel.stream_id);
+    if (focusedChannel) enqueueEpg(focusedChannel);
   }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg]);
 
-  const focusedNowNext = focusedChannel ? epgCacheRef.current.get(focusedChannel.stream_id) : undefined;
+  const focusedNowNext = epgFor(focusedChannel);
 
   // Debounced preview
-  const [previewChannelId, setPreviewChannelId] = useState<number | null>(null);
+  const [previewChannel, setPreviewChannel] = useState<XtreamLiveStream | null>(null);
   // Freeze fix: the muted always-on preview <video> saturates the WebView main
   // thread on non-Fire-TV low-RAM boxes (T95/X96/legacy WebView). Fire TV is
   // already excluded because it spawns a hardware decoder slot per <video>.
@@ -626,28 +841,32 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     || document.documentElement.classList.contains('legacy-webview'),
   );
   useEffect(() => {
-    if (previewDisabled) { setPreviewChannelId(null); return; }
-    if (!focusedChannel) { setPreviewChannelId(null); return; }
-    const id = focusedChannel.stream_id;
-    const t = window.setTimeout(() => setPreviewChannelId(id), PREVIEW_DEBOUNCE_MS);
+    if (previewDisabled) { setPreviewChannel(null); return; }
+    if (!focusedChannel) { setPreviewChannel(null); return; }
+    const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [focusedChannel, previewDisabled]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.
-    () => (!DEMO && previewChannelId ? buildLiveStreamUrl(creds, previewChannelId) : null),
-    [previewChannelId, creds],
+    () => (!DEMO && previewChannel ? buildLiveStreamUrl(lineFor(previewChannel), previewChannel.stream_id) : null),
+    [previewChannel, lineFor],
   );
 
+  // The line the playing channel belongs to. Set with the channel, never
+  // derived later: the list it came from may have been dropped by then.
+  const [playingLine, setPlayingLine] = useState<XtreamCreds>(creds);
   const streamUrl = useMemo(() => {
     if (DEMO || !playingChannelId) return null;
-    return buildLiveStreamUrl(creds, playingChannelId);
-  }, [playingChannelId, creds]);
+    return buildLiveStreamUrl(playingLine, playingChannelId);
+  }, [playingChannelId, playingLine]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const playChannel = useCallback((stream: XtreamLiveStream) => {
+    const line = lineFor(stream);
+    setPlayingLine(line);
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
     // Fire-and-forget analytics — dedupe rapid replays of same channel (<10s).
@@ -664,11 +883,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         trackEvent('channel_play', 'player', {
           channel: stream.name,
           category: catName,
-          server: creds.serverLabel,
+          server: line.serverLabel,
         });
       }
     } catch { /* ignore */ }
-  }, [visibleCategories, currentCat, creds.serverLabel]);
+  }, [visibleCategories, currentCat, lineFor]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer
@@ -679,11 +898,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       startTimer('watch', 'channel_watch', 'player', {
         channel: watchingRef.current?.channel ?? null,
         category: watchingRef.current?.category ?? null,
-        service: creds.serverLabel ?? null,
+        service: playingLine.serverLabel ?? null,
       });
     } catch { /* ignore */ }
     return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
-  }, [playingChannelId, creds.serverLabel]);
+  }, [playingChannelId, playingLine.serverLabel]);
 
 
   // Native ExoPlayer wiring — only active on native builds while fullscreen.
@@ -692,7 +911,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // the shared buildNativeLiveUrl helper always swaps .m3u8→.ts. Dreamstreams
   // works on both.
   const nativeUrl = !DEMO && nativeActive && playingChannelId
-    ? buildNativeLiveUrl(creds, playingChannelId)
+    ? buildNativeLiveUrl(playingLine, playingChannelId)
     : null;
   const native = useNativePlayer({
     active: nativeActive,
@@ -749,13 +968,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         trackEvent('player_error', 'player', {
           kind: 'live_native',
           channel_or_title: ch?.name ?? '',
-          server: creds.serverLabel,
+          server: playingLine.serverLabel,
         });
       } catch { /* ignore */ }
     } else if (!msg) {
       lastNativeErrorRef.current = null;
     }
-  }, [native.error, visibleChannels, playingChannelId, creds.serverLabel]);
+  }, [native.error, visibleChannels, playingChannelId, playingLine.serverLabel]);
 
   // Report undecodable audio per channel so the codec shows up in telemetry
   // instead of only arriving as a customer phone call.
@@ -771,12 +990,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       trackEvent('audio_unsupported', 'player', {
         kind: 'live_native',
         channel_or_title: ch?.name ?? '',
-        server: creds.serverLabel,
+        server: playingLine.serverLabel,
         codecs: w.codecs,
         ffmpeg_available: w.ffmpegAvailable,
       });
     } catch { /* ignore */ }
-  }, [native.audioWarning, visibleChannels, playingChannelId, creds.serverLabel]);
+  }, [native.audioWarning, visibleChannels, playingChannelId, playingLine.serverLabel]);
 
   // (player_search intentionally NOT fired for Live TV — spec scopes it to movies/series/plex.)
 
@@ -1054,7 +1273,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
         else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
           userMovedRef.current = true;
-          if (cats[categoryIdxRef.current]?.id === ALL_ID) allOptedInRef.current = true;
+          const c = cats[categoryIdxRef.current];
+          // A service header folds and unfolds its group; it opens nothing.
+          if (c?.isHeader) { toggleCollapsed(c.lineKey); return; }
+          if (c?.isAll) allOptedInRef.current = true;
           setPane('channels');
         }
         return;
@@ -1109,7 +1331,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       window.removeEventListener('keyup', keyupHandler, true);
       cancelEnterTimer();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, toggleCollapsed]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1137,11 +1359,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
 
   // Resolve playing stream from visible list OR favorites (we may not have loaded the original category)
-  const playingStream = playingChannelId
-    ? (visibleChannels.find(s => s.stream_id === playingChannelId)
-       || (favorites.has(playingChannelId) ? favToStream(favorites.get(playingChannelId)!) : focusedChannel))
-    : focusedChannel;
-  const playingNowNext = playingStream ? epgCacheRef.current.get(playingStream.stream_id) : undefined;
+  const playingStream = (() => {
+    if (!playingChannelId) return focusedChannel;
+    const inList = visibleChannels.find(s => s.stream_id === playingChannelId && lineFor(s) === playingLine);
+    if (inList) return inList;
+    const fav = favoritesOf(playingLine).get(playingChannelId);
+    if (fav) { const st = favToStream(fav); streamLineRef.current.set(st, playingLine); return st; }
+    return focusedChannel;
+  })();
+  const playingNowNext = epgFor(playingStream);
   const progress = (() => {
     if (!playingNowNext?.now) return 0;
     const { start, end } = playingNowNext.now;
@@ -1170,7 +1396,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   trackEvent('player_error', 'player', {
                     kind: 'live_web',
                     channel_or_title: ch?.name ?? '',
-                    server: creds.serverLabel,
+                    server: playingLine.serverLabel,
                     message: msg.slice(0, 200),
                   });
                 } catch { /* ignore */ }
@@ -1325,7 +1551,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   const c = visibleCategories[i];
                   if (!c) return null;
                   const isFocused = isActive && pane === 'categories' && !searchFocused && categoryIdx === i;
-                  const isSelected = categoryIdx === i;
+                  const isSelected = categoryIdx === i && !c.isHeader;
                   const isLoadingThis = loadingCat === c.id;
                   return (
                     <div
@@ -1334,8 +1560,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       data-focused={isFocused ? 'true' : 'false'}
                       onClick={() => {
                         userMovedRef.current = true;
-                        if (c.isAll) allOptedInRef.current = true;
                         setCategoryIdx(i);
+                        if (c.isHeader) { toggleCollapsed(c.lineKey); return; }
+                        if (c.isAll) allOptedInRef.current = true;
                         setPane('channels');
                       }}
                       style={{
@@ -1348,16 +1575,25 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         paddingBottom: 4, // matches space-y-1 gap so heights are stable
                       }}
                       className={`
-                        tv-ring flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer
+                        tv-ring flex items-center gap-2 py-2 rounded-xl cursor-pointer
+                        ${c.isHeader ? 'px-3 mt-1' : grouped ? 'pl-6 pr-3' : 'px-3'}
                         ${isFocused ? 'bg-brand-gold/25 z-10' : ''}
-                        ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : 'border border-transparent'}
-                        ${!isFocused && !isSelected ? 'hover:bg-white/5' : ''}
+                        ${!isFocused && c.isHeader ? 'bg-white/10 border border-white/15' : ''}
+                        ${!isFocused && isSelected ? 'bg-white/10 border border-brand-gold/30' : ''}
+                        ${!isFocused && !isSelected && !c.isHeader ? 'border border-transparent hover:bg-white/5' : ''}
                       `}
                     >
+                      {c.isHeader && (c.collapsedHeader
+                        ? <ChevronRight className="w-4 h-4 text-brand-gold flex-shrink-0" />
+                        : <ChevronDown className="w-4 h-4 text-brand-gold flex-shrink-0" />)}
                       {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
-                      <span className={`font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>{c.name}</span>
+                      <span className={c.isHeader
+                        ? `font-quicksand font-bold uppercase tracking-wide text-sm truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
+                        : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : 'text-brand-ice'}`}>
+                        {c.name}
+                      </span>
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
-                      {!isLoadingThis && c.count != null && c.count > 0 && (
+                      {!isLoadingThis && !c.isHeader && c.count != null && c.count > 0 && (
                         <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
                           {formatCount(c.count)}
                         </span>
@@ -1397,7 +1633,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               <>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xl font-quicksand font-bold text-white truncate">{focusedChannel.name}</h3>
-                  {favorites.has(focusedChannel.stream_id) && <Star className="w-5 h-5 text-brand-gold fill-brand-gold" />}
+                  {isFav(focusedChannel) && <Star className="w-5 h-5 text-brand-gold fill-brand-gold" />}
                   {channelsLoading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold ml-auto" />}
                 </div>
                 {focusedNowNext?.now ? (
@@ -1446,7 +1682,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                 ? (searchQuery
                     ? (allChannelsLoading ? 'Loading channel catalog…' : 'No channels match your search.')
                     : (allChannelsLoading ? 'Loading channel catalog…' : 'Type above to search all channels.'))
-                : currentCat?.id === FAV_ID
+                : currentCat?.isFav
                   ? 'No favorites yet. Press F on a channel to add it.'
                   : 'No channels in this category.'}
             </div>
@@ -1474,8 +1710,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       index={v.index}
                       isFocused={isFocused}
                       isPlaying={playingChannelId === s.stream_id}
-                      isFavorite={favorites.has(s.stream_id)}
-                      nowNext={epgCacheRef.current.get(s.stream_id)}
+                      isFavorite={isFav(s)}
+                      nowNext={epgFor(s)}
                       onSelect={(idx) => { setChannelIdx(idx); }}
                       onActivate={(idx) => { setPane('channels'); setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
                       onLongPress={(idx) => { setChannelIdx(idx); setReportFor(visibleChannels[idx]); }}
@@ -1493,9 +1729,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <ReportChannelDialog
             channelName={reportFor.name}
             channelId={reportFor.stream_id}
-            categoryName={searchOpen ? 'Search' : (currentCat?.id === FAV_ID ? 'Favorites' : (currentCat?.name || ''))}
-            isFavorite={favorites.has(reportFor.stream_id)}
+            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
+            isFavorite={isFav(reportFor)}
             onToggleFavorite={() => toggleFavorite(reportFor)}
+            onRefreshFavorite={() => refreshFavorite(reportFor)}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;

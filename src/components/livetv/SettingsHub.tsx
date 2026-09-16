@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import { useToast } from '@/hooks/use-toast';
 import { isDemo } from '@/lib/demoMode';
@@ -13,6 +13,7 @@ const DEMO = isDemo();
 const AccountInfoScreen = lazy(() => import('./AccountInfoScreen'));
 const SwitchAccountScreen = lazy(() => import('./SwitchAccountScreen'));
 const AppearanceScreen = lazy(() => import('./AppearanceScreen'));
+const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
 // Billing account (plans, renew, trial) — behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
 
@@ -23,8 +24,8 @@ interface Props {
   onSwitchAccount: (c: XtreamCreds) => void;
 }
 
-type View = 'menu' | 'billing' | 'account' | 'switch' | 'appearance';
-type MenuId = 'billing' | 'account' | 'switch' | 'appearance' | 'signout';
+type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance';
+type MenuId = 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'signout';
 
 interface MenuItem { id: MenuId; label: string; icon: typeof Tv; }
 
@@ -47,6 +48,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
     ...(billingOn ? [{ id: 'billing' as MenuId, label: 'My Account', icon: CreditCard }] : []),
     { id: 'account',    label: 'Account Info',      icon: KeyRound },
     { id: 'switch',     label: 'Switch Account',    icon: Users },
+    { id: 'categories', label: 'Hide Categories',   icon: ListFilter },
     { id: 'appearance', label: 'Appearance',        icon: Palette },
     { id: 'signout',    label: 'Sign Out',          icon: LogOut },
   ], [billingOn]);
@@ -66,6 +68,7 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
     if (id === 'billing') setView('billing');
     else if (id === 'account') setView('account');
     else if (id === 'switch') setView('switch');
+    else if (id === 'categories') setView('categories');
     else if (id === 'appearance') setView('appearance');
     else if (id === 'signout') onSignOut();
   }, [demoNote, onSignOut]);
@@ -129,6 +132,13 @@ const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAcco
           onPicked={onSwitchAccount}
           onAddAccount={() => { onChangeCredentials(); }}
         />
+      </Suspense>
+    );
+  }
+  if (view === 'categories') {
+    return (
+      <Suspense fallback={fallback}>
+        <HideCategoriesScreen onBack={() => setView('menu')} />
       </Suspense>
     );
   }

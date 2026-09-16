@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, Star, StarOff, Flag, X } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -14,6 +14,13 @@ interface Props {
   categoryName?: string;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /**
+   * Favourite only. Looks the channel up again on the service by name and
+   * re-points the favourite at its current stream, for the case where the
+   * provider swapped the link behind it. Resolves with what happened so the
+   * dialog can say it.
+   */
+  onRefreshFavorite?: () => Promise<'fixed' | 'same' | 'missing' | 'failed'>;
   onOpenBufferingGuide?: () => void;
   onClose: () => void;
 }
@@ -38,10 +45,30 @@ const ReportChannelDialog = memo(({
   categoryName,
   isFavorite,
   onToggleFavorite,
+  onRefreshFavorite,
   onOpenBufferingGuide,
   onClose,
 }: Props) => {
   const { toast } = useToast();
+  const [refreshing, setRefreshing] = useState(false);
+  const canRefresh = !!isFavorite && !!onRefreshFavorite;
+  const refreshNow = useCallback(async () => {
+    if (!onRefreshFavorite || refreshing) return;
+    setRefreshing(true);
+    try {
+      const r = await onRefreshFavorite();
+      toast(r === 'fixed'
+        ? { title: 'Channel refreshed', description: 'The favourite now points at the current link.' }
+        : r === 'same'
+          ? { title: 'Already current', description: 'This favourite already points at the channel the service carries now.' }
+          : r === 'missing'
+            ? { title: 'Not on the service any more', description: 'No channel with this name was found. Remove it from favourites and pick its replacement.' }
+            : { title: 'Could not refresh', description: 'The service did not answer. Try again in a moment.' });
+    } finally {
+      setRefreshing(false);
+      onClose();
+    }
+  }, [onRefreshFavorite, refreshing, toast, onClose]);
   const { user } = useAuth();
   const { account } = usePlayerAccount();
   const { createTicket } = useSupportTickets(user);
@@ -183,7 +210,8 @@ const ReportChannelDialog = memo(({
 
       // MENU
       if (step === 'menu') {
-        const count = 3;
+        // 0 Report · 1 Favourite toggle · [2 Refresh, favourites only] · last Cancel
+        const count = canRefresh ? 4 : 3;
         if (e.key === 'ArrowDown') {
           e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i + 1) % count);
@@ -202,6 +230,8 @@ const ReportChannelDialog = memo(({
           } else if (focusIdx === 1) {
             onToggleFavorite?.();
             onClose();
+          } else if (canRefresh && focusIdx === 2) {
+            void refreshNow();
           } else {
             onClose();
           }
@@ -289,7 +319,7 @@ const ReportChannelDialog = memo(({
       window.removeEventListener('keydown', handler, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide]);
+  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide, canRefresh, refreshNow]);
 
   // Auto-blur textarea so D-pad navigation works again
   useEffect(() => {
@@ -326,11 +356,12 @@ const ReportChannelDialog = memo(({
             {[
               { label: 'Report Channel', icon: Flag },
               { label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites', icon: isFavorite ? StarOff : Star },
+              ...(canRefresh ? [{ label: refreshing ? 'Refreshing…' : 'Refresh channel link', icon: RefreshCw }] : []),
               { label: 'Cancel', icon: X },
-            ].map((item, i) => {
+            ].map((item, i, all) => {
               const focused = focusIdx === i;
               const Icon = item.icon;
-              const isCancel = i === 2;
+              const isCancel = i === all.length - 1;
               return (
                 <button
                   key={item.label}
@@ -340,6 +371,7 @@ const ReportChannelDialog = memo(({
                   onClick={() => {
                     if (i === 0) { setStep('reasons'); setFocusIdx(0); }
                     else if (i === 1) { onToggleFavorite?.(); onClose(); }
+                    else if (canRefresh && i === 2) { void refreshNow(); }
                     else onClose();
                   }}
                   className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${

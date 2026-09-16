@@ -26,6 +26,9 @@ const CHANGELOG: Record<string, string[]> = {
     '🟡 Support and Device Cleaner: a bright gold highlight on every button, row-by-row movement, no more jolting lists',
     '🏠 Home: the Dashboard button\'s highlight is gold now, not black',
     '🔥 Device Cleaner on Fire TV: no Accessibility switch needed — leftover files and background apps clear in one press, app caches open on Fire TV\'s own app page',
+    '📂 Live TV: every account you\'ve signed in shows in one list — Dreamstreams and Vibez each under their own name, fold one up to get to the other',
+    '🙈 Hide Categories: under Player Settings, switch off the categories you never open',
+    '⭐ Favorites: a favorite whose link the service changed fixes itself when its category loads — or hold OK on it and pick Refresh channel link',
   ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',
