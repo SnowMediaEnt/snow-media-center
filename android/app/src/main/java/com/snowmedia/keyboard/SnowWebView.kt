@@ -67,6 +67,20 @@ import com.getcapacitor.CapacitorWebView
  * Both are in one place, on one channel, deliberately: stacking another
  * half-measure into the page's 56 Back handlers is what made this unfixable.
  */
+/*
+ * WHAT THE DEVICE SHOWED (2026-09-16)
+ * -----------------------------------
+ * Pressing Back on Amazon's keyboard closes it AND moves focus to the next
+ * field by itself. That is Chromium's own handling of IME_ACTION_NEXT
+ * (advanceFocusForIME) — so the action reaches Chromium with NEXT still set,
+ * which means neither the imeOptions edits nor the InputConnection wrapper
+ * below are on the live path. Chromium's threaded IME binds the input method
+ * to a proxy view of its own, on its own thread; what this view returns from
+ * onCreateInputConnection is not what the IME talks to. Everything below is
+ * kept because it is harmless and it is the correct shape for a WebView that
+ * does not use the threaded path, but the keyboard is handled in the page
+ * (useTVFocus), from the key events Chromium delivers.
+ */
 class SnowWebView(context: Context, attrs: AttributeSet) : CapacitorWebView(context, attrs) {
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {

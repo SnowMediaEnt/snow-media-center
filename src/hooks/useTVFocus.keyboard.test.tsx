@@ -544,6 +544,23 @@ describe('Enter and OK on a field', () => {
     expect(document.activeElement).toBe(password);    // not walked again
   });
 
+  it("a platform 'hidden' report while the viewer is still typing does not turn Enter back into 'open the keyboard'", async () => {
+    // Fire TV: the visibility heuristic flaps to hidden under Amazon's
+    // full-screen keyboard. Characters went into this field and it still has
+    // focus, so the keyboard is up whatever the report says — Enter is Next.
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await fireDidShow();
+    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
+    await act(async () => { state.didHide.forEach((cb) => cb()); });
+    await ok(email);
+    expect(document.activeElement).toBe(password);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);

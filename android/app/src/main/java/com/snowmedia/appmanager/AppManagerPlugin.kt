@@ -200,16 +200,23 @@ class AppManagerPlugin : Plugin() {
     }
   }
 
-  /** Clear our own app's cache directory (no permissions needed). */
+  /**
+   * Our own cache directory, minus the WebView's. Chromium keeps its HTTP
+   * cache and compiled-script cache under cacheDir/WebView and has them open
+   * while the app runs; deleting those from under it is how the renderer
+   * dies mid-clean and the app comes back on a different screen. The
+   * WebView's cache is the one part of our storage Android manages itself.
+   */
   @PluginMethod
   fun clearOwnCache(call: PluginCall) {
     try {
-      val freed = clearDir(context.cacheDir)
-      // Also clear webview cache
-      val webCache = File(context.cacheDir, "WebView")
-      val webFreed = if (webCache.exists()) clearDir(webCache) else 0L
+      var freed = 0L
+      context.cacheDir.listFiles()?.forEach { f ->
+        if (f.name == "WebView" || f.name.startsWith("org.chromium")) return@forEach
+        freed += if (f.isDirectory) { val sub = clearDir(f); f.delete(); sub } else { val n = f.length(); if (f.delete()) n else 0 }
+      }
       val result = JSObject()
-      result.put("freedBytes", freed + webFreed)
+      result.put("freedBytes", freed)
       call.resolve(result)
     } catch (e: Exception) {
       Log.e(TAG, "clearOwnCache failed", e)

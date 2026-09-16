@@ -3,6 +3,7 @@ import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard
 import { EDITOR_ACTION_EVENT, isNativeKeyboardVisible, markKeyboardVisible, onKeyboardVisibilityChange } from '@/utils/keyboardVisibility';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { trackEvent } from '@/lib/analytics';
+import { traceKey } from '@/utils/keyTrace';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type NavTarget = string | null | undefined | (() => string | null | undefined);
@@ -120,6 +121,7 @@ const noteFieldEnter = (
   field: HTMLInputElement | HTMLTextAreaElement,
   editing: boolean,
 ) => {
+  traceKey(`${path} ${event ? `${event.key}/${event.keyCode}${event.isComposing ? ' comp' : ''}` : 'native'} ${editing ? 'next' : 'open'}`);
   try {
     trackEvent('tv_field_enter', 'debug', {
       path,
@@ -178,6 +180,9 @@ export const useTVFocus = ({
   // inside its own container, sets this true.
   const imeVisibleRef = useRef(false);
   const imeElRef = useRef<HTMLElement | null>(null);
+  // True when the record above came from real editing (a character went into
+  // the field), not from a platform report. See the visibility listener.
+  const imeEvidenceRef = useRef(false);
   const mountedRef = useRef(true);
   // Every keyboard request carries a generation. Moving the highlight,
   // disabling the hook or unmounting bumps it, so a native show that resolves
@@ -254,6 +259,7 @@ export const useTVFocus = ({
   const clearIme = useCallback(() => {
     imeVisibleRef.current = false;
     imeElRef.current = null;
+    imeEvidenceRef.current = false;
     requestGenRef.current += 1;
     clearPendingTimer();
     pendingElRef.current = null;
@@ -275,9 +281,20 @@ export const useTVFocus = ({
     // counted as open: Back left the screen and Next re-asked for a keyboard.
     const stop = onKeyboardVisibilityChange((open) => {
       if (!enabledRef.current || !mountedRef.current) return;
+      traceKey(open ? 'vis+' : 'vis-');
       if (!open) {
+        // A "hidden" report is only as good as its source. On a Fire TV the
+        // plugin infers visibility from how much of the window is covered,
+        // and Amazon's full-screen keyboard covers nothing in that sense — it
+        // sits in its own window — so that report flaps to "hidden" while the
+        // viewer is still typing. Typing IS the keyboard: while the field
+        // that received characters still holds focus, keep the record. A
+        // dismissal the page performs itself goes through clearIme first, so
+        // this never keeps a keyboard the page closed.
+        if (imeEvidenceRef.current && imeElRef.current && document.activeElement === imeElRef.current) return;
         imeVisibleRef.current = false;
         imeElRef.current = null;
+        imeEvidenceRef.current = false;
         return;
       }
       const active = document.activeElement as HTMLElement | null;
@@ -298,6 +315,7 @@ export const useTVFocus = ({
       if (!ownsElement(el)) return;
       imeElRef.current = el;
       imeVisibleRef.current = true;
+      imeEvidenceRef.current = true;
       markKeyboardVisible();
     };
     root?.addEventListener('beforeinput', evidence, true);
@@ -410,6 +428,7 @@ export const useTVFocus = ({
     if (target !== imeElRef.current) {
       imeVisibleRef.current = false;
       imeElRef.current = null;
+      imeEvidenceRef.current = false;
       if (pendingElRef.current && pendingElRef.current !== target) {
         requestGenRef.current += 1;
         pendingElRef.current = null;
@@ -583,7 +602,12 @@ export const useTVFocus = ({
       if (event.defaultPrevented) return;
       // Mid-composition keys (Android word suggestions, CJK IMEs) arrive as
       // Enter/keyCode 229 and must never submit a form or move the highlight.
-      if (event.isComposing || event.keyCode === 229) return;
+      if (event.isComposing || event.keyCode === 229) {
+        if (isTextInput(document.activeElement as HTMLElement | null) && (isEnterKey(event) || event.keyCode === 229)) {
+          traceKey(`kd ${event.key}/${event.keyCode} comp`);
+        }
+        return;
+      }
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
       const isLooseTarget = (el: HTMLElement | null) =>

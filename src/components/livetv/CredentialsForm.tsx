@@ -26,6 +26,8 @@ import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { isDemo } from '@/lib/demoMode';
 import { readPending } from '@/components/getstarted/pending';
+import { getKeyTrace, onKeyTrace } from '@/utils/keyTrace';
+import { isNativePlatform } from '@/utils/platform';
 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
@@ -64,6 +66,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   const billingOn = useBillingEnabled();
   const { enabled: vibezOn } = useFeatureFlag('vibez_signup', false);
   const [childOpen, setChildOpen] = useState(false);
+  // What the keyboard path saw on this box, for the screenshot that settles
+  // "Next does nothing". Native only; the web never has this problem.
+  const [keyTrace, setKeyTrace] = useState<string[]>(() => getKeyTrace());
+  useEffect(() => onKeyTrace(setKeyTrace), []);
   const showStart = !isDemo() && (billingOn || vibezOn);
   // A hand-off recorded before the app was backgrounded (or killed) turns the
   // button into a way back into the middle of that purchase.
@@ -315,6 +321,11 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           Email usernames connect to Vibez; all other usernames connect to Dreamstreams.
           Your credentials are stored only on this device.
         </p>
+        {isNativePlatform() && keyTrace.length > 0 && (
+          <p className="text-white/70 text-[11px] font-mono mt-2 break-words" aria-hidden="true">
+            keys: {keyTrace.join(' · ')}
+          </p>
+        )}
       </form>
     </div>
   );
