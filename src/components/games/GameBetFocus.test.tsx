@@ -69,7 +69,7 @@ describe('video poker betting navigation', () => {
 
   it('moves Right from the largest chip directly to Deal', async () => {
     render(<VideoPoker onBack={() => {}} />);
-    const largestChip = screen.getByRole('button', { name: '100' });
+    const largestChip = screen.getByRole('button', { name: '1000' });
     const deal = screen.getByRole('button', { name: /games\.videoPoker\.dealWithBet/ });
 
     act(() => largestChip.focus());

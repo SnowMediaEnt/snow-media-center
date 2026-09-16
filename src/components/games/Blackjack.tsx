@@ -15,13 +15,15 @@ import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './share
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import type { GameCardValue } from './shared/gameTypes';
 import { useGameAudio } from './shared/gameAudio';
+import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-blackjack.css';
 
 interface BlackjackProps {
   onBack: () => void;
 }
 
-const BETS = [10, 25, 50, 100];
+const BETS: number[] = [...TV_BETS];
+const BET_STORAGE_KEY = 'snow-blackjack-bet-v1';
 
 type Phase = 'bet' | 'playing' | 'settled';
 type BlackjackVariantId = 'classic' | 'single_deck' | 'double_reveal';
@@ -209,7 +211,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('bet');
-  const [bet, setBet] = useState<number>(10);
+  const [bet, setBet] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
   const [variant, setVariant] = useState<BlackjackVariantId>(() => {
     if (typeof window === 'undefined') return 'classic';
     try {
@@ -222,6 +224,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     }
   });
   const [busy, setBusy] = useState(false);
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
@@ -340,7 +343,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [visibleFocus, phase]);
 
   const applyAck = useCallback((resp: BlackjackAck) => {
-    if (typeof resp?.bet === 'number') setBet(resp.bet);
+    // A double-down ack reports the total committed stake. Keep the player's
+    // chosen base wager selected for the next hand instead of replacing it.
+    if (typeof resp?.bet === 'number' && !resp.doubled && BETS.includes(resp.bet)) setBet(resp.bet);
     if (resp.variant && BLACKJACK_VARIANTS.some((table) => table.id === resp.variant)) {
       setVariant(resp.variant);
     }

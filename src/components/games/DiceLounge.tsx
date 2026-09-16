@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- pure game rules are exported for deterministic tests. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dices, LockKeyhole, RotateCcw, Trophy } from 'lucide-react';
+import { Coins, Dices, LockKeyhole, RotateCcw, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { GAME_ACTION_CLASS, GameShell, GameTopBar } from './shared/GameUI';
+import { BetChip, GAME_ACTION_CLASS, GameShell, GameTopBar } from './shared/GameUI';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
@@ -10,6 +10,10 @@ import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import { useGameAudio } from './shared/gameAudio';
+import { useAuth } from '@/hooks/useAuth';
+import { useGameSocket } from '@/hooks/useGameSocket';
+import { gameSocket } from '@/lib/gameSocket';
+import { readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-dice.css';
 
 interface DiceLoungeProps {
@@ -41,6 +45,8 @@ const MAX_ROLLS = 3;
 const FULL_ROLL_MS = 760;
 const EMPTY_DICE: DieValue[] = [0, 0, 0, 0, 0];
 const EMPTY_HOLDS = [false, false, false, false, false];
+const ARCADE_BETS = [10, 25, 50, 100];
+const BET_STORAGE_KEY = 'snow-dice-bet-v1';
 
 export const DICE_SCORE_RULES: ReadonlyArray<{ key: DiceCategoryKey; label: string; value: string }> = [
   { key: 'five-kind', label: 'Five of a Kind', value: '50' },
@@ -217,9 +223,11 @@ const Die = ({ value, index, held, focused, rolling, canHold, use3d, buttonRef, 
 };
 
 type Phase = 'ready' | 'rolling' | 'choosing' | 'settled';
-type FocusId = 'back' | 'fx' | 'roll' | 'bank' | 'next' | `die-${number}`;
+type FocusId = 'back' | 'fx' | 'roll' | 'bank' | 'next' | `die-${number}` | `bet-${number}`;
 
 const DiceLounge = ({ onBack }: DiceLoungeProps) => {
+  const { user } = useAuth();
+  const { balance } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { play } = useGameAudio();
@@ -236,6 +244,8 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const [bankedResult, setBankedResult] = useState<DiceScore | null>(null);
   const [focus, setFocus] = useState<FocusId>('roll');
   const [backNote, setBackNote] = useState<string | null>(null);
+  const [bet, setBet] = useState(() => readSavedBet(BET_STORAGE_KEY));
+  const [coinPayout, setCoinPayout] = useState<number | null>(null);
 
   const rollingRef = useRef(false);
   const bankLockRef = useRef(false);
@@ -245,24 +255,26 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const bankRef = useRef<HTMLButtonElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
   const dieRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const currentResult = useMemo(() => scoreDice(dice), [dice]);
   const canHold = phase === 'choosing' && rollsUsed > 0 && rollsUsed < MAX_ROLLS;
   const hasOpenDie = holds.some((held) => !held);
   const rollVisible = phase === 'ready' || phase === 'rolling' || (phase === 'choosing' && rollsUsed < MAX_ROLLS);
-  const rollUsable = phase === 'ready' || (phase === 'choosing' && rollsUsed < MAX_ROLLS && hasOpenDie);
+  const rollUsable = (phase === 'ready' && (!user || (balance !== null && balance >= bet))) || (phase === 'choosing' && rollsUsed < MAX_ROLLS && hasOpenDie);
 
   const focusRows = useMemo<FocusRows>(() => {
     const top = ['back', 'fx'];
     if (phase === 'settled') return [top, ['next']];
     if (phase === 'rolling') return [top, ['roll']];
+    const wagerRow = phase === 'ready' && user ? ARCADE_BETS.map((_, index) => `bet-${index}`) : [];
     const diceRow = canHold ? dice.map((_, index) => `die-${index}`) : [];
     const actions = [
       ...(rollUsable ? ['roll'] : []),
       ...(phase === 'choosing' ? ['bank'] : []),
     ];
-    return [top, diceRow, actions];
-  }, [phase, canHold, dice, rollUsable]);
+    return [top, wagerRow, diceRow, actions];
+  }, [phase, canHold, dice, rollUsable, user]);
 
   useEffect(() => {
     setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
@@ -274,7 +286,9 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
         : focus === 'roll' ? rollRef.current
           : focus === 'bank' ? bankRef.current
             : focus === 'next' ? nextRef.current
-              : dieRefs.current[Number(focus.slice(4))];
+              : focus.startsWith('bet-')
+                ? betRefs.current[Number(focus.slice(4))]
+                : dieRefs.current[Number(focus.slice(4))];
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
   }, [focus]);
 
@@ -305,9 +319,28 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setHolds((current) => current.map((held, i) => (i === index ? !held : held)));
   }, [canHold]);
 
-  const bankRound = useCallback(() => {
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
+
+  const bankRound = useCallback(async () => {
     if (phase !== 'choosing' || bankLockRef.current || currentResult.key === 'ready') return;
     bankLockRef.current = true;
+    let returned: number | null = null;
+    if (user) {
+      try {
+        const response = await gameSocket.playArcade({ game: 'dice', bet, dice });
+        if (!response?.ok) {
+          setBackNote(response?.error === 'insufficient_balance' ? 'Not enough Snow Coins for this round.' : 'The Dice table could not settle that hand.');
+          bankLockRef.current = false;
+          return;
+        }
+        returned = Number(response.payout) || 0;
+      } catch {
+        setBackNote('The Dice table is unavailable. Try banking again.');
+        bankLockRef.current = false;
+        return;
+      }
+    }
+    setCoinPayout(returned);
     setBankedResult(currentResult);
     setTotalScore((score) => score + currentResult.score);
     setBestScore((score) => Math.max(score, currentResult.score));
@@ -315,7 +348,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setPhase('settled');
     setFocus('next');
     play(currentResult.key === 'five-kind' || currentResult.key === 'large-straight' ? 'bonus' : 'win');
-  }, [currentResult, phase, play]);
+  }, [bet, currentResult, dice, phase, play, user]);
 
   const nextRound = useCallback(() => {
     if (phase !== 'settled') return;
@@ -324,6 +357,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setHolds([...EMPTY_HOLDS]);
     setRollsUsed(0);
     setBankedResult(null);
+    setCoinPayout(null);
     bankLockRef.current = false;
     setPhase('ready');
     setFocus('roll');
@@ -367,10 +401,10 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
         ref={backRef}
         onBack={requestBack}
         backLabel="Back"
-        balance={null}
-        showBalance={false}
+        balance={balance}
+        showBalance={!!user}
         title="Dice Lounge"
-        phase="Free play · no coins used"
+        phase={user ? `${bet} Snow Coin round` : 'Guest free play'}
         backFocused={focus === 'back'}
         onBackFocus={() => setFocus('back')}
         reducedFx={reducedFx}
@@ -425,12 +459,20 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
               <span className="snow-dice-result__copy">
                 <small>{phase === 'settled' ? 'ROUND BANKED' : rollsUsed === 0 ? 'CURRENT HAND' : 'BEST CATEGORY'}</small>
                 <strong>{result.label}</strong>
-                <em>{phase === 'settled' ? `+${result.score} points added to your lounge total.` : result.detail}</em>
+                <em>{phase === 'settled' ? `+${result.score} points${coinPayout === null ? '' : ` · ${coinPayout} Snow Coins returned`}.` : result.detail}</em>
               </span>
               <b className="snow-dice-result__score">{result.score}<small>PTS</small></b>
             </div>
 
             <div className="snow-dice-controls">
+              {phase === 'ready' && user && (
+                <div className="snow-dice-wager" aria-label="Choose Snow Coin wager">
+                  <Coins aria-hidden="true" />
+                  {ARCADE_BETS.map((amount, index) => (
+                    <BetChip key={amount} ref={(element) => { betRefs.current[index] = element; }} selected={bet === amount} focused={focus === `bet-${index}`} onFocus={() => setFocus(`bet-${index}`)} onClick={() => setBet(amount)} aria-disabled={(balance ?? 0) < amount ? 'true' : undefined}>{amount}</BetChip>
+                  ))}
+                </div>
+              )}
               {rollVisible && (
                 <Button
                   ref={rollRef}
@@ -452,7 +494,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                   type="button"
                   variant="navy"
                   onFocus={() => setFocus('bank')}
-                  onClick={bankRound}
+                  onClick={() => { void bankRound(); }}
                   data-tv-focused={focus === 'bank' ? 'true' : 'false'}
                   className="snow-dice-action snow-dice-action--bank tv-ring"
                 >
@@ -473,7 +515,7 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                   <span>NEXT ROUND</span>
                 </Button>
               )}
-              <p className="snow-dice-controls__note">No wager. No purchase. Just roll.</p>
+              <p className="snow-dice-controls__note">{user ? `${bet} Snow Coins · ${coinPayout === null ? 'bank to settle' : `${coinPayout} returned`}` : 'Guest practice · sign in for Snow Coin rounds'}</p>
             </div>
 
             {backNote && <p className="snow-dice-back-note" role="status">{backNote}</p>}

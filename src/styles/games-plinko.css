@@ -354,7 +354,13 @@
 .snow-plinko-board-high em { margin-top: 6px; color: #9db9c0; font-size: 8px; font-style: normal; font-weight: 800; }
 
 .snow-plinko-note { margin: 7px 0 0; color: #ffd889; font-size: 11px; font-weight: 900; text-align: center; }
-.snow-plinko-actions { display: flex; padding-top: 11px; }
+.snow-plinko-actions { display: flex; flex-wrap: wrap; padding-top: 11px; }
+.snow-plinko-wager { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; margin-bottom: 8px; }
+.snow-plinko-wager > button { width: 36px; height: 36px; min-width: 36px; }
+.snow-plinko-wager > span { min-width: 102px; min-height: 38px; display: grid; grid-template-columns: 24px 1fr; grid-template-rows: 12px 19px; align-items: center; padding: 3px 9px; border: 1px solid rgba(242, 205, 103, .64); border-radius: 9px; color: #f2cd67; background: rgba(3, 14, 34, .9); }
+.snow-plinko-wager svg { grid-row: 1 / 3; width: 20px; height: 20px; }
+.snow-plinko-wager small { font-size: 7px; font-weight: 900; letter-spacing: .12em; }
+.snow-plinko-wager b { color: white; font: 900 16px/1 Montserrat, Arial, sans-serif; }
 .snow-plinko-drop { display: flex; flex: 1 1 auto; min-height: 76px; align-items: center; justify-content: center; border: 2px solid #f2cd67; border-radius: 13px; color: #06172d; background: linear-gradient(180deg, #fff0ae, #d1a23d); box-shadow: inset 0 1px rgba(255, 255, 255, .7), 0 8px 17px rgba(0, 3, 13, .42); }
 .snow-plinko-drop__disc { display: flex; width: 43px; height: 43px; flex: 0 0 43px; align-items: center; justify-content: center; margin-right: 11px; border: 2px solid rgba(8, 28, 49, .62); border-radius: 50%; background: rgba(255, 255, 255, .28); }
 .snow-plinko-drop__disc svg { width: 24px !important; height: 24px !important; }

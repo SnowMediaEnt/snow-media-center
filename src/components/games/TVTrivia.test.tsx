@@ -67,11 +67,11 @@ describe('TV Trivia', () => {
     document.querySelectorAll('[data-test-modal="true"]').forEach((node) => node.remove());
   });
 
-  it('builds a ten-question mixed session containing every family-friendly category', () => {
+  it('builds a ten-question real-world session without Snow Media questions', () => {
     const session = createTriviaSession();
     expect(session).toHaveLength(TRIVIA_SESSION_LENGTH);
     expect(new Set(session.map((question) => question.category))).toEqual(
-      new Set(['snow', 'science', 'screen', 'world', 'music', 'sports', 'nature']),
+      new Set(['science', 'screen', 'world', 'music', 'sports', 'nature']),
     );
     expect(new Set(session.map((question) => question.id)).size).toBe(TRIVIA_SESSION_LENGTH);
   });
@@ -88,8 +88,8 @@ describe('TV Trivia', () => {
   it('starts with readable session status and makes clear that play is coin-free', async () => {
     render(<TVTrivia onBack={() => {}} />);
     expect(screen.getByText('Question 1 of 10')).toBeTruthy();
-    expect(screen.getByText(/Free play · no Snow Coins used/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Snow Media mode/ })).toBeTruthy();
+    expect(screen.getByText(/Guest practice/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Snow Media.*mode/ })).toBeTruthy();
     expect(screen.getByText(/Snow Media ·/)).toBeTruthy();
     expect(answerButtons()).toHaveLength(4);
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('1');
@@ -98,10 +98,10 @@ describe('TV Trivia', () => {
 
   it('switches between the Snow Media challenge and an all-topics round', () => {
     render(<TVTrivia onBack={() => {}} />);
-    fireEvent.click(screen.getByRole('button', { name: /Snow Media mode/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Snow Media.*mode/ }));
 
-    expect(screen.getByRole('button', { name: /All Topics mode/ })).toBeTruthy();
-    expect(screen.getByText(/All Topics · Free play/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Real world random mode/ })).toBeTruthy();
+    expect(screen.getByText(/Real World Random/)).toBeTruthy();
     expect(screen.getByLabelText('Score 0')).toBeTruthy();
     expect(localStorage.getItem('smc-tv-trivia-mode-v1')).toBe('mixed');
   });
@@ -111,18 +111,18 @@ describe('TV Trivia', () => {
 
     const first = answerCorrectly();
     expect(screen.getByText(first.fact)).toBeTruthy();
-    expect(screen.getByLabelText('Score 100')).toBeTruthy();
+    expect(screen.getByLabelText('Score 150')).toBeTruthy();
     expect(screen.getByLabelText('Streak 1')).toBeTruthy();
     expect(answerButtons()[first.correct].className).toContain('is-correct');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next Question' }));
     answerCorrectly();
-    expect(screen.getByLabelText('Score 225')).toBeTruthy();
+    expect(screen.getByLabelText('Score 325')).toBeTruthy();
     expect(screen.getByLabelText('Streak 2')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next Question' }));
     answerIncorrectly();
-    expect(screen.getByLabelText('Score 225')).toBeTruthy();
+    expect(screen.getByLabelText('Score 325')).toBeTruthy();
     expect(screen.getByLabelText('Streak 0')).toBeTruthy();
     expect(screen.getByText('Not quite')).toBeTruthy();
   });
@@ -157,14 +157,16 @@ describe('TV Trivia', () => {
     expect(document.querySelectorAll('[data-tv-focused="true"]')).toHaveLength(1);
   });
 
-  it('keeps mode, sound, and FX controls inside one explicit TV focus graph', async () => {
+  it('keeps mode, difficulty, sound, and FX controls inside one explicit TV focus graph', async () => {
     render(<TVTrivia onBack={() => {}} />);
     await waitFor(() => expect(document.activeElement).toBe(answerButtons()[0]));
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Back to Lounge' }));
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Snow Media mode/ }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Snow Media.*mode/ }));
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /standard difficulty/ }));
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Mute game sounds' }));
 
@@ -199,7 +201,7 @@ describe('TV Trivia', () => {
     fireEvent.keyDown(window, { key: 'Unidentified', keyCode: 23, repeat: true });
     fireEvent.keyUp(window, { key: 'Unidentified', keyCode: 23 });
 
-    expect(screen.getByLabelText('Score 100')).toBeTruthy();
+    expect(screen.getByLabelText('Score 150')).toBeTruthy();
     expect(screen.getByText(/^Correct!/)).toBeTruthy();
   });
 
@@ -241,7 +243,7 @@ describe('TV Trivia', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: 'Perfect game!' })).toBeTruthy();
     expect(screen.getByText(/10 of 10/)).toBeTruthy();
-    expect(screen.getByLabelText('Score 2,125')).toBeTruthy();
+    expect(screen.getByLabelText('Score 2,625')).toBeTruthy();
     expect(audioHarness.play.mock.calls.filter(([cue]) => cue === 'triviaCorrect')).toHaveLength(TRIVIA_SESSION_LENGTH);
     expect(audioHarness.play.mock.calls.filter(([cue]) => cue === 'win')).toHaveLength(1);
 

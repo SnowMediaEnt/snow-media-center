@@ -1363,57 +1363,6 @@ export type Database = {
         }
         Relationships: []
       }
-      gem_orders: {
-        Row: {
-          created_at: string
-          credited_at: string | null
-          credits: number
-          id: string
-          order_number: string | null
-          package_id: string | null
-          package_name: string
-          paid_at: string | null
-          paid_total: number | null
-          paypal_transaction_id: string | null
-          price: number
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          credited_at?: string | null
-          credits: number
-          id?: string
-          order_number?: string | null
-          package_id?: string | null
-          package_name: string
-          paid_at?: string | null
-          paid_total?: number | null
-          paypal_transaction_id?: string | null
-          price: number
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          credited_at?: string | null
-          credits?: number
-          id?: string
-          order_number?: string | null
-          package_id?: string | null
-          package_name?: string
-          paid_at?: string | null
-          paid_total?: number | null
-          paypal_transaction_id?: string | null
-          price?: number
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       customer_devices: {
         Row: {
           created_at: string
@@ -1736,6 +1685,60 @@ export type Database = {
         }
         Relationships: []
       }
+      game_leaderboard: {
+        Row: {
+          best_score: number
+          game: string
+          game_name: string
+          mode: string
+          plays: number
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          best_score?: number
+          game: string
+          game_name: string
+          mode?: string
+          plays?: number
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          best_score?: number
+          game?: string
+          game_name?: string
+          mode?: string
+          plays?: number
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      game_profiles: {
+        Row: {
+          created_at: string
+          game_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          game_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       game_rounds: {
         Row: {
           bet: number
@@ -1774,6 +1777,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      gem_orders: {
+        Row: {
+          created_at: string
+          credited_at: string | null
+          credits: number
+          id: string
+          order_number: string | null
+          package_id: string | null
+          package_name: string
+          paid_at: string | null
+          paid_total: number | null
+          paypal_transaction_id: string | null
+          price: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credited_at?: string | null
+          credits: number
+          id?: string
+          order_number?: string | null
+          package_id?: string | null
+          package_name: string
+          paid_at?: string | null
+          paid_total?: number | null
+          paypal_transaction_id?: string | null
+          price: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credited_at?: string | null
+          credits?: number
+          id?: string
+          order_number?: string | null
+          package_id?: string | null
+          package_name?: string
+          paid_at?: string | null
+          paid_total?: number | null
+          paypal_transaction_id?: string | null
+          price?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gem_orders_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "credit_packages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       giveaway_audit_log: {
         Row: {
@@ -4196,6 +4258,16 @@ export type Database = {
           p_device_id: string
           p_feature: string
           p_images: number
+        }
+        Returns: undefined
+      }
+      record_game_score: {
+        Args: {
+          p_game: string
+          p_mode: string
+          p_score: number
+          p_user: string
+          p_win?: boolean
         }
         Returns: undefined
       }
