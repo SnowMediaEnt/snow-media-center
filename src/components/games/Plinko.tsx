@@ -443,10 +443,17 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           >
             <Sparkles aria-hidden="true" /> {reducedFx ? 'FX Low' : 'FX Full'}
           </Button>
-          <div className="snow-plinko-score-badge" aria-label={`Session score ${score.toLocaleString()}`}>
-            <Trophy aria-hidden="true" />
-            <span><small>Session score</small><strong>{score.toLocaleString()}</strong></span>
-          </div>
+          {user ? (
+            <div className="snow-plinko-score-badge" aria-label={`Snow Coin net ${sessionCoinNet.toLocaleString()}`}>
+              <Coins aria-hidden="true" />
+              <span><small>Snow Coin net</small><strong>{sessionCoinNet > 0 ? `+${sessionCoinNet.toLocaleString()}` : sessionCoinNet.toLocaleString()}</strong></span>
+            </div>
+          ) : (
+            <div className="snow-plinko-score-badge" aria-label={`Practice score ${score.toLocaleString()}`}>
+              <Trophy aria-hidden="true" />
+              <span><small>Practice score</small><strong>{score.toLocaleString()}</strong></span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -536,7 +543,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             {dropping ? (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Snowflake /></span><div><small>Puck in motion</small><strong>Watch it bounce</strong></div></>
             ) : lastAward !== null ? (
-              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>{lastCoinAward === null ? `+${lastAward.toLocaleString()} points` : `${lastCoinAward.toLocaleString()} Snow Coins returned`}</strong></div></>
+              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>{lastCoinAward === null ? `+${lastAward.toLocaleString()} points` : `${(lastCoinAward - bet) > 0 ? '+' : ''}${(lastCoinAward - bet).toLocaleString()} Snow Coins net`}</strong></div></>
             ) : (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Zap /></span><div><small>{activeMode.label} board ready</small><strong>Press OK to drop</strong></div></>
             )}
@@ -584,7 +591,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
                 ref={resetRef}
                 type="button"
                 variant="navy"
-                aria-label="Reset session score"
+                aria-label="Reset session totals"
                 data-tv-focused={focus === 'reset' ? 'true' : 'false'}
                 onFocus={() => setFocus('reset')}
                 onClick={resetSession}
