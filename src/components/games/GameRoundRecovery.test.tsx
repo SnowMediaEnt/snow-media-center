@@ -54,6 +54,7 @@ const openModal = () => {
 };
 
 beforeEach(() => {
+  window.localStorage.removeItem('snow-blackjack-variant-v1');
   [dealCasinoHoldem, callCasinoHoldem, foldCasinoHoldem, dealBlackjack, hit, stand, double]
     .forEach((m) => m.mockReset());
 });
@@ -110,6 +111,67 @@ describe('terminal round reconciliation', () => {
     fireEvent.keyUp(window, { key: 'Enter' });
     await waitFor(() => expect(again.isConnected).toBe(false));
     expect(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ })).not.toBeNull();
+  });
+
+  it('Blackjack sends the selected table and reveals a sealed double card only after the dealer', async () => {
+    dealBlackjack.mockResolvedValue({
+      ok: true,
+      status: 'player_turn',
+      bet: 10,
+      variant: 'double_reveal',
+      playerHand: [{ rank: '5', suit: 'H' }, { rank: '6', suit: 'D' }],
+      dealerUp: [{ rank: '9', suit: 'S' }],
+      playerTotal: 11,
+      dealerUpTotal: 9,
+      canHit: true,
+      canStand: true,
+      canDouble: true,
+    });
+    double.mockResolvedValue({
+      ok: true,
+      status: 'win',
+      bet: 20,
+      variant: 'double_reveal',
+      playerHand: [
+        { rank: '5', suit: 'H' },
+        { rank: '6', suit: 'D' },
+        { rank: 'K', suit: 'C' },
+      ],
+      dealerHand: [
+        { rank: '9', suit: 'S' },
+        { rank: '7', suit: 'C' },
+        { rank: '10', suit: 'D' },
+      ],
+      playerTotal: 21,
+      dealerTotal: 26,
+      net: 20,
+      doubled: true,
+      doubleCardFaceDown: true,
+      doubleCardIndex: 2,
+      preDoublePlayerTotal: 11,
+    });
+
+    render(<Blackjack onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Double Reveal/ }));
+    fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ }));
+    await waitFor(() => expect(dealBlackjack).toHaveBeenCalledWith(
+      10,
+      expect.any(String),
+      'double_reveal',
+    ));
+
+    const doubleButton = await waitFor(() => screen.getByRole('button', { name: /games\.blackjack\.double/ }));
+    fireEvent.click(doubleButton);
+    expect(await screen.findByText(/your double card is sealed/i)).not.toBeNull();
+    expect(screen.getByText('11+?')).not.toBeNull();
+
+    const again = screen.getByRole('button', { name: /games\.blackjack\.playAgain/ });
+    expect(again.getAttribute('aria-disabled')).toBe('true');
+    await waitFor(() => {
+      expect(screen.queryByText(/your double card is sealed/i)).toBeNull();
+      expect(screen.getAllByText('21').length).toBeGreaterThan(0);
+      expect(again.getAttribute('aria-disabled')).toBeNull();
+    }, { timeout: 3500 });
   });
 
   it("Hold'em treats a transport failure as unknown and keeps the hand", async () => {

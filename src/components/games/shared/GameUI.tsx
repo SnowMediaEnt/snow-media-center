@@ -5,16 +5,32 @@ import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { GameAccent, GameFairInfo } from './gameTypes';
+import { useGameAudio } from './gameAudio';
 
 export const GAME_ACTION_CLASS = 'snow-game-action tv-ring min-h-12 border-2 font-black transition-transform duration-150';
 
-export const GameShell = ({ accent, children, className }: { accent: GameAccent; children: ReactNode; className?: string }) => (
-  <main className={cn('snow-casino tv-game-shell', `snow-casino--${accent}`, className)} data-game-accent={accent}>
-    <div className="snow-casino__aurora" aria-hidden="true" />
-    <div className="snow-casino__vignette" aria-hidden="true" />
-    <div className="tv-game-body snow-game-body">{children}</div>
-  </main>
-);
+export const GameShell = ({ accent, children, className }: { accent: GameAccent; children: ReactNode; className?: string }) => {
+  const { play } = useGameAudio();
+
+  return (
+    <main
+      className={cn('snow-casino tv-game-shell', `snow-casino--${accent}`, className)}
+      data-game-accent={accent}
+      onKeyDownCapture={(event) => {
+        if (event.key.startsWith('Arrow')) play('select', { volume: 0.38 });
+      }}
+      onClickCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest('button')) {
+          play('select', { volume: 0.42 });
+        }
+      }}
+    >
+      <div className="snow-casino__aurora" aria-hidden="true" />
+      <div className="snow-casino__vignette" aria-hidden="true" />
+      <div className="tv-game-body snow-game-body">{children}</div>
+    </main>
+  );
+};
 
 export const GameTopBar = forwardRef<HTMLButtonElement, {
   onBack: () => void;

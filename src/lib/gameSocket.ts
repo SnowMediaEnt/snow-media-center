@@ -10,6 +10,14 @@ export interface WhoAmI {
   balance: number;
 }
 
+export interface SlotStateAck {
+  ok?: boolean;
+  collectors?: unknown;
+  freeSpinsRemaining?: number;
+  multiplier?: number;
+  error?: string;
+}
+
 type Listener = () => void;
 
 const SERVER_URL = 'https://smcdreamstreams.store';
@@ -212,6 +220,10 @@ class GameSocketManager {
     return res;
   }
 
+  async getSlotsState(bet: number): Promise<SlotStateAck> {
+    return this.emitWithAck('slots_state', { bet }, 10000);
+  }
+
   private async emitWithAck(event: string, payload: any, timeoutMs = 20000): Promise<any> {
     if (!this.socket || !this.socket.connected) {
       await this.connect();
@@ -239,9 +251,9 @@ class GameSocketManager {
     });
   }
 
-  async dealBlackjack(bet: number, clientSeed?: string): Promise<any> {
-    const res = await this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null });
-    this.noteWager('blackjack', bet);
+  async dealBlackjack(bet: number, clientSeed?: string, variant: string = 'classic'): Promise<any> {
+    const res = await this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null, variant });
+    this.noteWager('blackjack', bet, { variant });
     return res;
   }
   async hit(): Promise<any> { return this.emitWithAck('bj_hit', undefined); }

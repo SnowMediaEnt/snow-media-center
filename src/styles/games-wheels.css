@@ -658,6 +658,25 @@
 }
 .snow-roulette-game .snow-rl-toggle.is-active { border-color: #f4d472; color: #081830; background: linear-gradient(180deg, #ffe8a0, #c89128); }
 
+.snow-roulette-game .snow-rl-friendly-rule {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(232, 194, 88, .2);
+  border-radius: 7px;
+  color: #93aabe;
+  background: rgba(3, 14, 29, .56);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.snow-roulette-game .snow-rl-friendly-rule.is-active {
+  border-color: rgba(109, 235, 195, .38);
+  color: #b9f5dc;
+}
+
 .snow-roulette-game .snow-rl-main {
   flex: 1 1 0;
   min-width: 0;
@@ -819,6 +838,11 @@
 .snow-roulette-game .snow-rl-cell--neutral { background: linear-gradient(145deg, rgba(23, 97, 73, .94), rgba(7, 54, 42, .98)); }
 .snow-roulette-game .snow-rl-cell.is-won { outline: 3px solid #65f0a9; opacity: 1; box-shadow: 0 0 0 2px rgba(255, 242, 174, .72), 0 0 17px rgba(75, 229, 145, .58); }
 .snow-roulette-game .snow-rl-cell.is-lost { opacity: .42; }
+.snow-roulette-game .snow-rl-cell.is-half-back {
+  outline: 2px solid #f4d472;
+  opacity: .82;
+  box-shadow: 0 0 14px rgba(244, 212, 114, .4);
+}
 
 .snow-roulette-game .snow-rl-num { height: 48px; font-size: 17px; }
 .snow-roulette-game .snow-rl-zero { font-size: 18px; }

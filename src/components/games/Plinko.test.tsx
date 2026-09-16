@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import Plinko from './Plinko';
+import Plinko, { buildPlinkoMotion, PLINKO_RISK_MODES } from './Plinko';
 
 const press = (key: string, keyCode?: number) => {
   fireEvent.keyDown(window, { key, keyCode, bubbles: true, cancelable: true });
@@ -12,6 +12,33 @@ describe('Snow Plinko TV game', () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem('snow-games-reduced-fx-v1', 'true');
+  });
+
+  it('builds a deterministic squash-and-kick track that lands in the chosen slot', () => {
+    const path = [true, false, true, false, true, false, true, false, true, false];
+    const motion = buildPlinkoMotion(path);
+
+    expect(motion.finalSlot).toBe(5);
+    expect(motion.points).toHaveLength(22);
+    expect(motion.points[0]).toMatchObject({ x: 50, y: 5, offset: 0 });
+    expect(motion.points[motion.points.length - 1]).toMatchObject({ x: 50, y: 85, offset: 1 });
+    const impacts = motion.points.slice(1, -1).filter((_, index) => index % 2 === 0);
+    expect(impacts.every((point) => point.scale < 1)).toBe(true);
+    expect(motion.points.every((point, index, points) => index === 0 || point.offset >= points[index - 1].offset)).toBe(true);
+  });
+
+  it('keeps every score-only board consistently player-friendly', () => {
+    const combinations = [1, 10, 45, 120, 210, 252, 210, 120, 45, 10, 1];
+
+    for (const mode of PLINKO_RISK_MODES) {
+      const expectedMultiplier = mode.multipliers.reduce(
+        (sum, multiplier, index) => sum + multiplier * combinations[index],
+        0,
+      ) / 1024;
+
+      expect(expectedMultiplier).toBeGreaterThanOrEqual(1.04);
+      expect(expectedMultiplier).toBeLessThanOrEqual(1.06);
+    }
   });
 
   it('is explicitly free play and starts no idle animation loop', () => {

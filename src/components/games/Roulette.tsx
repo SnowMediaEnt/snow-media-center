@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Check, CircleDot, Coins, Gem, Loader2, RotateCw, Trash2, Trophy, Undo2 } from 'lucide-react';
+import { CircleDot, Coins, Gem, Loader2, RotateCw, Trash2, Trophy, Undo2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
@@ -12,6 +12,7 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { isBackKey, useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
+import { useGameAudio } from './shared/gameAudio';
 import '@/styles/games-wheels.css';
 
 interface RouletteProps {
@@ -41,11 +42,10 @@ interface Bet { type: BetType; selection: BetSelection; amount: number }
 interface PlacedChip { type: BetType; selection: BetSelection; key: string; amount: number }
 /** One physical chip placement — the single source of truth for the board. */
 interface ChipPlacement { key: string; type: BetType; selection: BetSelection; amount: number }
-interface FairInfo { serverSeedHash: string; serverSeed: string; clientSeed: string; nonce: number }
 interface SpinResult {
   number: SlotNum;
   color: 'red' | 'black' | 'green';
-  bets: { type: BetType; selection: BetSelection; amount: number; won: boolean; payout: number }[];
+  bets: { type: BetType; selection: BetSelection; amount: number; won: boolean; payout: number; halfBack?: boolean }[];
   totalBet: number;
   totalPayout: number;
   net: number;
@@ -57,7 +57,7 @@ const keyFor = (type: BetType, selection: BetSelection) =>
 interface RouletteCellProps {
   id: string; label?: string; type: BetType; selection: BetSelection;
   color: 'red' | 'black' | 'green' | 'neutral'; className?: string;
-  children?: React.ReactNode; placed?: PlacedChip; won?: boolean; lost?: boolean;
+  children?: React.ReactNode; placed?: PlacedChip; won?: boolean; lost?: boolean; halfBack?: boolean;
   spinning: boolean; focused: boolean;
   register: (id: string, el: HTMLButtonElement | null, bet: { type: BetType; selection: BetSelection }) => void;
   onFocus: (id: string) => void; onPlace: (type: BetType, selection: BetSelection) => void;
@@ -68,7 +68,7 @@ interface RouletteCellProps {
  * in a component created during render) so D-pad moves and chip placements
  * only re-render the affected cells instead of remounting the whole board.
  */
-export const RouletteCell = memo(({ id, label, type, selection, color, className = '', children, placed, won, lost, spinning, focused, register, onFocus, onPlace }: RouletteCellProps) => {
+export const RouletteCell = memo(({ id, label, type, selection, color, className = '', children, placed, won, lost, halfBack, spinning, focused, register, onFocus, onPlace }: RouletteCellProps) => {
   const bg = color === 'red' ? 'snow-rl-cell--red' : color === 'black' ? 'snow-rl-cell--black' : color === 'green' ? 'snow-rl-cell--green' : 'snow-rl-cell--neutral';
   const accessibleLabel = label
     ?? (typeof children === 'string' || typeof children === 'number' ? String(children) : undefined)
@@ -81,7 +81,7 @@ export const RouletteCell = memo(({ id, label, type, selection, color, className
       onClick={() => { if (!spinning) onPlace(type, selection); }}
       aria-disabled={spinning ? 'true' : undefined}
       data-tv-focused={focused ? 'true' : 'false'}
-      className={`snow-rl-cell ${bg} ${className} ${won ? 'is-won' : ''} ${lost ? 'is-lost' : ''}`}
+      className={`snow-rl-cell ${bg} ${className} ${won ? 'is-won' : ''} ${lost ? 'is-lost' : ''} ${halfBack ? 'is-half-back' : ''}`}
       aria-label={accessibleLabel}
     >
       {children ?? label ?? String(selection)}
@@ -97,6 +97,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
 
   const [wheel, setWheel] = useState<WheelKind>('european');
   const [denom, setDenom] = useState<number>(10);
@@ -106,13 +107,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const [serverSeedHash, setServerSeedHash] = useState<string>('');
+  const spinEpoch = useRef(0);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [winKeys, setWinKeys] = useState<Set<string>>(new Set());
+  const [halfBackKeys, setHalfBackKeys] = useState<Set<string>>(new Set());
   const [celebrate, setCelebrate] = useState(false);
-  const [fair, setFair] = useState<FairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
-  const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
   const [backNote, setBackNote] = useState<string | null>(null);
   /**
    * Immutable copy of the chips that were on the felt when the wheel settled.
@@ -216,7 +215,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const clearSettleVisuals = useCallback(() => {
     setResult(null);
     setWinKeys(new Set());
-    setFair(null);
+    setHalfBackKeys(new Set());
     setSettledChips([]);
   }, []);
 
@@ -285,15 +284,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
     if (inFlight.current) return;
     if (!canSpin) return;
     inFlight.current = true;
+    const epoch = ++spinEpoch.current;
     setBusy(true);
     setSpinning(true);
     setError(null);
     setResult(null);
     setWinKeys(new Set());
-    setFair(null);
-    setShowFair(false);
-    setVerifyOk(null);
-    setServerSeedHash('');
+    setHalfBackKeys(new Set());
     if (wheelVisualRef.current) wheelVisualRef.current.style.willChange = 'transform';
     if (ballVisualRef.current) ballVisualRef.current.style.willChange = 'transform';
 
@@ -342,6 +339,8 @@ const Roulette = ({ onBack }: RouletteProps) => {
       });
       stopIdleAnimation();
 
+      if (!life.isMounted() || epoch !== spinEpoch.current) return;
+
       if (!resp?.ok) {
         landed = true;
         retireWillChange();
@@ -368,6 +367,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       let stopLandVisibility = () => {};
 
       const settle = () => {
+        if (!life.isMounted() || epoch !== spinEpoch.current || landed) return;
         landed = true;
         life.cancelRaf(landRaf);
         landRaf = null;
@@ -383,16 +383,20 @@ const Roulette = ({ onBack }: RouletteProps) => {
           net: resp.net ?? 0,
         };
         setResult(sr);
+        play('reelStop');
+        if (sr.net > 0) play('win');
+        else if (sr.net < 0) play('lose');
         const wins = new Set<string>();
-        sr.bets.forEach((b) => { if (b.won) wins.add(keyFor(b.type, b.selection)); });
+        const halfBacks = new Set<string>();
+        sr.bets.forEach((b) => {
+          if (b.won) wins.add(keyFor(b.type, b.selection));
+          if (b.halfBack) halfBacks.add(keyFor(b.type, b.selection));
+        });
         setWinKeys(wins);
+        setHalfBackKeys(halfBacks);
         if (sr.net > 0) {
           setCelebrate(true);
           life.timeout(() => setCelebrate(false), reducedFx ? 900 : 2400);
-        }
-        if (resp.fair) {
-          setFair(resp.fair);
-          setServerSeedHash(resp.fair.serverSeedHash);
         }
         setSpinning(false);
         setBusy(false);
@@ -432,6 +436,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
       scheduleLand();
     } catch {
       stopIdleAnimation();
+      if (!life.isMounted() || epoch !== spinEpoch.current) return;
       retireWillChange();
       setSpinning(false);
       setBusy(false);
@@ -439,18 +444,16 @@ const Roulette = ({ onBack }: RouletteProps) => {
       setError(t('games.roulette.errUnreachable'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSpin, wheel, chips, totalBet, setWheelVisuals, reducedFx, life, retireWillChange]);
+  }, [canSpin, wheel, chips, totalBet, setWheelVisuals, reducedFx, life, play, retireWillChange]);
 
   // OK/Select: exactly one activation per press, repeats swallowed until keyup.
   useTvActivate(activateFocused);
 
   /**
-   * Shared wager-safe Back guard: fairness closes first, a spin in flight keeps
-   * the player on the table, and only a settled/idle table can leave.
+   * Shared wager-safe Back guard: a spin in flight keeps the player on the
+   * table, and only a settled/idle table can leave.
    */
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     isBusy: () => spinning || busy || inFlight.current,
     onBlocked: () => {
       setBackNote(t('games.shared.finishSpinFirst'));
@@ -494,6 +497,7 @@ const Roulette = ({ onBack }: RouletteProps) => {
   useEffect(() => {
     setResult(null);
     setWinKeys(new Set());
+    setHalfBackKeys(new Set());
     setSettledChips([]);
     if (wheel !== 'european') return;
     setPlacements((prev) => prev.filter((p) => !(p.type === 'straight' && p.selection === '00')));
@@ -636,26 +640,13 @@ const Roulette = ({ onBack }: RouletteProps) => {
     };
   }, [drawWheel]);
 
-  // SHA-256 verify
-  useEffect(() => {
-    if (!showFair || !fair) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fair.serverSeed));
-        const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-        if (!cancelled) setVerifyOk(hex.toLowerCase() === (fair.serverSeedHash || '').toLowerCase());
-      } catch { if (!cancelled) setVerifyOk(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [showFair, fair]);
-
   // ----- Render helpers -----
   /** After a settle the spent chips are gone, so the board shows the snapshot. */
   const boardChips = chips.length > 0 ? chips : settledChips;
   const chipAt = (type: BetType, selection: BetSelection): PlacedChip | undefined =>
     boardChips.find((c) => c.key === keyFor(type, selection));
   const winFor = (type: BetType, selection: BetSelection) => winKeys.has(keyFor(type, selection));
+  const halfBackFor = (type: BetType, selection: BetSelection) => halfBackKeys.has(keyFor(type, selection));
 
   /**
    * Plain render function (NOT a component created during render): it returns
@@ -665,13 +656,15 @@ const Roulette = ({ onBack }: RouletteProps) => {
   const cell = (props: Omit<RouletteCellProps, 'placed' | 'won' | 'lost' | 'spinning' | 'focused' | 'register' | 'onFocus' | 'onPlace'>) => {
     const placed = chipAt(props.type, props.selection);
     const won = !!placed && !!result && winFor(props.type, props.selection);
+    const halfBack = !!placed && !!result && halfBackFor(props.type, props.selection);
     return (
       <RouletteCell
         {...props}
         key={props.id}
         placed={placed}
         won={won}
-        lost={!!placed && !!result && !won}
+        halfBack={halfBack}
+        lost={!!placed && !!result && !won && !halfBack}
         spinning={spinning}
         focused={focusId === props.id}
         register={registerCell}
@@ -766,6 +759,11 @@ const Roulette = ({ onBack }: RouletteProps) => {
                   </button>
                 ))}
               </div>
+              <p className={`snow-rl-friendly-rule${wheel === 'european' ? ' is-active' : ''}`}>
+                {wheel === 'european'
+                  ? 'SNOW RULE · half back on even-money bets when 0 lands · 98.65% return'
+                  : 'Classic double-zero wheel · 94.74% return'}
+              </p>
             </div>
           </aside>
 
@@ -909,36 +907,6 @@ const Roulette = ({ onBack }: RouletteProps) => {
                 {balance === null && <p className="snow-rl-note">{t('games.roulette.loadingChips')}</p>}
                 {error && <p className="snow-rl-error" role="status">{error}</p>}
                 {backNote && <p className="snow-rl-note" role="status">{backNote}</p>}
-
-                {fair && (
-                  <div className="snow-fairness">
-                    <button
-                      type="button"
-                      ref={registerFocus('fair-toggle')}
-                      onFocus={() => setFocusId('fair-toggle')}
-                      onClick={() => setShowFair((s) => !s)}
-                      data-tv-focused={focusId === 'fair-toggle' ? 'true' : 'false'}
-                      className="snow-fairness__toggle"
-                    >
-                      {t('games.roulette.provablyFair')}
-                    </button>
-                    {showFair && (
-                      <div className="snow-fairness__details" role="dialog" aria-label={t('games.roulette.provablyFair')}>
-                        <p><b>{t('games.roulette.fairServerSeedHash')}</b> {fair.serverSeedHash}</p>
-                        <p><b>{t('games.roulette.fairServerSeed')}</b> {fair.serverSeed}</p>
-                        <p><b>{t('games.roulette.fairClientSeed')}</b> {fair.clientSeed}</p>
-                        <p><b>{t('games.roulette.fairNonce')}</b> {fair.nonce}</p>
-                        <p>
-                          <b>{t('games.roulette.fairVerifyLabel')}</b>{' '}
-                          {verifyOk === null ? t('games.roulette.fairChecking') : verifyOk
-                            ? <span className="snow-fairness__ok"><Check className="w-3 h-3" /> {t('games.roulette.fairMatches')}</span>
-                            : t('games.roulette.fairMismatch')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {serverSeedHash && !fair && <p className="snow-rl-seed">{t('games.roulette.seedHash', { hash: serverSeedHash })}</p>}
               </div>
             </div>
           </section>
