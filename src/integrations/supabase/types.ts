@@ -1309,6 +1309,57 @@ export type Database = {
         }
         Relationships: []
       }
+      gem_orders: {
+        Row: {
+          created_at: string
+          credited_at: string | null
+          credits: number
+          id: string
+          order_number: string | null
+          package_id: string | null
+          package_name: string
+          paid_at: string | null
+          paid_total: number | null
+          paypal_transaction_id: string | null
+          price: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credited_at?: string | null
+          credits: number
+          id?: string
+          order_number?: string | null
+          package_id?: string | null
+          package_name: string
+          paid_at?: string | null
+          paid_total?: number | null
+          paypal_transaction_id?: string | null
+          price: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credited_at?: string | null
+          credits?: number
+          id?: string
+          order_number?: string | null
+          package_id?: string | null
+          package_name?: string
+          paid_at?: string | null
+          paid_total?: number | null
+          paypal_transaction_id?: string | null
+          price?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_devices: {
         Row: {
           created_at: string

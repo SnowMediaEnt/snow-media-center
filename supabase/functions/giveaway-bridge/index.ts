@@ -24,6 +24,11 @@
 //                             max_connections?, is_trial?, source} -> customer (found or made) +
 //                             customer_services row with expiry, panel id and password
 //   support-session-paid (internal) {ref, order_number, total, email}
+//   gems-order     (internal) {ref} -> what a Snow Gems QR is for: package, credits, price, status,
+//                             so the private page on snowmediaent.com can show it before charging
+//   gems-paid      (internal) {ref, order_number, total, paypal_transaction_id?, email?} -> flips the
+//                             gem_orders row to paid ONCE and credits the profile (update_user_credits);
+//                             an amount short of the package parks the row in 'review' instead
 //   admin-notify   (internal) {entry_id} -> Discord + web push to admins
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -978,6 +983,134 @@ Deno.serve(async (req) => {
 
       console.log(`[giveaway-bridge] support-session-paid ref=${ref} discord=${discord_status} push=${push_status}`);
       return json({ ok: true, discord_status, push_status });
+    }
+
+    if (action === 'gems-order') {
+      // The private page on snowmediaent.com was opened from a QR code and
+      // asks what that code is for before it shows a price. {ref}
+      const ref = String(body.ref || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(ref)) return json({ ok: false, error: 'bad_ref' }, 400);
+      const { data: row, error } = await admin
+        .from('gem_orders')
+        .select('id, user_id, status, package_name, credits, price, created_at')
+        .eq('id', ref)
+        .maybeSingle();
+      if (error) {
+        console.error('[giveaway-bridge] gems-order lookup:', error.message);
+        return json({ ok: false, error: 'lookup_failed' });
+      }
+      if (!row) return json({ ok: false, error: 'not_found' });
+      // A first name for the page to greet the buyer with, and nothing else
+      // about the account leaves this project.
+      let firstName: string | null = null;
+      try {
+        const { data: prof } = await admin.from('profiles').select('full_name').eq('user_id', row.user_id).maybeSingle();
+        firstName = String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim().split(/\s+/)[0] || null;
+      } catch { /* the greeting is optional */ }
+      return json({
+        ok: true,
+        ref: row.id,
+        status: row.status,
+        package_name: row.package_name,
+        credits: Number(row.credits),
+        price: Number(row.price),
+        created_at: row.created_at,
+        first_name: firstName,
+      });
+    }
+
+    if (action === 'gems-paid') {
+      // snowmediaent.com checkout, after PayPal captured a Snow Gems order.
+      // {ref, order_number, total, paypal_transaction_id?, email?}
+      //
+      // The row can leave pending_payment exactly once, so a notification
+      // delivered twice credits once. Money that arrived short of the package
+      // parks the row in 'review' for a human instead of crediting a partial
+      // pack or, worse, refusing a customer who has paid.
+      const ref = String(body.ref || '').trim();
+      const orderNumber = String(body.order_number || '').trim().slice(0, 64) || null;
+      const total = Number(body.total) || 0;
+      const paypalId = body.paypal_transaction_id ? String(body.paypal_transaction_id).trim().slice(0, 64) : null;
+      const email = body.email ? String(body.email).trim().toLowerCase().slice(0, 200) : '';
+      if (!/^[0-9a-f-]{36}$/i.test(ref)) return json({ ok: false, error: 'bad_ref' }, 400);
+
+      const { data: order, error: readErr } = await admin
+        .from('gem_orders')
+        .select('id, user_id, package_name, credits, price, status')
+        .eq('id', ref)
+        .maybeSingle();
+      if (readErr) {
+        console.error('[giveaway-bridge] gems-paid read:', readErr.message);
+        return json({ ok: false, error: 'lookup_failed' });
+      }
+      if (!order) return json({ ok: true, skipped: 'unknown_ref' });
+      if (order.status === 'paid') return json({ ok: true, skipped: 'already_paid', credits: Number(order.credits) });
+
+      const price = Number(order.price);
+      const underpaid = total > 0 && total + 0.01 < price;
+      const now = new Date().toISOString();
+      const { data: claimed, error: claimErr } = await admin
+        .from('gem_orders')
+        .update({
+          status: underpaid ? 'review' : 'paid',
+          order_number: orderNumber,
+          paypal_transaction_id: paypalId,
+          paid_total: total || null,
+          paid_at: now,
+        })
+        .eq('id', ref)
+        .eq('status', 'pending_payment')
+        .select('id')
+        .maybeSingle();
+      if (claimErr) {
+        console.error('[giveaway-bridge] gems-paid claim:', claimErr.message);
+        return json({ ok: false, error: 'update_failed' });
+      }
+      if (!claimed) return json({ ok: true, skipped: 'not_pending', status: order.status });
+
+      const credits = Number(order.credits);
+      const ping = async (content: string) => {
+        try {
+          const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
+          if (hook) await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+        } catch (err) {
+          console.error('[giveaway-bridge] gems discord threw:', err instanceof Error ? err.message : String(err));
+        }
+      };
+
+      if (underpaid) {
+        await ping(
+          `💎 SNOW GEMS NEEDS A LOOK — ${email || 'unknown email'} paid $${total.toFixed(2)} for ${order.package_name} ` +
+          `(${credits} gems, $${price.toFixed(2)}) — order ${orderNumber || 'n/a'} — ref ${ref}\n` +
+          `Nothing was credited. Check the payment, then add the gems from the Hub.`,
+        );
+        return json({ ok: true, status: 'review' });
+      }
+
+      const { data: credited, error: creditErr } = await admin.rpc('update_user_credits', {
+        p_user_id: order.user_id,
+        p_amount: credits,
+        p_transaction_type: 'purchase',
+        p_description: `Snow Gems — ${order.package_name}${orderNumber ? ` (order ${orderNumber})` : ''}`,
+        p_paypal_transaction_id: paypalId ?? orderNumber ?? undefined,
+      });
+      if (creditErr || credited === false) {
+        // The money is taken and the gems have not landed: never lose that.
+        console.error('[giveaway-bridge] gems-paid credit:', creditErr?.message ?? 'returned false');
+        await admin.from('gem_orders').update({ status: 'review' }).eq('id', ref);
+        await ping(
+          `💎 SNOW GEMS NOT CREDITED — ${email || 'unknown email'} paid $${total.toFixed(2)} for ${order.package_name} ` +
+          `(${credits} gems) — order ${orderNumber || 'n/a'} — ref ${ref}\n` +
+          `The credit call failed: ${creditErr?.message ?? 'no profile row'}. Add the gems from the Hub.`,
+        );
+        return json({ ok: false, error: 'credit_failed' });
+      }
+      await admin.from('gem_orders').update({ credited_at: new Date().toISOString() }).eq('id', ref);
+      await ping(
+        `💎 SNOW GEMS — ${email || 'a member'} bought ${order.package_name}: ${credits} gems for $${total.toFixed(2)} — order ${orderNumber || 'n/a'}`,
+      );
+      console.log(`[giveaway-bridge] gems-paid ref=${ref} credits=${credits}`);
+      return json({ ok: true, status: 'paid', credits });
     }
 
     if (action === 'admin-notify') {
