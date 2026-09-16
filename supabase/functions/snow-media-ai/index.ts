@@ -14,7 +14,7 @@ import {
   gpt54NanoCostUsd,
   gpt54NanoReserveEstimateUsd,
 } from '../_shared/ai-guard.ts';
-import { chargePremium, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
+import { chargePremium, loadTier, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -176,7 +176,9 @@ serve(async (req) => {
       }
       premium = settled.charge;
     }
-    const chatModel = premium ? premium.model : 'gpt-5.4-nano';
+    const chatModel = premium
+      ? premium.model
+      : (await loadTier('chat', 'free'))?.model || 'gpt-5.4-nano';
 
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');

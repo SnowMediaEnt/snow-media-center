@@ -11,15 +11,18 @@ import {
   reserveFree,
   settleFree,
   storeGeneratedImage,
-  DALLE3_HD_1024_COST_USD,
 } from '../_shared/ai-guard.ts';
-import { chargePremium, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
+import { chargePremium, loadTier, readTier, readUseTrial, type PremiumCharge } from '../_shared/ai-tiers.ts';
+
+/** What a free picture costs us: gpt-image-2, medium, square (anon is always square). */
+const FREE_IMAGE_COST_USD = 0.06;
+const FREE_IMAGE_MODEL = 'gpt-image-2';
 
 /**
- * gpt-image-1 takes three sizes. The app asks for the DALL-E widescreen
- * (1792x1024) or square; map to the nearest.
+ * The gpt-image models take three sizes. The app asks for the old DALL-E
+ * widescreen (1792x1024) or square; map to the nearest.
  */
-const premiumSize = (requested: string): '1024x1024' | '1536x1024' | '1024x1536' => {
+const gptImageSize = (requested: string): '1024x1024' | '1536x1024' | '1024x1536' => {
   const [w, h] = requested.split('x').map(Number);
   if (!w || !h || w === h) return '1024x1024';
   return w > h ? '1536x1024' : '1024x1536';
@@ -40,7 +43,7 @@ serve(async (req) => {
   let anonSettled = false;
   let anonDeviceIdForSettle: string | null = null;
   let anonIpHashForSettle: string | null = null;
-  const ANON_EST_COST_USD = DALLE3_HD_1024_COST_USD;
+  const ANON_EST_COST_USD = FREE_IMAGE_COST_USD;
 
   try {
     const { caller, body } = await resolveCaller(req);
@@ -149,10 +152,9 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Which level. Free stays DALL-E 3 as it always was. Premium is the image
-    // model in ai_tiers (gpt-image-1 by default), paid in Snow Gems here on
-    // the server before the model is asked; use_trial asks for the account's
-    // one free premium sample.
+    // Which level. Both come from ai_tiers: free at medium quality, premium at
+    // high, paid in Snow Gems here on the server before the model is asked;
+    // use_trial asks for the account's one free premium sample.
     const tier = readTier(body);
     let premium: PremiumCharge | null = null;
     if (tier === 'premium') {
@@ -179,17 +181,19 @@ serve(async (req) => {
       }
       premium = settled.charge;
     }
-    const imageModel = premium ? premium.model : 'dall-e-3';
+    const imageModel = premium
+      ? premium.model
+      : (await loadTier('image', 'free'))?.model || FREE_IMAGE_MODEL;
 
     console.log('Generating image with prompt:', prompt, 'size:', size, 'model:', imageModel);
 
     const enhancedPrompt = `Ultra high resolution background image: ${prompt}. Professional, cinematic quality, suitable for desktop wallpaper.`;
 
-    // gpt-image-1 answers in base64 by itself and rejects response_format;
-    // DALL-E 3 needs to be asked for it.
-    const requestBody = premium
-      ? { model: imageModel, prompt: enhancedPrompt, n: 1, size: premiumSize(size), quality: 'high' }
-      : { model: imageModel, prompt: enhancedPrompt, n: 1, size, quality: 'hd', response_format: 'b64_json' };
+    // The gpt-image models answer in base64 by themselves and reject
+    // response_format; DALL-E 3 (if a row is ever set back to it) needs asking.
+    const requestBody = imageModel.startsWith('dall-e')
+      ? { model: imageModel, prompt: enhancedPrompt, n: 1, size, quality: premium ? 'hd' : 'standard', response_format: 'b64_json' }
+      : { model: imageModel, prompt: enhancedPrompt, n: 1, size: gptImageSize(size), quality: premium ? 'high' : 'medium' };
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
@@ -235,7 +239,7 @@ serve(async (req) => {
         prompt,
         response_preview: '[image]',
         total_tokens: 2000,
-        cost_credits: isOwnerEmail(userEmail) ? 0 : premium ? premium.charged : (caller.authed ? 0.10 : DALLE3_HD_1024_COST_USD),
+        cost_credits: isOwnerEmail(userEmail) ? 0 : premium ? premium.charged : (caller.authed ? 0.10 : FREE_IMAGE_COST_USD),
         status: 'ok',
       });
       await enforceThreshold();
@@ -260,7 +264,7 @@ serve(async (req) => {
         feature: 'image',
         estCostUsd: ANON_EST_COST_USD,
         estImages: 1,
-        actualCostUsd: DALLE3_HD_1024_COST_USD,
+        actualCostUsd: FREE_IMAGE_COST_USD,
         actualImages: 1,
         succeeded: true,
       });
