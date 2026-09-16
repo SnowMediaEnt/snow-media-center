@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Coins, LogIn, Sparkles, Trophy } from 'lucide-react';
+import { Coins, LogIn, Sparkles, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,6 +11,7 @@ import { useReducedGameFx } from '@/components/games/shared/useReducedGameFx';
 import { activateFocused, useTvActivate } from '@/components/games/shared/tvActivate';
 import { isGlobalModalOpen, visualArrowDir } from '@/components/games/shared/gameInput';
 import type { GameAccent } from '@/components/games/shared/gameTypes';
+import { useGameAudio } from '@/components/games/shared/gameAudio';
 import '@/styles/games-lobby.css';
 
 interface GamesProps { onBack: () => void; onOpenGame: (view: string) => void }
@@ -35,9 +36,11 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
   const { user } = useAuth();
   const { status, balance, errorMessage } = useGameSocket();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { muted, play, toggleMuted } = useGameAudio();
   const initial = Number(sessionStorage.getItem(FOCUS_KEY) ?? 1);
   const fxIndex = GAMES.length + 1;
-  const [focusIndex, setFocusIndex] = useState(Number.isInteger(initial) && initial >= 0 && initial <= fxIndex ? initial : 1);
+  const soundIndex = GAMES.length + 2;
+  const [focusIndex, setFocusIndex] = useState(Number.isInteger(initial) && initial >= 0 && initial <= soundIndex ? initial : 1);
   const openingRef = useRef(false);
 
   const focusAt = useCallback((next: number) => {
@@ -90,10 +93,15 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       // from the single managed target.
       event.preventDefault();
       let next = focusIndex;
+      play('select', { volume: 0.38 });
       if (focusIndex === 0) {
         if (direction === 'right' || direction === 'down') next = 1;
       } else if (focusIndex === fxIndex) {
         if (direction === 'left' || direction === 'up') next = GAMES.length;
+        if (direction === 'right') next = soundIndex;
+      } else if (focusIndex === soundIndex) {
+        if (direction === 'left') next = fxIndex;
+        if (direction === 'up') next = GAMES.length;
       } else {
         const tileIndex = focusIndex - 1;
         const column = tileIndex % 3;
@@ -102,13 +110,15 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
         if (direction === 'left' && column > 0) next = focusIndex - 1;
         if (direction === 'right' && column < 2 && focusIndex < GAMES.length) next = focusIndex + 1;
         if (direction === 'up') next = row === 0 ? 0 : focusIndex - 3;
-        if (direction === 'down') next = row === lastRow ? fxIndex : Math.min(GAMES.length, focusIndex + 3);
+        if (direction === 'down') next = row === lastRow
+          ? (column === 2 ? soundIndex : fxIndex)
+          : Math.min(GAMES.length, focusIndex + 3);
       }
       if (next !== focusIndex) focusAt(next);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [focusAt, focusIndex, fxIndex]);
+  }, [focusAt, focusIndex, fxIndex, play, soundIndex]);
 
   return (
     <main className="snow-casino snow-lobby snow-games-lobby snow-casino--ice">
@@ -138,7 +148,23 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
       <footer className="snow-lobby__footer relative z-10">
         <div>{!user ? <span className="inline-flex items-center"><LogIn className="mr-2 h-4 w-4" />{t('games.hub.signInBanner')}</span> : status === 'error' || status === 'reconnecting' ? t('games.hub.serverError', { errorMessage: errorMessage ?? '' }) : t('games.hub.freeChipsNote')}</div>
         <div className="snow-lobby__coming"><Trophy className="mr-2 inline h-4 w-4" />{t('games.hub.leaderboardComingSoon')}</div>
-        <Button type="button" variant="navy" size="sm" data-game-focus={fxIndex} data-tv-focused={focusIndex === fxIndex ? 'true' : 'false'} onFocus={() => setFocusIndex(fxIndex)} onClick={toggleReducedFx}>{reducedFx ? t('games.shared.reducedFxOn') : t('games.shared.reducedFxOff')}</Button>
+        <div className="snow-lobby__settings">
+          <Button type="button" variant="navy" size="sm" data-game-focus={fxIndex} data-tv-focused={focusIndex === fxIndex ? 'true' : 'false'} onFocus={() => setFocusIndex(fxIndex)} onClick={toggleReducedFx}>{reducedFx ? t('games.shared.reducedFxOn') : t('games.shared.reducedFxOff')}</Button>
+          <Button
+            type="button"
+            variant="navy"
+            size="sm"
+            data-game-focus={soundIndex}
+            data-tv-focused={focusIndex === soundIndex ? 'true' : 'false'}
+            onFocus={() => setFocusIndex(soundIndex)}
+            onClick={(event) => toggleMuted(event.nativeEvent)}
+            aria-pressed={muted}
+            aria-label={muted ? 'Turn game sound on' : 'Mute game sound'}
+          >
+            {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
+            {muted ? 'Sound Off' : 'Sound On'}
+          </Button>
+        </div>
       </footer>
     </main>
   );

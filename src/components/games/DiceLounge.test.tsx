@@ -117,4 +117,39 @@ describe('Dice Lounge TV round', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     fireEvent.keyUp(window, { key: 'Escape' });
   });
+
+  it('uses six-sided CSS cubes for a full-FX roll and settles on the rolled faces', () => {
+    const { container } = render(<DiceLounge onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'ROLL ALL DICE' }));
+
+    expect(container.querySelectorAll('.snow-die[data-renderer="3d"]')).toHaveLength(5);
+    expect(container.querySelectorAll('.snow-die__cube')).toHaveLength(5);
+    expect(container.querySelectorAll('.snow-die__cube-face')).toHaveLength(30);
+
+    finishRoll();
+    expect(container.querySelectorAll('.snow-die[data-renderer="3d"]')).toHaveLength(5);
+    expect(screen.getAllByRole('button', { name: /Die [1-5], [1-6]/ })).toHaveLength(5);
+  });
+
+  it('keeps the lightweight 2D dice renderer in Reduced FX mode', () => {
+    localStorage.setItem('snow-games-reduced-fx-v1', 'true');
+    const { container } = render(<DiceLounge onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'ROLL ALL DICE' }));
+
+    expect(container.querySelectorAll('.snow-die[data-renderer="2d"]')).toHaveLength(5);
+    expect(container.querySelector('.snow-die__cube')).toBeNull();
+    expect(container.querySelectorAll('.snow-die__face')).toHaveLength(5);
+  });
+
+  it('automatically keeps low-memory Fire TV devices on the 2D renderer', () => {
+    document.documentElement.classList.add('native-low-memory');
+    try {
+      const { container } = render(<DiceLounge onBack={() => {}} />);
+      fireEvent.click(screen.getByRole('button', { name: 'ROLL ALL DICE' }));
+      expect(container.querySelectorAll('.snow-die[data-renderer="2d"]')).toHaveLength(5);
+      expect(container.querySelector('.snow-die__cube')).toBeNull();
+    } finally {
+      document.documentElement.classList.remove('native-low-memory');
+    }
+  });
 });

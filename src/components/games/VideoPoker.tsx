@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
-import { BetChip, FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { BetChip, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
 import { PlayingCard, PlayingCardSlot } from './shared/PlayingCard';
 import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
@@ -13,7 +13,8 @@ import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
-import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import { useGameAudio } from './shared/gameAudio';
+import type { GameCardValue } from './shared/gameTypes';
 import '@/styles/games-machines.css';
 
 interface VideoPokerProps {
@@ -48,7 +49,7 @@ const HAND_KEY: Record<string, string> = {
 };
 
 type Phase = 'idle' | 'dealt' | 'settled';
-type FocusZone = 'back' | 'fx' | 'bet' | 'card' | 'primary' | 'fair';
+type FocusZone = 'back' | 'fx' | 'bet' | 'card' | 'primary';
 
 const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const { t } = useTranslation();
@@ -56,6 +57,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
   useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('idle');
@@ -66,16 +68,12 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
 
   const [hand, setHand] = useState<GameCardValue[]>([]);
   const [holds, setHolds] = useState<boolean[]>([false, false, false, false, false]);
-  const [serverSeedHash, setServerSeedHash] = useState('');
   const [payouts, setPayouts] = useState<Record<string, number>>(DEFAULT_PAYOUTS);
   const [resultRank, setResultRank] = useState<string | null>(null);
   const [resultPayout, setResultPayout] = useState(0);
   const [resultNet, setResultNet] = useState(0);
   const [resultWin, setResultWin] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
-  const [fair, setFair] = useState<GameFairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
-  const [verifyOk, setVerifyOk] = useState<boolean | null>(null);
 
   const [zone, setZone] = useState<FocusZone>('primary');
   const [cardIdx, setCardIdx] = useState(0);
@@ -84,7 +82,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   const backRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
-  const fairRef = useRef<HTMLButtonElement>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const betRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const payoutRef = useRef<HTMLDivElement>(null);
@@ -95,7 +92,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     if (zone === 'back') backRef.current?.focus();
     else if (zone === 'fx') fxRef.current?.focus();
     else if (zone === 'primary') primaryRef.current?.focus();
-    else if (zone === 'fair') fairRef.current?.focus();
     else if (zone === 'bet') betRefs.current[betIdx]?.focus();
     else if (zone === 'card') cardRefs.current[cardIdx]?.focus();
   }, [zone, cardIdx, betIdx]);
@@ -114,7 +110,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       setPhase('idle');
       setHolds([false, false, false, false, false]);
       setCelebrate(false);
-      setShowFair(false);
       setZone('primary');
     }
     life.timeout(() => setError(null), 3500);
@@ -134,17 +129,14 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
     setResultPayout(0);
     setResultNet(0);
     setResultWin(false);
-    setFair(null);
-    setShowFair(false);
-    setVerifyOk(null);
     setHolds([false, false, false, false, false]);
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
       const resp = await gameSocket.dealVideoPoker(bet, seed);
       if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok && Array.isArray(resp.hand)) {
+        play('card');
         setHand(resp.hand);
-        if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setPhase('dealt');
         setZone('card');
         setCardIdx(0);
@@ -159,7 +151,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, bet, life]);
+  }, [busy, user, balance, bet, life, play]);
 
   const doDraw = useCallback(async () => {
     if (inFlight.current || busy || phase !== 'dealt') return;
@@ -171,13 +163,15 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       const resp = await gameSocket.drawVideoPoker(holds);
       if (!life.isMounted() || epoch !== roundEpoch.current) return;
       if (resp?.ok && Array.isArray(resp.hand)) {
+        play('card');
+        if (resp.win && resp.rank === 'Royal Flush') play('bonus');
+        else play(resp.win ? 'win' : 'lose');
         setHand(resp.hand);
         if (resp.payouts && typeof resp.payouts === 'object') setPayouts({ ...DEFAULT_PAYOUTS, ...resp.payouts });
         setResultRank(resp.rank ?? null);
         setResultPayout(resp.payout ?? 0);
         setResultNet(typeof resp.net === 'number' ? resp.net : 0);
         setResultWin(!!resp.win);
-        if (resp.fair) setFair(resp.fair);
         setPhase('settled');
         if (resp.win && resp.payout > 0) {
           setCelebrate(true);
@@ -217,7 +211,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, phase, holds, reducedFx, life]);
+  }, [busy, phase, holds, reducedFx, life, play]);
 
   const primaryAction = useCallback(() => {
     if (phase === 'dealt') doDraw();
@@ -247,8 +241,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
 
   const [backNote, setBackNote] = useState<string | null>(null);
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     // A dealt hand holds a committed bet; a running payout count-up is a settle
     // animation. Neither may be abandoned by a single Back press.
     isBusy: () => busy || inFlight.current || phase === 'dealt' || celebrate,
@@ -286,7 +278,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       const belowBets = () => {
         if (phase === 'dealt') { setZone('card'); setCardIdx(0); }
         else if (primaryUsable) setZone('primary');
-        else if (fair) setZone('fair');
+        else setZone('back');
       };
       if (zone === 'back') {
         if (dir === 'right') setZone('fx');
@@ -306,36 +298,17 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       } else if (zone === 'card') {
         if (dir === 'left') { if (cardIdx > 0) setCardIdx(cardIdx - 1); else setZone('back'); }
         else if (dir === 'right') { if (cardIdx < 4) setCardIdx(cardIdx + 1); }
-        else if (dir === 'down') { if (primaryUsable) setZone('primary'); else if (fair) setZone('fair'); }
+        else if (dir === 'down') { if (primaryUsable) setZone('primary'); else setZone('back'); }
         else gotoBets();
       } else if (zone === 'primary') {
         if (dir === 'up') { if (phase === 'dealt') { setZone('card'); setCardIdx(0); } else gotoBets(); }
-        else if (dir === 'down') { if (fair) setZone('fair'); }
         else setZone('back');
-      } else if (zone === 'fair') {
-        if (dir === 'up') { if (primaryUsable) setZone('primary'); else setZone('back'); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zone, cardIdx, betIdx, phase, fair, primaryUsable, usableBets.join(',')]);
-
-  // Verify SHA-256 when the fairness details are open.
-  useEffect(() => {
-    if (!showFair || !fair?.serverSeed) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fair.serverSeed));
-        const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-        if (!cancelled) setVerifyOk(hex.toLowerCase() === (fair.serverSeedHash || '').toLowerCase());
-      } catch {
-        if (!cancelled) setVerifyOk(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [showFair, fair]);
+  }, [zone, cardIdx, betIdx, phase, primaryUsable, usableBets.join(',')]);
 
   const orderedPayouts = useMemo(
     () => PAY_ORDER.filter((k) => k in payouts).map((k) => ({ name: k, mult: payouts[k] })),
@@ -477,33 +450,6 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
           </div>
         </section>
       </div>
-
-      <FairnessPanel
-        ref={fairRef}
-        fair={fair}
-        hash={serverSeedHash}
-        open={showFair}
-        onToggle={() => setShowFair((s) => !s)}
-        focused={zone === 'fair'}
-        onFocus={() => setZone('fair')}
-        labels={{
-          title: t('games.videoPoker.provablyFair'),
-          hash: t('games.videoPoker.fairServerSeedHash'),
-          server: t('games.videoPoker.fairServerSeed'),
-          client: t('games.videoPoker.fairClientSeed'),
-          nonce: t('games.videoPoker.fairNonce'),
-        }}
-        verification={fair ? (
-          <p>
-            {t('games.videoPoker.fairVerifyLabel')}{' '}
-            {verifyOk === null
-              ? t('games.videoPoker.fairChecking')
-              : verifyOk
-                ? <span className="snow-fairness__ok">{t('games.videoPoker.fairMatches')}</span>
-                : t('games.videoPoker.fairMismatch')}
-          </p>
-        ) : undefined}
-      />
     </GameShell>
   );
 };

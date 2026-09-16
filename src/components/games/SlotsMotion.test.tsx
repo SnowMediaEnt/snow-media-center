@@ -33,6 +33,12 @@ const ack = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+const COLLECTORS = {
+  red: { progress: 13, threshold: 15, hit: true, triggered: false, multiplier: 0, payout: 0 },
+  blue: { progress: 17, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0 },
+  yellow: { progress: 0, threshold: 34, hit: false, triggered: true, multiplier: 20, payout: 200 },
+};
+
 const strip = (reel: number) => screen.getByTestId(`slot-strip-${reel}`);
 const reelBox = (reel: number) => strip(reel).parentElement as HTMLElement;
 const travel = (reel: number) => Number(strip(reel).dataset.travel ?? '0');
@@ -62,6 +68,14 @@ describe('Slots reel motion', () => {
     for (let reel = 0; reel < 5; reel += 1) {
       expect(strip(reel).children).toHaveLength(RENDER_CELLS);
     }
+  });
+
+  it('puts the sound toggle in the TV D-pad focus graph', () => {
+    render(<Slots onBack={() => {}} />);
+    const sound = screen.getByRole('button', { name: /games\.slots\.soundTurn/ });
+    expect(sound.getAttribute('data-tv-focused')).toBe('false');
+    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    expect(sound.getAttribute('data-tv-focused')).toBe('true');
   });
 
   it('always settles forward through at least six cell heights', () => {
@@ -155,6 +169,28 @@ describe('Slots reel motion', () => {
     await waitForLanding();
     await waitFor(() => expect(document.querySelectorAll('.snow-slot-callout')).toHaveLength(1), { timeout: 3000 });
     expect(document.querySelectorAll('.snow-slot-overlay')).toHaveLength(1);
+  }, 15000);
+
+  it('shows qualitative collector heat without exposing exact counters', async () => {
+    spinSlots.mockResolvedValue(ack({
+      totalPayout: 200,
+      basePayout: 0,
+      collectorPayout: 200,
+      collectors: COLLECTORS,
+    }));
+    render(<Slots onBack={() => {}} />);
+    fireEvent.click(spinButton());
+    await waitForLanding();
+
+    expect(screen.getByTestId('slot-collector-red').textContent).not.toMatch(/13\s*\/\s*15/);
+    expect(screen.getByTestId('slot-collector-blue').textContent).not.toMatch(/17\s*\/\s*24/);
+    expect(screen.getByTestId('slot-collector-yellow').textContent).not.toMatch(/0\s*\/\s*34/);
+    expect(screen.getByTestId('slot-collector-red').dataset.heat).toBe('near');
+    expect(screen.getByTestId('slot-collector-blue').dataset.heat).toBe('hot');
+    expect(screen.getByTestId('slot-collector-yellow').dataset.heat).toBe('cold');
+    expect(screen.getByTestId('slot-collector-red').className).toContain('is-fed');
+    expect(screen.getByTestId('slot-collector-yellow').className).toContain('is-triggered');
+    expect(document.querySelector('.snow-slot-callout__trio')?.textContent).toContain('games.slots.collector.bonusCallout');
   }, 15000);
 
   it('rejects a malformed grid instead of settling on it', async () => {

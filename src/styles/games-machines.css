@@ -11,6 +11,28 @@
   z-index: 10;
 }
 
+.snow-slot-topbar-wrap {
+  position: relative;
+  z-index: 10;
+  flex: 0 0 auto;
+}
+
+.snow-slot-sound-toggle {
+  position: absolute;
+  top: 10px;
+  right: 292px;
+  z-index: 12;
+  min-width: 112px;
+  min-height: 38px;
+  border-color: hsl(201 69% 59% / .44);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.snow-slot-sound-toggle svg { width: 17px; height: 17px; margin-right: 7px; }
+.snow-slots-game .snow-game-heading { right: 29%; }
+
 .snow-machine-stage {
   flex: 1 1 0;
   min-height: 0;
@@ -144,6 +166,212 @@
   text-align: center;
 }
 .snow-slot-crown__ways b { color: hsl(47 94% 75%); font-size: 19px; }
+
+/* Snowfall Trio — three prominent physical-style lanterns immediately above
+   the reels. Fill height follows real persisted progress, while the exact
+   counter/trigger remains hidden. Motion stays CSS-only for TV hardware. */
+.snow-slot-collector-bank {
+  position: relative;
+  z-index: 3;
+  min-height: 84px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 5px 17px -4px;
+  padding: 5px 12px;
+  border: 2px solid hsl(45 78% 60% / .74);
+  border-radius: 12px 12px 5px 5px;
+  background:
+    radial-gradient(ellipse at 50% 120%, hsl(199 90% 76% / .18), transparent 58%),
+    linear-gradient(180deg, hsl(225 63% 13%), hsl(222 77% 5%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .13), 0 7px 16px hsl(222 90% 2% / .45);
+}
+
+.snow-slot-collector-bank__title {
+  width: 118px;
+  flex: 0 0 auto;
+  text-align: right;
+  text-transform: uppercase;
+}
+.snow-slot-collector-bank__title b {
+  display: block;
+  color: hsl(47 95% 79%);
+  font: 900 13px/1.05 Montserrat, sans-serif;
+  letter-spacing: .08em;
+}
+.snow-slot-collector-bank__title small {
+  display: block;
+  margin-top: 5px;
+  color: hsl(203 42% 79%);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.snow-slot-collector {
+  --collector-color: 220 76% 52%;
+  --collector-bright: 210 100% 79%;
+  --collector-deep: 225 80% 23%;
+  position: relative;
+  min-width: 142px;
+  height: 70px;
+  flex: 0 1 170px;
+  display: flex;
+  align-items: center;
+  padding: 5px 9px 5px 59px;
+  overflow: visible;
+  border: 1px solid hsl(var(--collector-color) / .68);
+  border-radius: 9px;
+  background: linear-gradient(155deg, hsl(var(--collector-color) / .18), hsl(222 64% 7%) 62%);
+  box-shadow: inset 0 0 15px hsl(var(--collector-color) / .12), 0 0 10px hsl(var(--collector-color) / .14);
+}
+.snow-slot-collector--red {
+  --collector-color: 354 75% 51%;
+  --collector-bright: 350 100% 79%;
+  --collector-deep: 359 78% 23%;
+}
+.snow-slot-collector--blue {
+  --collector-color: 218 76% 52%;
+  --collector-bright: 204 100% 78%;
+  --collector-deep: 225 82% 24%;
+}
+.snow-slot-collector--yellow {
+  --collector-color: 47 91% 55%;
+  --collector-bright: 53 100% 79%;
+  --collector-deep: 35 84% 28%;
+}
+
+.snow-slot-collector__cap,
+.snow-slot-collector__base,
+.snow-slot-collector__glass {
+  position: absolute;
+  left: 13px;
+  width: 37px;
+}
+.snow-slot-collector__cap,
+.snow-slot-collector__base {
+  z-index: 2;
+  height: 8px;
+  border: 1px solid hsl(43 72% 61%);
+  background: linear-gradient(180deg, hsl(49 79% 82%), hsl(38 52% 38%));
+  box-shadow: 0 1px 3px hsl(220 80% 2% / .62);
+}
+.snow-slot-collector__cap { top: 7px; border-radius: 8px 8px 3px 3px; }
+.snow-slot-collector__base { bottom: 7px; border-radius: 3px 3px 8px 8px; }
+.snow-slot-collector__glass {
+  top: 14px;
+  bottom: 14px;
+  height: auto;
+  overflow: hidden;
+  border: 2px solid hsl(199 65% 83% / .72);
+  border-radius: 8px 8px 11px 11px;
+  background: linear-gradient(90deg, hsl(205 72% 90% / .16), hsl(220 70% 4% / .82) 48%, hsl(205 72% 90% / .12));
+  box-shadow: inset 0 0 9px hsl(216 80% 2% / .8), 0 0 9px hsl(var(--collector-color) / .3);
+}
+.snow-slot-collector__glass::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 5px;
+  left: 5px;
+  width: 3px;
+  border-radius: 4px;
+  background: hsl(0 0% 100% / .48);
+}
+.snow-slot-collector__glass i {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--collector-fill);
+  min-height: 3px;
+  background:
+    radial-gradient(circle at 50% 10%, hsl(var(--collector-bright)), transparent 25%),
+    linear-gradient(180deg, hsl(var(--collector-bright)), hsl(var(--collector-color)) 42%, hsl(var(--collector-deep)));
+  box-shadow: 0 -3px 11px hsl(var(--collector-bright) / .85), inset 0 0 9px hsl(0 0% 100% / .3);
+  transition: height 420ms cubic-bezier(.2, .8, .25, 1), filter 180ms ease;
+}
+.snow-slot-collector__copy { min-width: 0; text-transform: uppercase; }
+.snow-slot-collector__copy b {
+  display: block;
+  overflow: hidden;
+  color: hsl(var(--collector-bright));
+  font: 900 10px/1 Montserrat, sans-serif;
+  letter-spacing: .1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.snow-slot-collector__copy strong {
+  display: block;
+  margin-top: 3px;
+  color: hsl(0 0% 100%);
+  font: 900 14px/.96 Montserrat, sans-serif;
+  letter-spacing: .06em;
+  text-shadow: 0 0 9px hsl(var(--collector-color) / .66);
+}
+.snow-slot-collector__copy em {
+  display: block;
+  margin-top: 4px;
+  color: hsl(45 83% 75%);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .05em;
+}
+
+.snow-slot-collector__energy {
+  position: absolute;
+  left: 29px;
+  bottom: -77px;
+  z-index: 5;
+  width: 9px;
+  height: 78px;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  background: linear-gradient(180deg, hsl(var(--collector-bright)), hsl(var(--collector-color) / .1));
+  filter: drop-shadow(0 0 6px hsl(var(--collector-bright)));
+}
+.snow-slot-collector.is-fed .snow-slot-collector__energy { animation: snow-slot-feed 720ms cubic-bezier(.1, .8, .2, 1) both; }
+.snow-slot-collector.is-fed .snow-slot-collector__glass i { filter: brightness(1.55); }
+.snow-slot-collector.is-warm .snow-slot-collector__glass { animation: snow-slot-warm 3.1s ease-in-out infinite; }
+.snow-slot-collector.is-hot .snow-slot-collector__glass { animation: snow-slot-hot 1.65s ease-in-out infinite; }
+.snow-slot-collector.is-near { animation: snow-slot-ready 2.2s ease-in-out infinite; }
+.snow-slot-collector.is-triggered { animation: snow-slot-trigger 720ms cubic-bezier(.25, .7, .3, 1) both; }
+.snow-slot-collector.is-triggered .snow-slot-collector__glass {
+  box-shadow: inset 0 0 12px hsl(0 0% 100% / .8), 0 0 25px hsl(var(--collector-bright));
+}
+.snow-slot-collector.is-triggered .snow-slot-collector__glass i { height: 100%; }
+
+@keyframes snow-slot-feed {
+  0% { opacity: 0; transform: translateY(34px) scale(.35); }
+  28% { opacity: 1; }
+  82% { opacity: .95; }
+  100% { opacity: 0; transform: translateY(-68px) scale(1.25); }
+}
+@keyframes snow-slot-warm {
+  0%, 100% { box-shadow: inset 0 0 9px hsl(216 80% 2% / .8), 0 0 9px hsl(var(--collector-color) / .3); }
+  50% { box-shadow: inset 0 0 13px hsl(var(--collector-color) / .28), 0 0 15px hsl(var(--collector-color) / .46); }
+}
+@keyframes snow-slot-hot {
+  0%, 100% { filter: brightness(1); transform: translate3d(0, 0, 0); }
+  47% { filter: brightness(1.16); transform: translate3d(-1px, 0, 0); }
+  53% { filter: brightness(1.24); transform: translate3d(1px, 0, 0); }
+}
+@keyframes snow-slot-ready {
+  0%, 100% { transform: translate3d(0, 0, 0); box-shadow: inset 0 0 15px hsl(var(--collector-color) / .18), 0 0 10px hsl(var(--collector-color) / .2); }
+  48% { transform: translate3d(-1px, 0, 0); }
+  52% { transform: translate3d(1px, 0, 0); box-shadow: inset 0 0 18px hsl(var(--collector-color) / .25), 0 0 19px hsl(var(--collector-color) / .38); }
+}
+@keyframes snow-slot-trigger {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  22% { transform: translate3d(-4px, 0, 0) scale(1.045); }
+  42% { transform: translate3d(4px, 0, 0) scale(1.065); }
+  62% { transform: translate3d(-3px, 0, 0) scale(1.04); }
+  82% { transform: translate3d(2px, 0, 0) scale(1.02); }
+}
 
 .snow-slot-screen {
   position: relative;
@@ -373,6 +601,30 @@
 }
 .snow-slot-status-panel__empty i { margin-top: 9px; color: hsl(301 66% 59%); font-size: 16px; font-style: normal; letter-spacing: .16em; }
 .snow-slot-status-panel__total { margin-top: 4px; border-top: 1px solid hsl(47 80% 60% / .32); color: hsl(47 93% 76%); font-weight: 900; }
+.snow-slot-status-panel__collector { color: hsl(47 93% 78%); }
+.snow-slot-callout__trio { color: hsl(48 96% 80%); }
+
+.snow-slot-rules-note {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border: 1px solid hsl(203 64% 55% / .3);
+  border-radius: 7px;
+  color: hsl(211 26% 76%);
+  background: hsl(220 66% 5% / .72);
+  font-size: 10px;
+  line-height: 1.25;
+}
+.snow-slot-rules-note b {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  color: hsl(47 91% 76%);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 
 .snow-slot-layout .snow-slot-callout {
   padding: 13px 25px;
@@ -694,12 +946,25 @@
 
 /* 720p televisions: use the full safe area while protecting the footer. */
 @media (max-height: 760px) {
+  .snow-slot-sound-toggle { top: 6px; right: 270px; min-width: 102px; min-height: 36px; }
   .snow-slot-layout .snow-slot-cabinet { padding: 7px 9px 8px; }
   .snow-slot-crown { min-height: 45px; padding-left: 72px; padding-right: 72px; }
   .snow-slot-crown .snow-slot-marquee { font-size: 20px; }
   .snow-slot-crown small { font-size: 8px; }
   .snow-slot-crown__gem { left: 17px; width: 31px; height: 31px; margin-top: -15px; }
   .snow-slot-crown__ways { right: 9px; }
+  .snow-slot-collector-bank { min-height: 62px; gap: 6px; margin-left: 10px; margin-right: 10px; padding: 3px 7px; }
+  .snow-slot-collector-bank__title { width: 91px; }
+  .snow-slot-collector-bank__title b { font-size: 10px; }
+  .snow-slot-collector-bank__title small { display: none; }
+  .snow-slot-collector { min-width: 110px; height: 51px; padding-left: 47px; }
+  .snow-slot-collector__cap, .snow-slot-collector__base, .snow-slot-collector__glass { left: 10px; width: 29px; }
+  .snow-slot-collector__cap { top: 4px; }
+  .snow-slot-collector__base { bottom: 4px; }
+  .snow-slot-collector__glass { top: 11px; bottom: 11px; }
+  .snow-slot-collector__copy b { font-size: 8px; }
+  .snow-slot-collector__copy strong { font-size: 10px; }
+  .snow-slot-collector__copy em { margin-top: 2px; font-size: 7px; }
   .snow-slot-screen { padding-top: 5px; padding-bottom: 5px; }
   .snow-slot-layout .snow-slot-controls { min-height: 62px; padding-top: 5px; padding-bottom: 5px; }
   .snow-slot-layout .snow-slot-spin { min-height: 51px; }
@@ -723,6 +988,7 @@
 /* 1080p televisions: keep the same composition and scale the machine, not the
    surrounding empty space. */
 @media (min-height: 1000px) {
+  .snow-slot-sound-toggle { min-width: 122px; min-height: 42px; font-size: 12px; }
   .snow-slot-layout .snow-slot-cabinet { padding: 14px 18px 16px; border-width: 4px; border-radius: 24px; }
   .snow-slot-crown { min-height: 70px; }
   .snow-slot-crown .snow-slot-marquee { font-size: 32px; }
@@ -730,6 +996,19 @@
   .snow-slot-crown__gem { width: 48px; height: 48px; margin-top: -24px; font-size: 25px; }
   .snow-slot-crown__ways { top: 11px; font-size: 12px; }
   .snow-slot-crown__ways b { font-size: 25px; }
+  .snow-slot-collector-bank { min-height: 106px; gap: 18px; margin: 8px 24px -6px; padding: 7px 18px; }
+  .snow-slot-collector-bank__title { width: 148px; }
+  .snow-slot-collector-bank__title b { font-size: 17px; }
+  .snow-slot-collector-bank__title small { font-size: 10px; }
+  .snow-slot-collector { min-width: 185px; height: 88px; padding-left: 75px; }
+  .snow-slot-collector__cap, .snow-slot-collector__base, .snow-slot-collector__glass { left: 18px; width: 47px; }
+  .snow-slot-collector__cap, .snow-slot-collector__base { height: 10px; }
+  .snow-slot-collector__cap { top: 8px; }
+  .snow-slot-collector__base { bottom: 8px; }
+  .snow-slot-collector__glass { top: 17px; bottom: 17px; }
+  .snow-slot-collector__copy b { font-size: 13px; }
+  .snow-slot-collector__copy strong { font-size: 18px; }
+  .snow-slot-collector__copy em { font-size: 11px; }
   .snow-slot-screen { padding: 13px 27px; }
   .snow-slot-layout .snow-slot-window { padding: 9px; border-width: 4px; }
   .snow-slot-layout .snow-slot-reels > * + * { margin-left: 10px; }
@@ -772,12 +1051,148 @@
   .snow-vp-primary__icon { width: 53px; height: 53px; font-size: 29px; }
 }
 
+/* Some Android TV WebViews expose the panel's physical 3840×2160 viewport
+   instead of a 1920px logical one. Expand the complete machine composition so
+   it fills the same safe-area proportion as 1080p instead of remaining a
+   narrow 1536px island in the middle. This block is deliberately isolated
+   from ordinary 1080p/4K-density devices. */
+@media (min-width: 2500px) and (min-height: 1600px) {
+  .snow-machine-game .tv-game-body { max-width: 188rem; gap: 18px; }
+  .snow-machine-game .snow-game-topbar { height: 104px; min-height: 104px; padding: 0 4px; }
+  .snow-machine-game .snow-game-back { min-width: 260px; min-height: 76px; padding: 14px 31px; border-radius: 16px; font-size: 22px; }
+  .snow-machine-game .snow-game-heading span { font-size: 21px; letter-spacing: .08em; }
+  .snow-machine-game .snow-game-fx-toggle { min-height: 66px; padding: 12px 24px; border-radius: 14px; font-size: 20px; }
+  .snow-machine-game .snow-game-fx-toggle svg { width: 28px; height: 28px; margin-right: 10px; }
+  .snow-machine-game .snow-chip-badge { width: 272px; height: 78px; padding: 10px 20px; border-radius: 14px; }
+  .snow-machine-game .snow-chip-badge svg { width: 36px; height: 36px; margin-right: 15px; }
+  .snow-machine-game .snow-chip-badge small { font-size: 14px; }
+  .snow-machine-game .snow-chip-badge strong { margin-top: 6px; font-size: 31px; }
+
+  .snow-slot-sound-toggle { top: 19px; right: 475px; min-width: 190px; min-height: 66px; padding: 12px 22px; border-radius: 14px; font-size: 19px; }
+  .snow-slot-sound-toggle svg { width: 28px; height: 28px; margin-right: 11px; }
+  .snow-slots-game .snow-game-heading { left: 20%; right: 31%; }
+
+  .snow-slot-layout .snow-slot-cabinet { padding: 24px 30px 26px; border-width: 6px; border-radius: 39px; }
+  .snow-slot-layout .snow-slot-cabinet::before,
+  .snow-slot-layout .snow-slot-cabinet::after { left: 25px; right: 25px; height: 5px; }
+  .snow-slot-layout .snow-slot-cabinet::before { top: 10px; }
+  .snow-slot-layout .snow-slot-cabinet::after { bottom: 10px; }
+  .snow-slot-crown { min-height: 118px; padding: 8px 155px; border-width: 2px; border-radius: 22px 22px 12px 12px; }
+  .snow-slot-crown .snow-slot-marquee { font-size: 52px; }
+  .snow-slot-crown small { margin-top: 10px; font-size: 19px; }
+  .snow-slot-crown__gem { left: 38px; width: 78px; height: 78px; margin-top: -39px; border-width: 4px; font-size: 39px; }
+  .snow-slot-crown__ways { right: 28px; top: 17px; min-width: 100px; font-size: 18px; }
+  .snow-slot-crown__ways b { font-size: 40px; }
+
+  .snow-slot-collector-bank { min-height: 180px; gap: 30px; margin: 14px 40px -8px; padding: 12px 30px; border-width: 3px; border-radius: 22px 22px 9px 9px; }
+  .snow-slot-collector-bank__title { width: 225px; }
+  .snow-slot-collector-bank__title b { font-size: 26px; }
+  .snow-slot-collector-bank__title small { margin-top: 9px; font-size: 16px; }
+  .snow-slot-collector { min-width: 310px; height: 150px; flex-basis: 380px; padding: 9px 16px 9px 126px; border-width: 2px; border-radius: 16px; }
+  .snow-slot-collector__cap,
+  .snow-slot-collector__base,
+  .snow-slot-collector__glass { left: 30px; width: 79px; }
+  .snow-slot-collector__cap,
+  .snow-slot-collector__base { height: 16px; border-width: 2px; }
+  .snow-slot-collector__cap { top: 14px; border-radius: 13px 13px 5px 5px; }
+  .snow-slot-collector__base { bottom: 14px; border-radius: 5px 5px 13px 13px; }
+  .snow-slot-collector__glass { top: 28px; bottom: 28px; border-width: 3px; border-radius: 13px 13px 18px 18px; }
+  .snow-slot-collector__glass::after { top: 8px; bottom: 9px; left: 9px; width: 5px; }
+  .snow-slot-collector__copy b { font-size: 20px; }
+  .snow-slot-collector__copy strong { margin-top: 6px; font-size: 30px; }
+  .snow-slot-collector__copy em { margin-top: 7px; font-size: 17px; }
+  .snow-slot-collector__energy { left: 61px; bottom: -140px; width: 15px; height: 142px; }
+
+  .snow-slot-screen { padding: 22px 45px; }
+  .snow-slot-layout .snow-slot-window { padding: 14px; border-width: 6px; border-radius: 22px; }
+  .snow-slot-layout .snow-slot-reel { border-width: 2px; border-radius: 13px; }
+  .snow-slot-layout .snow-slot-reels > * + * { margin-left: 17px; }
+  .snow-slot-layout .snow-slot-cell img { border-radius: 20px; }
+  .snow-slot-layout .snow-slot-payline { left: 10px; right: 10px; height: 4px; }
+  .snow-slot-lamps { top: 31px; bottom: 31px; width: 14px; }
+  .snow-slot-lamps--left { left: 8px; }
+  .snow-slot-lamps--right { right: 8px; }
+
+  .snow-slot-layout .snow-slot-controls { min-height: 140px; margin-top: 5px; padding: 15px 25px; border-width: 3px; border-radius: 14px 14px 25px 25px; }
+  .snow-slot-meter { width: 180px; height: 105px; border-radius: 12px; }
+  .snow-slot-meter small { font-size: 14px; }
+  .snow-slot-meter strong { margin-top: 5px; font-size: 46px; }
+  .snow-slot-layout .snow-slot-bet { margin-right: 18px; margin-left: 18px; }
+  .snow-slot-layout .snow-slot-bet > * + * { margin-left: 12px; }
+  .snow-slot-layout .snow-slot-bet button { width: 90px; height: 90px; border-width: 3px; }
+  .snow-slot-layout .snow-slot-bet button svg { width: 35px; height: 35px; }
+  .snow-slot-layout .snow-slot-spin { min-width: 450px; min-height: 112px; margin-right: 18px; padding: 8px 40px 8px 107px; border-width: 5px; border-radius: 57px; font-size: 41px; }
+  .snow-slot-spin > span:last-child svg { width: 34px; height: 34px; margin-right: 12px; }
+  .snow-slot-spin__disc { left: 8px; top: 8px; width: 88px; height: 88px; border-width: 3px; font-size: 34px; }
+
+  .snow-slot-layout .snow-slot-info { width: 490px; min-width: 490px; margin-left: 28px; }
+  .snow-slot-layout .snow-slot-info > * + * { margin-top: 16px; }
+  .snow-slot-layout .snow-slot-info > div { padding: 22px; border-width: 3px; border-radius: 21px; }
+  .snow-machine-panel-title { padding-bottom: 12px; }
+  .snow-machine-panel-title span { margin-right: 12px; font-size: 28px; }
+  .snow-slot-layout .snow-machine-panel-title b { font-size: 22px; }
+  .snow-slot-layout .snow-slot-info ul { margin-top: 13px; font-size: 19px; }
+  .snow-slot-layout .snow-slot-info li { min-height: 86px; }
+  .snow-slot-layout .snow-slot-info p { margin-top: 13px; font-size: 17px; }
+  .snow-slot-symbol-list li { padding: 6px 9px; border-radius: 11px; }
+  .snow-slot-pay-symbol { width: 88px; height: 88px; }
+  .snow-slot-symbol-rank { margin-left: 14px; }
+  .snow-slot-symbol-rank b { font-size: 31px; }
+  .snow-slot-symbol-rank small { font-size: 18px; }
+  .snow-slot-symbol-rank em { margin-top: 5px; font-size: 14px; }
+  .snow-slot-status-panel__empty { min-height: 116px !important; }
+  .snow-slot-status-panel__empty i { margin-top: 15px; font-size: 27px; }
+  .snow-slot-rules-note { margin-top: 10px; padding: 9px 18px; border-radius: 12px; font-size: 16px; }
+  .snow-slot-rules-note b { margin-right: 13px; font-size: 16px; }
+  .snow-slot-layout .snow-slot-callout { padding: 21px 42px; border-width: 5px; border-radius: 22px; font-size: 51px; }
+
+  /* Video Poker shares the machine shell and benefits from the same native-4K
+     safe body. Its fixed card bank is enlarged here without changing 1080p. */
+  .snow-vp-stage .snow-vp-console { padding: 22px 28px 25px; border-width: 6px; border-radius: 38px; }
+  .snow-vp-marquee { min-height: 110px; padding: 7px 120px; border-width: 2px; border-radius: 18px 18px 9px 9px; }
+  .snow-vp-marquee small { font-size: 19px; }
+  .snow-vp-marquee strong { margin-top: 6px; font-size: 49px; }
+  .snow-vp-marquee__suits { right: 55px; font-size: 65px; }
+  .snow-vp-marquee__suits--red { left: 55px; right: auto; }
+  .snow-vp-stage .snow-vp-paytable { margin-top: 13px; border-radius: 12px; font-size: 18px; }
+  .snow-vp-stage .snow-vp-paytable > div { min-height: 102px; padding: 13px 8px; }
+  .snow-vp-stage .snow-vp-paytable b { margin-top: 7px; font-size: 32px; }
+  .snow-vp-screen { margin-top: 15px; padding: 14px 120px 9px; border-width: 3px; border-radius: 16px; }
+  .snow-vp-screen__accent { left: 29px; margin-top: -31px; font-size: 62px; }
+  .snow-vp-screen__accent--right { left: auto; right: 29px; }
+  .snow-vp-stage .snow-vp-hand { min-height: 420px; padding-top: 40px; }
+  .snow-vp-stage .snow-vp-hand > * + * { margin-left: 36px; }
+  .snow-vp-stage .snow-vp-slot .snow-playing-card,
+  .snow-vp-stage .snow-vp-slot .snow-card-slot { width: 250px !important; height: 375px !important; border-width: 5px; border-radius: 21px; }
+  .snow-vp-stage .snow-vp-slot .snow-card-corner { top: 13px; left: 15px; font-size: 45px; }
+  .snow-vp-stage .snow-vp-slot .snow-card-corner--bottom { right: 15px; bottom: 13px; left: auto; top: auto; }
+  .snow-vp-stage .snow-vp-slot .snow-card-suit { font-size: 116px; }
+  .snow-vp-stage .snow-vp-hold { left: 24px; right: 24px; top: -32px; padding: 7px 11px; border-width: 3px; font-size: 22px; }
+  .snow-vp-result-slot { min-height: 76px; font-size: 22px; }
+  .snow-vp-result .snow-result-banner { min-width: 500px; padding: 9px 25px; border-width: 3px; }
+  .snow-vp-result .snow-result-banner strong { margin-right: 13px; font-size: 27px; }
+  .snow-vp-stage .snow-vp-control-deck { min-height: 145px; margin-top: 10px; padding: 16px 28px; border-width: 3px; border-radius: 12px 12px 22px 22px; }
+  .snow-vp-bet-label { width: 140px; height: 110px; margin-right: 20px; border-radius: 12px; }
+  .snow-vp-bet-label small { font-size: 14px; }
+  .snow-vp-bet-label strong { font-size: 46px; }
+  .snow-vp-stage .snow-bet-row > * + * { margin-left: 13px; }
+  .snow-vp-stage .snow-bet-chip { width: 110px; height: 110px; min-height: 110px; border-width: 5px; font-size: 30px; }
+  .snow-vp-stage .snow-vp-primary { min-width: 480px; min-height: 115px; margin-left: 26px; padding: 8px 38px 8px 120px; border-width: 5px; border-radius: 15px; font-size: 40px; }
+  .snow-vp-primary > span:last-child svg { width: 33px; height: 33px; margin-right: 12px; }
+  .snow-vp-primary__icon { left: 13px; top: 10px; width: 85px; height: 85px; border-width: 3px; border-radius: 12px; font-size: 46px; }
+}
+
 /* Very narrow browser previews are not the target, but keeping a compact
    fallback prevents the TV surface from clipping during editor inspection. */
 @media (max-width: 980px) {
+  .snow-slot-sound-toggle { right: 260px; min-width: 42px; width: 42px; padding-left: 10px; padding-right: 10px; }
+  .snow-slot-sound-toggle span { display: none; }
+  .snow-slot-sound-toggle svg { margin-right: 0; }
   .snow-slot-layout .snow-slot-info { width: 190px; min-width: 190px; }
   .snow-slot-layout .snow-slot-spin { min-width: 165px; padding-left: 52px; padding-right: 15px; font-size: 17px; }
   .snow-slot-meter { display: none; }
+  .snow-slot-collector-bank__title { display: none; }
+  .snow-slot-collector { min-width: 92px; padding-left: 43px; }
   .snow-vp-stage .snow-vp-paytable { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .snow-vp-stage .snow-vp-paytable > div { min-height: 31px; padding: 2px; }
   .snow-vp-stage .snow-vp-paytable > div:nth-child(n+6) { display: none; }
@@ -796,6 +1211,9 @@
 
 .native-low-memory .snow-slot-layout .snow-slot-cabinet,
 .native-low-memory .snow-slot-layout .snow-slot-window,
+.native-low-memory .snow-slot-collector-bank,
+.native-low-memory .snow-slot-collector,
+.native-low-memory .snow-slot-collector__glass,
 .native-low-memory .snow-vp-stage .snow-vp-console,
 .native-low-memory .snow-vp-screen,
 .native-low-memory .snow-vp-stage .snow-vp-slot .snow-playing-card { box-shadow: none; }
@@ -803,3 +1221,20 @@
 html[data-game-fx="reduced"] .snow-slot-lamps,
 html[data-game-fx="reduced"] .snow-vp-stage .snow-vp-console::before,
 html[data-game-fx="reduced"] .snow-vp-stage .snow-vp-console::after { box-shadow: none; }
+
+html[data-game-fx="reduced"] .snow-slot-collector,
+.native-low-memory .snow-slot-collector { animation: none !important; }
+html[data-game-fx="reduced"] .snow-slot-collector__glass,
+.native-low-memory .snow-slot-collector__glass { animation: none !important; }
+html[data-game-fx="reduced"] .snow-slot-collector__energy,
+.native-low-memory .snow-slot-collector__energy { display: none; }
+html[data-game-fx="reduced"] .snow-slot-collector__glass i { transition-duration: 120ms; }
+html[data-game-fx="reduced"] .snow-slot-collector.is-fed,
+.native-low-memory .snow-slot-collector.is-fed { outline: 2px solid hsl(var(--collector-bright) / .8); }
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-slot-collector,
+  .snow-slot-collector__energy,
+  .snow-slot-collector__glass { animation: none !important; }
+  .snow-slot-collector__glass i { transition: none; }
+}

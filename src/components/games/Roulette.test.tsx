@@ -89,21 +89,15 @@ describe('Roulette settled round', () => {
     }, { timeout: 4000 });
   }, 30000);
 
-  it('Back closes fairness first and only then leaves the game', async () => {
+  it('keeps seed internals off the TV UI and lets Back leave after settlement', async () => {
     const onBack = vi.fn();
     spinRoulette.mockResolvedValue(RESULT);
     render(<Roulette onBack={onBack} />);
     fireEvent.click(cellFor('17'));
     fireEvent.click(screen.getByRole('button', { name: /games\.roulette\.spin/ }));
-    await waitFor(() => expect(screen.queryByText('games.roulette.provablyFair')).not.toBeNull(), { timeout: 15000 });
-
-    fireEvent.click(screen.getByText('games.roulette.provablyFair'));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeNull());
-
-    fireEvent.keyDown(window, { key: 'Escape' });
-    fireEvent.keyUp(window, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(onBack).not.toHaveBeenCalled();
+    await waitFor(() => expect(cellFor('17').className).toContain('is-won'), { timeout: 15000 });
+    expect(screen.queryByText('games.roulette.provablyFair')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onBack).toHaveBeenCalledTimes(1);

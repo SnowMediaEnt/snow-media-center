@@ -131,6 +131,18 @@
   font-size: 22px;
 }
 
+.snow-games-lobby .snow-lobby__settings {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 10px;
+}
+
+.snow-games-lobby .snow-lobby__settings > button {
+  min-width: 122px;
+}
+
 .snow-games-lobby .snow-lobby__grid {
   flex: 1 1 0;
   min-height: 0;
@@ -399,8 +411,7 @@
   white-space: nowrap;
 }
 
-.snow-games-lobby .snow-lobby__footer > button {
-  justify-self: end;
+.snow-games-lobby .snow-lobby__settings > button {
   min-width: 138px;
 }
 
@@ -519,7 +530,9 @@ html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
     padding: 5px 10px;
   }
 
-  .snow-games-lobby .snow-lobby__footer > button {
+  .snow-games-lobby .snow-lobby__settings { gap: 6px; }
+
+  .snow-games-lobby .snow-lobby__settings > button {
     min-width: 120px;
     height: 34px;
     font-size: 11px;
@@ -600,7 +613,8 @@ html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
     font-size: 21px;
   }
   .snow-games-lobby .snow-lobby__coming { margin: 0 32px; padding: 11px 24px; border-radius: 28px; }
-  .snow-games-lobby .snow-lobby__footer > button { min-width: 220px; height: 58px; font-size: 19px; }
+  .snow-games-lobby .snow-lobby__settings { gap: 16px; }
+  .snow-games-lobby .snow-lobby__settings > button { min-width: 220px; height: 58px; font-size: 19px; }
 }
 
 @media (max-width: 1050px) {

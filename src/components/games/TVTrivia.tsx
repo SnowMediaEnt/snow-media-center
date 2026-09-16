@@ -10,8 +10,11 @@ import {
   Leaf,
   Music2,
   RotateCcw,
+  Snowflake,
   Sparkles,
   Trophy,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import { BackButton } from '@/components/ui/BackButton';
@@ -20,24 +23,23 @@ import { GameShell } from './shared/GameUI';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useGameBack } from './shared/gameBack';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
+import { useGameAudio } from './shared/gameAudio';
 import { useReducedGameFx } from './shared/useReducedGameFx';
+import {
+  loadSnowTriviaQuestions,
+  SNOW_MEDIA_TRIVIA_FALLBACK,
+  type SnowTriviaTopic,
+  type TriviaCategory,
+  type TriviaQuestion,
+} from '@/lib/triviaQuestions';
 import '@/styles/games-trivia.css';
 
 interface TVTriviaProps {
   onBack: () => void;
 }
 
-type TriviaCategory = 'science' | 'screen' | 'world' | 'music' | 'sports' | 'nature';
-
-export interface TriviaQuestion {
-  id: string;
-  category: TriviaCategory;
-  categoryLabel: string;
-  prompt: string;
-  answers: [string, string, string, string];
-  correct: number;
-  fact: string;
-}
+export type { TriviaQuestion } from '@/lib/triviaQuestions';
+export type TriviaMode = 'snow' | 'mixed';
 
 /**
  * Bundled, family-friendly questions keep TV Trivia instant and fully offline.
@@ -48,6 +50,7 @@ export interface TriviaQuestion {
 // leaking correctness into rendered attributes.
 // eslint-disable-next-line react-refresh/only-export-components
 export const TRIVIA_QUESTIONS: TriviaQuestion[] = [
+  ...SNOW_MEDIA_TRIVIA_FALLBACK,
   {
     id: 'science-red-planet', category: 'science', categoryLabel: 'Science Lab',
     prompt: 'Which planet is known as the Red Planet?',
@@ -232,7 +235,9 @@ export const TRIVIA_QUESTIONS: TriviaQuestion[] = [
 
 export const TRIVIA_SESSION_LENGTH = 10;
 const ANSWER_LETTERS = ['A', 'B', 'C', 'D'];
-const CATEGORIES: TriviaCategory[] = ['science', 'screen', 'world', 'music', 'sports', 'nature'];
+const CATEGORIES: TriviaCategory[] = ['snow', 'science', 'screen', 'world', 'music', 'sports', 'nature'];
+const SNOW_TOPICS: SnowTriviaTopic[] = ['devices', 'service', 'app', 'history'];
+const MODE_STORAGE_KEY = 'smc-tv-trivia-mode-v1';
 
 const shuffled = <T,>(items: T[]): T[] => {
   const result = [...items];
@@ -245,19 +250,38 @@ const shuffled = <T,>(items: T[]): T[] => {
   return result;
 };
 
-/** Every session includes all six categories before filling its remaining slots. */
+/** Mixed sessions include every category; Snow sessions stay on-brand. */
 // eslint-disable-next-line react-refresh/only-export-components
-export const createTriviaSession = (): TriviaQuestion[] => {
-  const firstPass = CATEGORIES.map((category) => {
-    const choices = TRIVIA_QUESTIONS.filter((question) => question.category === category);
+export const createTriviaSession = (
+  bank: TriviaQuestion[] = TRIVIA_QUESTIONS,
+  mode: TriviaMode = 'mixed',
+): TriviaQuestion[] => {
+  const available = mode === 'snow' ? bank.filter((question) => question.category === 'snow') : bank;
+  if (available.length === 0) return [];
+  if (mode === 'snow') {
+    const topicPass = SNOW_TOPICS
+      .map((topic) => {
+        const choices = available.filter((question) => question.topic === topic);
+        return choices.length > 0 ? choices[Math.floor(Math.random() * choices.length)] : null;
+      })
+      .filter((question): question is TriviaQuestion => question !== null);
+    const picked = new Set(topicPass.map((question) => question.id));
+    const remaining = shuffled(available.filter((question) => !picked.has(question.id)));
+    return shuffled([...topicPass, ...remaining.slice(0, TRIVIA_SESSION_LENGTH - topicPass.length)]);
+  }
+
+  const availableCategories = CATEGORIES.filter((category) => available.some((question) => question.category === category));
+  const firstPass = availableCategories.map((category) => {
+    const choices = available.filter((question) => question.category === category);
     return choices[Math.floor(Math.random() * choices.length)];
   });
   const picked = new Set(firstPass.map((question) => question.id));
-  const remaining = shuffled(TRIVIA_QUESTIONS.filter((question) => !picked.has(question.id)));
+  const remaining = shuffled(available.filter((question) => !picked.has(question.id)));
   return shuffled([...firstPass, ...remaining.slice(0, TRIVIA_SESSION_LENGTH - firstPass.length)]);
 };
 
 const CategoryIcon = ({ category }: { category: TriviaCategory }) => {
+  if (category === 'snow') return <Snowflake />;
   if (category === 'science') return <FlaskConical />;
   if (category === 'screen') return <Film />;
   if (category === 'world') return <Globe2 />;
@@ -266,11 +290,25 @@ const CategoryIcon = ({ category }: { category: TriviaCategory }) => {
   return <Trophy />;
 };
 
-type FocusZone = 'back' | 'fx' | 'answer' | 'next';
+type FocusZone = 'back' | 'mode' | 'audio' | 'fx' | 'answer' | 'next';
+
+const initialTriviaMode = (): TriviaMode => {
+  try {
+    return localStorage.getItem(MODE_STORAGE_KEY) === 'mixed' ? 'mixed' : 'snow';
+  } catch {
+    return 'snow';
+  }
+};
+
+const generalTriviaQuestions = TRIVIA_QUESTIONS.filter((question) => question.category !== 'snow');
 
 const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
-  const [questions, setQuestions] = useState<TriviaQuestion[]>(createTriviaSession);
+  const { muted, play: playSound, toggleMuted } = useGameAudio();
+  const [mode, setMode] = useState<TriviaMode>(initialTriviaMode);
+  const [questionBank, setQuestionBank] = useState<TriviaQuestion[]>(TRIVIA_QUESTIONS);
+  const [questions, setQuestions] = useState<TriviaQuestion[]>(() => createTriviaSession(TRIVIA_QUESTIONS, initialTriviaMode()));
+  const [contentSource, setContentSource] = useState<'network' | 'cache' | 'bundled'>('bundled');
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -282,9 +320,14 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const [answerIndex, setAnswerIndex] = useState(0);
 
   const backRef = useRef<HTMLButtonElement>(null);
+  const modeRef = useRef<HTMLButtonElement>(null);
+  const audioRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
   const answerRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const nextRef = useRef<HTMLButtonElement>(null);
+  const modeValueRef = useRef(mode);
+  const sessionTouchedRef = useRef(false);
+  const completionCuePlayedRef = useRef(false);
 
   useTvActivate(activateFocused);
   const { requestBack } = useGameBack({ onExit: onBack });
@@ -294,7 +337,31 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const progress = finished ? 100 : ((questionIndex + 1) / questions.length) * 100;
 
   useEffect(() => {
+    modeValueRef.current = mode;
+  }, [mode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadSnowTriviaQuestions().then((result) => {
+      if (cancelled) return;
+      const nextBank = [...result.questions, ...generalTriviaQuestions];
+      setQuestionBank(nextBank);
+      setContentSource(result.source);
+      // Fresh published content may replace the untouched opening question,
+      // but it never changes a round after the viewer has started answering.
+      if (!sessionTouchedRef.current) {
+        setQuestions(createTriviaSession(nextBank, modeValueRef.current));
+        setQuestionIndex(0);
+        setSelectedAnswer(null);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (focusZone === 'back') backRef.current?.focus();
+    else if (focusZone === 'mode') modeRef.current?.focus();
+    else if (focusZone === 'audio') audioRef.current?.focus();
     else if (focusZone === 'fx') fxRef.current?.focus();
     else if (focusZone === 'answer') answerRefs.current[answerIndex]?.focus();
     else nextRef.current?.focus();
@@ -302,19 +369,22 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
 
   const answerQuestion = useCallback((index: number) => {
     if (selectedAnswer !== null || finished) return;
+    sessionTouchedRef.current = true;
     const isCorrect = index === question.correct;
     const nextStreak = isCorrect ? streak + 1 : 0;
+    const basePoints = question.points ?? 100;
     setSelectedAnswer(index);
     if (isCorrect) {
       setCorrectCount((count) => count + 1);
-      setScore((points) => points + 100 + streak * 25);
+      setScore((points) => points + basePoints + streak * 25);
       setStreak(nextStreak);
       setBestStreak((best) => Math.max(best, nextStreak));
     } else {
       setStreak(0);
     }
+    playSound(isCorrect ? 'triviaCorrect' : 'triviaWrong');
     setFocusZone('next');
-  }, [finished, question, selectedAnswer, streak]);
+  }, [finished, playSound, question, selectedAnswer, streak]);
 
   const advance = useCallback(() => {
     if (selectedAnswer === null) return;
@@ -329,8 +399,10 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setFocusZone('answer');
   }, [questionIndex, questions.length, selectedAnswer]);
 
-  const playAgain = useCallback(() => {
-    setQuestions(createTriviaSession());
+  const resetRound = useCallback((nextMode: TriviaMode) => {
+    sessionTouchedRef.current = false;
+    completionCuePlayedRef.current = false;
+    setQuestions(createTriviaSession(questionBank, nextMode));
     setQuestionIndex(0);
     setSelectedAnswer(null);
     setScore(0);
@@ -340,7 +412,28 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setFinished(false);
     setAnswerIndex(0);
     setFocusZone('answer');
-  }, []);
+  }, [questionBank]);
+
+  const playAgain = useCallback(() => {
+    resetRound(mode);
+  }, [mode, resetRound]);
+
+  useEffect(() => {
+    if (!finished || completionCuePlayedRef.current) return;
+    completionCuePlayedRef.current = true;
+    // A strong result gets one short celebration when the results screen
+    // actually appears. Lower scores already received their answer cue and
+    // avoid an overly casino-like reward sound.
+    if (correctCount >= Math.ceil(questions.length * 0.6)) playSound('win', { volume: 0.82 });
+  }, [correctCount, finished, playSound, questions.length]);
+
+  const switchMode = useCallback(() => {
+    const nextMode: TriviaMode = mode === 'snow' ? 'mixed' : 'snow';
+    setMode(nextMode);
+    modeValueRef.current = nextMode;
+    try { localStorage.setItem(MODE_STORAGE_KEY, nextMode); } catch { /* keep the in-memory choice */ }
+    resetRound(nextMode);
+  }, [mode, resetRound]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -352,15 +445,33 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       event.preventDefault();
 
       if (focusZone === 'back') {
-        if (direction === 'right') setFocusZone('fx');
+        if (direction === 'right') setFocusZone('mode');
         else if (direction === 'down') {
           if (finished) setFocusZone('next');
           else { setFocusZone('answer'); setAnswerIndex(0); }
         }
         return;
       }
-      if (focusZone === 'fx') {
+      if (focusZone === 'mode') {
         if (direction === 'left') setFocusZone('back');
+        else if (direction === 'right') setFocusZone('audio');
+        else if (direction === 'down') {
+          if (finished) setFocusZone('next');
+          else { setFocusZone('answer'); setAnswerIndex(0); }
+        }
+        return;
+      }
+      if (focusZone === 'audio') {
+        if (direction === 'left') setFocusZone('mode');
+        else if (direction === 'right') setFocusZone('fx');
+        else if (direction === 'down') {
+          if (finished) setFocusZone('next');
+          else { setFocusZone('answer'); setAnswerIndex(1); }
+        }
+        return;
+      }
+      if (focusZone === 'fx') {
+        if (direction === 'left') setFocusZone('audio');
         else if (direction === 'down') {
           if (finished) setFocusZone('next');
           else { setFocusZone('answer'); setAnswerIndex(1); }
@@ -431,6 +542,35 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
             <span><small>Streak</small><strong>{streak}</strong></span>
           </div>
           <Button
+            ref={modeRef}
+            type="button"
+            variant="navy"
+            size="sm"
+            onClick={switchMode}
+            onFocus={() => setFocusZone('mode')}
+            aria-label={`${mode === 'snow' ? 'Snow Media mode' : 'All Topics mode'}. Press OK to switch.`}
+            aria-pressed={mode === 'snow'}
+            data-tv-focused={focusZone === 'mode' ? 'true' : 'false'}
+            className={`snow-trivia__mode snow-trivia__mode--${mode}`}
+          >
+            {mode === 'snow' ? <Snowflake /> : <Globe2 />}
+            <span><small>Challenge</small><strong>{mode === 'snow' ? 'Snow Media' : 'All Topics'}</strong></span>
+          </Button>
+          <Button
+            ref={audioRef}
+            type="button"
+            variant="navy"
+            size="icon"
+            onClick={(event) => toggleMuted(event)}
+            onFocus={() => setFocusZone('audio')}
+            aria-label={muted ? 'Unmute game sounds' : 'Mute game sounds'}
+            aria-pressed={muted}
+            data-tv-focused={focusZone === 'audio' ? 'true' : 'false'}
+            className="snow-trivia__sound"
+          >
+            {muted ? <VolumeX /> : <Volume2 />}
+          </Button>
+          <Button
             ref={fxRef}
             type="button"
             variant="navy"
@@ -453,7 +593,11 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
             <i style={{ width: `${progress}%` }} />
           </div>
         </div>
-        <div className="snow-trivia__free-play"><Sparkles aria-hidden="true" /> Free play · no Snow Coins used</div>
+        <div className="snow-trivia__free-play">
+          <Sparkles aria-hidden="true" />
+          <span>{mode === 'snow' ? 'Snow Media Challenge' : 'All Topics'} · Free play · no Snow Coins used</span>
+          <i>{contentSource === 'network' ? 'Updated' : 'Offline ready'}</i>
+        </div>
       </section>
 
       {!finished ? (
@@ -510,7 +654,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
                 <div className={`snow-trivia__verdict${answeredCorrectly ? ' is-correct' : ' is-wrong'}`}>
                   <span>{answeredCorrectly ? <Check /> : <X />}</span>
                   <div>
-                    <strong>{answeredCorrectly ? `Correct! +${100 + Math.max(0, streak - 1) * 25}` : 'Not quite'}</strong>
+                    <strong>{answeredCorrectly ? `Correct! +${(question.points ?? 100) + Math.max(0, streak - 1) * 25}` : 'Not quite'}</strong>
                     <small>{question.fact}</small>
                   </div>
                 </div>
@@ -557,7 +701,9 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
           >
             <RotateCcw /> Play Another Round
           </Button>
-          <span className="snow-trivia__results-note">A fresh mix of categories is ready whenever you are.</span>
+          <span className="snow-trivia__results-note">
+            {mode === 'snow' ? 'More Snow Media devices, service, app, and history questions are ready.' : 'A fresh mix of categories is ready whenever you are.'}
+          </span>
         </section>
       )}
     </GameShell>

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Games from '@/components/Games';
+import { setGameAudioMuted } from '@/components/games/shared/gameAudio';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -29,6 +30,7 @@ beforeEach(() => {
   onBack.mockClear();
   onOpenGame.mockClear();
   localStorage.clear();
+  setGameAudioMuted(false);
   document.documentElement.dir = 'ltr';
 });
 
@@ -37,7 +39,7 @@ afterEach(() => {
 });
 
 describe('Games hub D-pad navigation', () => {
-  it('renders all nine games plus Back and the reduced-FX control', () => {
+  it('renders all nine games plus Back, FX and sound controls', () => {
     renderHub();
     expect(screen.getByText('games.hub.gameDailySpinName')).toBeTruthy();
     expect(screen.getByText('games.hub.gameCasinoHoldemName')).toBeTruthy();
@@ -46,7 +48,7 @@ describe('Games hub D-pad navigation', () => {
     expect(screen.getByText('games.hub.gameDiceLoungeName')).toBeTruthy();
     expect(screen.getByRole('button', { name: /games\.hub\.gameBlackjackName/ })).toBe(tile(3));
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
-    for (let i = 0; i <= 10; i++) expect(tile(i)).toBeTruthy();
+    for (let i = 0; i <= 11; i++) expect(tile(i)).toBeTruthy();
   });
 
   it('keeps exactly one focused tile as the D-pad moves', () => {
@@ -80,10 +82,10 @@ describe('Games hub D-pad navigation', () => {
     expect(fireEvent.keyDown(window, { key: 'ArrowUp' })).toBe(false);
     expect(document.activeElement).toBe(tile(0));
 
-    act(() => tile(10).focus());
+    act(() => tile(11).focus());
     expect(fireEvent.keyDown(window, { key: 'ArrowRight' })).toBe(false);
     expect(fireEvent.keyDown(window, { key: 'ArrowDown' })).toBe(false);
-    expect(document.activeElement).toBe(tile(10));
+    expect(document.activeElement).toBe(tile(11));
   });
 
   it('yields arrows to a global modal without moving lobby focus', () => {
@@ -144,5 +146,15 @@ describe('Games hub D-pad navigation', () => {
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onOpenGame).not.toHaveBeenCalled();
     expect(localStorage.getItem('snow-games-reduced-fx-v1')).toBe('true');
+  });
+
+  it('reaches and toggles persistent sound with the D-pad', () => {
+    renderHub();
+    act(() => tile(9).focus());
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(tile(11));
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(localStorage.getItem('snow-games-muted-v1')).toBe('true');
+    expect(onOpenGame).not.toHaveBeenCalled();
   });
 });

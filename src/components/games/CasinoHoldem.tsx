@@ -5,14 +5,15 @@ import { Loader2 } from 'lucide-react';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { gameSocket } from '@/lib/gameSocket';
-import { BetChip, FairnessPanel, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
+import { BetChip, GAME_ACTION_CLASS, GamePanel, GameShell, GameTopBar, ResultBanner } from './shared/GameUI';
 import { PlayingCard, PlayingCardSlot } from './shared/PlayingCard';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
-import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import { useGameAudio } from './shared/gameAudio';
+import type { GameCardValue } from './shared/gameTypes';
 import '@/styles/games-holdem.css';
 
 interface CasinoHoldemProps {
@@ -21,8 +22,8 @@ interface CasinoHoldemProps {
 
 type Phase = 'bet' | 'decision' | 'reveal' | 'settled';
 type FocusBet = `chip-${number}` | 'deal' | 'back' | 'fx';
-type FocusDecision = `opt-${number}` | 'fold' | 'back' | 'fair' | 'fx';
-type FocusSettle = 'again' | 'back' | 'fair' | 'fx';
+type FocusDecision = `opt-${number}` | 'fold' | 'back' | 'fx';
+type FocusSettle = 'again' | 'back' | 'fx';
 
 interface RaiseOption { multiplier: number; cost: number }
 
@@ -36,14 +37,12 @@ interface HoldemAck {
   flop?: GameCardValue[];
   callCost?: number;
   raiseOptions?: RaiseOption[];
-  serverSeedHash?: string;
   playerRank?: string;
   dealerRank?: string;
   dealerQualified?: boolean;
   anteBonus?: number;
   payout?: number;
   net?: number;
-  fair?: GameFairInfo;
 }
 
 const ANTES = [10, 25, 50, 100];
@@ -115,6 +114,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
   useTvActivate(activateFocused);
 
   const labelRank = (k?: string) => (k ? (RANK_KEY[k] ? t(RANK_KEY[k]) : k.replace(/_/g, ' ')) : '');
@@ -132,15 +132,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [revealedCommunity, setRevealedCommunity] = useState(0);
   const [dealerRevealed, setDealerRevealed] = useState(false);
 
-  const [serverSeedHash, setServerSeedHash] = useState('');
   const [settleStatus, setSettleStatus] = useState<string | null>(null);
   const [playerRank, setPlayerRank] = useState('');
   const [dealerRank, setDealerRank] = useState('');
   const [dealerQualified, setDealerQualified] = useState(true);
   const [anteBonus, setAnteBonus] = useState(0);
   const [net, setNet] = useState(0);
-  const [fair, setFair] = useState<GameFairInfo | null>(null);
-  const [showFair, setShowFair] = useState(false);
 
   // Auth and balance often arrive after the first TV paint. Start on the Deal
   // control only when it is genuinely usable; Back is always a safe target.
@@ -155,7 +152,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const dealRef = useRef<HTMLButtonElement>(null);
   const foldRef = useRef<HTMLButtonElement>(null);
   const againRef = useRef<HTMLButtonElement>(null);
-  const fairRef = useRef<HTMLButtonElement>(null);
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   /** Bumped on every deal so an old ack or reveal timer cannot touch a new hand. */
@@ -198,7 +194,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       if (focusDecision === 'back') backRef.current?.focus({ preventScroll: true });
       else if (focusDecision === 'fx') fxRef.current?.focus({ preventScroll: true });
       else if (focusDecision === 'fold') foldRef.current?.focus({ preventScroll: true });
-      else if (focusDecision === 'fair') fairRef.current?.focus({ preventScroll: true });
       else optionRefs.current[Number(focusDecision.split('-')[1])]?.focus({ preventScroll: true });
     } else if (phase === 'reveal') {
       // Decision buttons unmount during the runout. Back and FX persist, so
@@ -211,7 +206,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       if (focusSettle === 'back') backRef.current?.focus({ preventScroll: true });
       else if (focusSettle === 'fx') fxRef.current?.focus({ preventScroll: true });
       else if (focusSettle === 'again') againRef.current?.focus({ preventScroll: true });
-      else if (focusSettle === 'fair') fairRef.current?.focus({ preventScroll: true });
     }
   }, [phase, focusBet, focusDecision, focusSettle, visibleFocusBet]);
 
@@ -248,7 +242,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setDealerRevealed(false);
       setSettleStatus(null);
       setRaiseOptions([]);
-      setShowFair(false);
       setFocusBet(dealUsable ? 'deal' : 'back');
     }
     life.timeout(() => setError(null), 3500);
@@ -269,6 +262,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       const resp = await gameSocket.dealCasinoHoldem(ante, seed);
       if (!life.isMounted() || epoch !== handEpoch.current) return;
       if (resp?.ok && resp.status === 'decision') {
+        play('card');
         setPlayerHole(resp.playerHole ?? []);
         setCommunity(resp.flop ?? []);
         setRevealedCommunity(3);
@@ -279,9 +273,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           ? resp.raiseOptions
           : [{ multiplier: 2, cost: cc }];
         setRaiseOptions(opts);
-        if (resp.serverSeedHash) setServerSeedHash(resp.serverSeedHash);
         setSettleStatus(null);
-        setFair(null);
         setNet(0); setAnteBonus(0);
         setPlayerRank(''); setDealerRank(''); setDealerQualified(true);
         setPhase('decision');
@@ -304,11 +296,18 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, ante, life]);
+  }, [busy, user, balance, ante, life, play]);
 
   const finishSettle = useCallback((resp: HoldemAck, folded: boolean) => {
     const epoch = handEpoch.current;
     const alive = () => life.isMounted() && epoch === handEpoch.current;
+    const settledBonus = typeof resp.anteBonus === 'number' ? resp.anteBonus : 0;
+    const settledNet = typeof resp.net === 'number' ? resp.net : 0;
+    const playOutcome = () => {
+      if (settledBonus > 0) play('bonus');
+      else if (settledNet > 0) play('win');
+      else if (settledNet < 0 || resp.status === 'folded' || resp.status === 'lose') play('lose');
+    };
     setPlayerHole(resp.playerHole ?? []);
     setDealerHole(resp.dealerHole ?? []);
     setCommunity(resp.community ?? []);
@@ -316,11 +315,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     setPlayerRank(resp.playerRank ?? '');
     setDealerRank(resp.dealerRank ?? '');
     setDealerQualified(resp.dealerQualified !== false);
-    setAnteBonus(typeof resp.anteBonus === 'number' ? resp.anteBonus : 0);
-    setNet(typeof resp.net === 'number' ? resp.net : 0);
-    if (resp.fair) setFair(resp.fair);
+    setAnteBonus(settledBonus);
+    setNet(settledNet);
 
     if (folded) {
+      play('card');
+      playOutcome();
       setRevealedCommunity(5);
       setDealerRevealed(true);
       setPhase('settled');
@@ -335,11 +335,29 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     backRef.current?.focus({ preventScroll: true });
     setFocusSettle('back');
     setPhase('reveal');
-    life.timeout(() => { if (alive()) setRevealedCommunity((n) => Math.max(n, 4)); }, 350 * scale);
-    life.timeout(() => { if (alive()) setRevealedCommunity((n) => Math.max(n, 5)); }, 700 * scale);
-    life.timeout(() => { if (alive()) setDealerRevealed(true); }, 1100 * scale);
-    life.timeout(() => { if (alive()) { setPhase('settled'); setFocusSettle('again'); } }, 1500 * scale);
-  }, [life, reducedFx]);
+    play('card');
+    life.timeout(() => {
+      if (!alive()) return;
+      setRevealedCommunity((n) => Math.max(n, 4));
+      play('card', { volume: 0.75 });
+    }, 350 * scale);
+    life.timeout(() => {
+      if (!alive()) return;
+      setRevealedCommunity((n) => Math.max(n, 5));
+      play('card', { volume: 0.75 });
+    }, 700 * scale);
+    life.timeout(() => {
+      if (!alive()) return;
+      setDealerRevealed(true);
+      play('card', { volume: 0.85 });
+    }, 1100 * scale);
+    life.timeout(() => {
+      if (!alive()) return;
+      setPhase('settled');
+      setFocusSettle('again');
+      playOutcome();
+    }, 1500 * scale);
+  }, [life, play, reducedFx]);
 
   const doCall = useCallback(async (multiplier: number) => {
     if (inFlight.current || busy) return;
@@ -393,16 +411,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     setSettleStatus(null);
     setNet(0); setAnteBonus(0);
     setPlayerRank(''); setDealerRank('');
-    setFair(null);
-    setShowFair(false);
     setDecisionBalance(null);
     setFocusBet(dealUsable ? 'deal' : 'back');
   };
 
   const [backNote, setBackNote] = useState<string | null>(null);
   const { requestBack } = useGameBack({
-    isDetailsOpen: () => showFair,
-    closeDetails: () => setShowFair(false),
     // A dealt hand awaiting a decision, a reveal in progress, or an ack in
     // flight all hold a committed ante: Back stays on the table.
     isBusy: () => busy || inFlight.current || phase === 'decision' || phase === 'reveal',
@@ -455,7 +469,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         const order: FocusDecision[] = [
           ...affordableOptions.map((i) => `opt-${i}` as FocusDecision),
           'fold',
-          'fair',
         ];
         const idx = order.indexOf(focusDecision);
         if (dir === 'left' && idx > 0) setFocusDecision(order[idx - 1]);
@@ -472,11 +485,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         else if (focusSettle !== 'back' && focusSettle !== 'fx') setFocusSettle('back');
       } else if (phase === 'settled') {
         if (topRow(focusSettle, setFocusSettle as (v: never) => void)) return;
-        const order: FocusSettle[] = ['again', 'fair'];
-        const idx = order.indexOf(focusSettle);
-        if (dir === 'left' && idx > 0) setFocusSettle(order[idx - 1]);
-        else if (dir === 'right' && idx >= 0 && idx < order.length - 1) setFocusSettle(order[idx + 1]);
-        else if (dir === 'up') setFocusSettle('back');
+        if (dir === 'up') setFocusSettle('back');
         else if (dir === 'down' && (focusSettle === 'back' || focusSettle === 'fx')) setFocusSettle('again');
       }
     };
@@ -757,27 +766,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
           <strong>{ante.toLocaleString()}</strong>
         </div>
       </GamePanel>
-
-      <FairnessPanel
-        ref={fairRef}
-        fair={fair}
-        hash={serverSeedHash}
-        open={showFair}
-        onToggle={() => setShowFair((v) => !v)}
-        focused={(phase === 'decision' && focusDecision === 'fair') || (phase === 'settled' && focusSettle === 'fair')}
-        onFocus={() => {
-          if (phase === 'decision') setFocusDecision('fair');
-          else if (phase === 'settled') setFocusSettle('fair');
-        }}
-        labels={{
-          title: t('games.casinoHoldem.fair.toggle'),
-          hash: t('games.casinoHoldem.fair.serverSeedHash'),
-          server: t('games.casinoHoldem.fair.serverSeed'),
-          client: t('games.casinoHoldem.fair.clientSeed'),
-          nonce: t('games.casinoHoldem.fair.nonce'),
-          note: t('games.casinoHoldem.fair.verifyHint'),
-        }}
-      />
     </GameShell>
   );
 };

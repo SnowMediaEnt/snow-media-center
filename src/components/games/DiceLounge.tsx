@@ -9,6 +9,7 @@ import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
+import { useGameAudio } from './shared/gameAudio';
 import '@/styles/games-dice.css';
 
 interface DiceLoungeProps {
@@ -128,6 +129,18 @@ const PIPS: Record<Exclude<DieValue, 0>, ReadonlyArray<readonly [number, number]
   6: [[1, 1], [2, 1], [3, 1], [1, 3], [2, 3], [3, 3]],
 };
 
+const CUBE_FACES: ReadonlyArray<{
+  value: Exclude<DieValue, 0>;
+  side: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom';
+}> = [
+  { value: 1, side: 'front' },
+  { value: 6, side: 'back' },
+  { value: 3, side: 'right' },
+  { value: 4, side: 'left' },
+  { value: 2, side: 'top' },
+  { value: 5, side: 'bottom' },
+];
+
 const LoungeMark = () => (
   <svg className="snow-dice-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
     <path d="M32 7v50M10.4 19.5l43.2 25M10.4 44.5l43.2-25" />
@@ -135,30 +148,45 @@ const LoungeMark = () => (
   </svg>
 );
 
-const Die = ({ value, index, held, focused, rolling, canHold, buttonRef, onFocus, onToggle }: {
+const DiePips = ({ value }: { value: Exclude<DieValue, 0> }) => (
+  <>{PIPS[value].map(([row, column], pipIndex) => (
+    <i
+      key={`${row}-${column}-${pipIndex}`}
+      className="snow-die__pip"
+      style={{ gridRow: row, gridColumn: column }}
+    />
+  ))}</>
+);
+
+const Die = ({ value, index, held, focused, rolling, canHold, use3d, buttonRef, onFocus, onToggle }: {
   value: DieValue;
   index: number;
   held: boolean;
   focused: boolean;
   rolling: boolean;
   canHold: boolean;
+  use3d: boolean;
   buttonRef: (element: HTMLButtonElement | null) => void;
   onFocus: () => void;
   onToggle: () => void;
 }) => {
-  const label = value === 0
+  const label = rolling
+    ? `Die ${index + 1}, rolling`
+    : value === 0
     ? `Die ${index + 1}, waiting for the first roll`
     : `Die ${index + 1}, ${value}${held ? ', held' : ', open'}`;
+  const render3d = use3d && value > 0;
   return (
     <button
       ref={buttonRef}
       type="button"
-      className={`snow-die${held ? ' is-held' : ''}${rolling ? ' is-rolling' : ''}${value === 0 ? ' is-empty' : ''}${canHold ? ' is-holdable' : ''}`}
+      className={`snow-die${render3d ? ' has-3d' : ''}${held ? ' is-held' : ''}${rolling ? ' is-rolling' : ''}${value === 0 ? ' is-empty' : ''}${canHold ? ' is-holdable' : ''}`}
       aria-label={canHold && value > 0 ? `${label}. ${held ? 'Unhold' : 'Hold'} this die.` : label}
       aria-pressed={value > 0 ? held : undefined}
       aria-disabled={!canHold ? 'true' : undefined}
       data-tv-focused={focused ? 'true' : 'false'}
       data-face={value || undefined}
+      data-renderer={render3d ? '3d' : '2d'}
       tabIndex={canHold ? 0 : -1}
       onFocus={() => { if (canHold) onFocus(); }}
       onClick={() => { if (canHold) onToggle(); }}
@@ -167,14 +195,21 @@ const Die = ({ value, index, held, focused, rolling, canHold, buttonRef, onFocus
         <LockKeyhole />
         {held ? 'HELD' : 'HOLD'}
       </span>
+      {render3d && (
+        <span className="snow-die__cube" aria-hidden="true">
+          {CUBE_FACES.map((face) => (
+            <span
+              key={face.side}
+              className={`snow-die__cube-face snow-die__cube-face--${face.side}`}
+              data-cube-face={face.value}
+            >
+              <DiePips value={face.value} />
+            </span>
+          ))}
+        </span>
+      )}
       <span className="snow-die__face" aria-hidden="true">
-        {value > 0 ? PIPS[value].map(([row, column], pipIndex) => (
-          <i
-            key={`${row}-${column}-${pipIndex}`}
-            className="snow-die__pip"
-            style={{ gridRow: row, gridColumn: column }}
-          />
-        )) : <LoungeMark />}
+        {isFace(value) ? <DiePips value={value} /> : <LoungeMark />}
       </span>
       <span className="snow-die__number" aria-hidden="true">{index + 1}</span>
     </button>
@@ -187,9 +222,11 @@ type FocusId = 'back' | 'fx' | 'roll' | 'bank' | 'next' | `die-${number}`;
 const DiceLounge = ({ onBack }: DiceLoungeProps) => {
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
+  const { play } = useGameAudio();
   useTvActivate(activateFocused);
 
   const [dice, setDice] = useState<DieValue[]>(EMPTY_DICE);
+  const [rollingDice, setRollingDice] = useState<DieValue[] | null>(null);
   const [holds, setHolds] = useState<boolean[]>(EMPTY_HOLDS);
   const [phase, setPhase] = useState<Phase>('ready');
   const [rollsUsed, setRollsUsed] = useState(0);
@@ -248,16 +285,20 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     const nextRoll = rollsUsed + 1;
     setBackNote(null);
     setPhase('rolling');
+    setRollingDice(next);
     setFocus('roll');
+    play('diceRoll');
     life.timeout(() => {
       if (!life.isMounted()) return;
       setDice(next);
+      setRollingDice(null);
       setRollsUsed(nextRoll);
       setPhase('choosing');
       rollingRef.current = false;
       setFocus(nextRoll < MAX_ROLLS ? 'die-0' : 'bank');
+      play('diceLand');
     }, reducedFx ? 150 : FULL_ROLL_MS);
-  }, [dice, holds, life, reducedFx, rollUsable, rollsUsed]);
+  }, [dice, holds, life, play, reducedFx, rollUsable, rollsUsed]);
 
   const toggleHold = useCallback((index: number) => {
     if (!canHold || rollingRef.current) return;
@@ -273,11 +314,13 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
     setRoundsPlayed((rounds) => rounds + 1);
     setPhase('settled');
     setFocus('next');
-  }, [currentResult, phase]);
+    play(currentResult.key === 'five-kind' || currentResult.key === 'large-straight' ? 'bonus' : 'win');
+  }, [currentResult, phase, play]);
 
   const nextRound = useCallback(() => {
     if (phase !== 'settled') return;
     setDice([...EMPTY_DICE]);
+    setRollingDice(null);
     setHolds([...EMPTY_HOLDS]);
     setRollsUsed(0);
     setBankedResult(null);
@@ -362,12 +405,13 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
                 {dice.map((value, index) => (
                   <Die
                     key={index}
-                    value={value}
+                    value={rollingDice?.[index] ?? value}
                     index={index}
                     held={holds[index]}
                     focused={focus === `die-${index}`}
                     rolling={phase === 'rolling' && !holds[index]}
                     canHold={canHold}
+                    use3d={!reducedFx}
                     buttonRef={(element) => { dieRefs.current[index] = element; }}
                     onFocus={() => setFocus(`die-${index}`)}
                     onToggle={() => toggleHold(index)}

@@ -2919,6 +2919,33 @@ export type Database = {
           },
         ]
       }
+      slot_collectors: {
+        Row: {
+          bet: number
+          blue_progress: number
+          red_progress: number
+          updated_at: string
+          user_id: string
+          yellow_progress: number
+        }
+        Insert: {
+          bet: number
+          blue_progress?: number
+          red_progress?: number
+          updated_at?: string
+          user_id: string
+          yellow_progress?: number
+        }
+        Update: {
+          bet?: number
+          blue_progress?: number
+          red_progress?: number
+          updated_at?: string
+          user_id?: string
+          yellow_progress?: number
+        }
+        Relationships: []
+      }
       smc_news: {
         Row: {
           body: string | null
@@ -3462,6 +3489,54 @@ export type Database = {
           name?: string
           plan?: string
           status?: string
+        }
+        Relationships: []
+      }
+      trivia_questions: {
+        Row: {
+          answers: string[]
+          correct_index: number
+          created_at: string
+          fact: string
+          id: string
+          is_published: boolean
+          points: number
+          prompt: string
+          published_at: string | null
+          slug: string
+          sort_order: number
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          answers: string[]
+          correct_index: number
+          created_at?: string
+          fact: string
+          id?: string
+          is_published?: boolean
+          points?: number
+          prompt: string
+          published_at?: string | null
+          slug: string
+          sort_order?: number
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          answers?: string[]
+          correct_index?: number
+          created_at?: string
+          fact?: string
+          id?: string
+          is_published?: boolean
+          points?: number
+          prompt?: string
+          published_at?: string | null
+          slug?: string
+          sort_order?: number
+          topic?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4074,6 +4149,28 @@ export type Database = {
           p_succeeded: boolean
         }
         Returns: undefined
+      }
+      settle_slots_spin: {
+        Args: {
+          p_client_seed: string
+          p_expected_blue: number
+          p_expected_red: number
+          p_expected_yellow: number
+          p_net: number
+          p_next_blue: number
+          p_next_red: number
+          p_next_yellow: number
+          p_nonce: number
+          p_progress_bet: number
+          p_reason: string
+          p_result: Json
+          p_round_bet: number
+          p_server_seed: string
+          p_server_seed_hash: string
+          p_update_collectors: boolean
+          p_user: string
+        }
+        Returns: Json
       }
       start_remote_support_session: { Args: { p_id: string }; Returns: boolean }
       tenant_analytics_daily: {
