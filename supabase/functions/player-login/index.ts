@@ -7,7 +7,10 @@
 // customer_services -> customers.user_id), and when there is none yet but the
 // hub has the line on file with an email that has no account yet, create the
 // account for that email and tie it to the customer (never attach to an
-// existing account by email). Then mint a one-time magiclink token_hash
+// existing account by email). When the Player sends the password the member
+// chose on the TV, that account is created with it, so one email and one
+// password work on the website and on the billing side alike; an account
+// that already exists keeps its own. Then mint a one-time magiclink token_hash
 // the client consumes with supabase.auth.verifyOtp(). We never return raw
 // credentials and never link by guessable data: the line must authenticate
 // against the panel, and the email comes from the hub's own record.
@@ -213,7 +216,13 @@ async function customerForLine(
 
 // ── profile typed on the TV ────────────────────────────────────────────────
 
-interface Profile { name: string | null; email: string | null; phone: string | null }
+interface Profile {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  /** The password they chose on the TV, for the website account being created. */
+  accountPassword: string | null;
+}
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
@@ -225,16 +234,29 @@ const cleanText = (v: unknown, max: number): string | null => {
 };
 
 /** Parse the optional profile: null when absent, 'bad_email' when unusable. */
+/**
+ * A password is taken as typed — never trimmed, never cleaned, never logged —
+ * and only within what GoTrue will accept (bcrypt stops at 72 bytes). Anything
+ * outside that is dropped, and the account is simply created without one.
+ */
+function readAccountPassword(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  if (raw.length < 8 || raw.length > 72) return null;
+  if (CONTROL_CHARS.test(raw)) return null;
+  return raw;
+}
+
 function readProfile(raw: unknown): Profile | null | 'bad_email' {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const name = cleanText(r.name, 120);
   const emailRaw = cleanText(r.email, 320);
   const phone = cleanText(r.phone, 40)?.replace(/[^\d+()\-.\s]/g, '').trim() || null;
+  const accountPassword = readAccountPassword(r.account_password);
   if (emailRaw && !EMAIL_RE.test(emailRaw)) return 'bad_email';
   const email = emailRaw ? emailRaw.toLowerCase() : null;
   if (!name && !email && !phone) return null;
-  return { name, email, phone };
+  return { name, email, phone, accountPassword };
 }
 
 const LABEL_BY_HOSTNAME: Record<string, string> = { 'dstreams.xyz': 'Dreamstreams', 'strmz.xyz': 'VibezTV' };
@@ -310,9 +332,21 @@ async function recordCustomer(
 // to an account that already exists for that email: a mistyped email in the
 // hub must not hand a line holder someone else's account. In that case the
 // member signs in with their email as before and links from the Player.
-// A member who later wants a password uses "Forgot password".
-async function createUserIfAbsent(admin: ReturnType<typeof createClient>, email: string): Promise<string | null> {
-  const created = await admin.auth.admin.createUser({ email, email_confirm: true });
+//
+// When the member chose a password on the TV, the account is created with it,
+// so the email and password they typed work on the website as well as on the
+// billing side. Without one — the "finish your account" form asks for contact
+// details only — the account is created password-less as before and they use
+// "Forgot password" to set one. An existing account's password is never
+// touched: this only ever runs for an account that does not exist yet.
+async function createUserIfAbsent(
+  admin: ReturnType<typeof createClient>,
+  email: string,
+  password?: string | null,
+): Promise<string | null> {
+  const created = await admin.auth.admin.createUser(
+    password ? { email, password, email_confirm: true } : { email, email_confirm: true },
+  );
   if (created.error || !created.data?.user?.id) {
     if (!/already|exists|registered/i.test(created.error?.message ?? '')) {
       console.warn('[player-login] createUser failed:', created.error?.message);
@@ -450,7 +484,7 @@ Deno.serve(async (req) => {
           userId = customer.user_id;
         } else if (customer && customer.email) {
           const email = customer.email.trim().toLowerCase();
-          const created = await createUserIfAbsent(admin, email);
+          const created = await createUserIfAbsent(admin, email, profile?.accountPassword ?? null);
           if (created) {
             userId = created;
             await admin.from('customers').update({ user_id: userId }).eq('id', customer.id).is('user_id', null);

@@ -11,6 +11,7 @@ import { focusAttrs, scaleIf, useFocusRecovery } from '@/components/billing/shar
 import WaitScreen from '@/components/billing/WaitScreen';
 import { readPending, clearPending, type VibezPending } from './pending';
 import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
+import { forgetAccountSignup } from '@/lib/billing';
 import VibezPlanGrid from './VibezPlanGrid';
 import VibezHandoff from './VibezHandoff';
 import VibezSignInScreen from './VibezSignInScreen';
@@ -76,7 +77,11 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
       trackEvent('signup_open', 'signup', {});
       startTimer('signup', 'signup_dwell', 'signup', {});
     } catch { /* ignore */ }
-    return () => { try { stopTimer('signup'); } catch { /* ignore */ } };
+    return () => {
+      try { stopTimer('signup'); } catch { /* ignore */ }
+      // Nothing the member typed outlives the screen they typed it on.
+      forgetAccountSignup();
+    };
   }, []);
 
   const finish = useCallback((creds: XtreamCreds) => {

@@ -6,7 +6,7 @@ import { CreditCard, Loader2 } from 'lucide-react';
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { useToast } from '@/hooks/use-toast';
 import { SmcBilling, type BillingSession } from '@/capacitor/SmcBilling';
-import { toBillingError, billingErrorText, BILLING_SITE } from '@/lib/billing';
+import { toBillingError, billingErrorText, BILLING_SITE, rememberAccountSignup } from '@/lib/billing';
 import { BTN, BTN_GOLD, INPUT, focusAttrs, scaleIf, useRateLimit, useFocusRecovery } from './shared';
 import { RateLimitNote } from './SharedUi';
 
@@ -114,6 +114,15 @@ const BillingAuthForm = memo(({ initialMode = 'login', initialEmail = '', headin
       const session = register
         ? await SmcBilling.register({ email: email.trim(), password, firstName: named.firstName, lastName: named.lastName })
         : await SmcBilling.login({ email: email.trim(), password });
+      // Held in memory only, and only until the hub has the member: this
+      // email and password are their Snow Media account as much as their
+      // billing one, and the hub record must not depend on the billing
+      // session still being alive when the line arrives.
+      rememberAccountSignup({
+        email: email.trim(),
+        name: register ? `${named.firstName} ${named.lastName}`.trim() : undefined,
+        password,
+      });
       setPassword('');
       onSuccess(session);
     } catch (err) {

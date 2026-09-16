@@ -199,6 +199,54 @@ const serverForHost = (host: string): XtreamServer =>
 /** Which of our servers a service's host belongs to — for labels and emails. */
 export const serverLabelForHost = (host: string): string => serverForHost(host).label;
 
+/* ---------------------------------------------------------------------------
+ * What the member typed on the account screen
+ *
+ * The email and password on that screen are first and foremost the member's
+ * Snow Media account: the customer record in the hub and the website login
+ * the admin side works from. The billing account uses the same pair, so one
+ * email and one password work in both places.
+ *
+ * The billing plugin keeps only a token, so the details are held here, in
+ * memory, for the few seconds between the form and the line being
+ * provisioned, and handed to the hub once. Memory only, never storage: an
+ * APK is not a safe place to keep a password, and this one has no reason to
+ * outlive the sign-up it belongs to. It is cleared when used, when the flow
+ * is left, and after half an hour regardless.
+ * ------------------------------------------------------------------------- */
+
+const SIGNUP_TTL_MS = 30 * 60 * 1000;
+
+interface PendingSignup { email: string | null; name: string | null; password: string | null; at: number }
+
+let pendingSignup: PendingSignup | null = null;
+
+/** Called by the account form with what the member typed. */
+export function rememberAccountSignup(details: { email?: string; name?: string; password?: string }): void {
+  const email = (details.email ?? '').trim();
+  const name = (details.name ?? '').trim();
+  const password = details.password ?? '';
+  pendingSignup = {
+    email: email || null,
+    name: name || null,
+    password: password.length >= 8 && password.length <= 72 ? password : null,
+    at: Date.now(),
+  };
+}
+
+/** Reads it once. A second read, or a stale one, gets nothing. */
+function takeAccountSignup(): PendingSignup | null {
+  const held = pendingSignup;
+  pendingSignup = null;
+  if (!held) return null;
+  return Date.now() - held.at <= SIGNUP_TTL_MS ? held : null;
+}
+
+/** Called when the sign-up flow is left, so nothing lingers. */
+export function forgetAccountSignup(): void {
+  pendingSignup = null;
+}
+
 export type ApplyResult = { ok: true; creds: XtreamCreds; probed: boolean } | { ok: false; error: string };
 
 /**
@@ -261,14 +309,49 @@ export async function applyServiceToPlayer(
   return { ok: true, creds, probed };
 }
 
+/**
+ * Records the member in the hub: the customer, the line under them, and the
+ * website account for their email, carrying the password they chose.
+ *
+ * What they typed is the primary source — the hub record must not depend on
+ * the billing session still being alive — and the billing account is asked
+ * as well, since it is authoritative for the email once it exists. One
+ * retry, because this is the record the admin side works from and a single
+ * dropped request should not lose it. Off the critical path either way: the
+ * member is watching while this runs.
+ */
 async function recordMemberInHub(username: string, password: string): Promise<void> {
+  const typed = takeAccountSignup();
+  let name = typed?.name ?? '';
+  let email = typed?.email ?? '';
   try {
     const { client } = await SmcBilling.me();
-    const name = (client.name || [client.first_name, client.last_name].filter(Boolean).join(' ')).trim();
-    const email = (client.email || '').trim();
-    if (!name && !email) return;
-    await signInWithPlayerCredentials(username, password, { ...(name ? { name } : {}), ...(email ? { email } : {}) });
+    const billingName = (client.name || [client.first_name, client.last_name].filter(Boolean).join(' ')).trim();
+    const billingEmail = (client.email || '').trim();
+    if (billingName) name = billingName;
+    if (billingEmail) email = billingEmail;
   } catch { /* the billing session may be gone, or this is the web build */ }
+  if (!name && !email) return;
+
+  const profile = {
+    ...(name ? { name } : {}),
+    ...(email ? { email } : {}),
+    // So the website account is born with the same password as the billing
+    // one. The hub only ever uses it for an account it is creating; an email
+    // that already has a website account keeps its own password.
+    ...(typed?.password ? { accountPassword: typed.password } : {}),
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await signInWithPlayerCredentials(username, password, profile);
+      // ok, or recorded without a session (no email, or that email already
+      // has an account of its own) — either way the hub has the member.
+      if (res.ok || res.saved) return;
+      if (res.reason && !['network', 'error', 'panel_unreachable'].includes(res.reason)) return;
+    } catch { /* fall through to the retry */ }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 3000));
+  }
 }
 
 // ── clipboard ───────────────────────────────────────────────────────────────

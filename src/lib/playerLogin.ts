@@ -15,7 +15,18 @@ export interface PlayerLoginResult {
 }
 
 /** What a member types on the TV to finish their account. All optional. */
-export interface PlayerProfile { name?: string; email?: string; phone?: string }
+export interface PlayerProfile {
+  name?: string;
+  email?: string;
+  phone?: string;
+  /**
+   * The password they chose for their billing account, so the website account
+   * the hub creates carries the same one. Only ever used for an account being
+   * created: an email that already has a website account keeps its own
+   * password. Never stored on the device.
+   */
+  accountPassword?: string;
+}
 
 /**
  * Try to establish a Supabase session from streaming credentials. Safe to call
@@ -35,7 +46,21 @@ export async function signInWithPlayerCredentials(
     const server = pickServerForUsername(username.trim());
     const host = server.host.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     const { data, error } = await supabase.functions.invoke('player-login', {
-      body: { host, username: username.trim(), password: password.trim(), ...(profile ? { profile } : {}) },
+      body: {
+        host,
+        username: username.trim(),
+        password: password.trim(),
+        ...(profile
+          ? {
+              profile: {
+                ...(profile.name ? { name: profile.name } : {}),
+                ...(profile.email ? { email: profile.email } : {}),
+                ...(profile.phone ? { phone: profile.phone } : {}),
+                ...(profile.accountPassword ? { account_password: profile.accountPassword } : {}),
+              },
+            }
+          : {}),
+      },
     });
     if (error) return { ok: false, reason: 'network' };
     const payload = data as { ok?: boolean; reason?: string; token_hash?: string; email_masked?: string; saved?: boolean };
