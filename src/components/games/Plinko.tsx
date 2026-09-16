@@ -180,6 +180,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const [lastCoinAward, setLastCoinAward] = useState<number | null>(null);
   const [bet, setBet] = useState(() => readSavedBet(BET_STORAGE_KEY));
   const [score, setScore] = useState(0);
+  const [sessionCoinNet, setSessionCoinNet] = useState(0);
   const [drops, setDrops] = useState(0);
   const [streak, setStreak] = useState(0);
   const [bestDrop, setBestDrop] = useState(readBestDrop);
@@ -266,6 +267,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     setLanding(slot);
     setLastAward(award);
     setLastCoinAward(coinAward);
+    if (coinAward !== null) setSessionCoinNet((current) => current + coinAward - bet);
     setScore((current) => current + award);
     setDrops((current) => current + 1);
     setStreak((current) => (multiplier >= 1.2 ? current + 1 : 0));
@@ -280,7 +282,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       try { localStorage.setItem(BEST_DROP_KEY, String(award)); } catch { /* storage unavailable */ }
     }
     if (multiplier >= 4) setBurstKey((current) => (current ?? 0) + 1);
-  }, [bestDrop, life, play, reducedFx]);
+  }, [bestDrop, bet, life, play, reducedFx]);
 
   useEffect(() => () => {
     dropEpoch.current += 1;
@@ -387,6 +389,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const resetSession = useCallback(() => {
     if (dropping) return;
     setScore(0);
+    setSessionCoinNet(0);
     setDrops(0);
     setStreak(0);
     setLanding(null);
