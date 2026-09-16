@@ -47,7 +47,7 @@ describe('Snow Plinko TV game', () => {
 
     expect(screen.getByText('Guest free play · score only')).toBeTruthy();
     expect(screen.getByText('Free entertainment coins only · no purchase required · no cash value')).toBeTruthy();
-    expect(screen.getByLabelText('Session score 0')).toBeTruthy();
+    expect(screen.getByLabelText('Practice score 0')).toBeTruthy();
     expect(raf).not.toHaveBeenCalled();
     raf.mockRestore();
   });
