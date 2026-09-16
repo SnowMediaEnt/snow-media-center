@@ -3465,6 +3465,54 @@ export type Database = {
         }
         Relationships: []
       }
+      trivia_questions: {
+        Row: {
+          answers: string[]
+          correct_index: number
+          created_at: string
+          fact: string
+          id: string
+          is_published: boolean
+          points: number
+          prompt: string
+          published_at: string | null
+          slug: string
+          sort_order: number
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          answers: string[]
+          correct_index: number
+          created_at?: string
+          fact: string
+          id?: string
+          is_published?: boolean
+          points?: number
+          prompt: string
+          published_at?: string | null
+          slug: string
+          sort_order?: number
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          answers?: string[]
+          correct_index?: number
+          created_at?: string
+          fact?: string
+          id?: string
+          is_published?: boolean
+          points?: number
+          prompt?: string
+          published_at?: string | null
+          slug?: string
+          sort_order?: number
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       unmatched_leads: {
         Row: {
           created_at: string
