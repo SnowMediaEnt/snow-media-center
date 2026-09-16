@@ -18,7 +18,10 @@ export const MIN_TRAVEL_CELLS = 6;
 /** How far ahead of the visible window a committed column is written. */
 export const LANDING_LEAD_CELLS = 6;
 
-export const SYMBOL_KEYS = ['p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scatter'] as const;
+export const SYMBOL_KEYS = [
+  'p1', 'p2', 'p3', 'p4', 'la', 'lk', 'lq', 'lj', 'wild', 'scatter',
+  'relic_red', 'relic_blue', 'relic_yellow',
+] as const;
 export type SymbolKey = typeof SYMBOL_KEYS[number];
 
 const SYMBOL_SET = new Set<string>(SYMBOL_KEYS);

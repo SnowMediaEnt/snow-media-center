@@ -14,6 +14,7 @@ import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
 import { useGameAudio } from './shared/gameAudio';
+import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import {
   CYCLE_CELLS, MIN_TRAVEL_CELLS, REELS, RENDER_CELLS, ROWS,
   buildCells, computeSettleTarget, cyclePx, gridToColumns, pickLandingIndex,
@@ -29,7 +30,8 @@ interface SlotsProps {
   onBack: () => void;
 }
 
-const BETS = [10, 25, 50, 100];
+const BETS = [...TV_BETS];
+const BET_STORAGE_KEY = 'snow-slots-bet-v1';
 
 const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
 const LOW_LETTER: Record<string, string> = { la: 'A', lk: 'K', lq: 'Q', lj: 'J' };
@@ -71,14 +73,15 @@ interface CollectorMeter {
   triggered: boolean;
   multiplier: number;
   payout: number;
+  sources: { reel: number; row: number }[];
 }
 type CollectorState = Record<CollectorColor, CollectorMeter>;
 
 const COLLECTOR_COLORS: CollectorColor[] = ['red', 'blue', 'yellow'];
 const COLLECTOR_DEFAULTS: CollectorState = {
-  red: { progress: 0, threshold: 15, hit: false, triggered: false, multiplier: 0, payout: 0 },
-  blue: { progress: 0, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0 },
-  yellow: { progress: 0, threshold: 34, hit: false, triggered: false, multiplier: 0, payout: 0 },
+  red: { progress: 0, threshold: 15, hit: false, triggered: false, multiplier: 0, payout: 0, sources: [] },
+  blue: { progress: 0, threshold: 24, hit: false, triggered: false, multiplier: 0, payout: 0, sources: [] },
+  yellow: { progress: 0, threshold: 34, hit: false, triggered: false, multiplier: 0, payout: 0, sources: [] },
 };
 
 const readCollectors = (value: unknown, fallback: CollectorState = COLLECTOR_DEFAULTS): CollectorState => {
@@ -97,9 +100,44 @@ const readCollectors = (value: unknown, fallback: CollectorState = COLLECTOR_DEF
       triggered: raw.triggered === true,
       multiplier: Number.isFinite(Number(raw.multiplier)) ? Math.max(0, Number(raw.multiplier)) : 0,
       payout: Number.isFinite(Number(raw.payout)) ? Math.max(0, Number(raw.payout)) : 0,
+      sources: Array.isArray(raw.sources) ? raw.sources.flatMap((source) => {
+        if (!source || typeof source !== 'object') return [];
+        const reel = Number((source as Record<string, unknown>).reel);
+        const row = Number((source as Record<string, unknown>).row);
+        return Number.isInteger(reel) && reel >= 0 && reel < REELS && Number.isInteger(row) && row >= 0 && row < ROWS
+          ? [{ reel, row }]
+          : [];
+      }) : [],
     }];
   })) as CollectorState;
 };
+
+function CollectorSigil({ color }: { color: CollectorColor }) {
+  if (color === 'red') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <path d="M32 31C17 27 14 14 25 12c3-10 17-8 18 3 11 2 9 16-2 18 3 12-12 18-18 8-11 2-15-11-6-17 2 5 7 8 15 7Z" />
+        <path d="M32 23c-7-7-14 5-5 9-8 7 4 15 9 6 8 5 14-7 5-11 2-9-11-12-9-4Z" />
+        <path d="M32 38v15m0-8-8-5m8 8 8-6" />
+      </svg>
+    );
+  }
+  if (color === 'blue') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <path d="M32 5v54M9 18l46 28M9 46l46-28M32 5l-6 8m6-8 6 8M32 59l-6-8m6 8 6-8M9 18l10 1m-10-1 4 9M55 46l-10-1m10 1-4-9M9 46l10-1m-10 1 4-9M55 18l-10 1m10-1-4 9" />
+        <circle cx="32" cy="32" r="7" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path d="M11 21 23 34l9-22 9 22 12-13-5 29H16l-5-29Z" />
+      <path d="M17 43h30M20 51h24" />
+      <circle cx="11" cy="19" r="3" /><circle cx="32" cy="10" r="3" /><circle cx="53" cy="19" r="3" />
+    </svg>
+  );
+}
 
 /** Branded token — no emoji anywhere in the primary symbol set. */
 function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number }) {
@@ -112,6 +150,15 @@ function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number
   }
   if (symbolKey === 'scatter') {
     return <span className="snow-slot-token snow-slot-token--bonus" style={{ width: size * 1.35, height: size }}>BONUS</span>;
+  }
+  if (symbolKey.startsWith('relic_')) {
+    const color = symbolKey.slice(6) as CollectorColor;
+    return (
+      <span className={`snow-slot-relic-token snow-slot-relic-token--${color}`} style={{ width: size * 1.2, height: size }}>
+        <CollectorSigil color={color} />
+        <b>{color === 'red' ? 'ROSE' : color === 'blue' ? 'CRYSTAL' : 'CROWN'}</b>
+      </span>
+    );
   }
   return (
     <span className="snow-slot-token snow-slot-token--low" style={{ width: size * 0.8, height: size }}>
@@ -146,10 +193,12 @@ function FrostCollector({
       data-heat={heat}
       aria-label={t(`games.slots.collector.${color}Aria`, { state })}
     >
-      <span className="snow-slot-collector__energy" aria-hidden="true" />
-      <span className="snow-slot-collector__cap" aria-hidden="true" />
-      <span className="snow-slot-collector__glass" aria-hidden="true"><i /></span>
-      <span className="snow-slot-collector__base" aria-hidden="true" />
+      <span className="snow-slot-collector__aurora" aria-hidden="true" />
+      <span className="snow-slot-collector__relic" aria-hidden="true">
+        <i />
+        <CollectorSigil color={color} />
+      </span>
+      <span className="snow-slot-collector__snow" aria-hidden="true" />
       <span className="snow-slot-collector__copy">
         <b>{t(`games.slots.collector.${color}`)}</b>
         <strong>{state}</strong>
@@ -176,7 +225,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   const [cellHeight, setCellHeight] = useState(() => (
     typeof window === 'undefined' ? cellHeightFor(1600, 900) : cellHeightFor(window.innerWidth, window.innerHeight)
   ));
-  const [bet, setBet] = useState<number>(10);
+  const [bet, setBet] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
   const [spinning, setSpinning] = useState(false);
   const [reelCells, setReelCells] = useState<string[][]>(() => Array.from({ length: REELS }, () => buildCells()));
   const [landedWindows, setLandedWindows] = useState<string[][] | null>(null);
@@ -200,8 +249,11 @@ const Slots = ({ onBack }: SlotsProps) => {
     token: number;
     hits: CollectorColor[];
     triggers: CollectorColor[];
+    sources: Record<CollectorColor, { reel: number; row: number }[]>;
   } | null>(null);
   const [focus, setFocus] = useState<FocusId>('spin');
+
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
 
   const inFlight = useRef(false);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
@@ -361,7 +413,14 @@ const Slots = ({ onBack }: SlotsProps) => {
     if (collectorHits.length > 0) {
       const token = calloutTokenRef.current + 1;
       calloutTokenRef.current = token;
-      setCollectorFx({ token, hits: collectorHits, triggers: collectorTriggers });
+      setCollectorFx({
+        token,
+        hits: collectorHits,
+        triggers: collectorTriggers,
+        sources: Object.fromEntries(COLLECTOR_COLORS.map((color) => [
+          color, settled.collectors[color].sources,
+        ])) as Record<CollectorColor, { reel: number; row: number }[]>,
+      });
       if (collectorFxTimerRef.current !== null) life.clearTimer(collectorFxTimerRef.current);
       collectorFxTimerRef.current = life.timeout(() => setCollectorFx(null), reducedRef.current ? 700 : 1800);
     }
@@ -692,6 +751,20 @@ const Slots = ({ onBack }: SlotsProps) => {
                 </div>
                 <span className="snow-slot-payline" style={{ top: cellHeight + 6 }} aria-hidden="true" />
                 <span className="snow-slot-payline" style={{ top: cellHeight * 2 + 6 }} aria-hidden="true" />
+
+                {collectorFx && collectorFx.hits.flatMap((color) => (
+                  collectorFx.sources[color].map(({ reel, row }, index) => (
+                    <span
+                      key={`${collectorFx.token}-${color}-${reel}-${row}-${index}`}
+                      className={`snow-slot-relic-flight snow-slot-relic-flight--${color}`}
+                      style={{
+                        '--flight-left': `${(reel + 0.5) * 20}%`,
+                        '--flight-top': `${(row + 0.5) * (100 / 3)}%`,
+                      } as CSSProperties}
+                      aria-hidden="true"
+                    ><CollectorSigil color={color} /></span>
+                  ))
+                ))}
 
                 {callout && (
                   <div className="snow-slot-overlay" data-callout-token={callout.token}>

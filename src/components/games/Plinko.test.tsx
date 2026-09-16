@@ -45,8 +45,8 @@ describe('Snow Plinko TV game', () => {
     const raf = vi.spyOn(window, 'requestAnimationFrame');
     render(<Plinko onBack={() => {}} />);
 
-    expect(screen.getByText('Free play · score only · no coins')).toBeTruthy();
-    expect(screen.getByText('No purchases · no prizes · score resets on refresh')).toBeTruthy();
+    expect(screen.getByText('Guest free play · score only')).toBeTruthy();
+    expect(screen.getByText('Free entertainment coins only · no purchase required · no cash value')).toBeTruthy();
     expect(screen.getByLabelText('Session score 0')).toBeTruthy();
     expect(raf).not.toHaveBeenCalled();
     raf.mockRestore();

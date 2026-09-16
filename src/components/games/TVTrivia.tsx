@@ -25,6 +25,9 @@ import { useGameBack } from './shared/gameBack';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameAudio } from './shared/gameAudio';
 import { useReducedGameFx } from './shared/useReducedGameFx';
+import { useAuth } from '@/hooks/useAuth';
+import { useGameSocket } from '@/hooks/useGameSocket';
+import { gameSocket } from '@/lib/gameSocket';
 import {
   loadSnowTriviaQuestions,
   SNOW_MEDIA_TRIVIA_FALLBACK,
@@ -40,6 +43,7 @@ interface TVTriviaProps {
 
 export type { TriviaQuestion } from '@/lib/triviaQuestions';
 export type TriviaMode = 'snow' | 'mixed';
+type TriviaDifficulty = 'easy' | 'standard' | 'expert';
 
 /**
  * Bundled, family-friendly questions keep TV Trivia instant and fully offline.
@@ -238,6 +242,10 @@ const ANSWER_LETTERS = ['A', 'B', 'C', 'D'];
 const CATEGORIES: TriviaCategory[] = ['snow', 'science', 'screen', 'world', 'music', 'sports', 'nature'];
 const SNOW_TOPICS: SnowTriviaTopic[] = ['devices', 'service', 'app', 'history'];
 const MODE_STORAGE_KEY = 'smc-tv-trivia-mode-v1';
+const DIFFICULTY_STORAGE_KEY = 'smc-tv-trivia-difficulty-v1';
+const DIFFICULTIES: TriviaDifficulty[] = ['easy', 'standard', 'expert'];
+const DIFFICULTY_BET: Record<TriviaDifficulty, number> = { easy: 10, standard: 25, expert: 50 };
+const DIFFICULTY_POINTS: Record<TriviaDifficulty, number> = { easy: 1, standard: 1.5, expert: 2 };
 
 const shuffled = <T,>(items: T[]): T[] => {
   const result = [...items];
@@ -256,7 +264,9 @@ export const createTriviaSession = (
   bank: TriviaQuestion[] = TRIVIA_QUESTIONS,
   mode: TriviaMode = 'mixed',
 ): TriviaQuestion[] => {
-  const available = mode === 'snow' ? bank.filter((question) => question.category === 'snow') : bank;
+  const available = mode === 'snow'
+    ? bank.filter((question) => question.category === 'snow')
+    : bank.filter((question) => question.category !== 'snow');
   if (available.length === 0) return [];
   if (mode === 'snow') {
     const topicPass = SNOW_TOPICS
@@ -290,7 +300,7 @@ const CategoryIcon = ({ category }: { category: TriviaCategory }) => {
   return <Trophy />;
 };
 
-type FocusZone = 'back' | 'mode' | 'audio' | 'fx' | 'answer' | 'next';
+type FocusZone = 'back' | 'mode' | 'difficulty' | 'audio' | 'fx' | 'answer' | 'next';
 
 const initialTriviaMode = (): TriviaMode => {
   try {
@@ -300,12 +310,22 @@ const initialTriviaMode = (): TriviaMode => {
   }
 };
 
+const initialDifficulty = (): TriviaDifficulty => {
+  try {
+    const value = localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+    return DIFFICULTIES.includes(value as TriviaDifficulty) ? value as TriviaDifficulty : 'standard';
+  } catch { return 'standard'; }
+};
+
 const generalTriviaQuestions = TRIVIA_QUESTIONS.filter((question) => question.category !== 'snow');
 
 const TVTrivia = ({ onBack }: TVTriviaProps) => {
+  const { user } = useAuth();
+  const { balance } = useGameSocket();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { muted, play: playSound, toggleMuted } = useGameAudio();
   const [mode, setMode] = useState<TriviaMode>(initialTriviaMode);
+  const [difficulty, setDifficulty] = useState<TriviaDifficulty>(initialDifficulty);
   const [questionBank, setQuestionBank] = useState<TriviaQuestion[]>(TRIVIA_QUESTIONS);
   const [questions, setQuestions] = useState<TriviaQuestion[]>(() => createTriviaSession(TRIVIA_QUESTIONS, initialTriviaMode()));
   const [contentSource, setContentSource] = useState<'network' | 'cache' | 'bundled'>('bundled');
@@ -318,9 +338,12 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const [finished, setFinished] = useState(false);
   const [focusZone, setFocusZone] = useState<FocusZone>('answer');
   const [answerIndex, setAnswerIndex] = useState(0);
+  const [coinPayout, setCoinPayout] = useState<number | null>(null);
+  const [settleError, setSettleError] = useState<string | null>(null);
 
   const backRef = useRef<HTMLButtonElement>(null);
   const modeRef = useRef<HTMLButtonElement>(null);
+  const difficultyRef = useRef<HTMLButtonElement>(null);
   const audioRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
   const answerRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -328,6 +351,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const modeValueRef = useRef(mode);
   const sessionTouchedRef = useRef(false);
   const completionCuePlayedRef = useRef(false);
+  const settlementSentRef = useRef(false);
 
   useTvActivate(activateFocused);
   const { requestBack } = useGameBack({ onExit: onBack });
@@ -361,6 +385,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   useEffect(() => {
     if (focusZone === 'back') backRef.current?.focus();
     else if (focusZone === 'mode') modeRef.current?.focus();
+    else if (focusZone === 'difficulty') difficultyRef.current?.focus();
     else if (focusZone === 'audio') audioRef.current?.focus();
     else if (focusZone === 'fx') fxRef.current?.focus();
     else if (focusZone === 'answer') answerRefs.current[answerIndex]?.focus();
@@ -372,7 +397,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     sessionTouchedRef.current = true;
     const isCorrect = index === question.correct;
     const nextStreak = isCorrect ? streak + 1 : 0;
-    const basePoints = question.points ?? 100;
+    const basePoints = Math.round((question.points ?? 100) * DIFFICULTY_POINTS[difficulty]);
     setSelectedAnswer(index);
     if (isCorrect) {
       setCorrectCount((count) => count + 1);
@@ -384,7 +409,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     }
     playSound(isCorrect ? 'triviaCorrect' : 'triviaWrong');
     setFocusZone('next');
-  }, [finished, playSound, question, selectedAnswer, streak]);
+  }, [difficulty, finished, playSound, question, selectedAnswer, streak]);
 
   const advance = useCallback(() => {
     if (selectedAnswer === null) return;
@@ -402,6 +427,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
   const resetRound = useCallback((nextMode: TriviaMode) => {
     sessionTouchedRef.current = false;
     completionCuePlayedRef.current = false;
+    settlementSentRef.current = false;
     setQuestions(createTriviaSession(questionBank, nextMode));
     setQuestionIndex(0);
     setSelectedAnswer(null);
@@ -410,6 +436,8 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     setStreak(0);
     setBestStreak(0);
     setFinished(false);
+    setCoinPayout(null);
+    setSettleError(null);
     setAnswerIndex(0);
     setFocusZone('answer');
   }, [questionBank]);
@@ -435,6 +463,25 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
     resetRound(nextMode);
   }, [mode, resetRound]);
 
+  const switchDifficulty = useCallback(() => {
+    const next = DIFFICULTIES[(DIFFICULTIES.indexOf(difficulty) + 1) % DIFFICULTIES.length];
+    setDifficulty(next);
+    try { localStorage.setItem(DIFFICULTY_STORAGE_KEY, next); } catch { /* keep in memory */ }
+    resetRound(mode);
+  }, [difficulty, mode, resetRound]);
+
+  useEffect(() => {
+    if (!finished || !user || settlementSentRef.current) return;
+    settlementSentRef.current = true;
+    void gameSocket.playArcade({
+      game: 'trivia', bet: DIFFICULTY_BET[difficulty], correct: correctCount,
+      total: questions.length, score, difficulty, mode,
+    }).then((response) => {
+      if (response?.ok) setCoinPayout(Number(response.payout) || 0);
+      else setSettleError(response?.error === 'insufficient_balance' ? 'Not enough Snow Coins for this challenge.' : 'Score kept; coin settlement unavailable.');
+    }).catch(() => setSettleError('Score kept; coin settlement unavailable.'));
+  }, [correctCount, difficulty, finished, mode, questions.length, score, user]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
@@ -454,15 +501,24 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
       }
       if (focusZone === 'mode') {
         if (direction === 'left') setFocusZone('back');
-        else if (direction === 'right') setFocusZone('audio');
+        else if (direction === 'right') setFocusZone('difficulty');
         else if (direction === 'down') {
           if (finished) setFocusZone('next');
           else { setFocusZone('answer'); setAnswerIndex(0); }
         }
         return;
       }
-      if (focusZone === 'audio') {
+      if (focusZone === 'difficulty') {
         if (direction === 'left') setFocusZone('mode');
+        else if (direction === 'right') setFocusZone('audio');
+        else if (direction === 'down') {
+          if (finished) setFocusZone('next');
+          else { setFocusZone('answer'); setAnswerIndex(1); }
+        }
+        return;
+      }
+      if (focusZone === 'audio') {
+        if (direction === 'left') setFocusZone('difficulty');
         else if (direction === 'right') setFocusZone('fx');
         else if (direction === 'down') {
           if (finished) setFocusZone('next');
@@ -548,13 +604,26 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
             size="sm"
             onClick={switchMode}
             onFocus={() => setFocusZone('mode')}
-            aria-label={`${mode === 'snow' ? 'Snow Media mode' : 'All Topics mode'}. Press OK to switch.`}
+            aria-label={`${mode === 'snow' ? 'Snow Media and streaming mode' : 'Real world random mode'}. Press OK to switch.`}
             aria-pressed={mode === 'snow'}
             data-tv-focused={focusZone === 'mode' ? 'true' : 'false'}
             className={`snow-trivia__mode snow-trivia__mode--${mode}`}
           >
             {mode === 'snow' ? <Snowflake /> : <Globe2 />}
-            <span><small>Challenge</small><strong>{mode === 'snow' ? 'Snow Media' : 'All Topics'}</strong></span>
+            <span><small>Challenge</small><strong>{mode === 'snow' ? 'Snow Media' : 'Real World'}</strong></span>
+          </Button>
+          <Button
+            ref={difficultyRef}
+            type="button"
+            variant="navy"
+            size="sm"
+            onClick={switchDifficulty}
+            onFocus={() => setFocusZone('difficulty')}
+            aria-label={`${difficulty} difficulty. Press OK to switch.`}
+            data-tv-focused={focusZone === 'difficulty' ? 'true' : 'false'}
+            className={`snow-trivia__difficulty snow-trivia__difficulty--${difficulty}`}
+          >
+            <Flame /> <span><small>Difficulty</small><strong>{difficulty}</strong></span>
           </Button>
           <Button
             ref={audioRef}
@@ -595,7 +664,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
         </div>
         <div className="snow-trivia__free-play">
           <Sparkles aria-hidden="true" />
-          <span>{mode === 'snow' ? 'Snow Media Challenge' : 'All Topics'} · Free play · no Snow Coins used</span>
+          <span>{mode === 'snow' ? 'Snow Media & Streaming' : 'Real World Random'} · {difficulty} · {user ? `${DIFFICULTY_BET[difficulty]} Snow Coins · Balance ${balance?.toLocaleString() ?? '—'}` : 'Guest practice'}</span>
           <i>{contentSource === 'network' ? 'Updated' : 'Offline ready'}</i>
         </div>
       </section>
@@ -654,7 +723,7 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
                 <div className={`snow-trivia__verdict${answeredCorrectly ? ' is-correct' : ' is-wrong'}`}>
                   <span>{answeredCorrectly ? <Check /> : <X />}</span>
                   <div>
-                    <strong>{answeredCorrectly ? `Correct! +${(question.points ?? 100) + Math.max(0, streak - 1) * 25}` : 'Not quite'}</strong>
+                    <strong>{answeredCorrectly ? `Correct! +${Math.round((question.points ?? 100) * DIFFICULTY_POINTS[difficulty]) + Math.max(0, streak - 1) * 25}` : 'Not quite'}</strong>
                     <small>{question.fact}</small>
                   </div>
                 </div>
@@ -702,7 +771,9 @@ const TVTrivia = ({ onBack }: TVTriviaProps) => {
             <RotateCcw /> Play Another Round
           </Button>
           <span className="snow-trivia__results-note">
-            {mode === 'snow' ? 'More Snow Media devices, service, app, and history questions are ready.' : 'A fresh mix of categories is ready whenever you are.'}
+            {coinPayout !== null
+              ? `${coinPayout.toLocaleString()} Snow Coins returned · leaderboard score posted`
+              : settleError ?? (user ? `Settling ${DIFFICULTY_BET[difficulty]} Snow Coin challenge…` : 'Guest practice · sign in for Snow Coin rounds and leaderboard scores')}
           </span>
         </section>
       )}

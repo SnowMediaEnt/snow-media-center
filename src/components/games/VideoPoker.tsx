@@ -15,13 +15,15 @@ import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import { useGameAudio } from './shared/gameAudio';
 import type { GameCardValue } from './shared/gameTypes';
+import { TV_BETS, readSavedBet, saveSelectedBet } from './shared/gameBets';
 import '@/styles/games-machines.css';
 
 interface VideoPokerProps {
   onBack: () => void;
 }
 
-const BETS = [10, 25, 50, 100];
+const BETS = [...TV_BETS];
+const BET_STORAGE_KEY = 'snow-video-poker-bet-v1';
 
 const DEFAULT_PAYOUTS: Record<string, number> = {
   'Royal Flush': 800,
@@ -61,7 +63,8 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   useTvActivate(activateFocused);
 
   const [phase, setPhase] = useState<Phase>('idle');
-  const [bet, setBet] = useState<number>(10);
+  const [bet, setBet] = useState<number>(() => readSavedBet(BET_STORAGE_KEY));
+  useEffect(() => saveSelectedBet(BET_STORAGE_KEY, bet), [bet]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);

@@ -94,6 +94,9 @@
   position: relative;
   z-index: 1;
 }
+.snow-dice-wager { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; margin-bottom: 7px; }
+.snow-dice-wager > svg { width: 22px; height: 22px; margin-right: 3px; color: hsl(45 90% 68%); }
+.snow-dice-wager .snow-bet-chip { min-width: 58px; min-height: 38px; }
 
 .snow-dice-table__header {
   min-height: 68px;
