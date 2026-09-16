@@ -9,7 +9,9 @@
 .snow-plinko .snow-plinko-topbar {
   position: relative;
   z-index: 3;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto minmax(500px, 1fr);
+  column-gap: 16px;
   flex: 0 0 6.2cqh;
   align-items: center;
   min-height: 62px;
@@ -18,12 +20,9 @@
 .snow-plinko-back { min-width: 210px; }
 
 .snow-plinko-heading {
-  position: absolute;
-  top: 50%;
-  left: 50%;
   display: flex;
   align-items: center;
-  transform: translate(-50%, -50%);
+  justify-self: center;
   text-align: left;
   white-space: nowrap;
 }
@@ -46,9 +45,10 @@
 .snow-plinko-heading h1 { margin: 0; font: 900 27px/1 Montserrat, Arial, sans-serif; letter-spacing: .025em; text-transform: uppercase; }
 .snow-plinko-heading p { margin: 5px 0 0; color: #80e6d1; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 
-.snow-plinko-topbar__right { display: flex; align-items: center; margin-left: auto; }
+.snow-plinko-topbar__right { display: flex; align-items: center; justify-self: end; }
 .snow-plinko-fx { min-width: 112px; min-height: 45px; border-color: rgba(154, 230, 240, .45); }
 .snow-plinko-fx svg { margin-right: 7px; }
+.snow-plinko .snow-plinko-wallet { width: 185px; min-height: 56px; margin-left: 12px; }
 
 .snow-plinko-score-badge {
   display: flex;
@@ -404,13 +404,17 @@
    1280px island in the middle of a 3840px panel. */
 @media (min-width: 2200px) and (min-height: 1200px) {
   .snow-plinko .tv-game-body { max-width: 192rem; }
-  .snow-plinko-topbar { min-height: 88px; }
+  .snow-plinko-topbar { grid-template-columns: minmax(290px, 1fr) auto minmax(720px, 1fr); column-gap: 26px; min-height: 88px; }
   .snow-plinko-back { min-width: 290px; min-height: 70px; font-size: 21px; }
   .snow-plinko-heading__mark { width: 66px; height: 66px; margin-right: 18px; }
   .snow-plinko-heading__mark svg { width: 36px; height: 36px; }
   .snow-plinko-heading h1 { font-size: 39px; }
   .snow-plinko-heading p { margin-top: 7px; font-size: 16px; }
   .snow-plinko-fx { min-width: 155px; min-height: 64px; font-size: 18px; }
+  .snow-plinko .snow-plinko-wallet { width: 265px; height: 78px; margin-left: 17px; padding: 10px 21px; border-radius: 14px; }
+  .snow-plinko .snow-plinko-wallet svg { width: 36px; height: 36px; margin-right: 16px; }
+  .snow-plinko .snow-plinko-wallet small { font-size: 13px; }
+  .snow-plinko .snow-plinko-wallet strong { font-size: 34px; }
   .snow-plinko-score-badge { min-width: 265px; min-height: 78px; margin-left: 17px; padding: 10px 21px; }
   .snow-plinko-score-badge > svg { width: 36px; height: 36px; margin-right: 16px; }
   .snow-plinko-score-badge small { font-size: 13px; }
@@ -470,13 +474,17 @@
    cabinet and readable remote targets, but remove nonessential air. */
 @media (max-height: 800px) {
   .snow-plinko .tv-game-body { gap: 5px; }
-  .snow-plinko-topbar { flex-basis: 54px; min-height: 54px; }
+  .snow-plinko-topbar { grid-template-columns: minmax(175px, 1fr) auto minmax(410px, 1fr); column-gap: 10px; flex-basis: 54px; min-height: 54px; }
   .snow-plinko-back { min-width: 175px; min-height: 46px; padding-right: 14px; padding-left: 14px; font-size: 13px; }
   .snow-plinko-heading__mark { width: 38px; height: 38px; margin-right: 9px; }
   .snow-plinko-heading__mark svg { width: 21px; height: 21px; }
   .snow-plinko-heading h1 { font-size: 21px; }
   .snow-plinko-heading p { margin-top: 3px; font-size: 8px; }
   .snow-plinko-fx { min-width: 94px; min-height: 39px; padding: 5px 9px; font-size: 11px; }
+  .snow-plinko .snow-plinko-wallet { width: 150px; height: 48px; min-height: 48px; margin-left: 8px; padding: 5px 10px; }
+  .snow-plinko .snow-plinko-wallet svg { width: 21px; height: 21px; margin-right: 8px; }
+  .snow-plinko .snow-plinko-wallet small { font-size: 7px; }
+  .snow-plinko .snow-plinko-wallet strong { font-size: 18px; }
   .snow-plinko-score-badge { min-width: 150px; min-height: 48px; margin-left: 8px; padding: 5px 10px; }
   .snow-plinko-score-badge > svg { width: 21px; height: 21px; margin-right: 8px; }
   .snow-plinko-score-badge small { font-size: 7px; }

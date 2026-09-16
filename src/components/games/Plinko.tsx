@@ -4,7 +4,7 @@ import { Coins, Gauge, Minus, Plus, RotateCcw, Snowflake, Sparkles, Target, Trop
 import { BackButton } from '@/components/ui/BackButton';
 import { Button } from '@/components/ui/button';
 import { GameFxCanvas } from './shared/GameFxCanvas';
-import { GameShell } from './shared/GameUI';
+import { GameShell, SnowCoinBalance } from './shared/GameUI';
 import { useGameBack } from './shared/gameBack';
 import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useGameLifecycle } from './shared/gameLifecycle';
@@ -166,7 +166,7 @@ const readBestDrop = (): number => {
 
 const Plinko = ({ onBack }: PlinkoProps) => {
   const { user } = useAuth();
-  const { balance } = useGameSocket();
+  const { balance, status } = useGameSocket();
   const life = useGameLifecycle();
   const { reducedFx, toggleReducedFx } = useReducedGameFx();
   const { play } = useGameAudio();
@@ -180,6 +180,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const [lastCoinAward, setLastCoinAward] = useState<number | null>(null);
   const [bet, setBet] = useState(() => readSavedBet(BET_STORAGE_KEY));
   const [score, setScore] = useState(0);
+  const [sessionCoinNet, setSessionCoinNet] = useState(0);
   const [drops, setDrops] = useState(0);
   const [streak, setStreak] = useState(0);
   const [bestDrop, setBestDrop] = useState(readBestDrop);
@@ -266,6 +267,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     setLanding(slot);
     setLastAward(award);
     setLastCoinAward(coinAward);
+    if (coinAward !== null) setSessionCoinNet((current) => current + coinAward - bet);
     setScore((current) => current + award);
     setDrops((current) => current + 1);
     setStreak((current) => (multiplier >= 1.2 ? current + 1 : 0));
@@ -280,7 +282,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
       try { localStorage.setItem(BEST_DROP_KEY, String(award)); } catch { /* storage unavailable */ }
     }
     if (multiplier >= 4) setBurstKey((current) => (current ?? 0) + 1);
-  }, [bestDrop, life, play, reducedFx]);
+  }, [bestDrop, bet, life, play, reducedFx]);
 
   useEffect(() => () => {
     dropEpoch.current += 1;
@@ -387,6 +389,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
   const resetSession = useCallback(() => {
     if (dropping) return;
     setScore(0);
+    setSessionCoinNet(0);
     setDrops(0);
     setStreak(0);
     setLanding(null);
@@ -440,10 +443,18 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           >
             <Sparkles aria-hidden="true" /> {reducedFx ? 'FX Low' : 'FX Full'}
           </Button>
-          <div className="snow-plinko-score-badge" aria-label={`Session score ${score.toLocaleString()}`}>
-            <Trophy aria-hidden="true" />
-            <span><small>Session score</small><strong>{score.toLocaleString()}</strong></span>
-          </div>
+          {user && <SnowCoinBalance balance={balance} status={status} className="snow-plinko-wallet" />}
+          {user ? (
+            <div className="snow-plinko-score-badge" aria-label={`Snow Coin net ${sessionCoinNet.toLocaleString()}`}>
+              <Coins aria-hidden="true" />
+              <span><small>Snow Coin net</small><strong>{sessionCoinNet > 0 ? `+${sessionCoinNet.toLocaleString()}` : sessionCoinNet.toLocaleString()}</strong></span>
+            </div>
+          ) : (
+            <div className="snow-plinko-score-badge" aria-label={`Practice score ${score.toLocaleString()}`}>
+              <Trophy aria-hidden="true" />
+              <span><small>Practice score</small><strong>{score.toLocaleString()}</strong></span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -533,7 +544,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
             {dropping ? (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Snowflake /></span><div><small>Puck in motion</small><strong>Watch it bounce</strong></div></>
             ) : lastAward !== null ? (
-              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>{lastCoinAward === null ? `+${lastAward.toLocaleString()} points` : `${lastCoinAward.toLocaleString()} Snow Coins returned`}</strong></div></>
+              <><span className="snow-plinko-callout__icon" aria-hidden="true"><Trophy /></span><div><small>Nice landing</small><strong>{lastCoinAward === null ? `+${lastAward.toLocaleString()} points` : `${(lastCoinAward - bet) > 0 ? '+' : ''}${(lastCoinAward - bet).toLocaleString()} Snow Coins net`}</strong></div></>
             ) : (
               <><span className="snow-plinko-callout__icon" aria-hidden="true"><Zap /></span><div><small>{activeMode.label} board ready</small><strong>Press OK to drop</strong></div></>
             )}
@@ -581,7 +592,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
                 ref={resetRef}
                 type="button"
                 variant="navy"
-                aria-label="Reset session score"
+                aria-label="Reset session totals"
                 data-tv-focused={focus === 'reset' ? 'true' : 'false'}
                 onFocus={() => setFocus('reset')}
                 onClick={resetSession}
