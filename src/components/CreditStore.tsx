@@ -237,7 +237,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
 
   if (view === 'paid' && landed) {
     return (
-      <div ref={focus.containerRef} className="tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
+      <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
         {header('Back to Dashboard', onBack, 'gems-done-back')}
         <div className="max-w-2xl mx-auto pb-16">
           <Card className={`${PANEL} p-8 text-center`}>
@@ -267,7 +267,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
 
   if (view === 'qr' && order) {
     return (
-      <div ref={focus.containerRef} className="tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
+      <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
         {header('Choose a different pack', backToPacks, 'gems-qr-back')}
         <div className="max-w-5xl mx-auto pb-16 grid gap-6 md:grid-cols-[auto_1fr] items-start">
           <div className="bg-white p-4 rounded-2xl shadow-xl justify-self-center">
@@ -337,7 +337,7 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
   }
 
   return (
-    <div ref={focus.containerRef} className="tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
+    <div ref={focus.containerRef} className="fixed inset-0 tv-scroll-container tv-safe text-white overflow-y-auto overscroll-contain">
       {header('Back', onBack, 'gems-back')}
       <div className="max-w-6xl mx-auto pb-16">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -417,7 +417,8 @@ const CreditStore = ({ onBack }: CreditStoreProps) => {
           )}
         </div>
 
-        <Card className={`${PANEL} p-6`}>
+        {/* Focusable so Down from the last pack lands here and brings it on screen. */}
+        <Card tabIndex={0} data-tv-focus-id="gems-info" className={`${PANEL} tv-ring p-6 mt-6`}>
           <h3 className="text-lg font-quicksand font-semibold text-brand-gold mb-3">How Snow Gems work</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-white/80">
             <p>AI image: <strong className="text-white">1 Snow Gem</strong> each.</p>
