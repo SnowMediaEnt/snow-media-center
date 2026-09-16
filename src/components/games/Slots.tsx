@@ -30,7 +30,7 @@ interface SlotsProps {
   onBack: () => void;
 }
 
-const BETS = [...TV_BETS];
+const BETS: number[] = [...TV_BETS];
 const BET_STORAGE_KEY = 'snow-slots-bet-v1';
 
 const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
