@@ -40,7 +40,7 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { isDemo } from '@/lib/demoMode';
 import { InstalledApp } from '@/data/installedApps';
-import { trackAppLaunch, trackScreenView, trackEvent } from '@/lib/analytics';
+import { trackAppLaunch, trackScreenView, trackEvent, startTimer, stopTimer, markSessionFlag } from '@/lib/analytics';
 import { runWhenIdle } from '@/utils/idle';
 
 // Lazy-load heavy sub-views so the home screen boots faster on STB/FireTV
@@ -617,6 +617,22 @@ const Index = () => {
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);
+  // How long each screen is actually used. One timer, restarted on every
+  // view change and closed on the way out, so the Player, the games and the
+  // rest all report time spent without touching their own components. The
+  // games get their game id in the event so "which games do they play, and
+  // for how long" is one query.
+  useEffect(() => {
+    const view = currentView || 'home';
+    const game = view.startsWith('game-') ? view.slice('game-'.length) : null;
+    const event = game ? 'game_dwell' : `${view.replace(/-/g, '_')}_dwell`;
+    const category = game || view === 'games' ? 'games' : view === 'livetv' ? 'player' : 'navigation';
+    try {
+      startTimer('view', event, category, game ? { game, view } : { view });
+    } catch { void 0; }
+    return () => { try { stopTimer('view'); } catch { void 0; } };
+  }, [currentView]);
+
   // Track screen views for analytics
   useEffect(() => {
     try { trackScreenView(currentView || 'home'); } catch { void 0; }
@@ -698,6 +714,19 @@ const Index = () => {
 
   useEffect(() => { isInPopupRef.current = isInPopup; }, [isInPopup]);
   useEffect(() => { isInMediaBarRef.current = isInMediaBar; }, [isInMediaBar]);
+
+  // The content bar: did anyone go into it, and for how long. The session
+  // flag is read again when the Player opens, which answers the real
+  // question — do people browse the bar, or walk straight past it.
+  useEffect(() => {
+    if (!isInMediaBar) return;
+    try {
+      markSessionFlag('content_bar');
+      trackEvent('content_bar_open', 'navigation', {});
+      startTimer('content_bar', 'content_bar_dwell', 'navigation', {});
+    } catch { void 0; }
+    return () => { try { stopTimer('content_bar'); } catch { void 0; } };
+  }, [isInMediaBar]);
   useEffect(() => { showEasterEggRef.current = showEasterEgg; }, [showEasterEgg]);
   useEffect(() => { mediaBarEnabledRef.current = mediaBarEnabled; }, [mediaBarEnabled]);
   useEffect(() => { playerEnabledRef.current = playerEnabled; }, [playerEnabled]);

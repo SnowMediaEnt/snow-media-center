@@ -5,7 +5,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { App as CapApp } from '@capacitor/app';
 import { toast } from '@/hooks/use-toast';
 import { setPausableInterval } from '@/utils/pausableInterval';
-import { trackAppLaunch } from '@/lib/analytics';
+import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { onFirstInteraction, runWhenIdle } from '@/utils/idle';
 import {
   Dialog,
@@ -198,6 +198,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   const handleClick = (item: MediaItem) => {
     // Demo: browsing is real, but nothing may navigate or deep-link out.
     if (DEMO) { setDemoNotice(true); return; }
+    // What the content bar is actually used for, against how often it is
+    // merely opened.
+    try {
+      trackEvent('content_bar_item', 'navigation', {
+        source: item.source ?? null,
+        kind: item.kind ?? null,
+        title: item.title ?? null,
+      });
+    } catch { /* ignore */ }
     if (item.source === 'sports') {
       setLiveDialog(item);
       return;

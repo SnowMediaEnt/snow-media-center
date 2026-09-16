@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { supabase } from '@/integrations/supabase/client';
+import { trackEvent } from '@/lib/analytics';
 
 export type GameSocketStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'reconnecting';
 
@@ -173,13 +174,42 @@ class GameSocketManager {
           this.balance = resp.balance;
           this.emitChange();
         }
+        try {
+          if (resp?.ok === true) {
+            trackEvent('daily_spin_claim', 'games', {
+              coins: Number(resp?.award ?? resp?.amount ?? resp?.win ?? 0) || null,
+              balance_after: typeof this.balance === 'number' ? this.balance : null,
+            });
+          }
+        } catch { /* ignore */ }
         resolve(resp);
       });
     });
   }
 
+  /**
+   * Every chip a player puts down, by game. This is the only place all six
+   * games meet, so counting here answers "are the coins being used, and how
+   * many a day" without touching a single game screen. The wager is what was
+   * asked for; the balance the server sends back rides along so a day's
+   * events also show where people ended up.
+   */
+  private noteWager(game: string, coins: number, extra?: Record<string, unknown>) {
+    try {
+      if (!Number.isFinite(coins) || coins <= 0) return;
+      trackEvent('game_wager', 'games', {
+        game,
+        coins: Math.round(coins),
+        balance_after: typeof this.balance === 'number' ? this.balance : null,
+        ...(extra ?? {}),
+      });
+    } catch { /* analytics must never break a hand */ }
+  }
+
   async spinSlots(bet: number, clientSeed?: string): Promise<any> {
-    return this.emitWithAck('slots_spin', { bet, clientSeed: clientSeed ?? null });
+    const res = await this.emitWithAck('slots_spin', { bet, clientSeed: clientSeed ?? null });
+    this.noteWager('slots', bet);
+    return res;
   }
 
   private async emitWithAck(event: string, payload: any, timeoutMs = 20000): Promise<any> {
@@ -210,32 +240,54 @@ class GameSocketManager {
   }
 
   async dealBlackjack(bet: number, clientSeed?: string): Promise<any> {
-    return this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null });
+    const res = await this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null });
+    this.noteWager('blackjack', bet);
+    return res;
   }
   async hit(): Promise<any> { return this.emitWithAck('bj_hit', undefined); }
   async stand(): Promise<any> { return this.emitWithAck('bj_stand', undefined); }
-  async double(): Promise<any> { return this.emitWithAck('bj_double', undefined); }
+  async double(): Promise<any> {
+    const res = await this.emitWithAck('bj_double', undefined);
+    // A double puts the same stake down again; the server echoes the hand's
+    // bet, so use it when it is there.
+    this.noteWager('blackjack', Number(res?.bet ?? res?.hand?.bet ?? 0), { action: 'double' });
+    return res;
+  }
 
   async dealVideoPoker(bet: number, clientSeed?: string): Promise<any> {
-    return this.emitWithAck('vp_deal', { bet, clientSeed: clientSeed ?? null });
+    const res = await this.emitWithAck('vp_deal', { bet, clientSeed: clientSeed ?? null });
+    this.noteWager('video-poker', bet);
+    return res;
   }
   async drawVideoPoker(holds: boolean[]): Promise<any> {
     return this.emitWithAck('vp_draw', { holds });
   }
 
   async spinRoulette(payload: { bets: any[]; wheel: 'european' | 'american'; clientSeed?: string | null }): Promise<any> {
-    return this.emitWithAck('roulette_spin', {
+    const res = await this.emitWithAck('roulette_spin', {
       bets: payload.bets,
       wheel: payload.wheel,
       clientSeed: payload.clientSeed ?? null,
     });
+    // One spin can carry many bets; the table's total is what left the balance.
+    const total = (payload.bets ?? []).reduce<number>(
+      (sum, b) => sum + (Number(b?.amount ?? b?.bet ?? 0) || 0), 0,
+    );
+    this.noteWager('roulette', total, { wheel: payload.wheel, bets: (payload.bets ?? []).length });
+    return res;
   }
 
   async dealCasinoHoldem(ante: number, clientSeed?: string): Promise<any> {
-    return this.emitWithAck('ch_deal', { ante, clientSeed: clientSeed ?? null });
+    const res = await this.emitWithAck('ch_deal', { ante, clientSeed: clientSeed ?? null });
+    this.noteWager('casino-holdem', ante, { action: 'ante' });
+    return res;
   }
   async callCasinoHoldem(multiplier: number = 2): Promise<any> {
-    return this.emitWithAck('ch_call', { multiplier });
+    const res = await this.emitWithAck('ch_call', { multiplier });
+    // The call costs the ante times the multiplier; the server echoes both.
+    const ante = Number(res?.ante ?? res?.hand?.ante ?? 0) || 0;
+    this.noteWager('casino-holdem', ante * multiplier, { action: 'call', multiplier });
+    return res;
   }
   async foldCasinoHoldem(): Promise<any> {
     return this.emitWithAck('ch_fold', {});

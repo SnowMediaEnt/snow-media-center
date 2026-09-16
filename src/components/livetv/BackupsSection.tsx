@@ -9,7 +9,7 @@ import { useBackupStreams, type BackupStream } from '@/hooks/useBackupStreams';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { loadVolume, saveVolume } from '@/lib/xtream';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -101,6 +101,17 @@ const BackupsSection = memo(({ isActive, onExitLeft, onExitUp, serverLabel }: Pr
       try { trackEvent('backup_play', 'player', { kind: item.kind, title: item.title, server: serverLabelRef.current ?? null }); } catch { /* ignore */ }
     }
   }, []);
+
+  // How long a backup stream is watched.
+  useEffect(() => {
+    if (DEMO || !playing) return;
+    try {
+      startTimer('watch', 'backup_watch', 'player', {
+        kind: playing.kind, title: playing.title,
+      });
+    } catch { /* ignore */ }
+    return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
+  }, [playing]);
 
   const doRefresh = useCallback(() => {
     refreshRef.current();

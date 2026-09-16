@@ -63,7 +63,7 @@ const getPlexLibraries = DEMO ? demoGetLibraries : _getPlexLibraries;
 const getPlexLibraryItems = DEMO ? demoGetLibraryItems : _getPlexLibraryItems;
 const getPlexHub = DEMO ? demoGetHub : _getPlexHub;
 const searchPlex = DEMO ? demoSearchPlex : _searchPlex;
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isProviderServer } from '@/lib/plexProvider';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
@@ -680,6 +680,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [playing, setPlaying] = useState<PlexItem | null>(null);
   const [playingTitle, setPlayingTitle] = useState('');
   const [playingResLabel, setPlayingResLabel] = useState('');
+
+  // How long people actually watch in Movies & Series, per title. The play
+  // counts alone never showed whether anyone stayed past the first minute.
+  useEffect(() => {
+    if (DEMO || !playing) return;
+    try {
+      startTimer('watch', 'plex_watch', 'player', {
+        title: playingTitle || playing.title,
+        type: playing.type ?? 'movie',
+      });
+    } catch { /* ignore */ }
+    return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
+  }, [playing, playingTitle]);
   const [fullscreen, setFullscreen] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [useTranscode, setUseTranscode] = useState(false);

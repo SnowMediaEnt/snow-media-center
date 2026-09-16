@@ -24,7 +24,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { useVersion } from '@/hooks/useVersion';
 import { clearPlexToken } from '@/lib/plex';
 import { isClaimDismissed, isClaimDone, markClaimDismissed } from '@/lib/accountClaim';
-import { trackEvent, trackAlertShown } from '@/lib/analytics';
+import { trackEvent, trackAlertShown, startTimer, stopTimer, hasSessionFlag } from '@/lib/analytics';
 import PlayerServerAlertDialog from './livetv/PlayerServerAlertDialog';
 import PlayerModeChooser from './livetv/PlayerModeChooser';
 import ExpirationNoticeDialog from './livetv/ExpirationNoticeDialog';
@@ -85,6 +85,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const serverLabel = creds?.serverLabel ?? SERVERS.find(s => s.host === creds?.host)?.label ?? null;
   // Demo: never query server-targeted alerts for the canned demo account.
   const { alert: serverAlert, dismiss: dismissServerAlert } = usePlayerServerAlert(DEMO ? null : serverLabel);
+  // Read by the enterMode callbacks, which must not take serverLabel as a
+  // dependency (they are handed to memoised children).
+  const serverLabelRef = useRef(serverLabel);
+  useEffect(() => { serverLabelRef.current = serverLabel; }, [serverLabel]);
   const serverAlertOpenRef = useRef(false);
   useEffect(() => { serverAlertOpenRef.current = !!serverAlert; }, [serverAlert]);
   // Same treatment for the expiry notice — see the keydown handler.
@@ -262,14 +266,14 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       setMode('live');
       setSection('backups');
       setPane('content');
-      if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: 'backups' }); } catch { /* ignore */ } }
+      if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: 'backups', service: serverLabelRef.current }); } catch { /* ignore */ } }
       return;
     }
     setMode(m);
     setSection(m === 'live' ? 'live' : 'plex');
     setSectionIdx(0);
     setPane('sections');
-    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m }); } catch { /* ignore */ } }
+    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: m, service: serverLabelRef.current }); } catch { /* ignore */ } }
   }, []);
   const leaveMode = useCallback(() => {
     setMode('choose');
@@ -282,8 +286,17 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     if (!credsLoaded || playerOpenRef.current) return;
     playerOpenRef.current = true;
-    if (!DEMO) { try { trackEvent('player_open', 'player', { has_creds: !!creds }); } catch { /* ignore */ } }
-  }, [credsLoaded, creds]);
+    if (!DEMO) {
+      try {
+        trackEvent('player_open', 'player', {
+          has_creds: !!creds,
+          service: serverLabel,
+          // Did they browse the content bar this run, or come straight here?
+          content_bar_used: hasSessionFlag('content_bar'),
+        });
+      } catch { /* ignore */ }
+    }
+  }, [credsLoaded, creds, serverLabel]);
 
   // mode_enter — also fire when the user changes SECTION inside a mode
   // (e.g. Live TV → Guide, or Movies & Series → Plex/Movies/Series).
@@ -292,8 +305,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (mode === 'choose') { lastSectionRef.current = null; return; }
     if (lastSectionRef.current === section) return;
     lastSectionRef.current = section;
-    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: section }); } catch { /* ignore */ } }
-  }, [section, mode]);
+    if (!DEMO) { try { trackEvent('mode_enter', 'player', { mode: section, service: serverLabel }); } catch { /* ignore */ } }
+  }, [section, mode, serverLabel]);
+
+  // Time spent in each part of the Player — Live TV, Movies & Series, the
+  // Guide, Multi-Screen, Backups — one timer restarted on every move, closed
+  // on the way out. The mode chooser itself is not a place anyone stays, so
+  // it is not timed.
+  useEffect(() => {
+    if (DEMO || mode === 'choose') return;
+    try { startTimer('player_section', 'mode_dwell', 'player', { mode: section, service: serverLabel }); } catch { /* ignore */ }
+    return () => { try { stopTimer('player_section'); } catch { /* ignore */ } };
+  }, [section, mode, serverLabel]);
 
 
   // Content-Bar deep-link: land straight in Movies & Series (PlexSection

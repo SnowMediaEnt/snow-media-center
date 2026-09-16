@@ -24,7 +24,7 @@ import {
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import SnowLoader from '@/components/SnowLoader';
@@ -197,6 +197,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
       .finally(() => { if (!cancelled) setAllMoviesLoading(false); });
     return () => { cancelled = true; };
   }, [searchOpen, allMovies, allMoviesLoading, creds, noteCounts]);
+
+  // How long a film is watched, on top of the movie_play count.
+  useEffect(() => {
+    if (DEMO || !playing) return;
+    try { startTimer('watch', 'movie_watch', 'player', { title: playing.title }); } catch { /* ignore */ }
+    return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
+  }, [playing]);
 
   const visibleMovies = useMemo(() => {
     if (searchOpen) {

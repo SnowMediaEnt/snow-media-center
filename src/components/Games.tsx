@@ -16,6 +16,7 @@ import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from 'react-i18next';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { trackEvent } from '@/lib/analytics';
 
 interface GamesProps {
   onBack: () => void;
@@ -61,9 +62,23 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
   // Focusable items: back (0), then GAMES.length game cards (1..)
   const totalFocusable = 1 + GAMES.length;
 
+  // Who reaches the games at all, and whether they have chips to play with.
+  // Time spent per game is timed centrally, keyed on the open game's view.
+  useEffect(() => {
+    try {
+      trackEvent('games_open', 'games', {
+        signed_in: !!user,
+        has_balance: typeof balance === 'number' ? balance > 0 : null,
+      });
+    } catch { /* ignore */ }
+    // Once per visit: the balance arriving later must not re-fire it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openCard = (card: GameCard) => {
     if (!card.playable) return;
     const view = VIEW_BY_ID[card.id];
+    try { trackEvent('game_open', 'games', { game: card.id, playable: card.playable }); } catch { /* ignore */ }
     if (view) onOpenGame(view);
   };
 

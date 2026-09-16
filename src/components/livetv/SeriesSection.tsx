@@ -25,7 +25,7 @@ import {
 } from '@/lib/catalogCounts';
 import PosterCard from './PosterCard';
 import { isFireTV } from '@/utils/platform';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import SnowLoader from '@/components/SnowLoader';
@@ -133,6 +133,17 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp }: Props) =>
     })();
     return () => { cancelled = true; };
   }, [creds, refreshTick]);
+
+  // How long an episode is watched, on top of the series_play count.
+  useEffect(() => {
+    if (DEMO || !playing) return;
+    try {
+      startTimer('watch', 'series_watch', 'player', {
+        series: playing.title, episode_index: playing.episodeIdx,
+      });
+    } catch { /* ignore */ }
+    return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
+  }, [playing]);
 
   const visibleCategories = useMemo(() => {
     const base: { id: string; name: string; count?: number }[] = [

@@ -272,15 +272,20 @@ export const initAnalytics = () => {
 
       scheduleFlush();
 
+      // Anything that was being timed when the app last died.
+      recoverTimers();
+
       // Flush on hide / unload
       safe(() => {
         window.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "hidden") {
+            stopAllTimers("app_hidden");
             void flush();
             endSession();
           }
         });
         window.addEventListener("pagehide", () => {
+          stopAllTimers("app_closed");
           void flush();
           endSession();
         });
@@ -316,6 +321,158 @@ export const initAnalytics = () => {
     setTimeout(boot, 0);
   }
 };
+
+/* ---------------------------------------------------------------------------
+ * Dwell and watch timers
+ *
+ * "How long were they in there" questions (time in the Player, time on a
+ * game, time watching one channel or one film) need a start and an end, and
+ * on a TV box the end is often the power button. So every open timer is
+ * persisted with a heartbeat: if the app dies mid-watch, the next launch
+ * reports what it knows, marked `recovered`, instead of losing the session.
+ *
+ * Keys are caller-chosen and unique per thing being timed ("player",
+ * "watch:live", "game:slots"). Starting a key that is already open closes the
+ * old one first, so a channel change or a new film reports the previous one.
+ * ------------------------------------------------------------------------- */
+
+type OpenTimer = {
+  event: string;
+  category: string;
+  props: Record<string, unknown>;
+  startedAt: number;
+  beatAt: number;
+};
+
+const TIMERS_KEY = "smc_analytics_timers";
+const BEAT_MS = 30_000;
+/** Anything longer than this is a box left on, not a person watching. */
+const MAX_TIMER_SECONDS = 12 * 60 * 60;
+
+const timers: Record<string, OpenTimer> = {};
+let beatTimer: ReturnType<typeof setInterval> | null = null;
+
+const persistTimers = () => {
+  safe(() => {
+    if (Object.keys(timers).length === 0) localStorage.removeItem(TIMERS_KEY);
+    else localStorage.setItem(TIMERS_KEY, JSON.stringify(timers));
+  });
+};
+
+const scheduleBeat = () => {
+  if (beatTimer) return;
+  beatTimer = setInterval(() => {
+    safe(() => {
+      const now = Date.now();
+      let dirty = false;
+      for (const key of Object.keys(timers)) {
+        timers[key].beatAt = now;
+        dirty = true;
+      }
+      if (dirty) persistTimers();
+      else if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
+    });
+  }, BEAT_MS);
+};
+
+const emitTimer = (
+  timer: OpenTimer,
+  endedAt: number,
+  extra?: Record<string, unknown>,
+) => {
+  const seconds = Math.max(0, Math.round((endedAt - timer.startedAt) / 1000));
+  if (seconds > MAX_TIMER_SECONDS) return seconds;
+  trackEvent(timer.event, timer.category, {
+    ...timer.props,
+    ...(extra ?? {}),
+    duration_seconds: seconds,
+    duration_minutes: Math.round((seconds / 60) * 10) / 10,
+  });
+  return seconds;
+};
+
+/** Reports any timer left open by a crash, a kill or the power button. */
+const recoverTimers = () => {
+  safe(() => {
+    const raw = localStorage.getItem(TIMERS_KEY);
+    localStorage.removeItem(TIMERS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as Record<string, OpenTimer>;
+    for (const timer of Object.values(saved ?? {})) {
+      if (!timer?.event || !timer.startedAt) continue;
+      // The last heartbeat is the last moment we know the app was alive.
+      emitTimer(timer, timer.beatAt || timer.startedAt, { recovered: true });
+    }
+  });
+};
+
+/**
+ * Starts timing something. Call the matching stopTimer when it ends; a start
+ * on the same key, or an app that never comes back, closes it too.
+ */
+export const startTimer = (
+  key: string,
+  event: string,
+  category = "engagement",
+  properties?: Record<string, unknown>,
+) => {
+  if (DEMO) return;
+  safe(() => {
+    if (timers[key]) stopTimer(key);
+    const now = Date.now();
+    timers[key] = {
+      event,
+      category,
+      props: properties ?? {},
+      startedAt: now,
+      beatAt: now,
+    };
+    persistTimers();
+    scheduleBeat();
+  });
+};
+
+/** Ends a timer and records how long it ran. Returns the seconds, or null. */
+export const stopTimer = (
+  key: string,
+  extraProperties?: Record<string, unknown>,
+): number | null => {
+  if (DEMO) return null;
+  let seconds: number | null = null;
+  safe(() => {
+    const timer = timers[key];
+    if (!timer) return;
+    delete timers[key];
+    persistTimers();
+    seconds = emitTimer(timer, Date.now(), extraProperties);
+  });
+  return seconds;
+};
+
+/** True while `key` is being timed. */
+export const isTimerOpen = (key: string): boolean => !!timers[key];
+
+/** Ends every open timer — used when the app goes to the background. */
+const stopAllTimers = (reason: string) => {
+  for (const key of Object.keys(timers)) stopTimer(key, { ended_by: reason });
+};
+
+/* ---------------------------------------------------------------------------
+ * Session flags
+ *
+ * One-bit facts about this run of the app that another event wants to carry.
+ * "Did they open the content bar before going into the Player" is answered by
+ * reading the flag when player_open fires, instead of joining two event
+ * streams later.
+ * ------------------------------------------------------------------------- */
+
+const sessionFlags = new Set<string>();
+
+export const markSessionFlag = (name: string) => {
+  safe(() => sessionFlags.add(name));
+};
+
+export const hasSessionFlag = (name: string): boolean => sessionFlags.has(name);
 
 /** Convenience helpers used throughout the UI. All silent. */
 export const trackScreenView = (screen: string) =>

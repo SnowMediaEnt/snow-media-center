@@ -33,7 +33,7 @@ import { runWhenIdle } from '@/utils/idle';
 import { isQuietRequested } from '@/utils/quietMode';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { isFireTV } from '@/utils/platform';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import ChannelRow from './ChannelRow';
 import PlayerControlBar, { type BarControlId } from './PlayerControlBar';
 import BufferingDiagnostics from './BufferingDiagnostics';
@@ -645,6 +645,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [playingChannelId, creds]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
+  // What is on screen right now, for the watch timer below.
+  const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const playChannel = useCallback((stream: XtreamLiveStream) => {
     setPlayingChannelId(stream.stream_id);
     setFullscreen(true);
@@ -658,6 +660,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         lastPlayRef.current = { id: stream.stream_id, ts: now };
         const catName = visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
           ?? currentCat?.name ?? '';
+        watchingRef.current = { channel: stream.name, category: catName };
         trackEvent('channel_play', 'player', {
           channel: stream.name,
           category: catName,
@@ -666,6 +669,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
     } catch { /* ignore */ }
   }, [visibleCategories, currentCat, creds.serverLabel]);
+
+  // How long one channel is actually watched, and on which service. Starts
+  // when a channel goes live and closes when it stops, changes or the viewer
+  // leaves; a box switched off mid-stream still reports on the next launch.
+  useEffect(() => {
+    if (DEMO || !playingChannelId) return;
+    try {
+      startTimer('watch', 'channel_watch', 'player', {
+        channel: watchingRef.current?.channel ?? null,
+        category: watchingRef.current?.category ?? null,
+        service: creds.serverLabel ?? null,
+      });
+    } catch { /* ignore */ }
+    return () => { try { stopTimer('watch'); } catch { /* ignore */ } };
+  }, [playingChannelId, creds.serverLabel]);
 
 
   // Native ExoPlayer wiring — only active on native builds while fullscreen.

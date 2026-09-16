@@ -10,6 +10,7 @@ import { BTN, CARD, SCREEN } from '@/components/billing/shared';
 import { focusAttrs, scaleIf, useFocusRecovery } from '@/components/billing/shared';
 import WaitScreen from '@/components/billing/WaitScreen';
 import { readPending, clearPending, type VibezPending } from './pending';
+import { trackEvent, startTimer, stopTimer } from '@/lib/analytics';
 import VibezPlanGrid from './VibezPlanGrid';
 import VibezHandoff from './VibezHandoff';
 import VibezSignInScreen from './VibezSignInScreen';
@@ -67,6 +68,27 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
   const [resumed, setResumed] = useState<VibezPending | null>(null);
   const resolvedRef = useRef(false);
 
+  // Sign-up funnel. Every step that a viewer can choose is recorded, so the
+  // drop-off between "get started", trial or buy, and a line that actually
+  // exists is readable without guessing.
+  useEffect(() => {
+    try {
+      trackEvent('signup_open', 'signup', {});
+      startTimer('signup', 'signup_dwell', 'signup', {});
+    } catch { /* ignore */ }
+    return () => { try { stopTimer('signup'); } catch { /* ignore */ } };
+  }, []);
+
+  const finish = useCallback((creds: XtreamCreds) => {
+    try {
+      trackEvent('signup_complete', 'signup', {
+        service: creds.serverLabel ?? null,
+        host: creds.host ?? null,
+      });
+    } catch { /* ignore */ }
+    onDone(creds);
+  }, [onDone]);
+
   useEffect(() => {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
@@ -85,6 +107,11 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
 
       // Someone who was already sent off to pay comes straight back to the
       // step that finishes the job.
+      try {
+        trackEvent('signup_offers', 'signup', {
+          dreamstreams: ds, vibez: haveVibez, resumed: !!pending,
+        });
+      } catch { /* ignore */ }
       if (pending && haveVibez) { setResumed(pending); setStep('signin'); return; }
       if (ds && haveVibez) { setStep('choose'); return; }
       if (ds) { setStep('ds-choose'); return; }
@@ -94,7 +121,10 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
     return () => { cancelled = true; };
   }, [vibezEnabled]);
 
-  const pickVibez = useCallback((link: SignupLink) => { setPicked(link); setStep('handoff'); }, []);
+  const pickVibez = useCallback((link: SignupLink) => {
+    try { trackEvent('signup_vibez_plan', 'signup', { plan: link.label ?? null }); } catch { /* ignore */ }
+    setPicked(link); setStep('handoff');
+  }, []);
 
   if (step === 'resolve') return <WaitScreen title="One moment…" onBack={onCancel} />;
 
@@ -113,8 +143,14 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
   if (step === 'ds-choose') {
     return (
       <DsChooser
-        onTrial={() => { setDsMode('trial'); setStep('dreamstreams'); }}
-        onBuy={() => { setDsMode('plans'); setStep('dreamstreams'); }}
+        onTrial={() => {
+          try { trackEvent('signup_trial_click', 'signup', { service: 'DreamStreams' }); } catch { /* ignore */ }
+          setDsMode('trial'); setStep('dreamstreams');
+        }}
+        onBuy={() => {
+          try { trackEvent('signup_paid_click', 'signup', { service: 'DreamStreams' }); } catch { /* ignore */ }
+          setDsMode('plans'); setStep('dreamstreams');
+        }}
         onBack={() => (canChoose ? setStep('choose') : onCancel())}
       />
     );
@@ -123,7 +159,7 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
   if (step === 'dreamstreams') {
     return (
       <Suspense fallback={fallback}>
-        <TrialFlow startAt={dsMode} onDone={onDone} onCancel={() => setStep('ds-choose')} />
+        <TrialFlow startAt={dsMode} onDone={finish} onCancel={() => setStep('ds-choose')} />
       </Suspense>
     );
   }
@@ -145,7 +181,7 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
   if (step === 'signin') {
     return (
       <VibezSignInScreen
-        onDone={onDone}
+        onDone={finish}
         onBack={() => {
           if (resumed) { setResumed(null); }
           if (picked) { setStep('handoff'); return; }
@@ -156,7 +192,19 @@ const GetStartedFlow = memo(({ vibezEnabled, onDone, onCancel }: Props) => {
     );
   }
 
-  return <Chooser onDreamstreams={() => setStep('ds-choose')} onVibez={() => setStep('plans')} onBack={onCancel} />;
+  return (
+    <Chooser
+      onDreamstreams={() => {
+        try { trackEvent('signup_service', 'signup', { service: 'DreamStreams' }); } catch { /* ignore */ }
+        setStep('ds-choose');
+      }}
+      onVibez={() => {
+        try { trackEvent('signup_service', 'signup', { service: 'VibezTV' }); } catch { /* ignore */ }
+        setStep('plans');
+      }}
+      onBack={onCancel}
+    />
+  );
 });
 
 GetStartedFlow.displayName = 'GetStartedFlow';
