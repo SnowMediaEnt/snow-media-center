@@ -22,7 +22,7 @@ interface BlackjackProps {
   onBack: () => void;
 }
 
-const BETS = [...TV_BETS];
+const BETS: number[] = [...TV_BETS];
 const BET_STORAGE_KEY = 'snow-blackjack-bet-v1';
 
 type Phase = 'bet' | 'playing' | 'settled';
