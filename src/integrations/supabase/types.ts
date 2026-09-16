@@ -528,60 +528,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ai_premium_trials: {
-        Row: {
-          feature: string
-          used_at: string
-          user_id: string
-        }
-        Insert: {
-          feature: string
-          used_at?: string
-          user_id: string
-        }
-        Update: {
-          feature?: string
-          used_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      ai_tiers: {
-        Row: {
-          blurb: string | null
-          enabled: boolean
-          feature: string
-          gems: number
-          label: string
-          model: string
-          sort: number
-          tier: string
-          updated_at: string
-        }
-        Insert: {
-          blurb?: string | null
-          enabled?: boolean
-          feature: string
-          gems?: number
-          label: string
-          model: string
-          sort?: number
-          tier: string
-          updated_at?: string
-        }
-        Update: {
-          blurb?: string | null
-          enabled?: boolean
-          feature?: string
-          gems?: number
-          label?: string
-          model?: string
-          sort?: number
-          tier?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       ai_usage_log: {
         Row: {
           completion_tokens: number
