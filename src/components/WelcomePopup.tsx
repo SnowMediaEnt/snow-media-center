@@ -11,12 +11,6 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
-  '1.7.3': [
-    '⌨️ Player sign-in: Next, Done or Enter on the keyboard — and Play on the remote — move to the next box and on to Sign In',
-    '🟡 Support and Device Cleaner: a bright gold highlight on every button, row-by-row movement, no more jolting lists',
-    '🏠 Home: the Dashboard button\'s highlight is gold now, not black',
-    '🔥 Device Cleaner on Fire TV: no Accessibility switch needed — leftover files and background apps clear in one press, app caches open on Fire TV\'s own app page',
-  ],
   '1.7.2': [
     '🎬 Movies & Series: the Player\'s Plex + VOD card, renamed so it says what it is',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
@@ -28,6 +22,10 @@ const CHANGELOG: Record<string, string[]> = {
     '👤 TV trials and purchases create your customer record and website account on their own',
     '📧 Your login email now arrives after a trial or purchase',
     '📺 Plex connects for any active Live TV line — nothing to add on file first',
+    '⌨️ Player sign-in: Next, Done or Enter on the keyboard — and Play on the remote — move to the next box and on to Sign In',
+    '🟡 Support and Device Cleaner: a bright gold highlight on every button, row-by-row movement, no more jolting lists',
+    '🏠 Home: the Dashboard button\'s highlight is gold now, not black',
+    '🔥 Device Cleaner on Fire TV: no Accessibility switch needed — leftover files and background apps clear in one press, app caches open on Fire TV\'s own app page',
   ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',
