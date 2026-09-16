@@ -15,7 +15,7 @@ export const isReducedGameFx = (): boolean => {
 };
 
 /**
- * Persisted Reduced FX preference, shared by the hub and all six games.
+ * Persisted Reduced FX preference, shared by the hub and every game.
  * The effective value is mirrored onto <html data-game-fx> so CSS and plain
  * JS animation code can consult the same switch.
  */

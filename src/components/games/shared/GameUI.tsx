@@ -21,6 +21,7 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
   backLabel: string;
   balance: number | null;
   status?: string;
+  showBalance?: boolean;
   title?: string;
   phase?: string;
   backFocused?: boolean;
@@ -31,11 +32,11 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
   fxRef?: React.Ref<HTMLButtonElement>;
   fxFocused?: boolean;
   onFxFocus?: () => void;
-}>(({ onBack, backLabel, balance, status, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx, fxRef, fxFocused, onFxFocus }, ref) => {
+}>(({ onBack, backLabel, balance, status, showBalance = true, title, phase, backFocused, onBackFocus, reducedFx, onToggleFx, fxRef, fxFocused, onFxFocus }, ref) => {
   const { t } = useTranslation();
   return (
     <header className="snow-game-topbar">
-      <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} className="snow-game-back" />
+      <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} data-tv-focused={backFocused ? 'true' : 'false'} className="snow-game-back" />
       {phase && <div className="snow-game-heading"><span>{title ? `${title} · ${phase}` : phase}</span></div>}
       <div className="snow-game-topbar__right">
         {onToggleFx && (
@@ -53,10 +54,12 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
             <Sparkles /> {reducedFx ? t('games.shared.fxLow') : t('games.shared.fxFull')}
           </Button>
         )}
-        <div className="snow-chip-badge" aria-label={t('games.shared.balanceAria')}>
-          {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
-          <span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
-        </div>
+        {showBalance && (
+          <div className="snow-chip-badge" aria-label={t('games.shared.balanceAria')}>
+            {status === 'error' || status === 'reconnecting' ? <WifiOff /> : status === 'connecting' ? <Loader2 className="animate-spin" /> : <Coins />}
+            <span><small>{t('games.shared.playChips')}</small><strong>{balance === null ? '—' : balance.toLocaleString()}</strong></span>
+          </div>
+        )}
       </div>
     </header>
   );

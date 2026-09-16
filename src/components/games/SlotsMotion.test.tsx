@@ -107,6 +107,27 @@ describe('Slots reel motion', () => {
     expectLanded();
   }, 15000);
 
+  it('preserves the settled reel position when the TV resolution changes', async () => {
+    const originalHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 720 });
+    try {
+      spinSlots.mockResolvedValue(ack());
+      render(<Slots onBack={() => {}} />);
+      fireEvent.click(spinButton());
+      await waitForLanding();
+      const before = travel(0);
+      expect(before).toBeGreaterThan(0);
+
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1080 });
+      fireEvent(window, new Event('resize'));
+      await waitFor(() => expect(travel(0)).toBeGreaterThan(before * 1.9));
+      expect(travel(0)).toBeLessThan(before * 2.1);
+      expectLanded();
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
+    }
+  }, 15000);
+
   it('lights only reels 0..N-1 for a three-of-a-kind win', async () => {
     spinSlots.mockResolvedValue(ack({
       totalPayout: 120,

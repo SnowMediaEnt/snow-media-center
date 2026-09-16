@@ -81,6 +81,37 @@ describe('terminal round reconciliation', () => {
     await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
   });
 
+  it('Blackjack transfers real and visual focus to Play Again after the dealer reveal', async () => {
+    dealBlackjack.mockResolvedValue({
+      ok: true,
+      status: 'win',
+      bet: 10,
+      playerHand: [{ rank: 'K', suit: 'S' }, { rank: 'Q', suit: 'H' }],
+      dealerHand: [{ rank: '9', suit: 'C' }, { rank: '8', suit: 'D' }],
+      playerTotal: 20,
+      dealerTotal: 17,
+      net: 10,
+    });
+    render(<Blackjack onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ }));
+
+    const again = await waitFor(
+      () => {
+        const button = screen.getByRole('button', { name: /games\.blackjack\.playAgain/ });
+        expect(button.getAttribute('aria-disabled')).toBeNull();
+        expect(button.dataset.tvFocused).toBe('true');
+        expect(document.activeElement).toBe(button);
+        return button;
+      },
+      { timeout: 1500 },
+    );
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+    fireEvent.keyUp(window, { key: 'Enter' });
+    await waitFor(() => expect(again.isConnected).toBe(false));
+    expect(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ })).not.toBeNull();
+  });
+
   it("Hold'em treats a transport failure as unknown and keeps the hand", async () => {
     const onBack = vi.fn();
     dealCasinoHoldem.mockResolvedValue(holdemDealAck);

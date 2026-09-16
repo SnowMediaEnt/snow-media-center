@@ -12,8 +12,9 @@ import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
+import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import '@/styles/games-machines.css';
 
 interface VideoPokerProps {
   onBack: () => void;
@@ -191,8 +192,16 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
             if (payoutRef.current) {
               payoutRef.current.textContent = t('games.videoPoker.payoutChips', { amount: value.toLocaleString() });
             }
-            if (p < 1 && !life.isHidden()) life.raf(tick);
-            else life.timeout(() => setCelebrate(false), reducedFx ? 600 : 1200);
+            if (p < 1 && !life.isHidden()) {
+              life.raf(tick);
+            } else {
+              // If Android backgrounds the WebView during the count-up, land
+              // on the authoritative payout before retiring the animation.
+              if (payoutRef.current) {
+                payoutRef.current.textContent = t('games.videoPoker.payoutChips', { amount: target.toLocaleString() });
+              }
+              life.timeout(() => setCelebrate(false), reducedFx ? 600 : 1200);
+            }
           };
           life.raf(tick);
         }
@@ -266,7 +275,7 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
-      const dir = arrowDir(e);
+      const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
       const gotoBets = () => {
@@ -288,7 +297,10 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       } else if (zone === 'bet') {
         const pos = usableBets.indexOf(betIdx);
         if (dir === 'left') { if (pos > 0) setBetIdx(usableBets[pos - 1]); else setZone('back'); }
-        else if (dir === 'right') { if (pos >= 0 && pos < usableBets.length - 1) setBetIdx(usableBets[pos + 1]); }
+        else if (dir === 'right') {
+          if (pos >= 0 && pos < usableBets.length - 1) setBetIdx(usableBets[pos + 1]);
+          else if (primaryUsable) setZone('primary');
+        }
         else if (dir === 'down') belowBets();
         else setZone('back');
       } else if (zone === 'card') {
@@ -331,15 +343,15 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
   );
 
   return (
-    <GameShell accent="sapphire">
+    <GameShell accent="sapphire" className="snow-machine-game snow-video-poker-game">
       <GameTopBar
         ref={backRef}
         onBack={requestBack}
         backLabel={t('games.videoPoker.back')}
         balance={balance}
         status={status}
-        title={t('games.videoPoker.title')}
-        phase={t('games.videoPoker.subtitle')}
+        title={t('games.videoPoker.gameTag')}
+        phase={t('games.videoPoker.title')}
         backFocused={zone === 'back'}
         onBackFocus={() => setZone('back')}
         reducedFx={reducedFx}
@@ -349,97 +361,122 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
         onFxFocus={() => setZone('fx')}
       />
 
-      <div className="snow-vp-console">
-        <div className="snow-vp-hand">
-          {[0, 1, 2, 3, 4].map((i) => {
-            const card = hand[i];
-            return (
-              <button
-                key={i}
-                ref={(el) => { cardRefs.current[i] = el; }}
-                type="button"
-                className="snow-vp-slot"
-                onFocus={() => { setZone('card'); setCardIdx(i); }}
-                onClick={() => toggleHold(i)}
-                aria-disabled={phase !== 'dealt' ? 'true' : undefined}
-                data-tv-focused={zone === 'card' && cardIdx === i ? 'true' : 'false'}
-                aria-label={holds[i]
-                  ? t('games.videoPoker.cardAriaLabelHeld', { number: i + 1 })
-                  : t('games.videoPoker.cardAriaLabel', { number: i + 1 })}
-              >
-                {phase === 'dealt' && (
-                  <span className={`snow-vp-hold${holds[i] ? '' : ' is-off'}`}>{t('games.videoPoker.hold')}</span>
-                )}
-                {card
-                  ? <PlayingCard card={card} delay={i * 80} held={holds[i]} focused={zone === 'card' && cardIdx === i} />
-                  : <PlayingCardSlot />}
-              </button>
-            );
-          })}
-        </div>
-
-        {phase === 'settled' && resultRank && (
-          <div className="relative mt-2 flex flex-col items-center">
-            <ResultBanner
-              tone={resultWin ? 'win' : 'lose'}
-              title={resultWin ? (HAND_KEY[resultRank] ? t(HAND_KEY[resultRank]) : resultRank) : t('games.videoPoker.noWin')}
-            >
-              {resultWin
-                ? <div ref={payoutRef}>{t('games.videoPoker.payoutChips', { amount: resultPayout.toLocaleString() })}</div>
-                : resultNet !== 0 ? t('games.videoPoker.netChips', { amount: resultNet.toLocaleString() }) : null}
-            </ResultBanner>
-            <GameFxCanvas burstKey={celebrate ? resultPayout : null} reduced={reducedFx} />
-          </div>
-        )}
-
-        <div className="snow-vp-paytable">
-          {orderedPayouts.map((p) => (
-            <div key={p.name}>
-              <span>{HAND_KEY[p.name] ? t(HAND_KEY[p.name]) : p.name}</span>
-              <b>{p.mult}x</b>
+      <div className="snow-machine-stage snow-vp-stage">
+        <section className="snow-vp-console" aria-label={t('games.videoPoker.title')}>
+          <div className="snow-vp-marquee">
+            <span className="snow-vp-marquee__suits snow-vp-marquee__suits--red" aria-hidden="true">♥</span>
+            <div>
+              <small>{t('games.videoPoker.gameTag')}</small>
+              <strong>{t('games.videoPoker.title')}</strong>
             </div>
-          ))}
-        </div>
-      </div>
+            <span className="snow-vp-marquee__suits" aria-hidden="true">♠</span>
+          </div>
 
-      <GamePanel className="p-3">
-        <div className="snow-bet-row">
-          {BETS.map((amount, i) => {
-            const unaffordable = (balance ?? 0) < amount && !betsLocked;
-            return (
-              <BetChip
-                key={amount}
-                ref={(el) => { betRefs.current[i] = el; }}
-                selected={bet === amount}
-                focused={zone === 'bet' && betIdx === i}
-                onFocus={() => { setZone('bet'); setBetIdx(i); }}
-                onClick={() => { if (!(betsLocked || unaffordable)) setBet(amount); }}
-                aria-disabled={betsLocked || unaffordable ? 'true' : undefined}
-              >
-                {amount}
-              </BetChip>
-            );
-          })}
-          <Button
-            ref={primaryRef}
-            type="button"
-            onFocus={() => setZone('primary')}
-            onClick={() => { if (!(busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet))) primaryAction(); }}
-            aria-disabled={busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet) ? 'true' : undefined}
-            data-busy={busy ? 'true' : undefined}
-            data-tv-focused={zone === 'primary' ? 'true' : 'false'}
-            className={`${GAME_ACTION_CLASS} ml-3 px-10`}
-          >
-            {busy
-              ? <><Loader2 className="animate-spin" /> {phase === 'dealt' ? t('games.videoPoker.drawingEllipsis') : t('games.videoPoker.dealingEllipsis')}</>
-              : phase === 'dealt' ? t('games.videoPoker.draw') : t('games.videoPoker.dealWithBet', { bet })}
-          </Button>
-        </div>
-        {error
-          ? <p className="snow-game-error">{error}</p>
-          : phase === 'dealt' && <p className="snow-game-note">{t('games.videoPoker.holdHint')}</p>}
-        {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
-      </GamePanel>
+          <div className="snow-vp-paytable" aria-label={t('games.videoPoker.paytable')}>
+            {orderedPayouts.map((p, index) => (
+              <div key={p.name} className={index === 0 ? 'is-jackpot' : undefined}>
+                <span>{HAND_KEY[p.name] ? t(HAND_KEY[p.name]) : p.name}</span>
+                <b>{p.mult}×</b>
+              </div>
+            ))}
+          </div>
+
+          <div className="snow-vp-screen">
+            <span className="snow-vp-screen__accent" aria-hidden="true">♣</span>
+            <span className="snow-vp-screen__accent snow-vp-screen__accent--right" aria-hidden="true">♦</span>
+            <div className="snow-vp-hand">
+              {[0, 1, 2, 3, 4].map((i) => {
+                const card = hand[i];
+                return (
+                  <button
+                    key={i}
+                    ref={(el) => { cardRefs.current[i] = el; }}
+                    type="button"
+                    className="snow-vp-slot"
+                    onFocus={() => { setZone('card'); setCardIdx(i); }}
+                    onClick={() => toggleHold(i)}
+                    aria-disabled={phase !== 'dealt' ? 'true' : undefined}
+                    data-tv-focused={zone === 'card' && cardIdx === i ? 'true' : 'false'}
+                    aria-label={holds[i]
+                      ? t('games.videoPoker.cardAriaLabelHeld', { number: i + 1 })
+                      : t('games.videoPoker.cardAriaLabel', { number: i + 1 })}
+                  >
+                    <span className={`snow-vp-hold${phase === 'dealt' && holds[i] ? '' : ' is-off'}`} aria-hidden={phase !== 'dealt'}>
+                      {phase === 'dealt' ? t('games.videoPoker.hold') : `${i + 1}`}
+                    </span>
+                    {card
+                      ? <PlayingCard card={card} delay={i * 80} held={holds[i]} focused={zone === 'card' && cardIdx === i} />
+                      : <PlayingCardSlot />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="snow-vp-result-slot">
+              {phase === 'settled' && resultRank ? (
+                <div className="snow-vp-result">
+                  <ResultBanner
+                    tone={resultWin ? 'win' : 'lose'}
+                    title={resultWin ? (HAND_KEY[resultRank] ? t(HAND_KEY[resultRank]) : resultRank) : t('games.videoPoker.noWin')}
+                  >
+                    {resultWin
+                      ? <div ref={payoutRef}>{t('games.videoPoker.payoutChips', { amount: resultPayout.toLocaleString() })}</div>
+                      : resultNet !== 0 ? t('games.videoPoker.netChips', { amount: resultNet.toLocaleString() }) : null}
+                  </ResultBanner>
+                  <GameFxCanvas burstKey={celebrate ? resultPayout : null} reduced={reducedFx} />
+                </div>
+              ) : (
+                <span>{phase === 'dealt' ? t('games.videoPoker.holdHint') : t('games.videoPoker.subtitle')}</span>
+              )}
+            </div>
+          </div>
+
+          <GamePanel className="snow-vp-control-deck">
+            <div className="snow-vp-bet-label">
+              <small>{t('games.videoPoker.bet')}</small>
+              <strong>{bet}</strong>
+            </div>
+            <div className="snow-bet-row">
+              {BETS.map((amount, i) => {
+                const unaffordable = (balance ?? 0) < amount && !betsLocked;
+                return (
+                  <BetChip
+                    key={amount}
+                    ref={(el) => { betRefs.current[i] = el; }}
+                    selected={bet === amount}
+                    focused={zone === 'bet' && betIdx === i}
+                    onFocus={() => { setZone('bet'); setBetIdx(i); }}
+                    onClick={() => { if (!(betsLocked || unaffordable)) setBet(amount); }}
+                    aria-disabled={betsLocked || unaffordable ? 'true' : undefined}
+                  >
+                    {amount}
+                  </BetChip>
+                );
+              })}
+            </div>
+            <Button
+              ref={primaryRef}
+              type="button"
+              onFocus={() => setZone('primary')}
+              onClick={() => { if (!(busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet))) primaryAction(); }}
+              aria-disabled={busy || !user || (phase !== 'dealt' && (balance ?? 0) < bet) ? 'true' : undefined}
+              data-busy={busy ? 'true' : undefined}
+              data-tv-focused={zone === 'primary' ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} snow-vp-primary`}
+            >
+              <span className="snow-vp-primary__icon" aria-hidden="true">♦</span>
+              <span>{busy
+                ? <><Loader2 className="animate-spin" /> {phase === 'dealt' ? t('games.videoPoker.drawingEllipsis') : t('games.videoPoker.dealingEllipsis')}</>
+                : phase === 'dealt' ? t('games.videoPoker.draw') : t('games.videoPoker.dealWithBet', { bet })}</span>
+            </Button>
+          </GamePanel>
+
+          <div className="snow-vp-message-line">
+            {error && <p className="snow-game-error">{error}</p>}
+            {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
+          </div>
+        </section>
+      </div>
 
       <FairnessPanel
         ref={fairRef}

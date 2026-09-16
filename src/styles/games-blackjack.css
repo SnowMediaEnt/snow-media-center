@@ -1,0 +1,868 @@
+/* Blackjack's TV table is deliberately isolated from the shared game skin.
+   The base values work on older Fire TV WebViews; media queries scale the
+   same composition for 720p and 1080p without images or expensive filters. */
+
+.snow-blackjack {
+  --bj-gold: 43 78% 67%;
+  --bj-gold-deep: 37 66% 38%;
+  --bj-ice: 190 88% 78%;
+  --bj-felt: 157 62% 13%;
+  --bj-felt-deep: 163 76% 6%;
+  background-image:
+    radial-gradient(ellipse at 50% -10%, hsl(182 65% 31% / .34), transparent 44%),
+    radial-gradient(ellipse at 9% 15%, hsl(275 62% 32% / .28), transparent 38%),
+    linear-gradient(145deg, hsl(221 76% 10%), hsl(224 72% 5%) 62%, hsl(278 48% 8%));
+}
+
+.snow-blackjack .snow-game-body {
+  max-width: 94rem;
+  gap: 7px;
+}
+
+.snow-blackjack .snow-game-topbar {
+  position: relative;
+  z-index: 5;
+}
+
+.snow-blackjack .snow-game-heading span {
+  color: hsl(154 74% 62%);
+  font-size: 13px;
+  letter-spacing: .065em;
+  text-shadow: 0 0 18px hsl(154 70% 46% / .34);
+}
+
+.snow-blackjack .snow-game-back,
+.snow-blackjack .snow-game-fx-toggle,
+.snow-blackjack .snow-chip-badge {
+  border-color: hsl(var(--bj-gold) / .68);
+}
+
+.snow-blackjack .snow-chip-badge {
+  background: linear-gradient(135deg, hsl(220 66% 8%), hsl(211 60% 10%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), 0 8px 20px hsl(220 90% 2% / .42);
+}
+
+.snow-blackjack .snow-chip-badge svg {
+  color: hsl(var(--bj-gold));
+}
+
+.snow-bj-stage {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  padding: 3px 12px 0;
+}
+
+.snow-blackjack .snow-bj-table {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid hsl(var(--bj-gold) / .7);
+  border-radius: 48% 48% 24px 24px / 9% 9% 24px 24px;
+  background:
+    linear-gradient(90deg, hsl(31 62% 18%), hsl(var(--bj-gold-deep)) 18%, hsl(43 76% 72%) 50%, hsl(var(--bj-gold-deep)) 82%, hsl(31 62% 18%));
+  box-shadow:
+    inset 0 1px hsl(47 100% 90% / .72),
+    inset 0 -8px 0 hsl(30 58% 15% / .9),
+    0 22px 38px hsl(220 90% 2% / .58),
+    0 0 30px hsl(178 70% 38% / .11);
+  transform: perspective(1500px) rotateX(1.1deg);
+  transform-origin: 50% 100%;
+}
+
+.snow-blackjack .snow-bj-table::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 5%;
+  left: 5%;
+  height: 5px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, hsl(var(--bj-ice) / .85), hsl(0 0% 100%), hsl(var(--bj-ice) / .85), transparent);
+  box-shadow: 0 0 13px hsl(var(--bj-ice) / .42);
+  pointer-events: none;
+}
+
+.snow-bj-table__rail {
+  position: absolute;
+  right: 20px;
+  bottom: 5px;
+  left: 20px;
+  z-index: 3;
+  height: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  pointer-events: none;
+}
+
+.snow-bj-table__rail span {
+  width: 6px;
+  height: 6px;
+  border: 1px solid hsl(45 92% 80% / .76);
+  border-radius: 50%;
+  background: hsl(30 58% 16%);
+  box-shadow: 0 0 5px hsl(var(--bj-gold) / .45);
+}
+
+.snow-bj-table__felt {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 58px minmax(0, 1fr);
+  overflow: hidden;
+  padding: 16px 26px 18px;
+  border: 2px solid hsl(45 72% 23% / .75);
+  border-radius: 47% 47% 17px 17px / 8% 8% 17px 17px;
+  background:
+    radial-gradient(ellipse at 50% 24%, hsl(151 55% 23%), hsl(var(--bj-felt)) 45%, hsl(var(--bj-felt-deep)) 100%);
+  box-shadow:
+    inset 0 0 0 2px hsl(154 70% 50% / .08),
+    inset 0 0 74px hsl(172 90% 2% / .7);
+}
+
+.snow-bj-table__felt::before,
+.snow-bj-table__felt::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.snow-bj-table__felt::before {
+  top: 9%;
+  right: 9%;
+  bottom: 10%;
+  left: 9%;
+  border: 1px solid hsl(var(--bj-gold) / .24);
+  border-radius: 48% 48% 38% 38% / 13% 13% 38% 38%;
+}
+
+.snow-bj-table__felt::after {
+  right: 26%;
+  bottom: 7%;
+  left: 26%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--bj-gold) / .38), transparent);
+}
+
+.snow-bj-zone {
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  align-items: center;
+}
+
+.snow-bj-zone--dealer {
+  padding-top: 3px;
+}
+
+.snow-bj-zone--player {
+  padding-bottom: 2px;
+}
+
+.snow-blackjack .snow-bj-seat {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-bj-seat__heading {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 3px;
+}
+
+.snow-bj-seat__heading > * + * {
+  margin-left: 10px;
+}
+
+.snow-blackjack .snow-bj-seat__label {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border: 1px solid hsl(var(--bj-gold) / .38);
+  border-radius: 20px;
+  color: hsl(45 92% 82%);
+  background: hsl(163 78% 5% / .72);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  line-height: 1;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px hsl(0 0% 100% / .06);
+}
+
+.snow-bj-seat__label i {
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: hsl(155 78% 57%);
+  box-shadow: 0 0 9px hsl(155 78% 57% / .7);
+}
+
+.snow-blackjack .snow-bj-total {
+  min-width: 48px;
+  margin: 0;
+  padding: 3px 11px;
+  border: 1px solid hsl(var(--bj-ice) / .66);
+  border-radius: 20px;
+  color: hsl(191 88% 89%);
+  background: linear-gradient(180deg, hsl(214 64% 13%), hsl(220 70% 6%));
+  font: 900 18px/1.1 Montserrat, sans-serif;
+  text-align: center;
+  box-shadow: 0 0 12px hsl(var(--bj-ice) / .13), inset 0 1px hsl(0 0% 100% / .09);
+}
+
+.snow-blackjack .snow-bj-total.is-bust {
+  border-color: hsl(351 82% 65%);
+  color: hsl(351 92% 85%);
+  box-shadow: 0 0 13px hsl(351 82% 56% / .25);
+}
+
+.snow-bj-hand-well {
+  position: relative;
+  min-height: 102px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-blackjack .snow-hand {
+  min-height: 102px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-blackjack .snow-playing-card.tv-game-card {
+  width: 98px !important;
+  height: 147px !important;
+  overflow: hidden;
+  border: 2px solid hsl(213 26% 20%);
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, hsl(0 0% 100%), hsl(196 36% 95%) 58%, hsl(207 26% 84%));
+  box-shadow:
+    0 11px 17px hsl(166 90% 2% / .55),
+    0 2px 0 hsl(0 0% 100% / .48) inset;
+  animation: snow-bj-card-in 300ms ease-out both;
+}
+
+.snow-blackjack .snow-playing-card.tv-game-card::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  left: 4px;
+  z-index: 1;
+  border: 1px solid hsl(207 38% 55% / .2);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.snow-blackjack .snow-playing-card.is-back {
+  border-color: hsl(var(--bj-gold) / .82);
+  background-color: hsl(217 62% 18%);
+  background-image:
+    linear-gradient(45deg, hsl(var(--bj-ice) / .12) 25%, transparent 25%, transparent 75%, hsl(var(--bj-ice) / .12) 75%),
+    linear-gradient(45deg, hsl(var(--bj-ice) / .12) 25%, hsl(217 62% 18%) 25%, hsl(217 62% 18%) 75%, hsl(var(--bj-ice) / .12) 75%);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+
+.snow-blackjack .snow-playing-card.is-back::before {
+  content: "✦";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 2px solid hsl(var(--bj-gold) / .74);
+  border-radius: 50%;
+  color: hsl(var(--bj-ice));
+  background: hsl(218 68% 12% / .88);
+  font: 900 25px/42px serif;
+  text-align: center;
+  box-shadow: 0 0 0 3px hsl(218 64% 19%), 0 0 0 4px hsl(var(--bj-gold) / .4);
+}
+
+.snow-blackjack .snow-playing-card.is-highlighted {
+  border-color: hsl(var(--bj-gold));
+  box-shadow:
+    0 0 0 3px hsl(var(--bj-gold) / .42),
+    0 0 25px hsl(47 92% 67% / .32),
+    0 11px 17px hsl(166 90% 2% / .5);
+}
+
+.snow-blackjack .snow-card-corner,
+.snow-blackjack .snow-card-suit {
+  z-index: 2;
+}
+
+.snow-blackjack .snow-card-corner {
+  top: 7px;
+  left: 8px;
+  font-size: 18px;
+}
+
+.snow-blackjack .snow-card-corner--bottom {
+  top: auto;
+  right: 8px;
+  bottom: 7px;
+  left: auto;
+}
+
+.snow-blackjack .snow-card-suit {
+  top: 31%;
+  font-size: 43px;
+  text-shadow: 0 1px hsl(0 0% 100% / .3);
+}
+
+.snow-blackjack .snow-hand--fan {
+  justify-content: center;
+}
+
+.snow-blackjack .snow-hand--fan .snow-playing-card + .snow-playing-card {
+  margin-left: -30px;
+}
+
+.snow-blackjack .snow-hand--fan.is-wide .snow-playing-card + .snow-playing-card {
+  margin-left: -43px;
+}
+
+.snow-bj-empty-hand {
+  position: relative;
+  width: 104px;
+  height: 70px;
+  opacity: .58;
+}
+
+.snow-bj-empty-hand span {
+  position: absolute;
+  top: 5px;
+  width: 43px;
+  height: 62px;
+  border: 1px dashed hsl(var(--bj-ice) / .42);
+  border-radius: 6px;
+  background: linear-gradient(145deg, hsl(var(--bj-ice) / .035), transparent);
+}
+
+.snow-bj-empty-hand span:first-child {
+  left: 17px;
+  transform: rotate(-7deg);
+}
+
+.snow-bj-empty-hand span:last-child {
+  right: 17px;
+  transform: rotate(7deg);
+}
+
+.snow-blackjack .snow-bj-hint {
+  max-width: 380px;
+  margin: 1px 0 0;
+  color: hsl(188 38% 82% / .86);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .025em;
+}
+
+.snow-bj-zone__equipment,
+.snow-bj-zone__ornament {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-blackjack .snow-bj-shoe {
+  position: relative;
+  width: 72px;
+  height: 62px;
+  border: 1px solid hsl(var(--bj-gold) / .64);
+  border-radius: 9px 9px 15px 15px;
+  background: linear-gradient(145deg, hsl(220 54% 20%), hsl(220 68% 7%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .12), 0 10px 18px hsl(166 90% 2% / .45);
+}
+
+.snow-bj-shoe__card {
+  position: absolute;
+  top: 8px;
+  width: 37px;
+  height: 43px;
+  border: 1px solid hsl(211 30% 78% / .72);
+  border-radius: 4px;
+  background: repeating-linear-gradient(45deg, hsl(216 63% 23%) 0, hsl(216 63% 23%) 4px, hsl(var(--bj-ice) / .25) 5px, hsl(var(--bj-ice) / .25) 6px);
+}
+
+.snow-bj-shoe__card--one { left: 8px; transform: rotate(-5deg); }
+.snow-bj-shoe__card--two { left: 17px; }
+.snow-bj-shoe__card--three { left: 26px; transform: rotate(5deg); }
+
+.snow-bj-shoe__mouth {
+  position: absolute;
+  right: 6px;
+  bottom: 7px;
+  left: 6px;
+  z-index: 3;
+  height: 13px;
+  border-top: 2px solid hsl(var(--bj-gold) / .65);
+  border-radius: 50%;
+  background: hsl(220 76% 5%);
+}
+
+.snow-bj-shoe-label {
+  position: absolute;
+  right: 4px;
+  bottom: -5px;
+  width: 21px;
+  height: 21px;
+  border: 1px solid hsl(var(--bj-gold) / .7);
+  border-radius: 50%;
+  color: hsl(var(--bj-gold));
+  background: hsl(220 70% 6%);
+  font: 900 9px/19px Montserrat, sans-serif;
+  text-align: center;
+}
+
+.snow-bj-zone__ornament {
+  color: hsl(var(--bj-gold) / .52);
+  font-size: 17px;
+}
+
+.snow-bj-zone__ornament span {
+  margin-left: -2px;
+  text-shadow: 0 4px 9px hsl(164 90% 2% / .5);
+}
+
+.snow-bj-zone__ornament span:nth-child(2),
+.snow-bj-zone__ornament span:nth-child(3) {
+  color: hsl(351 65% 62% / .54);
+}
+
+.snow-bj-zone__ornament--player svg {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: hsl(var(--bj-gold) / .42);
+  stroke-width: 1.5;
+}
+
+.snow-bj-zone__equipment--player {
+  color: hsl(var(--bj-gold) / .48);
+}
+
+.snow-bj-seat-marker {
+  width: 42px;
+  height: 42px;
+  border: 1px solid hsl(var(--bj-gold) / .36);
+  border-radius: 50%;
+  font: 900 19px/40px serif;
+  text-align: center;
+  transform: rotate(45deg);
+}
+
+.snow-bj-centerline {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-bj-centerline__rule {
+  height: 1px;
+  flex: 1 1 0;
+  background: linear-gradient(90deg, transparent, hsl(var(--bj-gold) / .58));
+}
+
+.snow-bj-centerline__rule:last-of-type {
+  background: linear-gradient(90deg, hsl(var(--bj-gold) / .58), transparent);
+}
+
+.snow-bj-medallion {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  flex: 0 0 auto;
+  margin: 0 11px;
+  border: 2px solid hsl(var(--bj-gold) / .75);
+  border-radius: 50%;
+  color: hsl(45 90% 81%);
+  background: radial-gradient(circle, hsl(164 56% 17%), hsl(164 76% 7%) 68%);
+  box-shadow: 0 0 0 3px hsl(158 50% 12%), 0 0 0 4px hsl(var(--bj-ice) / .28), 0 7px 16px hsl(166 90% 2% / .55);
+}
+
+.snow-bj-medallion svg {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  width: 44px;
+  height: 44px;
+  fill: none;
+  stroke: hsl(var(--bj-ice) / .33);
+  stroke-width: 1.5;
+}
+
+.snow-bj-medallion strong {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font: 900 21px/1 Montserrat, sans-serif;
+  text-shadow: 0 2px 4px hsl(164 90% 2% / .8);
+}
+
+.snow-bj-stake {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  margin-right: 11px;
+}
+
+.snow-bj-stake__chip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 44px;
+  border: 3px dashed hsl(220 60% 12% / .8);
+  border-radius: 50%;
+  color: hsl(220 72% 8%);
+  background: radial-gradient(circle at 34% 25%, hsl(48 92% 88%), hsl(var(--bj-gold)) 46%, hsl(var(--bj-gold-deep)) 100%);
+  font: 900 13px/38px Montserrat, sans-serif;
+  text-align: center;
+  box-shadow: 0 0 0 2px hsl(var(--bj-gold) / .48), 0 6px 12px hsl(166 90% 2% / .48);
+}
+
+.snow-bj-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  transform: translate(-50%, -50%);
+}
+
+.snow-blackjack .snow-result-banner {
+  min-width: 286px;
+  padding: 9px 24px;
+  border-width: 2px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, hsl(219 62% 11%), hsl(220 74% 5%));
+  box-shadow: 0 10px 24px hsl(220 90% 2% / .62), inset 0 1px hsl(0 0% 100% / .12);
+}
+
+.snow-blackjack .snow-result-banner strong {
+  font-size: 20px;
+  letter-spacing: .06em;
+}
+
+.snow-blackjack .snow-result-banner div {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.snow-blackjack .snow-bj-controls {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  min-height: 78px;
+  padding: 8px 15px 6px;
+  border: 1px solid hsl(var(--bj-ice) / .32);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, hsl(214 58% 12% / .98), hsl(220 72% 6% / .98));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .07), 0 12px 25px hsl(220 90% 2% / .36);
+}
+
+.snow-bj-controls__row {
+  min-height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-bj-controls__label {
+  min-width: 162px;
+  display: flex;
+  align-items: center;
+  padding-right: 16px;
+  color: hsl(190 63% 82%);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.snow-bj-controls__chip {
+  width: 33px;
+  height: 33px;
+  flex: 0 0 auto;
+  margin-right: 9px;
+  border: 2px dashed hsl(220 60% 11%);
+  border-radius: 50%;
+  color: hsl(220 70% 8%);
+  background: hsl(var(--bj-gold));
+  font: 900 11px/29px serif;
+  text-align: center;
+}
+
+.snow-blackjack .snow-bet-row {
+  flex-wrap: nowrap;
+}
+
+.snow-blackjack .snow-bet-chip {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border: 3px dashed hsl(var(--bj-gold) / .68);
+  color: hsl(190 72% 87%);
+  background: radial-gradient(circle, hsl(216 54% 18%), hsl(220 70% 8%));
+  font-size: 15px;
+  box-shadow: inset 0 0 0 4px hsl(220 68% 8%), inset 0 0 0 5px hsl(var(--bj-ice) / .16), 0 6px 12px hsl(220 90% 2% / .4);
+}
+
+.snow-blackjack .snow-bet-chip.is-selected {
+  border-color: hsl(220 70% 9% / .82);
+  color: hsl(220 76% 7%);
+  background: radial-gradient(circle at 34% 24%, hsl(49 96% 90%), hsl(var(--bj-gold)) 50%, hsl(var(--bj-gold-deep)) 100%);
+  box-shadow: inset 0 0 0 4px hsl(var(--bj-gold)), inset 0 0 0 5px hsl(220 65% 12% / .6), 0 0 16px hsl(var(--bj-gold) / .3);
+}
+
+.snow-blackjack .snow-bet-chip[aria-disabled="true"] {
+  opacity: .35;
+  box-shadow: none;
+}
+
+.snow-blackjack .snow-bj-action {
+  min-width: 154px;
+  min-height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  border: 2px solid hsl(var(--bj-gold));
+  border-radius: 10px;
+  color: hsl(220 76% 7%);
+  background: linear-gradient(180deg, hsl(48 90% 86%), hsl(var(--bj-gold)) 54%, hsl(var(--bj-gold-deep)));
+  font-size: 15px;
+  letter-spacing: .035em;
+  box-shadow: inset 0 1px hsl(0 0% 100% / .64), 0 7px 14px hsl(220 90% 2% / .44);
+}
+
+.snow-blackjack .snow-bj-action svg {
+  width: 25px;
+  height: 25px;
+  margin-right: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.snow-blackjack .snow-bj-action--stand,
+.snow-blackjack .snow-bj-action--double {
+  border-color: hsl(var(--bj-ice) / .66);
+  color: hsl(190 82% 89%);
+  background: linear-gradient(180deg, hsl(211 60% 20%), hsl(219 69% 9%));
+}
+
+.snow-blackjack .snow-bj-action[aria-disabled="true"] {
+  opacity: .42;
+  box-shadow: none;
+}
+
+.snow-blackjack .snow-bj-action[data-tv-focused="true"],
+.snow-blackjack .snow-bet-chip[data-tv-focused="true"] {
+  outline: 3px solid hsl(var(--bj-ice));
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px hsl(220 70% 5%), 0 0 24px hsl(var(--bj-ice) / .5), inset 0 1px hsl(0 0% 100% / .5) !important;
+  transform: scale(1.035);
+}
+
+.snow-bj-controls__stake {
+  min-width: 112px;
+  display: flex;
+  align-items: center;
+  margin-right: 18px;
+  padding-right: 18px;
+  border-right: 1px solid hsl(var(--bj-ice) / .19);
+}
+
+.snow-bj-controls__stake span {
+  width: 39px;
+  height: 39px;
+  flex: 0 0 auto;
+  border: 2px dashed hsl(220 68% 9%);
+  border-radius: 50%;
+  color: hsl(220 72% 7%);
+  background: hsl(var(--bj-gold));
+  font: 900 12px/35px Montserrat, sans-serif;
+  text-align: center;
+}
+
+.snow-bj-controls__stake small {
+  max-width: 60px;
+  margin-left: 8px;
+  color: hsl(190 42% 75%);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.snow-bj-working {
+  position: absolute;
+  right: 14px;
+}
+
+.snow-bj-controls__note {
+  min-height: 13px;
+}
+
+.snow-bj-controls__note .snow-game-note,
+.snow-bj-controls__note .snow-game-error {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.snow-blackjack .snow-fairness {
+  position: relative;
+  z-index: 5;
+}
+
+.snow-blackjack .snow-fairness__toggle {
+  border-color: hsl(var(--bj-ice) / .5);
+  background: linear-gradient(180deg, hsl(211 59% 18%), hsl(219 69% 9%));
+}
+
+.native-low-memory .snow-blackjack .snow-bj-table,
+.native-low-memory .snow-blackjack .snow-bj-controls,
+.native-low-memory .snow-blackjack .snow-playing-card.tv-game-card {
+  box-shadow: none;
+}
+
+@keyframes snow-bj-card-in {
+  from { opacity: 0; transform: translateY(-14px) rotate(-3deg) scale(.96); }
+  to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+
+@media (max-height: 760px) {
+  .snow-blackjack .snow-game-body { gap: 5px; }
+  .snow-bj-stage { padding-top: 1px; }
+  .snow-blackjack .snow-bj-table { padding: 7px; border-radius: 46% 46% 18px 18px / 8% 8% 18px 18px; }
+  .snow-bj-table__felt { grid-template-rows: minmax(0, 1fr) 48px minmax(0, 1fr); padding: 10px 20px 12px; }
+  .snow-bj-zone { grid-template-columns: 74px minmax(0, 1fr) 74px; }
+  .snow-bj-seat__heading { min-height: 23px; margin-bottom: 1px; }
+  .snow-blackjack .snow-bj-seat__label { padding: 3px 9px; font-size: 9px; }
+  .snow-blackjack .snow-bj-total { min-width: 42px; padding: 2px 9px; font-size: 15px; }
+  .snow-bj-hand-well,
+  .snow-blackjack .snow-hand { min-height: 88px; }
+  .snow-blackjack .snow-playing-card.tv-game-card { width: 92px !important; height: 138px !important; }
+  .snow-blackjack .snow-playing-card.is-compact.tv-game-card { width: 68px !important; height: 102px !important; }
+  .snow-blackjack .snow-card-corner { top: 5px; left: 6px; font-size: 15px; }
+  .snow-blackjack .snow-card-corner--bottom { top: auto; right: 6px; bottom: 5px; left: auto; }
+  .snow-blackjack .snow-card-suit { font-size: 35px; }
+  .snow-blackjack .snow-bj-shoe { width: 58px; height: 49px; }
+  .snow-bj-shoe__card { top: 6px; width: 29px; height: 34px; }
+  .snow-bj-shoe__card--one { left: 7px; }
+  .snow-bj-shoe__card--two { left: 14px; }
+  .snow-bj-shoe__card--three { left: 21px; }
+  .snow-bj-zone__ornament--player svg { width: 39px; height: 39px; }
+  .snow-bj-medallion { width: 54px; height: 54px; margin: 0 9px; }
+  .snow-bj-medallion svg { top: 7px; left: 7px; width: 36px; height: 36px; }
+  .snow-bj-medallion strong { font-size: 17px; }
+  .snow-bj-stake,
+  .snow-bj-stake__chip { width: 36px; height: 36px; }
+  .snow-bj-stake { margin-right: 9px; }
+  .snow-bj-stake__chip { font-size: 11px; line-height: 30px; }
+  .snow-blackjack .snow-bj-controls { min-height: 67px; padding: 5px 12px 4px; }
+  .snow-bj-controls__row { min-height: 48px; }
+  .snow-bj-controls__label { min-width: 138px; font-size: 10px; }
+  .snow-bj-controls__chip { width: 28px; height: 28px; font-size: 9px; line-height: 24px; }
+  .snow-blackjack .snow-bet-chip { width: 46px; height: 46px; min-height: 46px; font-size: 13px; }
+  .snow-blackjack .snow-bj-action { min-width: 135px; min-height: 47px; padding: 0 19px; font-size: 13px; }
+  .snow-blackjack .snow-bj-action svg { width: 21px; height: 21px; margin-right: 8px; }
+  .snow-bj-controls__stake { min-width: 98px; margin-right: 12px; padding-right: 12px; }
+  .snow-bj-controls__stake span { width: 34px; height: 34px; font-size: 10px; line-height: 30px; }
+  .snow-bj-controls__note .snow-game-note,
+  .snow-bj-controls__note .snow-game-error { font-size: 9px; }
+}
+
+@media (min-height: 1000px) {
+  .snow-blackjack .snow-game-body { gap: 10px; }
+  .snow-bj-stage { padding: 5px 18px 0; }
+  .snow-blackjack .snow-bj-table { padding: 13px; border-radius: 50% 50% 30px 30px / 10% 10% 30px 30px; }
+  .snow-bj-table__felt { grid-template-rows: minmax(0, 1fr) 74px minmax(0, 1fr); padding: 22px 38px 25px; }
+  .snow-bj-zone { grid-template-columns: 126px minmax(0, 1fr) 126px; }
+  .snow-bj-seat__heading { min-height: 33px; margin-bottom: 5px; }
+  .snow-blackjack .snow-bj-seat__label { padding: 5px 14px; font-size: 13px; }
+  .snow-blackjack .snow-bj-total { min-width: 58px; padding: 4px 13px; font-size: 22px; }
+  .snow-bj-hand-well,
+  .snow-blackjack .snow-hand { min-height: 152px; }
+  .snow-blackjack .snow-playing-card.tv-game-card { width: 120px !important; height: 180px !important; border-radius: 12px; }
+  .snow-blackjack .snow-playing-card.is-compact.tv-game-card { width: 88px !important; height: 132px !important; }
+  .snow-blackjack .snow-card-corner { font-size: 21px; }
+  .snow-blackjack .snow-card-suit { font-size: 50px; }
+  .snow-blackjack .snow-bj-shoe { width: 87px; height: 75px; }
+  .snow-bj-shoe__card { width: 45px; height: 54px; }
+  .snow-bj-shoe__card--one { left: 10px; }
+  .snow-bj-shoe__card--two { left: 21px; }
+  .snow-bj-shoe__card--three { left: 32px; }
+  .snow-bj-medallion { width: 78px; height: 78px; margin: 0 15px; }
+  .snow-bj-medallion svg { top: 10px; left: 10px; width: 54px; height: 54px; }
+  .snow-bj-medallion strong { font-size: 25px; }
+  .snow-bj-stake,
+  .snow-bj-stake__chip { width: 52px; height: 52px; }
+  .snow-bj-stake { margin-right: 15px; }
+  .snow-bj-stake__chip { font-size: 15px; line-height: 46px; }
+  .snow-blackjack .snow-bj-controls { min-height: 96px; padding: 11px 20px 8px; }
+  .snow-bj-controls__row { min-height: 67px; }
+  .snow-bj-controls__label { min-width: 188px; font-size: 14px; }
+  .snow-blackjack .snow-bet-chip { width: 66px; height: 66px; min-height: 66px; font-size: 18px; }
+  .snow-blackjack .snow-bj-action { min-width: 188px; min-height: 66px; padding: 0 30px; font-size: 18px; }
+  .snow-blackjack .snow-bj-action svg { width: 30px; height: 30px; }
+  .snow-bj-controls__note .snow-game-note,
+  .snow-bj-controls__note .snow-game-error { font-size: 12px; }
+}
+
+@media (max-width: 980px) {
+  .snow-bj-stage { padding-right: 3px; padding-left: 3px; }
+  .snow-bj-table__felt { padding-right: 13px; padding-left: 13px; }
+  .snow-bj-zone { grid-template-columns: 62px minmax(0, 1fr) 62px; }
+  .snow-bj-zone__ornament { font-size: 13px; }
+  .snow-bj-controls__label { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-blackjack .snow-playing-card.tv-game-card { animation: none; }
+}

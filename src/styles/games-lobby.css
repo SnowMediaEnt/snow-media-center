@@ -1,0 +1,622 @@
+/* Games lobby visual layer.
+   Kept separate from the individual game surfaces so the TV layout can be
+   tuned without changing any game, socket, fairness, or D-pad behavior. */
+
+.snow-games-lobby {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 5vh 5vw;
+  background-color: #061329;
+  background-image:
+    radial-gradient(ellipse at 50% -12%, rgba(68, 194, 218, .23), rgba(6, 19, 41, 0) 52%),
+    radial-gradient(ellipse at 8% 82%, rgba(95, 20, 112, .29), rgba(6, 19, 41, 0) 45%),
+    linear-gradient(145deg, #071933 0%, #07152c 52%, #130b22 100%);
+}
+
+@supports (padding: max(1px, env(safe-area-inset-top))) {
+  .snow-games-lobby {
+    padding-top: max(env(safe-area-inset-top), 5vh);
+    padding-right: max(env(safe-area-inset-right), 5vw);
+    padding-bottom: max(env(safe-area-inset-bottom), 5vh);
+    padding-left: max(env(safe-area-inset-left), 5vw);
+  }
+}
+
+.snow-games-lobby .snow-casino__aurora {
+  height: 42%;
+  opacity: .62;
+  background: linear-gradient(108deg, rgba(0, 0, 0, 0) 8%, rgba(84, 221, 229, .13) 37%, rgba(161, 78, 193, .17) 62%, rgba(0, 0, 0, 0) 88%);
+}
+
+.snow-games-lobby .snow-casino__vignette {
+  box-shadow: inset 0 0 90px 20px rgba(0, 4, 18, .68);
+}
+
+.snow-games-lobby .snow-games-lobby__topbar {
+  flex: 0 0 66px;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 180px;
+  align-items: center;
+  width: 100%;
+  height: 66px;
+  min-height: 66px;
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.snow-games-lobby__topbar > button {
+  justify-self: start;
+  min-width: 136px;
+}
+
+.snow-games-lobby__heading {
+  min-width: 0;
+  padding: 0 14px;
+}
+
+.snow-games-lobby__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-games-lobby__title-row > svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: #f0c85f;
+}
+
+.snow-games-lobby__title-row > svg:first-child { margin-right: 12px; }
+.snow-games-lobby__title-row > svg:last-child { margin-left: 12px; }
+
+.snow-games-lobby .snow-lobby__title {
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font: 900 36px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .035em;
+  text-overflow: ellipsis;
+  text-shadow: 0 3px 18px rgba(82, 211, 229, .18);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.snow-games-lobby .snow-lobby__subtitle {
+  margin: 7px 0 0;
+  color: #a9c7dc;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.snow-games-lobby .snow-chip-badge {
+  box-sizing: border-box;
+  justify-self: end;
+  width: 180px;
+  height: 58px;
+  padding: 7px 12px;
+  border: 1px solid rgba(234, 193, 91, .7);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(16, 41, 77, .98), rgba(5, 16, 35, .98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .09), 0 8px 22px rgba(0, 4, 18, .32);
+}
+
+.snow-games-lobby .snow-chip-badge > svg {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-right: 10px;
+  color: #f0c85f;
+}
+
+.snow-games-lobby .snow-chip-badge small {
+  color: #bcdbe7;
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.snow-games-lobby .snow-chip-badge strong {
+  margin-top: 4px;
+  color: #fff;
+  font-size: 22px;
+}
+
+.snow-games-lobby .snow-lobby__grid {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  max-width: 1760px;
+  margin: 18px auto 0;
+  padding: 5px;
+  column-gap: 18px;
+  row-gap: 18px;
+}
+
+.snow-games-lobby .snow-lobby-tile {
+  --tile-accent: 192, 82%, 64%;
+  --tile-accent-bright: #6ee7f1;
+  --tile-deep: #092d47;
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto !important;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 20px;
+  border: 2px solid hsla(var(--tile-accent), .56);
+  border-radius: 16px;
+  color: #fff;
+  background-color: #081a35;
+  background-image:
+    radial-gradient(ellipse at 90% 42%, hsla(var(--tile-accent), .24), rgba(8, 26, 53, 0) 48%),
+    linear-gradient(135deg, var(--tile-deep) 0%, #09172f 57%, #050e20 100%) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .09), 0 14px 30px rgba(0, 4, 18, .38);
+  text-align: left;
+  white-space: normal !important;
+  transition: transform 140ms ease-out, opacity 140ms ease-out !important;
+}
+
+.snow-games-lobby .snow-lobby-tile--ice {
+  --tile-accent: 188, 83%, 62%;
+  --tile-accent-bright: #76edf2;
+  --tile-deep: #093b55;
+}
+.snow-games-lobby .snow-lobby-tile--plum {
+  --tile-accent: 292, 70%, 62%;
+  --tile-accent-bright: #dc74ef;
+  --tile-deep: #461157;
+}
+.snow-games-lobby .snow-lobby-tile--emerald {
+  --tile-accent: 153, 68%, 52%;
+  --tile-accent-bright: #66e4a3;
+  --tile-deep: #0b4636;
+}
+.snow-games-lobby .snow-lobby-tile--sapphire {
+  --tile-accent: 205, 88%, 63%;
+  --tile-accent-bright: #63c9ff;
+  --tile-deep: #0b3b68;
+}
+.snow-games-lobby .snow-lobby-tile--ruby {
+  --tile-accent: 349, 78%, 61%;
+  --tile-accent-bright: #ff6680;
+  --tile-deep: #56142a;
+}
+.snow-games-lobby .snow-lobby-tile--teal {
+  --tile-accent: 172, 73%, 50%;
+  --tile-accent-bright: #4be0c9;
+  --tile-deep: #0a474c;
+}
+.snow-games-lobby .snow-lobby-tile--amber {
+  --tile-accent: 40, 91%, 61%;
+  --tile-accent-bright: #ffd86d;
+  --tile-deep: #583614;
+}
+.snow-games-lobby .snow-lobby-tile--violet {
+  --tile-accent: 270, 79%, 67%;
+  --tile-accent-bright: #c38bff;
+  --tile-deep: #32145c;
+}
+.snow-games-lobby .snow-lobby-tile--cobalt {
+  --tile-accent: 211, 87%, 63%;
+  --tile-accent-bright: #65b8ff;
+  --tile-deep: #123e75;
+}
+
+.snow-games-lobby .snow-lobby-tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 52%;
+  pointer-events: none;
+  opacity: .52;
+  background: linear-gradient(90deg, rgba(4, 14, 31, 0), hsla(var(--tile-accent), .12));
+}
+
+.snow-games-lobby .snow-lobby-tile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--tile-accent-bright), rgba(255, 255, 255, .92), hsla(var(--tile-accent), .18));
+}
+
+.snow-games-lobby .snow-lobby-tile[data-tv-focused="true"] {
+  z-index: 5;
+  border-color: var(--tile-accent-bright) !important;
+  outline: 3px solid #f5cf66 !important;
+  outline-offset: 2px;
+  transform: scale(1.025);
+  box-shadow: 0 0 0 2px rgba(255, 245, 194, .3), 0 0 28px hsla(var(--tile-accent), .42), 0 18px 34px rgba(0, 4, 18, .55) !important;
+}
+
+.snow-games-lobby .snow-lobby-tile__number {
+  position: absolute;
+  top: 18px;
+  right: 19px;
+  z-index: 3;
+  color: rgba(255, 255, 255, .3);
+  font: 900 13px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .12em;
+}
+
+.snow-games-lobby .snow-lobby-tile__content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 54%;
+  height: 100%;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.snow-games-lobby .snow-lobby-tile__title {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  margin: 0;
+  color: #fff;
+  font: 900 27px/1.02 Montserrat, Arial, sans-serif;
+  letter-spacing: -.015em;
+  overflow-wrap: normal;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, .38);
+}
+
+.snow-games-lobby .snow-lobby-tile__tagline {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+  color: #c5d7e4;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.32;
+  white-space: normal;
+}
+
+.snow-games-lobby .snow-lobby-tile__status {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  margin-top: auto;
+  padding: 0 15px 0 7px;
+  border: 1px solid hsla(var(--tile-accent), .72);
+  border-radius: 20px;
+  color: #fff5cb;
+  background: rgba(3, 12, 28, .76);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-games-lobby .snow-lobby-tile__play {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  margin-right: 9px;
+  border-radius: 50%;
+  background: var(--tile-accent-bright);
+}
+
+.snow-games-lobby .snow-lobby-tile__play::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #07162d;
+}
+
+/* Button's shared `[&_svg]:size-4` rule otherwise collapses the hero artwork
+   to a 16px icon. These explicit important dimensions are intentional. */
+.snow-games-lobby .snow-lobby-tile > .snow-game-art {
+  position: absolute;
+  top: 13%;
+  right: 0;
+  bottom: auto;
+  left: auto;
+  z-index: 2;
+  display: block;
+  width: 54% !important;
+  height: 75% !important;
+  max-width: none !important;
+  flex: none !important;
+  overflow: visible;
+  opacity: .96;
+  fill: none;
+  stroke: none;
+  filter: none !important;
+  transform: translateX(2%);
+  transform-origin: 55% 55%;
+  transition: transform 140ms ease-out, opacity 140ms ease-out;
+}
+
+.snow-games-lobby .snow-lobby-tile[data-tv-focused="true"] > .snow-game-art {
+  opacity: 1;
+  transform: translateX(-1%) scale(1.035);
+}
+
+.snow-game-art .snow-art-shadow { fill: rgba(0, 3, 14, .45); }
+.snow-game-art .snow-art-line { fill: none; stroke: rgba(226, 248, 255, .48); }
+
+.snow-games-lobby .snow-lobby__footer {
+  flex: 0 0 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  max-width: 1760px;
+  height: 44px;
+  min-height: 44px;
+  margin: 12px auto 0;
+  color: #adc2d2;
+  font-size: 13px;
+}
+
+.snow-games-lobby .snow-lobby__footer > div:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snow-games-lobby .snow-lobby__coming {
+  margin: 0 20px;
+  padding: 7px 15px;
+  border: 1px solid rgba(229, 190, 91, .42);
+  border-radius: 18px;
+  background: rgba(4, 15, 34, .74);
+  white-space: nowrap;
+}
+
+.snow-games-lobby .snow-lobby__footer > button {
+  justify-self: end;
+  min-width: 138px;
+}
+
+html[data-game-fx="reduced"] .snow-games-lobby .snow-lobby-tile,
+html[data-game-fx="reduced"] .snow-games-lobby .snow-game-art,
+.native-low-memory .snow-games-lobby .snow-lobby-tile,
+.native-low-memory .snow-games-lobby .snow-game-art {
+  transition: none !important;
+}
+
+.native-low-memory .snow-games-lobby .snow-lobby-tile {
+  box-shadow: none !important;
+}
+
+.native-low-memory .snow-games-lobby .snow-lobby-tile[data-tv-focused="true"] {
+  transform: none;
+  box-shadow: 0 0 0 3px #f5cf66 !important;
+}
+
+@media (max-height: 760px) {
+  .snow-games-lobby {
+    padding-top: 4.5vh;
+    padding-bottom: 4.5vh;
+  }
+
+  .snow-games-lobby .snow-games-lobby__topbar {
+    flex-basis: 52px;
+    grid-template-columns: 158px minmax(0, 1fr) 158px;
+    height: 52px;
+    min-height: 52px;
+  }
+
+  .snow-games-lobby__topbar > button {
+    min-width: 122px;
+    height: 44px;
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .snow-games-lobby .snow-lobby__title { font-size: 27px; }
+  .snow-games-lobby .snow-lobby__subtitle { margin-top: 5px; font-size: 11px; }
+  .snow-games-lobby__title-row > svg { width: 18px; height: 18px; }
+
+  .snow-games-lobby .snow-chip-badge {
+    width: 158px;
+    height: 48px;
+  }
+
+  .snow-games-lobby .snow-chip-badge > svg {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    margin-right: 8px;
+  }
+
+  .snow-games-lobby .snow-chip-badge strong { font-size: 18px; }
+
+  .snow-games-lobby .snow-lobby__grid {
+    margin-top: 10px;
+    padding: 4px;
+    column-gap: 12px;
+    row-gap: 12px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile {
+    padding: 16px 15px;
+    border-radius: 13px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile__number {
+    top: 13px;
+    right: 13px;
+    font-size: 10px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile__title { font-size: 21px; }
+
+  .snow-games-lobby .snow-lobby-tile__tagline {
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .snow-games-lobby .snow-lobby-tile__status {
+    min-height: 31px;
+    padding-right: 11px;
+    padding-left: 5px;
+    font-size: 10px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile__play {
+    width: 21px;
+    height: 21px;
+    flex-basis: 21px;
+    margin-right: 7px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile__play::after {
+    top: 6px;
+    left: 8px;
+    border-top-width: 4px;
+    border-bottom-width: 4px;
+    border-left-width: 7px;
+  }
+
+  .snow-games-lobby .snow-lobby__footer {
+    flex-basis: 36px;
+    height: 36px;
+    min-height: 36px;
+    margin-top: 8px;
+    font-size: 11px;
+  }
+
+  .snow-games-lobby .snow-lobby__coming {
+    margin: 0 12px;
+    padding: 5px 10px;
+  }
+
+  .snow-games-lobby .snow-lobby__footer > button {
+    min-width: 120px;
+    height: 34px;
+    font-size: 11px;
+  }
+}
+
+@media (min-height: 1000px) {
+  .snow-games-lobby .snow-lobby__grid {
+    max-width: 1760px;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .snow-games-lobby .snow-lobby__footer { max-width: 1760px; }
+  .snow-games-lobby .snow-lobby__title { font-size: 42px; }
+  .snow-games-lobby .snow-lobby-tile { padding: 24px 24px; }
+  .snow-games-lobby .snow-lobby-tile__title { font-size: 30px; }
+  .snow-games-lobby .snow-lobby-tile__tagline { font-size: 16px; }
+  .snow-games-lobby .snow-lobby-tile__status { min-height: 43px; font-size: 13px; }
+}
+
+/* True 4K browser surfaces. Many streaming boxes expose 1920 CSS pixels on a
+   4K panel; those use the crisp SVG/vector 1080p layout above. Devices that do
+   expose the full 3840×2160 viewport receive a physically larger composition. */
+@media (min-width: 2500px) and (min-height: 1400px) {
+  .snow-games-lobby { padding: 4vh 4vw; }
+
+  .snow-games-lobby .snow-games-lobby__topbar {
+    grid-template-columns: 300px minmax(0, 1fr) 300px;
+    max-width: 3200px;
+    height: 116px;
+    min-height: 116px;
+    flex-basis: 116px;
+  }
+
+  .snow-games-lobby__topbar > button { min-width: 220px; height: 78px; font-size: 24px; }
+  .snow-games-lobby .snow-lobby__title { font-size: 66px; }
+  .snow-games-lobby .snow-lobby__subtitle { margin-top: 13px; font-size: 23px; }
+  .snow-games-lobby__title-row > svg { width: 38px; height: 38px; }
+
+  .snow-games-lobby .snow-chip-badge {
+    width: 300px;
+    height: 92px;
+    padding: 12px 20px;
+    border-width: 2px;
+    border-radius: 18px;
+  }
+  .snow-games-lobby .snow-chip-badge > svg { width: 42px; height: 42px; flex-basis: 42px; margin-right: 16px; }
+  .snow-games-lobby .snow-chip-badge small { font-size: 16px; }
+  .snow-games-lobby .snow-chip-badge strong { font-size: 34px; }
+
+  .snow-games-lobby .snow-lobby__grid {
+    max-width: 3200px;
+    margin-top: 30px;
+    padding: 9px;
+    column-gap: 30px;
+    row-gap: 30px;
+  }
+
+  .snow-games-lobby .snow-lobby-tile {
+    padding: 39px 38px;
+    border-width: 3px;
+    border-radius: 25px;
+  }
+  .snow-games-lobby .snow-lobby-tile::after { height: 8px; }
+  .snow-games-lobby .snow-lobby-tile__number { top: 27px; right: 30px; font-size: 19px; }
+  .snow-games-lobby .snow-lobby-tile__title { font-size: 46px; }
+  .snow-games-lobby .snow-lobby-tile__tagline { margin-top: 15px; font-size: 24px; }
+  .snow-games-lobby .snow-lobby-tile__status { min-height: 61px; padding: 0 24px 0 10px; font-size: 19px; border-radius: 31px; }
+  .snow-games-lobby .snow-lobby-tile__play { width: 41px; height: 41px; flex-basis: 41px; margin-right: 14px; }
+  .snow-games-lobby .snow-lobby-tile__play::after { top: 12px; left: 16px; border-top-width: 8px; border-bottom-width: 8px; border-left-width: 12px; }
+
+  .snow-games-lobby .snow-lobby__footer {
+    max-width: 3200px;
+    height: 72px;
+    min-height: 72px;
+    flex-basis: 72px;
+    margin-top: 20px;
+    font-size: 21px;
+  }
+  .snow-games-lobby .snow-lobby__coming { margin: 0 32px; padding: 11px 24px; border-radius: 28px; }
+  .snow-games-lobby .snow-lobby__footer > button { min-width: 220px; height: 58px; font-size: 19px; }
+}
+
+@media (max-width: 1050px) {
+  .snow-games-lobby .snow-lobby-tile__title { font-size: 20px; }
+  .snow-games-lobby .snow-lobby-tile__tagline { font-size: 11px; }
+  .snow-games-lobby .snow-lobby-tile__content { width: 57%; }
+  .snow-games-lobby .snow-lobby-tile > .snow-game-art { width: 50% !important; }
+}
+
+[dir="rtl"] .snow-games-lobby .snow-lobby-tile { text-align: right; }
+[dir="rtl"] .snow-games-lobby .snow-lobby-tile__content { align-items: flex-end; }
+[dir="rtl"] .snow-games-lobby .snow-lobby-tile__number { right: auto; left: 19px; }
+[dir="rtl"] .snow-games-lobby .snow-lobby-tile > .snow-game-art { right: auto; left: 0; transform: translateX(-2%); }
+[dir="rtl"] .snow-games-lobby .snow-lobby-tile__play { margin-right: 0; margin-left: 9px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-games-lobby .snow-lobby-tile,
+  .snow-games-lobby .snow-game-art { transition: none !important; }
+}

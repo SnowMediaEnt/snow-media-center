@@ -10,7 +10,7 @@ import { GameFxCanvas } from './shared/GameFxCanvas';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
+import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import { useReducedGameFx } from './shared/useReducedGameFx';
 import { firstUsable, moveInRows, rehome, type FocusDir, type FocusRows } from './shared/focusRows';
 import {
@@ -23,6 +23,7 @@ import p1img from '@/assets/slots/dreamstreams.png';
 import p2img from '@/assets/slots/vibez.png';
 import p3img from '@/assets/slots/snowmedia.png';
 import p4img from '@/assets/slots/smc.png';
+import '@/styles/games-machines.css';
 
 interface SlotsProps {
   onBack: () => void;
@@ -32,11 +33,17 @@ const BETS = [10, 25, 50, 100];
 
 const SYMBOL_IMAGES: Record<string, string | undefined> = { p1: p1img, p2: p2img, p3: p3img, p4: p4img };
 const LOW_LETTER: Record<string, string> = { la: 'A', lk: 'K', lq: 'Q', lj: 'J' };
+const PREMIUM_SYMBOLS = [
+  { key: 'p1', label: 'Dream Streams' },
+  { key: 'p2', label: 'Vibez TV' },
+  { key: 'p3', label: 'Snow Media' },
+  { key: 'p4', label: 'SMC' },
+] as const;
 
 /** Rendered nodes per reel: 12 recycled cells plus 3 seamless wrap clones. */
 export const SLOTS_RENDER_CELLS = RENDER_CELLS;
 
-const cellHeightFor = (h: number) => (h <= 760 ? 62 : h >= 1000 ? 92 : 74);
+const cellHeightFor = (h: number) => (h <= 760 ? 78 : h >= 1000 ? 156 : 96);
 
 interface SpinResult {
   grid: string[][]; // [row][reel]
@@ -55,7 +62,7 @@ interface SpinResult {
 function SlotSymbol({ symbolKey, size = 46 }: { symbolKey: string; size?: number }) {
   const img = SYMBOL_IMAGES[symbolKey];
   if (img) {
-    return <img src={img} alt="" style={{ width: size, height: size, objectFit: 'contain' }} draggable={false} />;
+    return <img className={`snow-slot-brand snow-slot-brand--${symbolKey}`} src={img} alt="" style={{ width: size, height: size, objectFit: 'contain' }} draggable={false} />;
   }
   if (symbolKey === 'wild') {
     return <span className="snow-slot-token snow-slot-token--wild" style={{ width: size * 1.35, height: size }}>WILD</span>;
@@ -125,12 +132,6 @@ const Slots = ({ onBack }: SlotsProps) => {
   const calloutTokenRef = useRef(0);
   const calloutTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const onResize = () => setCellHeight(cellHeightFor(window.innerHeight));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
   const inFreeSpins = freeSpinsRemaining > 0;
   const canBet = inFreeSpins || bet <= (balance ?? 0);
   const betIdx = BETS.indexOf(bet);
@@ -187,6 +188,37 @@ const Slots = ({ onBack }: SlotsProps) => {
     // Cumulative travel, exposed for tests and never read by the render path.
     el.dataset.travel = String(Math.round(pos));
   }, []);
+
+  // Reel offsets are stored in pixels for cheap per-frame transforms. When a
+  // TV changes output mode (or the Lovable preview changes height), preserve
+  // the same cycle position instead of applying an old 720p offset to 1080p
+  // cells and showing half-symbols until the next spin.
+  useEffect(() => {
+    let queued = 0;
+    const onResize = () => {
+      const next = cellHeightFor(window.innerHeight);
+      const previous = cellHeightRef.current;
+      if (next === previous) return;
+      const ratio = next / previous;
+      posRef.current = posRef.current.map((position) => position * ratio);
+      planRef.current = planRef.current.map((plan) => plan ? {
+        ...plan,
+        from: plan.from * ratio,
+        target: plan.target * ratio,
+      } : null);
+      cellHeightRef.current = next;
+      setCellHeight(next);
+      window.cancelAnimationFrame(queued);
+      queued = window.requestAnimationFrame(() => {
+        for (let reel = 0; reel < REELS; reel += 1) paint(reel);
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.cancelAnimationFrame(queued);
+    };
+  }, [paint]);
 
   const promote = useCallback((reel: number, on: boolean) => {
     const el = stripRefs.current[reel];
@@ -402,7 +434,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
-      const dir: FocusDir | null = arrowDir(e);
+      const dir: FocusDir | null = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
       const next = moveInRows(focusRows, focus, dir);
@@ -416,7 +448,7 @@ const Slots = ({ onBack }: SlotsProps) => {
   const reels = useMemo(() => Array.from({ length: REELS }, (_, i) => i), []);
 
   return (
-    <GameShell accent="plum">
+    <GameShell accent="plum" className="snow-machine-game snow-slots-game">
       <GameTopBar
         ref={backBtnRef}
         onBack={requestBack}
@@ -434,138 +466,166 @@ const Slots = ({ onBack }: SlotsProps) => {
         onFxFocus={() => setFocus('fx')}
       />
 
-      <div className="snow-slot-stage">
-        <div className="snow-slot-cabinet">
-          <span className="snow-slot-marquee">{t('games.slots.marquee')}</span>
-
-          <div className="snow-slot-window" style={{ height: reelHeight + 12 }}>
-            <div className="snow-slot-reels" style={{ height: reelHeight }}>
-              {reels.map((reelIndex) => {
-                const cells = reelCells[reelIndex] ?? [];
-                return (
-                  <div
-                    key={reelIndex}
-                    className="snow-slot-reel"
-                    style={{ height: reelHeight }}
-                    data-reel={reelIndex}
-                    data-reel-symbols={landedWindows ? landedWindows[reelIndex]?.join(',') : undefined}
-                  >
-                    <span className="snow-slot-reel__shade" aria-hidden="true" />
-                    {landedWindows && winningCells[reelIndex]?.map((lit, row) => (lit ? (
-                      <span key={`w-${row}`} className="snow-slot-cell__win" style={{ top: row * cellHeight, height: cellHeight, bottom: 'auto' }} />
-                    ) : null))}
-                    <div
-                      ref={(el) => { stripRefs.current[reelIndex] = el; }}
-                      className="snow-slot-strip"
-                      data-testid={`slot-strip-${reelIndex}`}
-                    >
-                      {cells.map((key, i) => (
-                        <div key={i} className="snow-slot-cell" style={{ height: cellHeight }} data-cell={i < CYCLE_CELLS ? i : `clone-${i - CYCLE_CELLS}`}>
-                          <SlotSymbol symbolKey={key} size={Math.round(cellHeight * 0.62)} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <span className="snow-slot-payline" style={{ top: cellHeight + 6 }} aria-hidden="true" />
-            <span className="snow-slot-payline" style={{ top: cellHeight * 2 + 6 }} aria-hidden="true" />
-
-            {callout && (
-              <div className="snow-slot-overlay" data-callout-token={callout.token}>
-                <div className="snow-slot-callout" role="status" aria-live="polite">
-                  {callout.payout > 0 && t('games.slots.winChips', { amount: callout.payout.toLocaleString() })}
-                  {callout.freeSpins > 0 && (
-                    <small>
-                      {t('games.slots.freeSpinsCallout')} · {t('games.slots.freeSpinsAwarded', { count: callout.freeSpins })}
-                    </small>
-                  )}
-                </div>
-                {callout.payout > 0 && <GameFxCanvas burstKey={callout.token} reduced={reducedFx} />}
+      <div className="snow-slot-stage snow-machine-stage">
+        <div className="snow-slot-layout">
+          <section className="snow-slot-cabinet" aria-label={t('games.slots.luckySlotsWays')}>
+            <div className="snow-slot-crown">
+              <span className="snow-slot-crown__gem" aria-hidden="true">◆</span>
+              <div>
+                <span className="snow-slot-marquee">{t('games.slots.marquee')}</span>
+                <small>{t('games.slots.subtitleWildScatter')}</small>
               </div>
-            )}
-          </div>
-
-          <div className="snow-slot-controls">
-            <div className="snow-slot-bet">
-              <span className="snow-rl-label">{t('games.slots.bet')}</span>
-              <Button
-                ref={minusBtnRef}
-                type="button"
-                variant="navy"
-                size="icon"
-                onFocus={() => setFocus('betMinus')}
-                onClick={() => changeBet(-1)}
-                aria-disabled={!betStepUsable || betIdx === 0 ? 'true' : undefined}
-                data-tv-focused={focus === 'betMinus' ? 'true' : 'false'}
-              >
-                <Minus />
-              </Button>
-              <span className="snow-slot-bet__value">{bet}</span>
-              <Button
-                ref={plusBtnRef}
-                type="button"
-                variant="navy"
-                size="icon"
-                onFocus={() => setFocus('betPlus')}
-                onClick={() => changeBet(1)}
-                aria-disabled={!betStepUsable || betIdx === BETS.length - 1 ? 'true' : undefined}
-                data-tv-focused={focus === 'betPlus' ? 'true' : 'false'}
-              >
-                <Plus />
-              </Button>
+              <span className="snow-slot-crown__ways">5 × 3<br /><b>243</b></span>
             </div>
 
-            <Button
-              ref={spinBtnRef}
-              type="button"
-              onFocus={() => setFocus('spin')}
-              onClick={() => { if (spinUsable) handleSpin(); }}
-              aria-disabled={spinUsable ? undefined : 'true'}
-              data-busy={spinning ? 'true' : undefined}
-              data-tv-focused={focus === 'spin' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} snow-slot-spin`}
-            >
-              {spinning ? <><Loader2 className="animate-spin" /> {t('games.slots.spinning')}</> : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}
-            </Button>
-          </div>
+            <div className="snow-slot-screen">
+              <span className="snow-slot-lamps snow-slot-lamps--left" aria-hidden="true" />
+              <span className="snow-slot-lamps snow-slot-lamps--right" aria-hidden="true" />
+              <div className="snow-slot-window" style={{ height: reelHeight + 12 }}>
+                <div className="snow-slot-reels" style={{ height: reelHeight }}>
+                  {reels.map((reelIndex) => {
+                    const cells = reelCells[reelIndex] ?? [];
+                    return (
+                      <div
+                        key={reelIndex}
+                        className="snow-slot-reel"
+                        style={{ height: reelHeight }}
+                        data-reel={reelIndex}
+                        data-reel-symbols={landedWindows ? landedWindows[reelIndex]?.join(',') : undefined}
+                      >
+                        <span className="snow-slot-reel__shade" aria-hidden="true" />
+                        {landedWindows && winningCells[reelIndex]?.map((lit, row) => (lit ? (
+                          <span key={`w-${row}`} className="snow-slot-cell__win" style={{ top: row * cellHeight, height: cellHeight, bottom: 'auto' }} />
+                        ) : null))}
+                        <div
+                          ref={(el) => { stripRefs.current[reelIndex] = el; }}
+                          className="snow-slot-strip"
+                          data-testid={`slot-strip-${reelIndex}`}
+                        >
+                          {cells.map((key, i) => (
+                            <div key={i} className="snow-slot-cell" style={{ height: cellHeight }} data-cell={i < CYCLE_CELLS ? i : `clone-${i - CYCLE_CELLS}`}>
+                              <SlotSymbol symbolKey={key} size={Math.round(cellHeight * 0.7)} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <span className="snow-slot-payline" style={{ top: cellHeight + 6 }} aria-hidden="true" />
+                <span className="snow-slot-payline" style={{ top: cellHeight * 2 + 6 }} aria-hidden="true" />
 
-          {errorMsg && <p className="snow-game-error">{errorMsg}</p>}
-          {notice && <p className="snow-game-note" role="status">{notice}</p>}
-          {!errorMsg && balance !== null && !canBet && user && !inFreeSpins && (
-            <p className="snow-game-note">{t('games.slots.notEnoughChipsDailySpin')}</p>
-          )}
-        </div>
+                {callout && (
+                  <div className="snow-slot-overlay" data-callout-token={callout.token}>
+                    <div className="snow-slot-callout" role="status" aria-live="polite">
+                      {callout.payout > 0 && t('games.slots.winChips', { amount: callout.payout.toLocaleString() })}
+                      {callout.freeSpins > 0 && (
+                        <small>
+                          {t('games.slots.freeSpinsCallout')} · {t('games.slots.freeSpinsAwarded', { count: callout.freeSpins })}
+                        </small>
+                      )}
+                    </div>
+                    {callout.payout > 0 && <GameFxCanvas burstKey={callout.token} reduced={reducedFx} />}
+                  </div>
+                )}
+              </div>
+            </div>
 
-        <div className="snow-slot-info">
-          <GamePanel>
-            <b>{t('games.slots.paytable')}</b>
-            <ul>
-              {(['p1', 'p2', 'p3', 'p4'] as const).map((k) => (
-                <li key={k}><span>{k.toUpperCase()}</span><span>{t('games.slots.topPayer')}</span></li>
-              ))}
-            </ul>
-          </GamePanel>
-          <GamePanel>
-            <b>{t('games.slots.winsThisSpin')}</b>
-            <ul>
-              {result && result.wins.length > 0 ? result.wins.slice(0, 4).map((w, i) => (
-                <li key={i}>
-                  <span>{t('games.slots.winSymbolCount', { count: w.count, symbol: w.symbol.toUpperCase() })}</span>
-                  <span>+{w.payout.toLocaleString()}</span>
-                </li>
-              )) : <li><span>{t('games.slots.paytableNote')}</span></li>}
-              {result && result.scatterCount > 0 && (
-                <li><span>{t('games.slots.scatters', { count: result.scatterCount })}</span></li>
-              )}
-              {result && result.totalPayout > 0 && (
-                <li><span>{result.freeSpin && multiplier > 1
-                  ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
-                  : t('games.slots.totalPayout', { amount: result.totalPayout.toLocaleString() })}</span></li>
-              )}
-            </ul>
-          </GamePanel>
+            <div className="snow-slot-controls">
+              <div className="snow-slot-meter">
+                <small>{t('games.slots.bet')}</small>
+                <strong>{bet.toLocaleString()}</strong>
+              </div>
+              <div className="snow-slot-bet">
+                <Button
+                  ref={minusBtnRef}
+                  type="button"
+                  variant="navy"
+                  size="icon"
+                  onFocus={() => setFocus('betMinus')}
+                  onClick={() => changeBet(-1)}
+                  aria-label={`${t('games.slots.bet')} −`}
+                  aria-disabled={!betStepUsable || betIdx === 0 ? 'true' : undefined}
+                  data-tv-focused={focus === 'betMinus' ? 'true' : 'false'}
+                >
+                  <Minus />
+                </Button>
+                <span className="snow-slot-bet__value">{bet}</span>
+                <Button
+                  ref={plusBtnRef}
+                  type="button"
+                  variant="navy"
+                  size="icon"
+                  onFocus={() => setFocus('betPlus')}
+                  onClick={() => changeBet(1)}
+                  aria-label={`${t('games.slots.bet')} +`}
+                  aria-disabled={!betStepUsable || betIdx === BETS.length - 1 ? 'true' : undefined}
+                  data-tv-focused={focus === 'betPlus' ? 'true' : 'false'}
+                >
+                  <Plus />
+                </Button>
+              </div>
+
+              <Button
+                ref={spinBtnRef}
+                type="button"
+                onFocus={() => setFocus('spin')}
+                onClick={() => { if (spinUsable) handleSpin(); }}
+                aria-disabled={spinUsable ? undefined : 'true'}
+                data-busy={spinning ? 'true' : undefined}
+                data-tv-focused={focus === 'spin' ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} snow-slot-spin`}
+              >
+                <span className="snow-slot-spin__disc" aria-hidden="true">▶</span>
+                <span>{spinning ? <><Loader2 className="animate-spin" /> {t('games.slots.spinning')}</> : inFreeSpins ? t('games.slots.spinFree') : t('games.slots.spin')}</span>
+              </Button>
+
+              <div className="snow-slot-meter snow-slot-meter--win">
+                <small>{t('games.slots.winsThisSpin')}</small>
+                <strong>{(result?.totalPayout ?? 0).toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {errorMsg && <p className="snow-game-error">{errorMsg}</p>}
+            {notice && <p className="snow-game-note" role="status">{notice}</p>}
+            {!errorMsg && balance !== null && !canBet && user && !inFreeSpins && (
+              <p className="snow-game-note">{t('games.slots.notEnoughChipsDailySpin')}</p>
+            )}
+          </section>
+
+          <aside className="snow-slot-info" aria-label={t('games.slots.paytable')}>
+            <GamePanel className="snow-slot-paytable-panel">
+              <div className="snow-machine-panel-title"><span aria-hidden="true">★</span><b>{t('games.slots.paytable')}</b></div>
+              <ul className="snow-slot-symbol-list">
+                {PREMIUM_SYMBOLS.map(({ key, label }, index) => (
+                  <li key={key}>
+                    <span className="snow-slot-pay-symbol"><SlotSymbol symbolKey={key} size={44} /></span>
+                    <span className="snow-slot-symbol-rank"><b>#{index + 1}</b><small>{label}</small><em>{t('games.slots.topPayer')}</em></span>
+                  </li>
+                ))}
+              </ul>
+              <p>{t('games.slots.paytableNote')}</p>
+            </GamePanel>
+            <GamePanel className="snow-slot-status-panel">
+              <div className="snow-machine-panel-title"><span aria-hidden="true">✦</span><b>{t('games.slots.winsThisSpin')}</b></div>
+              <ul>
+                {result && result.wins.length > 0 ? result.wins.slice(0, 4).map((w, i) => (
+                  <li key={i}>
+                    <span>{t('games.slots.winSymbolCount', { count: w.count, symbol: w.symbol.toUpperCase() })}</span>
+                    <strong>+{w.payout.toLocaleString()}</strong>
+                  </li>
+                )) : <li className="snow-slot-status-panel__empty"><span>{t('games.slots.spinToWin')}</span><i aria-hidden="true">◆ ◆ ◆</i></li>}
+                {result && result.scatterCount > 0 && (
+                  <li><span>{t('games.slots.scatters', { count: result.scatterCount })}</span></li>
+                )}
+                {result && result.totalPayout > 0 && (
+                  <li className="snow-slot-status-panel__total"><span>{result.freeSpin && multiplier > 1
+                    ? t('games.slots.totalPayoutMultiplier', { amount: result.totalPayout.toLocaleString(), multiplier })
+                    : t('games.slots.totalPayout', { amount: result.totalPayout.toLocaleString() })}</span></li>
+                )}
+              </ul>
+            </GamePanel>
+          </aside>
         </div>
       </div>
 

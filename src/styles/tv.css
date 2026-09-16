@@ -156,6 +156,9 @@
 .snow-casino--sapphire { --game-accent: 206 78% 58%; }
 .snow-casino--ruby { --game-accent: 350 74% 57%; }
 .snow-casino--teal { --game-accent: 174 68% 48%; }
+.snow-casino--amber { --game-accent: 40 90% 58%; }
+.snow-casino--violet { --game-accent: 270 76% 65%; }
+.snow-casino--cobalt { --game-accent: 211 84% 61%; }
 .snow-casino__aurora { position:absolute; left:0; right:0; top:0; height:34%; pointer-events:none; opacity:.55; background:linear-gradient(105deg, transparent 12%, hsl(var(--brand-ice) / .12) 38%, hsl(var(--brand-purple) / .15) 58%, transparent 84%); transform:skewY(-3deg); }
 .snow-casino__vignette { position:absolute; left:0; right:0; top:0; bottom:0; pointer-events:none; box-shadow:inset 0 0 110px 28px hsl(220 75% 3% / .72); }
 .snow-game-body { z-index:1; padding-left:8px; padding-right:8px; }
@@ -420,9 +423,17 @@
 .snow-lobby button { outline:3px solid transparent; outline-offset:2px; }
 .snow-casino [aria-disabled="true"] { opacity:.5; }
 
+/* A few TV WebViews leave native DOM focus on Back after the managed cursor
+   moves. Do not paint that stale native ring alongside the real TV cursor. */
+.snow-casino [data-focus-id="back"][data-tv-focused="false"]:focus,
+.snow-lobby [data-focus-id="back"][data-tv-focused="false"]:focus {
+  box-shadow:none;
+  transform:none;
+}
+
 /* Headline hierarchy: the top bar carries the title, the surface gets the room. */
-.snow-game-heading { position:absolute; left:22%; right:22%; text-align:center; pointer-events:none; }
-.snow-game-heading span { display:block; color:hsl(var(--game-accent)); font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.snow-game-heading { position:absolute; left:18%; right:27%; overflow:hidden; text-align:center; pointer-events:none; }
+.snow-game-heading span { display:block; overflow:hidden; color:hsl(var(--game-accent)); font-size:14px; font-weight:800; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; letter-spacing:.06em; }
 
 /* Global Reduced FX / low memory: keep every state cue, cut the cost. */
 html[data-game-fx="reduced"] .snow-casino__aurora,

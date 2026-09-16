@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Games from '@/components/Games';
 
 vi.mock('react-i18next', () => ({
@@ -29,14 +29,24 @@ beforeEach(() => {
   onBack.mockClear();
   onOpenGame.mockClear();
   localStorage.clear();
+  document.documentElement.dir = 'ltr';
+});
+
+afterEach(() => {
+  document.documentElement.dir = 'ltr';
 });
 
 describe('Games hub D-pad navigation', () => {
-  it('renders all six games plus Back and the reduced-FX control', () => {
+  it('renders all nine games plus Back and the reduced-FX control', () => {
     renderHub();
     expect(screen.getByText('games.hub.gameDailySpinName')).toBeTruthy();
     expect(screen.getByText('games.hub.gameCasinoHoldemName')).toBeTruthy();
-    for (let i = 0; i <= 7; i++) expect(tile(i)).toBeTruthy();
+    expect(screen.getByText('games.hub.gamePlinkoName')).toBeTruthy();
+    expect(screen.getByText('games.hub.gameTvTriviaName')).toBeTruthy();
+    expect(screen.getByText('games.hub.gameDiceLoungeName')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /games\.hub\.gameBlackjackName/ })).toBe(tile(3));
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
+    for (let i = 0; i <= 10; i++) expect(tile(i)).toBeTruthy();
   });
 
   it('keeps exactly one focused tile as the D-pad moves', () => {
@@ -50,6 +60,42 @@ describe('Games hub D-pad navigation', () => {
     fireEvent.keyDown(window, { key: 'ArrowUp' });
     expect(tile(2).getAttribute('data-tv-focused')).toBe('true');
     expect(document.querySelectorAll('[data-tv-focused="true"]').length).toBe(1);
+  });
+
+  it('follows the mirrored visual order when the lounge is in RTL', () => {
+    document.documentElement.dir = 'rtl';
+    renderHub();
+    tile(1).focus();
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(tile(2).getAttribute('data-tv-focused')).toBe('true');
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(tile(1).getAttribute('data-tv-focused')).toBe('true');
+  });
+
+  it('consumes arrows at graph boundaries so native TV focus cannot drift', () => {
+    renderHub();
+    act(() => tile(0).focus());
+
+    expect(fireEvent.keyDown(window, { key: 'ArrowLeft' })).toBe(false);
+    expect(fireEvent.keyDown(window, { key: 'ArrowUp' })).toBe(false);
+    expect(document.activeElement).toBe(tile(0));
+
+    act(() => tile(10).focus());
+    expect(fireEvent.keyDown(window, { key: 'ArrowRight' })).toBe(false);
+    expect(fireEvent.keyDown(window, { key: 'ArrowDown' })).toBe(false);
+    expect(document.activeElement).toBe(tile(10));
+  });
+
+  it('yields arrows to a global modal without moving lobby focus', () => {
+    renderHub();
+    act(() => tile(2).focus());
+    const modal = document.createElement('div');
+    modal.setAttribute('aria-modal', 'true');
+    document.body.appendChild(modal);
+
+    expect(fireEvent.keyDown(window, { key: 'ArrowRight' })).toBe(true);
+    expect(document.activeElement).toBe(tile(2));
+    modal.remove();
   });
 
   it('opens the focused game once per OK press and remembers it', () => {
@@ -69,6 +115,13 @@ describe('Games hub D-pad navigation', () => {
     expect(onOpenGame).toHaveBeenCalledWith('game-roulette');
   });
 
+  it('opens the new free-play games from the third row', () => {
+    renderHub();
+    tile(7).focus();
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onOpenGame).toHaveBeenCalledWith('game-plinko');
+  });
+
   it('leaves hardware Back to the app shell instead of handling it twice', () => {
     renderHub();
     tile(1).focus();
@@ -79,7 +132,7 @@ describe('Games hub D-pad navigation', () => {
 
   it('still leaves the hub through the visible Back button', () => {
     renderHub();
-    tile(0).focus();
+    act(() => tile(0).focus());
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(onOpenGame).not.toHaveBeenCalled();
@@ -87,7 +140,7 @@ describe('Games hub D-pad navigation', () => {
 
   it('toggles reduced FX from the footer control without opening a game', () => {
     renderHub();
-    tile(7).focus();
+    tile(10).focus();
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onOpenGame).not.toHaveBeenCalled();
     expect(localStorage.getItem('snow-games-reduced-fx-v1')).toBe('true');

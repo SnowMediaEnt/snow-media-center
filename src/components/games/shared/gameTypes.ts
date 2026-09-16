@@ -14,4 +14,4 @@ export interface GameFairInfo {
 }
 
 /** Per-game accent used for trim, glow and artwork. */
-export type GameAccent = 'ice' | 'plum' | 'emerald' | 'sapphire' | 'ruby' | 'teal';
+export type GameAccent = 'ice' | 'plum' | 'emerald' | 'sapphire' | 'ruby' | 'teal' | 'amber' | 'violet' | 'cobalt';

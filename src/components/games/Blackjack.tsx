@@ -11,9 +11,10 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
+import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import { moveInRows, rehome, type FocusRows } from './shared/focusRows';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import '@/styles/games-blackjack.css';
 
 interface BlackjackProps {
   onBack: () => void;
@@ -52,6 +53,83 @@ interface BlackjackAck {
   net?: number;
   fair?: GameFairInfo;
 }
+
+type BlackjackActionIconName = 'deal' | 'hit' | 'stand' | 'double' | 'again';
+
+/** Small, dependency-free table icons that stay crisp on 720p TV panels. */
+const BlackjackActionIcon = ({ name }: { name: BlackjackActionIconName }) => {
+  if (name === 'hit') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <rect x="4.5" y="6" width="12" height="16" rx="2" />
+        <rect x="11.5" y="3" width="12" height="16" rx="2" />
+        <path d="M17.5 7.5v7M14 11h7" />
+      </svg>
+    );
+  }
+  if (name === 'stand') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <path d="M8.5 13V7.5a2 2 0 0 1 4 0V12" />
+        <path d="M12.5 11V5.5a2 2 0 0 1 4 0V12" />
+        <path d="M16.5 11V7a2 2 0 0 1 4 0v7" />
+        <path d="M8.5 11.5 6.8 10a2.1 2.1 0 0 0-3.1 2.8l5.1 8.1c1.1 1.8 3.1 2.8 5.2 2.8h2.4c4.2 0 7.1-3.2 7.1-7.2V12a2 2 0 0 0-3-1.7" />
+      </svg>
+    );
+  }
+  if (name === 'double') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <ellipse cx="10" cy="9" rx="6" ry="3" />
+        <path d="M4 9v4c0 1.7 2.7 3 6 3 1 0 2-.1 2.8-.4M4 13v4c0 1.7 2.7 3 6 3 1.1 0 2.1-.1 3-.4" />
+        <circle cx="19" cy="17" r="6" />
+        <path d="M19 13.5v7M15.5 17h7" />
+      </svg>
+    );
+  }
+  if (name === 'again') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <path d="M22.5 8.5V3.8l-3.2 3.1A9 9 0 1 0 23 14" />
+        <path d="M19.3 6.9h-4.6" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+      <rect x="5" y="7" width="13" height="17" rx="2" />
+      <rect x="10" y="4" width="13" height="17" rx="2" />
+      <path d="m16.5 9 1.8 2.2-1.8 2.2-1.8-2.2L16.5 9Z" />
+      <path d="M4 3.5h4M6 1.5v4" />
+    </svg>
+  );
+};
+
+const SnowMedallion = () => (
+  <div className="snow-bj-medallion" aria-hidden="true">
+    <svg viewBox="0 0 64 64" focusable="false">
+      <path d="M32 8v48M11.2 20l41.6 24M11.2 44l41.6-24" />
+      <path d="m26 13 6 5 6-5M26 51l6-5 6 5M14 26l7-2-1-7M50 38l-7 2 1 7M14 38l7 2-1 7M50 26l-7-2 1-7" />
+    </svg>
+    <strong>21</strong>
+  </div>
+);
+
+const DealerShoe = () => (
+  <div className="snow-bj-shoe" aria-hidden="true">
+    <span className="snow-bj-shoe__card snow-bj-shoe__card--one" />
+    <span className="snow-bj-shoe__card snow-bj-shoe__card--two" />
+    <span className="snow-bj-shoe__card snow-bj-shoe__card--three" />
+    <span className="snow-bj-shoe__mouth" />
+  </div>
+);
+
+const EmptyHand = () => (
+  <div className="snow-bj-empty-hand" aria-hidden="true">
+    <span />
+    <span />
+  </div>
+);
 
 /** A hand that can hold 7+ cards fans instead of overflowing the rail. */
 const Hand = ({ cards, faceDownAfter, highlight, compact }: {
@@ -105,7 +183,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [showFair, setShowFair] = useState(false);
   const [revealedDealer, setRevealedDealer] = useState(0);
 
-  const [focus, setFocus] = useState<FocusId>('deal');
+  // Never let the first paint claim that Deal is focused while auth or the
+  // balance is still loading (or when the selected wager cannot be covered).
+  const [focus, setFocus] = useState<FocusId>(() => (
+    user && balance !== null && balance >= bet ? 'deal' : 'back'
+  ));
 
   const backRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLButtonElement>(null);
@@ -118,8 +200,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   /** Bumped per hand: an ack from an older hand can never mutate a newer one. */
   const roundEpoch = useRef(0);
+  /** Carries the intended post-reveal action without making it focusable early. */
+  const focusAgainAfterReveal = useRef(false);
 
   const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
+  const dealUsable = !!user && balance !== null && balance >= bet;
 
   /**
    * The focus graph holds ONLY targets the player can use right now: Back and
@@ -133,10 +218,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const focusRows = useMemo<FocusRows>(() => {
     const top = ['back', 'fx'];
     if (phase === 'bet') {
-      const chips = BETS
-        .map((amount, i) => ((balance ?? 0) >= amount ? `chip-${i}` : null))
-        .filter((id): id is string => id !== null);
-      const dealUsable = !!user && (balance ?? 0) >= bet;
+      const chips = user && balance !== null
+        ? BETS
+          .map((amount, i) => (balance >= amount ? `chip-${i}` : null))
+          .filter((id): id is string => id !== null)
+        : [];
       return [top, [...chips, ...(dealUsable ? ['deal'] : [])]];
     }
     if (phase === 'playing') {
@@ -151,7 +237,11 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       revealComplete ? ['again'] : [],
       fair || serverSeedHash ? ['fair'] : [],
     ];
-  }, [phase, balance, bet, user, canHit, canStand, canDouble, revealComplete, fair, serverSeedHash]);
+  }, [phase, balance, user, dealUsable, canHit, canStand, canDouble, revealComplete, fair, serverSeedHash]);
+
+  // Render from the availability-filtered graph too, so a balance/auth change
+  // cannot leave a one-frame visual ring on Deal before state is re-homed.
+  const visibleFocus = (rehome(focusRows, focus) as FocusId) ?? 'back';
 
   // A phase or capability change must always leave managed focus on something
   // usable rather than stranding the remote on a disabled control.
@@ -159,18 +249,30 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
   }, [focusRows]);
 
+  // A terminal ack precedes the dealer reveal, so Play Again is intentionally
+  // unavailable for a moment. Remember that destination outside the active
+  // focus graph, then transfer both cursors when the reveal is actually done.
   useEffect(() => {
-    const target = focus === 'back' ? backRef.current
-      : focus === 'fx' ? fxRef.current
-        : focus === 'deal' ? dealRef.current
-          : focus === 'hit' ? hitRef.current
-            : focus === 'stand' ? standRef.current
-              : focus === 'double' ? doubleRef.current
-                : focus === 'again' ? againRef.current
-                  : focus === 'fair' ? fairRef.current
-                    : chipRefs.current[Number(focus.split('-')[1])];
+    if (phase !== 'settled' || !revealComplete || !focusAgainAfterReveal.current) return;
+    focusAgainAfterReveal.current = false;
+    setFocus('again');
+  }, [phase, revealComplete]);
+
+  useEffect(() => {
+    // Availability can change between renders (auth/balance/socket acks). Use
+    // the safe graph target for real DOM focus immediately; do not spend one
+    // effect cycle focusing a control that has just become unavailable.
+    const target = visibleFocus === 'back' ? backRef.current
+      : visibleFocus === 'fx' ? fxRef.current
+        : visibleFocus === 'deal' ? dealRef.current
+          : visibleFocus === 'hit' ? hitRef.current
+            : visibleFocus === 'stand' ? standRef.current
+              : visibleFocus === 'double' ? doubleRef.current
+                : visibleFocus === 'again' ? againRef.current
+                  : visibleFocus === 'fair' ? fairRef.current
+                    : chipRefs.current[Number(visibleFocus.split('-')[1])];
     if (target && document.activeElement !== target) target.focus({ preventScroll: true });
-  }, [focus, phase]);
+  }, [visibleFocus, phase]);
 
   const applyAck = useCallback((resp: BlackjackAck) => {
     if (typeof resp?.bet === 'number') setBet(resp.bet);
@@ -190,6 +292,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setFair(null);
       setFocus(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
     } else if (resp?.status) {
+      focusAgainAfterReveal.current = true;
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
       const dHand = resp.dealerHand ?? [];
@@ -202,7 +305,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanStand(false);
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
-      setFocus('again');
+      setFocus('back');
       setRevealedDealer(Math.min(1, dHand.length));
     }
   }, []);
@@ -215,6 +318,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
    * terminal — the hand may still be live — so it is left untouched.
    */
   const reconcileTerminalRound = useCallback(() => {
+    focusAgainAfterReveal.current = false;
     setPhase('bet');
     setPlayerHand([]);
     setDealerHand([]);
@@ -226,8 +330,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setCanDouble(false);
     setShowFair(false);
     setRevealedDealer(0);
-    setFocus('deal');
-  }, []);
+    setFocus(dealUsable ? 'deal' : 'back');
+  }, [dealUsable]);
 
   const handleErrorAck = (err: string) => {
     if (err === 'game_disabled') setError(t('games.blackjack.errorGameDisabled'));
@@ -291,6 +395,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [busy, applyAck, life]);
 
   const playAgain = () => {
+    focusAgainAfterReveal.current = false;
     setPhase('bet');
     setPlayerHand([]);
     setDealerHand([]);
@@ -300,7 +405,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setFair(null);
     setShowFair(false);
     setRevealedDealer(0);
-    setFocus('deal');
+    setFocus(dealUsable ? 'deal' : 'back');
   };
 
   // Staggered dealer reveal — purely visual, cancelled on unmount/Back.
@@ -321,9 +426,10 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
-      const dir = arrowDir(e);
+      const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
+      focusAgainAfterReveal.current = false;
       setFocus((current) => (moveInRows(focusRows, current, dir) as FocusId) ?? current);
     };
     window.addEventListener('keydown', handler);
@@ -374,7 +480,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const dealerFaceDownAfter = phase === 'playing' ? dealerUp.length : revealedDealer;
 
   return (
-    <GameShell accent="emerald">
+    <GameShell accent="emerald" className={`snow-blackjack snow-blackjack--${phase}`}>
       <GameTopBar
         ref={backRef}
         onBack={requestBack}
@@ -383,139 +489,210 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         status={status}
         title={t('games.blackjack.title')}
         phase={t('games.blackjack.subheading')}
-        backFocused={focus === 'back'}
+        backFocused={visibleFocus === 'back'}
         onBackFocus={() => setFocus('back')}
         reducedFx={reducedFx}
         onToggleFx={toggleReducedFx}
         fxRef={fxRef}
-        fxFocused={focus === 'fx'}
+        fxFocused={visibleFocus === 'fx'}
         onFxFocus={() => setFocus('fx')}
       />
 
-      <div className="snow-bj-table">
-        <div className="snow-bj-rail">
-          <span className="snow-bj-shoe" aria-hidden="true" />
-          <div className="snow-bj-seat">
-            <span className="snow-bj-seat__label">{t('games.blackjack.dealer')}</span>
-            {phase === 'bet'
-              ? <p className="snow-bj-hint">{t('games.blackjack.placeBetPrompt')}</p>
-              : <>
-                  <Hand cards={dealerCards} faceDownAfter={dealerFaceDownAfter} />
-                  <span className={`snow-bj-total${shownDealerTotal > 21 ? ' is-bust' : ''}`}>{shownDealerTotal}</span>
-                </>}
+      <div className="snow-bj-stage">
+        <div className="snow-bj-table">
+          <div className="snow-bj-table__rail" aria-hidden="true">
+            <span /><span /><span /><span /><span />
           </div>
-          <span className="snow-bj-shoe" style={{ visibility: 'hidden' }} aria-hidden="true" />
-        </div>
+          <div className="snow-bj-table__felt">
+            <div className="snow-bj-zone snow-bj-zone--dealer">
+              <div className="snow-bj-zone__equipment">
+                <DealerShoe />
+                <span className="snow-bj-shoe-label" aria-hidden="true">❄</span>
+              </div>
+              <div className="snow-bj-seat">
+                <div className="snow-bj-seat__heading">
+                  <span className="snow-bj-seat__label"><i aria-hidden="true" />{t('games.blackjack.dealer')}</span>
+                  {phase !== 'bet' && (
+                    <span className={`snow-bj-total${shownDealerTotal > 21 ? ' is-bust' : ''}`}>
+                      {shownDealerTotal}
+                    </span>
+                  )}
+                </div>
+                <div className="snow-bj-hand-well">
+                  {phase === 'bet'
+                    ? <><EmptyHand /><p className="snow-bj-hint">{t('games.blackjack.placeBetPrompt')}</p></>
+                    : <Hand cards={dealerCards} faceDownAfter={dealerFaceDownAfter} />}
+                </div>
+              </div>
+              <div className="snow-bj-zone__ornament" aria-hidden="true">
+                <span>♠</span><span>♥</span><span>♦</span><span>♣</span>
+              </div>
+            </div>
 
-        <div className="snow-bj-seat">
-          <span className="snow-bj-seat__label">{t('games.blackjack.you')}</span>
-          {phase === 'bet'
-            ? <p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p>
-            : <>
-                <Hand cards={playerHand} highlight={phase === 'settled' && settleStatus === 'blackjack'} />
-                <span className={`snow-bj-total${playerTotal > 21 ? ' is-bust' : ''}`}>{playerTotal}</span>
-              </>}
-        </div>
+            <div className="snow-bj-centerline">
+              <span className="snow-bj-centerline__rule" aria-hidden="true" />
+              <SnowMedallion />
+              <div className="snow-bj-stake" aria-label={t('games.blackjack.dealWithBet', { bet })}>
+                <span className="snow-bj-stake__chip">{bet}</span>
+              </div>
+              <span className="snow-bj-centerline__rule" aria-hidden="true" />
+              {banner && <div className="snow-bj-result">{banner}</div>}
+            </div>
 
-        {banner && <div className="snow-bj-seat">{banner}</div>}
+            <div className="snow-bj-zone snow-bj-zone--player">
+              <div className="snow-bj-zone__equipment snow-bj-zone__equipment--player" aria-hidden="true">
+                <span className="snow-bj-seat-marker">◆</span>
+              </div>
+              <div className="snow-bj-seat">
+                <div className="snow-bj-seat__heading">
+                  <span className="snow-bj-seat__label"><i aria-hidden="true" />{t('games.blackjack.you')}</span>
+                  {phase !== 'bet' && (
+                    <span className={`snow-bj-total${playerTotal > 21 ? ' is-bust' : ''}`}>
+                      {playerTotal}
+                    </span>
+                  )}
+                </div>
+                <div className="snow-bj-hand-well">
+                  {phase === 'bet'
+                    ? <><EmptyHand /><p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p></>
+                    : <Hand cards={playerHand} highlight={phase === 'settled' && settleStatus === 'blackjack'} />}
+                </div>
+              </div>
+              <div className="snow-bj-zone__ornament snow-bj-zone__ornament--player" aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                  <circle cx="24" cy="24" r="17" />
+                  <path d="M24 13v22M13 24h22" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <GamePanel className="p-3">
+      <GamePanel className="snow-bj-controls">
         {phase === 'bet' && (
-          <div className="snow-bet-row">
-            {BETS.map((amount, i) => (
-              <BetChip
-                key={amount}
-                ref={(el) => { chipRefs.current[i] = el; }}
-                selected={bet === amount}
-                focused={focus === `chip-${i}`}
-                onFocus={() => setFocus(`chip-${i}`)}
-                onClick={() => { if ((balance ?? 0) >= amount) setBet(amount); }}
-                aria-disabled={(balance ?? 0) < amount ? 'true' : undefined}
+          <div className="snow-bj-controls__row snow-bj-controls__row--bet">
+            <div className="snow-bj-controls__label">
+              <span className="snow-bj-controls__chip" aria-hidden="true">◆</span>
+              <strong>{t('games.blackjack.chooseBet')}</strong>
+            </div>
+            <div className="snow-bet-row">
+              {BETS.map((amount, i) => (
+                <BetChip
+                  key={amount}
+                  ref={(el) => { chipRefs.current[i] = el; }}
+                  selected={bet === amount}
+                  focused={visibleFocus === `chip-${i}`}
+                  onFocus={() => {
+                    if (user && balance !== null && balance >= amount) setFocus(`chip-${i}`);
+                    else backRef.current?.focus({ preventScroll: true });
+                  }}
+                  onClick={() => { if (user && balance !== null && balance >= amount) setBet(amount); }}
+                  aria-disabled={!user || balance === null || balance < amount ? 'true' : undefined}
+                >
+                  {amount}
+                </BetChip>
+              ))}
+              <Button
+                ref={dealRef}
+                type="button"
+                onFocus={() => {
+                  if (dealUsable) setFocus('deal');
+                  else backRef.current?.focus({ preventScroll: true });
+                }}
+                onClick={() => { if (!busy && dealUsable) deal(); }}
+                aria-disabled={busy || !dealUsable ? 'true' : undefined}
+                data-busy={busy ? 'true' : undefined}
+                data-tv-focused={visibleFocus === 'deal' && dealUsable ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} snow-bj-action snow-bj-action--deal`}
               >
-                {amount}
-              </BetChip>
-            ))}
-            <Button
-              ref={dealRef}
-              type="button"
-              onFocus={() => setFocus('deal')}
-              onClick={() => { if (!(busy || !user || (balance ?? 0) < bet)) deal(); }}
-              aria-disabled={busy || !user || (balance ?? 0) < bet ? 'true' : undefined}
-              data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focus === 'deal' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} ml-3 px-8`}
-            >
-              {busy ? <><Loader2 className="animate-spin" /> {t('games.blackjack.dealing')}</> : t('games.blackjack.dealWithBet', { bet })}
-            </Button>
+                {busy
+                  ? <><Loader2 className="animate-spin" /> <span>{t('games.blackjack.dealing')}</span></>
+                  : <><BlackjackActionIcon name="deal" /><span>{t('games.blackjack.dealWithBet', { bet })}</span></>}
+              </Button>
+            </div>
           </div>
         )}
 
         {phase === 'playing' && (
-          <div className="snow-game-actions">
-            <Button
-              ref={hitRef}
-              type="button"
-              onFocus={() => setFocus('hit')}
-              onClick={() => { if (canHit && !busy) action('hit'); }}
-              aria-disabled={!canHit || busy ? 'true' : undefined}
-              data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focus === 'hit' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} px-8`}
-            >
-              {t('games.blackjack.hit')}
-            </Button>
-            <Button
-              ref={standRef}
-              type="button"
-              variant="navy"
-              onFocus={() => setFocus('stand')}
-              onClick={() => { if (canStand && !busy) action('stand'); }}
-              aria-disabled={!canStand || busy ? 'true' : undefined}
-              data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focus === 'stand' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} px-8`}
-            >
-              {t('games.blackjack.stand')}
-            </Button>
-            {canDouble && (
+          <div className="snow-bj-controls__row">
+            <div className="snow-bj-controls__stake">
+              <span>{bet}</span>
+              <small>{t('games.shared.playChips')}</small>
+            </div>
+            <div className="snow-game-actions">
               <Button
-                ref={doubleRef}
+                ref={hitRef}
+                type="button"
+                onFocus={() => setFocus('hit')}
+                onClick={() => { if (canHit && !busy) action('hit'); }}
+                aria-disabled={!canHit || busy ? 'true' : undefined}
+                data-busy={busy ? 'true' : undefined}
+                data-tv-focused={visibleFocus === 'hit' ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} snow-bj-action snow-bj-action--hit`}
+              >
+                <BlackjackActionIcon name="hit" /><span>{t('games.blackjack.hit')}</span>
+              </Button>
+              <Button
+                ref={standRef}
                 type="button"
                 variant="navy"
-                onFocus={() => setFocus('double')}
-                onClick={() => { if (!busy) action('double'); }}
-                aria-disabled={busy ? 'true' : undefined}
+                onFocus={() => setFocus('stand')}
+                onClick={() => { if (canStand && !busy) action('stand'); }}
+                aria-disabled={!canStand || busy ? 'true' : undefined}
                 data-busy={busy ? 'true' : undefined}
-                data-tv-focused={focus === 'double' ? 'true' : 'false'}
-                className={`${GAME_ACTION_CLASS} px-8`}
+                data-tv-focused={visibleFocus === 'stand' ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} snow-bj-action snow-bj-action--stand`}
               >
-                {t('games.blackjack.double')}
+                <BlackjackActionIcon name="stand" /><span>{t('games.blackjack.stand')}</span>
               </Button>
-            )}
-            {busy && <span className="snow-game-note ml-3"><Loader2 className="inline h-4 w-4 animate-spin" /> {t('games.blackjack.working')}</span>}
+              {canDouble && (
+                <Button
+                  ref={doubleRef}
+                  type="button"
+                  variant="navy"
+                  onFocus={() => setFocus('double')}
+                  onClick={() => { if (!busy) action('double'); }}
+                  aria-disabled={busy ? 'true' : undefined}
+                  data-busy={busy ? 'true' : undefined}
+                  data-tv-focused={visibleFocus === 'double' ? 'true' : 'false'}
+                  className={`${GAME_ACTION_CLASS} snow-bj-action snow-bj-action--double`}
+                >
+                  <BlackjackActionIcon name="double" /><span>{t('games.blackjack.double')}</span>
+                </Button>
+              )}
+            </div>
+            {busy && <span className="snow-game-note snow-bj-working"><Loader2 className="inline h-4 w-4 animate-spin" /> {t('games.blackjack.working')}</span>}
           </div>
         )}
 
         {phase === 'settled' && (
-          <div className="snow-game-actions">
-            <Button
-              ref={againRef}
-              type="button"
-              onFocus={() => setFocus('again')}
-              onClick={() => { if (revealComplete) playAgain(); }}
-              aria-disabled={revealComplete ? undefined : 'true'}
-              data-tv-focused={focus === 'again' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} px-10`}
-            >
-              {t('games.blackjack.playAgain')}
-            </Button>
+          <div className="snow-bj-controls__row snow-bj-controls__row--settled">
+            <div className="snow-bj-controls__stake">
+              <span>{bet}</span>
+              <small>{t('games.shared.playChips')}</small>
+            </div>
+            <div className="snow-game-actions">
+              <Button
+                ref={againRef}
+                type="button"
+                onFocus={() => setFocus('again')}
+                onClick={() => { if (revealComplete) playAgain(); }}
+                aria-disabled={revealComplete ? undefined : 'true'}
+                data-tv-focused={visibleFocus === 'again' ? 'true' : 'false'}
+                className={`${GAME_ACTION_CLASS} snow-bj-action snow-bj-action--again`}
+              >
+                <BlackjackActionIcon name="again" /><span>{t('games.blackjack.playAgain')}</span>
+              </Button>
+            </div>
           </div>
         )}
 
-        {error && <p className="snow-game-error">{error}</p>}
-        {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
-        {phase === 'bet' && !error && <p className="snow-game-note">{t('games.blackjack.freshSeedNote')}</p>}
+        <div className="snow-bj-controls__note">
+          {error && <p className="snow-game-error">{error}</p>}
+          {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
+          {phase === 'bet' && !error && <p className="snow-game-note">{t('games.blackjack.freshSeedNote')}</p>}
+        </div>
       </GamePanel>
 
       <FairnessPanel
@@ -524,7 +701,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
         hash={serverSeedHash}
         open={showFair}
         onToggle={() => setShowFair((s) => !s)}
-        focused={focus === 'fair'}
+        focused={visibleFocus === 'fair'}
         onFocus={() => setFocus('fair')}
         labels={{
           title: t('games.blackjack.provablyFair'),

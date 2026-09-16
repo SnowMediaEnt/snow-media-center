@@ -1,0 +1,940 @@
+/* Casino Hold'em — a self-contained, Fire TV-safe table skin.
+   No external imagery, filters, canvas, or looping decorative animation. */
+
+.snow-holdem {
+  --holdem-gold: 43 78% 67%;
+  --holdem-gold-deep: 36 68% 34%;
+  --holdem-teal: 169 72% 39%;
+  --holdem-ice: 184 82% 78%;
+  --holdem-felt: 164 62% 14%;
+  --holdem-felt-deep: 171 78% 6%;
+  background-image:
+    radial-gradient(ellipse at 50% -14%, hsl(168 72% 28% / .42), transparent 43%),
+    radial-gradient(ellipse at 8% 18%, hsl(276 62% 31% / .28), transparent 36%),
+    linear-gradient(145deg, hsl(220 77% 10%), hsl(222 74% 5%) 61%, hsl(277 48% 8%));
+}
+.snow-holdem .snow-game-body {
+  max-width: 94rem;
+  gap: 7px;
+}
+
+.snow-holdem .snow-game-topbar {
+  position: relative;
+  z-index: 8;
+}
+
+.snow-holdem .snow-game-heading span {
+  color: hsl(159 77% 61%);
+  font-size: 13px;
+  letter-spacing: .065em;
+  text-shadow: 0 0 18px hsl(159 75% 44% / .32);
+}
+
+.snow-holdem .snow-game-back,
+.snow-holdem .snow-game-fx-toggle,
+.snow-holdem .snow-chip-badge {
+  border-color: hsl(var(--holdem-gold) / .7);
+}
+
+.snow-holdem .snow-chip-badge {
+  background: linear-gradient(135deg, hsl(221 65% 8%), hsl(190 58% 10%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), 0 8px 20px hsl(220 90% 2% / .42);
+}
+
+.snow-holdem .snow-chip-badge svg {
+  color: hsl(var(--holdem-gold));
+}
+
+.snow-holdem-stage {
+  position: relative;
+  flex: 1 1 0 !important;
+  min-height: 0;
+  display: flex;
+  padding: 2px 12px 0;
+}
+
+.snow-holdem-table {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  padding: 10px 11px 13px;
+  border: 1px solid hsl(var(--holdem-gold) / .72);
+  border-radius: 48% 48% 27px 27px / 9% 9% 27px 27px;
+  background:
+    linear-gradient(90deg,
+      hsl(29 66% 15%),
+      hsl(var(--holdem-gold-deep)) 15%,
+      hsl(43 80% 73%) 50%,
+      hsl(var(--holdem-gold-deep)) 85%,
+      hsl(29 66% 15%));
+  box-shadow:
+    inset 0 1px hsl(47 100% 91% / .72),
+    inset 0 -9px 0 hsl(29 61% 13% / .92),
+    0 21px 38px hsl(220 90% 2% / .62),
+    0 0 31px hsl(167 72% 37% / .12);
+  transform: perspective(1600px) rotateX(1deg);
+  transform-origin: 50% 100%;
+}
+
+.snow-holdem-table::before {
+  position: absolute;
+  top: 2px;
+  right: 6%;
+  left: 6%;
+  z-index: 3;
+  height: 5px;
+  border-radius: 50%;
+  background: linear-gradient(90deg,
+    transparent,
+    hsl(var(--holdem-ice) / .86),
+    hsl(0 0% 100%),
+    hsl(var(--holdem-ice) / .86),
+    transparent);
+  box-shadow: 0 0 13px hsl(var(--holdem-ice) / .42);
+  content: "";
+  pointer-events: none;
+}
+
+.snow-holdem-table__rail {
+  position: absolute;
+  right: 22px;
+  bottom: 5px;
+  left: 22px;
+  z-index: 4;
+  height: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  pointer-events: none;
+}
+
+.snow-holdem-table__rail i {
+  width: 7px;
+  height: 7px;
+  border: 1px solid hsl(45 94% 84% / .8);
+  border-radius: 50%;
+  background: hsl(29 61% 15%);
+  box-shadow: 0 0 6px hsl(var(--holdem-gold) / .5);
+}
+
+.snow-holdem-table__felt {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1.12fr) minmax(0, 1fr);
+  overflow: hidden;
+  padding: 12px 28px 17px;
+  border: 2px solid hsl(45 75% 25% / .78);
+  border-radius: 47% 47% 18px 18px / 8% 8% 18px 18px;
+  background:
+    radial-gradient(circle at 19% 50%, hsl(165 55% 22% / .38) 0, transparent 27%),
+    radial-gradient(circle at 81% 50%, hsl(165 55% 22% / .38) 0, transparent 27%),
+    radial-gradient(ellipse at 50% 29%, hsl(158 52% 23%), hsl(var(--holdem-felt)) 48%, hsl(var(--holdem-felt-deep)) 100%);
+  box-shadow:
+    inset 0 0 0 2px hsl(158 71% 51% / .07),
+    inset 0 0 82px hsl(173 92% 2% / .72);
+}
+
+.snow-holdem-table__felt::before,
+.snow-holdem-table__felt::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.snow-holdem-table__felt::before {
+  top: 8%;
+  right: 8%;
+  bottom: 9%;
+  left: 8%;
+  border: 1px solid hsl(var(--holdem-gold) / .24);
+  border-radius: 49% 49% 37% 37% / 12% 12% 37% 37%;
+  box-shadow: inset 0 0 0 5px hsl(162 70% 35% / .025);
+}
+
+.snow-holdem-table__felt::after {
+  right: 22%;
+  bottom: 6%;
+  left: 22%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--holdem-gold) / .35), transparent);
+}
+
+.snow-holdem-crest {
+  position: absolute;
+  top: 50%;
+  left: 7.5%;
+  width: 12%;
+  min-width: 90px;
+  max-width: 160px;
+  height: auto;
+  transform: translateY(-50%);
+  fill: hsl(160 55% 24% / .42);
+  stroke: hsl(var(--holdem-gold) / .22);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.snow-holdem-zone,
+.snow-holdem-runway {
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-holdem-zone__tag {
+  position: absolute;
+  left: 6%;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  min-width: 104px;
+  padding: 5px 11px 5px 7px;
+  border: 1px solid hsl(var(--holdem-gold) / .36);
+  border-radius: 22px;
+  color: hsl(160 75% 81%);
+  background: hsl(171 71% 7% / .84);
+  box-shadow: inset 0 1px hsl(0 0% 100% / .06);
+  font: 900 11px/1 Montserrat, sans-serif;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  transform: translateY(-50%);
+}
+
+.snow-holdem-zone__pip {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-right: 7px;
+  border: 1px solid hsl(var(--holdem-gold) / .55);
+  border-radius: 50%;
+  color: hsl(var(--holdem-gold));
+  background: hsl(220 62% 8%);
+  font-size: 12px;
+}
+
+.snow-holdem-hand {
+  position: relative;
+  min-width: 170px;
+}
+
+.snow-holdem .snow-ch-row > * + * {
+  margin-left: 9px;
+}
+
+.snow-holdem .snow-playing-card.tv-game-card,
+.snow-holdem .snow-card-slot.tv-game-card {
+  width: 82px !important;
+  height: 118px !important;
+  aspect-ratio: auto;
+  border-radius: 9px;
+}
+
+.snow-holdem .snow-playing-card.is-compact.tv-game-card,
+.snow-holdem .snow-card-slot.is-compact.tv-game-card {
+  width: 72px !important;
+  height: 102px !important;
+}
+
+.snow-holdem .snow-playing-card {
+  border: 2px solid hsl(46 25% 82%);
+  background:
+    linear-gradient(145deg, hsl(0 0% 100%), hsl(195 26% 92%) 63%, hsl(204 24% 83%));
+  box-shadow:
+    0 8px 0 hsl(169 82% 3% / .26),
+    0 11px 20px hsl(169 90% 2% / .44),
+    inset 0 0 0 1px hsl(0 0% 100% / .78);
+}
+
+.snow-holdem .snow-playing-card::after {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  bottom: 3px;
+  left: 3px;
+  border: 1px solid hsl(207 22% 63% / .42);
+  border-radius: 5px;
+  content: "";
+  pointer-events: none;
+}
+
+.snow-holdem .snow-playing-card.is-back {
+  border-color: hsl(var(--holdem-gold));
+  background-color: hsl(202 61% 19%);
+  background-image:
+    linear-gradient(45deg, hsl(187 64% 58% / .2) 25%, transparent 25%, transparent 75%, hsl(187 64% 58% / .2) 75%),
+    linear-gradient(45deg, hsl(187 64% 58% / .2) 25%, hsl(211 69% 20%) 25%, hsl(211 69% 20%) 75%, hsl(187 64% 58% / .2) 75%);
+  background-position: 0 0, 7px 7px;
+  background-size: 14px 14px;
+  box-shadow: 0 8px 0 hsl(169 82% 3% / .28), 0 11px 19px hsl(169 90% 2% / .45);
+}
+
+.snow-holdem .snow-playing-card.is-back::before {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  bottom: 9px;
+  left: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--holdem-gold) / .68);
+  border-radius: 4px;
+  color: hsl(var(--holdem-gold) / .9);
+  background: hsl(211 72% 14% / .72);
+  content: "♠";
+  font: 900 24px/1 Georgia, serif;
+}
+
+.snow-holdem .snow-card-slot {
+  position: relative;
+  border: 2px solid hsl(168 57% 64% / .26);
+  background:
+    linear-gradient(135deg, hsl(161 59% 18% / .46), hsl(171 68% 8% / .3));
+  box-shadow: inset 0 0 0 3px hsl(162 55% 9% / .4), inset 0 0 22px hsl(172 84% 3% / .45);
+}
+
+.snow-holdem .snow-card-slot::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: hsl(var(--holdem-gold) / .22);
+  content: "♠";
+  font: 900 25px/1 Georgia, serif;
+  transform: translate(-50%, -50%);
+}
+
+.snow-holdem .snow-card-corner {
+  top: 6px;
+  left: 7px;
+  font-size: 16px;
+}
+
+.snow-holdem .snow-card-corner--bottom {
+  top: auto;
+  right: 7px;
+  bottom: 6px;
+  left: auto;
+}
+
+.snow-holdem .snow-card-suit {
+  top: 34%;
+  font-size: 36px;
+}
+
+.snow-holdem-rank {
+  position: absolute;
+  right: 6%;
+  top: 50%;
+  max-width: 190px;
+  overflow: hidden;
+  padding: 5px 12px;
+  border: 1px solid hsl(var(--holdem-gold) / .48);
+  border-radius: 20px;
+  color: hsl(45 89% 82%);
+  background: hsl(171 71% 7% / .9);
+  font: 900 12px/1.2 Montserrat, sans-serif;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.snow-holdem-runway {
+  flex-direction: column;
+  margin: 0 17%;
+  border-top: 1px solid hsl(var(--holdem-gold) / .28);
+  border-bottom: 1px solid hsl(var(--holdem-gold) / .28);
+  border-radius: 46%;
+  background:
+    radial-gradient(ellipse at center, hsl(166 55% 20% / .7), hsl(171 70% 8% / .18) 68%, transparent 72%);
+  box-shadow: inset 0 0 28px hsl(171 84% 4% / .24);
+}
+
+.snow-holdem-runway__heading {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  color: hsl(var(--holdem-ice) / .9);
+  font: 900 10px/1 Montserrat, sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.snow-holdem-runway__line {
+  width: 42px;
+  height: 1px;
+  margin: 0 9px;
+  background: hsl(var(--holdem-gold) / .42);
+}
+
+.snow-holdem-pot {
+  display: inline-flex;
+  align-items: center;
+  color: hsl(var(--holdem-gold));
+  letter-spacing: .1em;
+}
+
+.snow-holdem-pot__chip {
+  width: 23px;
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+  border: 3px dashed hsl(46 92% 86% / .82);
+  border-radius: 50%;
+  color: hsl(215 74% 9%);
+  background: hsl(var(--holdem-gold));
+  box-shadow: 0 2px 0 hsl(var(--holdem-gold-deep));
+  font: 900 10px/1 Montserrat, sans-serif;
+}
+
+.snow-holdem-dealer-button {
+  position: absolute;
+  top: 11%;
+  right: 14%;
+  z-index: 3;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px double hsl(var(--holdem-gold));
+  border-radius: 50%;
+  color: hsl(215 72% 9%);
+  background: linear-gradient(145deg, hsl(0 0% 100%), hsl(44 73% 72%));
+  box-shadow: 0 5px 10px hsl(170 88% 2% / .42);
+  font: 900 14px/1 Montserrat, sans-serif;
+}
+
+.snow-holdem-ante-marker {
+  position: absolute;
+  right: 8%;
+  bottom: 11%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid hsl(var(--holdem-gold) / .34);
+  border-radius: 8px;
+  color: hsl(45 89% 82%);
+  background: hsl(171 72% 6% / .8);
+}
+
+.snow-holdem-ante-marker > span:last-child {
+  display: flex;
+  flex-direction: column;
+  margin-left: 8px;
+}
+
+.snow-holdem-ante-marker small {
+  color: hsl(var(--holdem-ice) / .72);
+  font: 900 8px/1 Montserrat, sans-serif;
+  letter-spacing: .14em;
+}
+
+.snow-holdem-ante-marker strong {
+  margin-top: 3px;
+  font: 900 15px/1 Montserrat, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.snow-holdem-mini-chips {
+  position: relative;
+  width: 31px;
+  height: 29px;
+}
+
+.snow-holdem-mini-chips i {
+  position: absolute;
+  left: 1px;
+  width: 28px;
+  height: 9px;
+  border: 2px dashed hsl(46 90% 88% / .78);
+  border-radius: 50%;
+  background: hsl(350 68% 47%);
+}
+
+.snow-holdem-mini-chips i:nth-child(1) { bottom: 1px; }
+.snow-holdem-mini-chips i:nth-child(2) { bottom: 7px; background: hsl(208 68% 48%); }
+.snow-holdem-mini-chips i:nth-child(3) { bottom: 13px; background: hsl(161 55% 38%); }
+
+.snow-holdem-showdown {
+  position: absolute;
+  right: 21%;
+  bottom: 4%;
+  left: 21%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border: 1px solid hsl(var(--holdem-gold) / .45);
+  border-radius: 22px;
+  color: hsl(162 67% 83%);
+  background: hsl(171 74% 6% / .94);
+  box-shadow: 0 6px 18px hsl(171 90% 2% / .46);
+  font: 800 11px/1.25 Montserrat, sans-serif;
+}
+
+.snow-holdem-showdown > * + * {
+  margin-left: 10px;
+}
+
+.snow-holdem-showdown b {
+  color: hsl(var(--holdem-gold));
+  text-transform: uppercase;
+}
+
+.snow-holdem-showdown em {
+  color: hsl(45 92% 82%);
+  font-style: normal;
+}
+
+.snow-holdem-result {
+  position: absolute;
+  top: 50%;
+  right: 3.5%;
+  z-index: 7;
+  width: 238px;
+  transform: translateY(-50%);
+}
+
+.snow-holdem-result .snow-result-banner {
+  min-width: 0;
+  padding: 10px 12px;
+  border-width: 2px;
+  background: hsl(218 68% 7% / .96);
+  box-shadow: 0 12px 25px hsl(171 90% 2% / .5), inset 0 1px hsl(0 0% 100% / .08);
+}
+
+.snow-holdem-result .snow-result-banner strong {
+  font-size: 20px;
+}
+
+.snow-holdem-result .snow-result-banner > div {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+/* The attached control dock reads as part of the table, not a generic panel. */
+.snow-holdem .snow-holdem-dock {
+  position: relative;
+  min-height: 86px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  overflow: visible;
+  padding: 8px 11px;
+  border: 1px solid hsl(var(--holdem-gold) / .56);
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, hsl(212 61% 13%), hsl(218 72% 6%));
+  box-shadow:
+    inset 0 1px hsl(0 0% 100% / .09),
+    0 11px 23px hsl(220 90% 2% / .46);
+}
+
+.snow-holdem .snow-holdem-dock::before {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, hsl(var(--holdem-ice)), hsl(var(--holdem-teal)));
+  box-shadow: 0 0 10px hsl(var(--holdem-teal) / .52);
+  content: "";
+}
+
+.snow-holdem-dock__prompt {
+  width: 232px;
+  min-width: 232px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px 0 5px;
+}
+
+.snow-holdem-dock__signal {
+  width: 39px;
+  height: 39px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  border: 1px solid hsl(var(--holdem-gold) / .62);
+  border-radius: 50%;
+  color: hsl(var(--holdem-gold));
+  background: radial-gradient(circle at 35% 30%, hsl(171 45% 22%), hsl(218 68% 7%) 70%);
+  box-shadow: inset 0 0 0 3px hsl(218 66% 8%), 0 4px 10px hsl(220 90% 2% / .42);
+  font: 900 18px/1 Georgia, serif;
+}
+
+.snow-holdem-dock__prompt > span:nth-child(2) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.snow-holdem-dock__prompt small {
+  color: hsl(var(--holdem-teal));
+  font: 900 9px/1 Montserrat, sans-serif;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.snow-holdem-dock__prompt strong {
+  margin-top: 5px;
+  color: hsl(0 0% 97%);
+  font: 900 13px/1.15 Montserrat, sans-serif;
+}
+
+.snow-holdem-dock__prompt p {
+  position: absolute;
+  bottom: -21px;
+  left: 10px;
+  z-index: 12;
+  max-width: 520px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid hsl(350 70% 57% / .7);
+  border-radius: 6px;
+  color: hsl(350 82% 87%);
+  background: hsl(350 49% 13% / .98);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.snow-holdem-dock__controls {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snow-holdem-bet-row {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.snow-holdem-chip-rack {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid hsl(var(--holdem-gold) / .24);
+  border-radius: 36px;
+  background: hsl(220 70% 5% / .58);
+}
+
+.snow-holdem-chip-rack > * + * {
+  margin-left: 7px;
+}
+
+.snow-holdem .snow-holdem-chip {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border: 4px dashed hsl(186 50% 86% / .7);
+  color: hsl(0 0% 100%);
+  background:
+    radial-gradient(circle at 35% 28%, hsl(172 67% 48%), hsl(170 70% 24%) 62%, hsl(215 67% 9%) 64%);
+  box-shadow: 0 4px 0 hsl(220 75% 3% / .65), inset 0 0 0 2px hsl(216 62% 8% / .68);
+  font: 900 14px/1 Montserrat, sans-serif;
+}
+
+.snow-holdem .snow-holdem-chip:nth-child(2) {
+  background: radial-gradient(circle at 35% 28%, hsl(207 76% 58%), hsl(208 70% 29%) 62%, hsl(215 67% 9%) 64%);
+}
+
+.snow-holdem .snow-holdem-chip:nth-child(3) {
+  background: radial-gradient(circle at 35% 28%, hsl(292 60% 56%), hsl(291 62% 28%) 62%, hsl(215 67% 9%) 64%);
+}
+
+.snow-holdem .snow-holdem-chip:nth-child(4) {
+  background: radial-gradient(circle at 35% 28%, hsl(350 72% 58%), hsl(349 65% 30%) 62%, hsl(215 67% 9%) 64%);
+}
+
+.snow-holdem .snow-holdem-chip.is-selected {
+  border-color: hsl(47 100% 91%);
+  color: hsl(220 73% 7%);
+  background: radial-gradient(circle at 35% 28%, hsl(47 93% 84%), hsl(var(--holdem-gold)) 58%, hsl(var(--holdem-gold-deep)) 62%);
+  box-shadow:
+    0 0 0 2px hsl(var(--holdem-gold) / .34),
+    0 5px 0 hsl(29 62% 15% / .78),
+    0 0 17px hsl(var(--holdem-gold) / .35);
+}
+
+.snow-holdem .snow-holdem-chip[aria-disabled="true"] {
+  opacity: .38;
+}
+
+.snow-holdem .snow-holdem-action {
+  min-width: 154px;
+  min-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 17px;
+  border-color: hsl(var(--holdem-gold) / .72);
+  border-radius: 9px;
+  color: hsl(45 82% 84%);
+  background: linear-gradient(180deg, hsl(210 52% 20%), hsl(215 62% 10%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .12), 0 6px 12px hsl(220 90% 2% / .44);
+  font: 900 13px/1.1 Montserrat, sans-serif;
+  text-transform: uppercase;
+}
+
+.snow-holdem .snow-holdem-action--primary {
+  color: hsl(219 75% 7%);
+  border-color: hsl(46 87% 78%);
+  background: linear-gradient(180deg, hsl(47 84% 82%), hsl(var(--holdem-gold)) 52%, hsl(var(--holdem-gold-deep)));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .75), 0 6px 13px hsl(220 90% 2% / .5);
+}
+
+.snow-holdem .snow-holdem-action--fold {
+  color: hsl(350 89% 88%);
+  border-color: hsl(350 68% 58%);
+  background: linear-gradient(180deg, hsl(350 52% 30%), hsl(350 63% 17%));
+}
+
+.snow-holdem .snow-holdem-action[aria-disabled="true"] {
+  opacity: .42;
+}
+
+.snow-holdem-action__icon {
+  width: 31px;
+  height: 31px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-right: 9px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: .86;
+}
+
+.snow-holdem-action__icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.snow-holdem .snow-holdem-action[data-tv-focused="true"],
+.snow-holdem .snow-holdem-chip[data-tv-focused="true"] {
+  outline: 3px solid hsl(var(--holdem-ice));
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 5px hsl(180 75% 49% / .25),
+    0 0 24px hsl(176 84% 56% / .5),
+    0 8px 17px hsl(220 90% 2% / .58) !important;
+}
+
+.snow-holdem .snow-holdem-action--primary[data-tv-focused="true"] {
+  outline-color: hsl(47 100% 91%);
+  box-shadow:
+    0 0 0 5px hsl(var(--holdem-gold) / .28),
+    0 0 25px hsl(var(--holdem-gold) / .55),
+    0 8px 17px hsl(220 90% 2% / .58) !important;
+}
+
+.snow-holdem-dock__ante {
+  width: 78px;
+  min-width: 78px;
+  height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: 11px;
+  border: 1px solid hsl(var(--holdem-gold) / .56);
+  border-radius: 9px;
+  color: hsl(45 87% 82%);
+  background: hsl(220 69% 5% / .82);
+  box-shadow: inset 0 0 15px hsl(171 64% 23% / .14);
+}
+
+.snow-holdem-dock__ante small {
+  color: hsl(var(--holdem-ice) / .72);
+  font: 900 9px/1 Montserrat, sans-serif;
+  letter-spacing: .13em;
+}
+
+.snow-holdem-dock__ante strong {
+  margin-top: 6px;
+  font: 900 18px/1 Montserrat, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.snow-holdem-reveal {
+  display: flex;
+  align-items: center;
+  color: hsl(45 87% 82%);
+  font: 900 15px/1 Montserrat, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.snow-holdem-reveal > span {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.snow-holdem-reveal i {
+  width: 14px;
+  height: 19px;
+  border: 1px solid hsl(var(--holdem-gold));
+  border-radius: 2px;
+  background: hsl(211 65% 22%);
+}
+
+.snow-holdem-reveal i + i {
+  margin-left: -4px;
+}
+
+.snow-holdem .snow-fairness {
+  position: relative;
+  z-index: 20;
+  min-height: 38px;
+  flex: 0 0 auto;
+}
+
+.snow-holdem .snow-fairness__toggle {
+  border-color: hsl(var(--holdem-gold) / .48);
+  color: hsl(var(--holdem-ice));
+  background: hsl(217 67% 8% / .94);
+}
+
+.snow-holdem .snow-fairness__details {
+  position: absolute;
+  right: 0;
+  bottom: 42px;
+  left: 0;
+  max-height: 150px;
+  margin: 0;
+  border-color: hsl(var(--holdem-gold) / .38);
+  background: hsl(218 74% 5% / .98);
+  box-shadow: 0 -10px 24px hsl(220 90% 2% / .6);
+}
+
+.native-low-memory .snow-holdem-table,
+.native-low-memory .snow-holdem-table__felt,
+.native-low-memory .snow-holdem .snow-holdem-dock,
+.native-low-memory .snow-holdem .snow-playing-card,
+.native-low-memory .snow-holdem .snow-card-slot {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-holdem .snow-playing-card {
+    animation: none;
+  }
+}
+
+/* 1280×720 / Fire TV compact composition. */
+@media (max-height: 760px) {
+  .snow-holdem .snow-game-body { gap: 5px; }
+  .snow-holdem .snow-game-heading span { font-size: 11px; }
+  .snow-holdem-stage { padding-right: 7px; padding-left: 7px; }
+  .snow-holdem-table { padding: 7px 8px 10px; }
+  .snow-holdem-table__felt { padding: 8px 21px 12px; }
+  .snow-holdem-zone__tag { left: 4.5%; min-width: 94px; padding: 4px 9px 4px 6px; font-size: 9px; }
+  .snow-holdem-zone__pip { width: 20px; height: 20px; margin-right: 6px; }
+  .snow-holdem-runway { margin-right: 16%; margin-left: 16%; }
+  .snow-holdem-runway__heading { margin-bottom: 3px; font-size: 9px; }
+  .snow-holdem .snow-playing-card.tv-game-card,
+  .snow-holdem .snow-card-slot.tv-game-card { width: 72px !important; height: 104px !important; }
+  .snow-holdem .snow-playing-card.is-compact.tv-game-card,
+  .snow-holdem .snow-card-slot.is-compact.tv-game-card { width: 64px !important; height: 92px !important; }
+  .snow-holdem .snow-card-corner { font-size: 14px; }
+  .snow-holdem .snow-card-suit { font-size: 31px; }
+  .snow-holdem-dealer-button { top: 9%; width: 30px; height: 30px; font-size: 12px; }
+  .snow-holdem-ante-marker { right: 6%; bottom: 8%; padding: 3px 8px; }
+  .snow-holdem-mini-chips { transform: scale(.85); }
+  .snow-holdem-rank { right: 4.5%; max-width: 160px; padding: 4px 9px; font-size: 10px; }
+  .snow-holdem-result { right: 2.5%; width: 205px; }
+  .snow-holdem-result .snow-result-banner { padding: 7px 9px; }
+  .snow-holdem-result .snow-result-banner strong { font-size: 17px; }
+  .snow-holdem-showdown { bottom: 2.5%; font-size: 9px; }
+  .snow-holdem .snow-holdem-dock { min-height: 73px; padding: 6px 9px; }
+  .snow-holdem-dock__prompt { width: 204px; min-width: 204px; padding-right: 7px; }
+  .snow-holdem-dock__signal { width: 34px; height: 34px; margin-right: 8px; font-size: 16px; }
+  .snow-holdem-dock__prompt small { font-size: 8px; }
+  .snow-holdem-dock__prompt strong { font-size: 11px; }
+  .snow-holdem .snow-holdem-chip { width: 46px; height: 46px; min-height: 46px; border-width: 3px; font-size: 12px; }
+  .snow-holdem .snow-holdem-action { min-width: 136px; min-height: 49px; padding: 5px 12px; font-size: 11px; }
+  .snow-holdem-action__icon { width: 27px; height: 27px; margin-right: 7px; }
+  .snow-holdem-action__icon svg { width: 20px; height: 20px; }
+  .snow-holdem-dock__ante { width: 68px; min-width: 68px; height: 49px; margin-left: 8px; }
+  .snow-holdem-dock__ante strong { margin-top: 4px; font-size: 15px; }
+}
+
+/* 1920×1080: scale the same table instead of leaving a small center island. */
+@media (min-height: 900px) {
+  .snow-holdem .snow-game-body { max-width: 100rem; gap: 11px; }
+  .snow-holdem .snow-game-heading span { font-size: 15px; }
+  .snow-holdem-stage { padding-right: 17px; padding-left: 17px; }
+  .snow-holdem-table { padding: 14px 15px 18px; border-radius: 48% 48% 35px 35px / 10% 10% 35px 35px; }
+  .snow-holdem-table__felt { padding: 18px 40px 24px; }
+  .snow-holdem-zone__tag { min-width: 138px; padding: 7px 15px 7px 9px; font-size: 14px; }
+  .snow-holdem-zone__pip { width: 31px; height: 31px; margin-right: 9px; font-size: 16px; }
+  .snow-holdem .snow-playing-card.tv-game-card,
+  .snow-holdem .snow-card-slot.tv-game-card { width: 106px !important; height: 153px !important; border-radius: 12px; }
+  .snow-holdem .snow-playing-card.is-compact.tv-game-card,
+  .snow-holdem .snow-card-slot.is-compact.tv-game-card { width: 90px !important; height: 130px !important; }
+  .snow-holdem .snow-card-corner { font-size: 21px; }
+  .snow-holdem .snow-card-suit { font-size: 48px; }
+  .snow-holdem-runway__heading { margin-bottom: 8px; font-size: 13px; }
+  .snow-holdem-pot__chip { width: 30px; height: 30px; font-size: 13px; }
+  .snow-holdem-dealer-button { width: 46px; height: 46px; font-size: 18px; }
+  .snow-holdem-ante-marker { padding: 8px 13px; }
+  .snow-holdem-ante-marker strong { font-size: 20px; }
+  .snow-holdem-rank { max-width: 240px; padding: 7px 15px; font-size: 15px; }
+  .snow-holdem-result { width: 295px; }
+  .snow-holdem-result .snow-result-banner strong { font-size: 25px; }
+  .snow-holdem-showdown { padding: 8px 17px; font-size: 14px; }
+  .snow-holdem .snow-holdem-dock { min-height: 98px; padding: 10px 14px; }
+  .snow-holdem-dock__prompt { width: 286px; min-width: 286px; }
+  .snow-holdem-dock__signal { width: 48px; height: 48px; font-size: 22px; }
+  .snow-holdem-dock__prompt small { font-size: 11px; }
+  .snow-holdem-dock__prompt strong { font-size: 16px; }
+  .snow-holdem .snow-holdem-chip { width: 65px; height: 65px; min-height: 65px; font-size: 17px; }
+  .snow-holdem .snow-holdem-action { min-width: 188px; min-height: 68px; padding: 9px 22px; font-size: 15px; }
+  .snow-holdem-action__icon { width: 38px; height: 38px; }
+  .snow-holdem-action__icon svg { width: 28px; height: 28px; }
+  .snow-holdem-dock__ante { width: 94px; min-width: 94px; height: 68px; }
+  .snow-holdem-dock__ante strong { font-size: 22px; }
+}
+
+@media (max-width: 1050px) {
+  .snow-holdem-dock__prompt { width: 180px; min-width: 180px; }
+  .snow-holdem-dock__prompt strong { font-size: 10px; }
+  .snow-holdem .snow-holdem-action { min-width: 120px; padding-right: 9px; padding-left: 9px; }
+  .snow-holdem-action__icon { margin-right: 5px; }
+  .snow-holdem-zone__tag { left: 2.5%; }
+  .snow-holdem-rank { right: 2.5%; }
+  .snow-holdem-result { right: 1.5%; width: 185px; }
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -11,8 +11,9 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen, isTerminalRoundError } from './shared/gameInput';
+import { isGlobalModalOpen, isTerminalRoundError, visualArrowDir } from './shared/gameInput';
 import type { GameCardValue, GameFairInfo } from './shared/gameTypes';
+import '@/styles/games-holdem.css';
 
 interface CasinoHoldemProps {
   onBack: () => void;
@@ -46,6 +47,54 @@ interface HoldemAck {
 }
 
 const ANTES = [10, 25, 50, 100];
+
+type HoldemActionIconName = 'deal' | 'call' | 'raise' | 'fold' | 'again';
+
+/** Crisp, dependency-free table icons for older Android TV WebViews. */
+const HoldemActionIcon = ({ name }: { name: HoldemActionIconName }) => {
+  if (name === 'call') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <ellipse cx="14" cy="8" rx="8" ry="3.5" />
+        <path d="M6 8v5c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5V8" />
+        <path d="M6 13v5c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5v-5" />
+      </svg>
+    );
+  }
+  if (name === 'raise') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <ellipse cx="10" cy="17" rx="6" ry="3" />
+        <path d="M4 17v4c0 1.7 2.7 3 6 3s6-1.3 6-3v-4" />
+        <path d="M19 18V5M14.5 9.5 19 5l4.5 4.5" />
+      </svg>
+    );
+  }
+  if (name === 'fold') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <rect x="4.5" y="7" width="12" height="16" rx="2" />
+        <rect x="11.5" y="4" width="12" height="16" rx="2" />
+        <path d="m7 4 14 20" />
+      </svg>
+    );
+  }
+  if (name === 'again') {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <path d="M22.5 8.5V3.8l-3.2 3.1A9 9 0 1 0 23 14" />
+        <path d="M19.3 6.9h-4.6" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+      <rect x="4.5" y="7" width="13" height="17" rx="2" />
+      <rect x="10.5" y="4" width="13" height="17" rx="2" />
+      <path d="M17 9.5v6M14 12.5h6" />
+    </svg>
+  );
+};
 
 const RANK_KEY: Record<string, string> = {
   royal_flush: 'games.casinoHoldem.handName.royalFlush',
@@ -93,7 +142,11 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   const [fair, setFair] = useState<GameFairInfo | null>(null);
   const [showFair, setShowFair] = useState(false);
 
-  const [focusBet, setFocusBet] = useState<FocusBet>('deal');
+  // Auth and balance often arrive after the first TV paint. Start on the Deal
+  // control only when it is genuinely usable; Back is always a safe target.
+  const [focusBet, setFocusBet] = useState<FocusBet>(() => (
+    user && balance !== null && balance >= ante ? 'deal' : 'back'
+  ));
   const [focusDecision, setFocusDecision] = useState<FocusDecision>('fold');
   const [focusSettle, setFocusSettle] = useState<FocusSettle>('again');
 
@@ -119,25 +172,48 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     return pool >= cost;
   }, [phase, balance, decisionBalance, ante]);
 
+  const dealUsable = !!user && balance !== null && balance >= ante;
+  /** Ante chips that are meaningful navigation targets in the betting phase. */
+  const usableChips = useMemo(() => (
+    user && balance !== null
+      ? ANTES.map((amount, i) => (balance >= amount ? i : -1)).filter((i) => i >= 0)
+      : []
+  ), [user, balance]);
+  const visibleFocusBet: FocusBet = (() => {
+    const chipIndex = focusBet.startsWith('chip-') ? Number(focusBet.split('-')[1]) : -1;
+    return (focusBet === 'deal' && !dealUsable) || (chipIndex >= 0 && !usableChips.includes(chipIndex))
+      ? 'back'
+      : focusBet;
+  })();
+
   useEffect(() => {
     if (phase === 'bet') {
-      if (focusBet === 'back') backRef.current?.focus();
-      else if (focusBet === 'fx') fxRef.current?.focus();
-      else if (focusBet === 'deal') dealRef.current?.focus();
-      else chipRefs.current[Number(focusBet.split('-')[1])]?.focus();
+      const safeFocus = visibleFocusBet;
+      if (safeFocus !== focusBet) setFocusBet(safeFocus);
+      if (safeFocus === 'back') backRef.current?.focus({ preventScroll: true });
+      else if (safeFocus === 'fx') fxRef.current?.focus({ preventScroll: true });
+      else if (safeFocus === 'deal') dealRef.current?.focus({ preventScroll: true });
+      else chipRefs.current[Number(safeFocus.split('-')[1])]?.focus({ preventScroll: true });
     } else if (phase === 'decision') {
-      if (focusDecision === 'back') backRef.current?.focus();
-      else if (focusDecision === 'fx') fxRef.current?.focus();
-      else if (focusDecision === 'fold') foldRef.current?.focus();
-      else if (focusDecision === 'fair') fairRef.current?.focus();
-      else optionRefs.current[Number(focusDecision.split('-')[1])]?.focus();
+      if (focusDecision === 'back') backRef.current?.focus({ preventScroll: true });
+      else if (focusDecision === 'fx') fxRef.current?.focus({ preventScroll: true });
+      else if (focusDecision === 'fold') foldRef.current?.focus({ preventScroll: true });
+      else if (focusDecision === 'fair') fairRef.current?.focus({ preventScroll: true });
+      else optionRefs.current[Number(focusDecision.split('-')[1])]?.focus({ preventScroll: true });
+    } else if (phase === 'reveal') {
+      // Decision buttons unmount during the runout. Back and FX persist, so
+      // they carry both the visual marker and actual DOM focus throughout it.
+      const safeFocus: FocusSettle = focusSettle === 'fx' ? 'fx' : 'back';
+      if (safeFocus !== focusSettle) setFocusSettle(safeFocus);
+      if (safeFocus === 'fx') fxRef.current?.focus({ preventScroll: true });
+      else backRef.current?.focus({ preventScroll: true });
     } else if (phase === 'settled') {
-      if (focusSettle === 'back') backRef.current?.focus();
-      else if (focusSettle === 'fx') fxRef.current?.focus();
-      else if (focusSettle === 'again') againRef.current?.focus();
-      else if (focusSettle === 'fair') fairRef.current?.focus();
+      if (focusSettle === 'back') backRef.current?.focus({ preventScroll: true });
+      else if (focusSettle === 'fx') fxRef.current?.focus({ preventScroll: true });
+      else if (focusSettle === 'again') againRef.current?.focus({ preventScroll: true });
+      else if (focusSettle === 'fair') fairRef.current?.focus({ preventScroll: true });
     }
-  }, [phase, focusBet, focusDecision, focusSettle]);
+  }, [phase, focusBet, focusDecision, focusSettle, visibleFocusBet]);
 
   /** Indexes of raise/call options the player can actually pay for. */
   const affordableOptions = raiseOptions.map((o, i) => (affordable(o.cost) ? i : -1)).filter((i) => i >= 0);
@@ -173,7 +249,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       setSettleStatus(null);
       setRaiseOptions([]);
       setShowFair(false);
-      setFocusBet('deal');
+      setFocusBet(dealUsable ? 'deal' : 'back');
     }
     life.timeout(() => setError(null), 3500);
   };
@@ -254,6 +330,10 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     // Tracked timers, guarded by hand epoch: Back, unmount or a newer hand
     // cancels the whole reveal.
     const scale = reducedFx ? 0.5 : 1;
+    // Move real focus before the decision controls unmount. The top-bar Back
+    // button exists in every phase, preventing a transient focus drop to body.
+    backRef.current?.focus({ preventScroll: true });
+    setFocusSettle('back');
     setPhase('reveal');
     life.timeout(() => { if (alive()) setRevealedCommunity((n) => Math.max(n, 4)); }, 350 * scale);
     life.timeout(() => { if (alive()) setRevealedCommunity((n) => Math.max(n, 5)); }, 700 * scale);
@@ -316,7 +396,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     setFair(null);
     setShowFair(false);
     setDecisionBalance(null);
-    setFocusBet('deal');
+    setFocusBet(dealUsable ? 'deal' : 'back');
   };
 
   const [backNote, setBackNote] = useState<string | null>(null);
@@ -333,11 +413,6 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     onExit: onBack,
   });
 
-  /** Ante chips the player can actually pay for; unaffordable ones are skipped. */
-  const usableChips = ANTES
-    .map((amount, i) => ((balance ?? 0) >= amount ? i : -1))
-    .filter((i) => i >= 0);
-
   /**
    * D-pad focus movement only. Only AFFORDABLE options are ever navigable, and
    * every arrow is consumed while the table is on screen so the native WebView
@@ -346,7 +421,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
-      const dir = arrowDir(e);
+      const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
       const topRow = (current: string, set: (v: never) => void): boolean => {
@@ -360,14 +435,14 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         const pos = usableChips.indexOf(chipIdx);
         const firstChip = (): void => {
           if (usableChips.length) setFocusBet(`chip-${usableChips[0]}`);
-          else setFocusBet('deal');
+          else setFocusBet('back');
         };
         if (dir === 'left') {
           if (pos > 0) setFocusBet(`chip-${usableChips[pos - 1]}`);
           else if (focusBet === 'deal' && usableChips.length) setFocusBet(`chip-${usableChips[usableChips.length - 1]}`);
         } else if (dir === 'right') {
           if (pos >= 0 && pos < usableChips.length - 1) setFocusBet(`chip-${usableChips[pos + 1]}`);
-          else if (pos === usableChips.length - 1) setFocusBet('deal');
+          else if (pos === usableChips.length - 1 && dealUsable) setFocusBet('deal');
         } else if (dir === 'up') {
           if (focusBet !== 'back' && focusBet !== 'fx') setFocusBet('back');
         } else if (focusBet === 'back' || focusBet === 'fx') {
@@ -392,8 +467,8 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
       } else if (phase === 'reveal') {
         // Nothing is actionable while the board runs out: keep a REAL managed
         // target (Back / Reduced FX) instead of an empty marker.
-        if (dir === 'right' && focusSettle === 'back') setFocusSettle('fx');
-        else if (dir === 'left' && focusSettle === 'fx') setFocusSettle('back');
+        if (dir === 'right') setFocusSettle('fx');
+        else if (dir === 'left') setFocusSettle('back');
         else if (focusSettle !== 'back' && focusSettle !== 'fx') setFocusSettle('back');
       } else if (phase === 'settled') {
         if (topRow(focusSettle, setFocusSettle as (v: never) => void)) return;
@@ -408,7 +483,7 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, focusBet, focusDecision, focusSettle, affordableOptions.join(','), usableChips.join(',')]);
+  }, [phase, focusBet, focusDecision, focusSettle, dealUsable, affordableOptions.join(','), usableChips.join(',')]);
 
   const banner = (() => {
     if (phase !== 'settled' || !settleStatus) return null;
@@ -433,16 +508,18 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
   })();
 
   const backFocused =
-    (phase === 'bet' && focusBet === 'back') ||
+    (phase === 'bet' && visibleFocusBet === 'back') ||
     (phase === 'decision' && focusDecision === 'back') ||
+    (phase === 'reveal' && focusSettle === 'back') ||
     (phase === 'settled' && focusSettle === 'back');
   const fxFocused =
-    (phase === 'bet' && focusBet === 'fx') ||
+    (phase === 'bet' && visibleFocusBet === 'fx') ||
     (phase === 'decision' && focusDecision === 'fx') ||
+    (phase === 'reveal' && focusSettle === 'fx') ||
     (phase === 'settled' && focusSettle === 'fx');
 
   return (
-    <GameShell accent="teal">
+    <GameShell accent="teal" className="snow-holdem">
       <GameTopBar
         ref={backRef}
         onBack={requestBack}
@@ -468,88 +545,143 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
         }}
       />
 
-      <div className="snow-ch-table">
-        <div className="snow-ch-zone">
-          <span className="snow-ch-zone__label">{t('games.casinoHoldem.label.dealer')}</span>
-          <div className="snow-ch-row">
-            {[0, 1].map((i) => (dealerHole[i]
-              ? <PlayingCard key={`d-${i}`} card={dealerHole[i]} faceDown={!dealerRevealed} delay={i * 80} compact />
-              : <PlayingCardSlot key={`d-${i}`} compact />))}
+      <div className="snow-holdem-stage">
+        <div className="snow-holdem-table" data-phase={phase}>
+          <div className="snow-holdem-table__rail" aria-hidden="true">
+            <i /><i /><i /><i /><i /><i /><i />
           </div>
-          <span className="snow-ch-zone__label" style={{ textAlign: 'right' }}>
-            {phase === 'settled' && dealerRank ? labelRank(dealerRank) : ''}
-          </span>
-        </div>
+          <div className="snow-holdem-table__felt">
+            <svg className="snow-holdem-crest" viewBox="0 0 180 120" aria-hidden="true" focusable="false">
+              <path d="M90 16C72 39 49 55 49 76c0 13 10 23 23 23 7 0 13-3 18-8 5 5 11 8 18 8 13 0 23-10 23-23 0-21-23-37-41-60Z" />
+              <path d="M90 87c-1 12-7 19-18 24h36c-11-5-17-12-18-24Z" />
+              <path d="M27 61c16-18 33-29 48-34M153 61c-16-18-33-29-48-34" />
+            </svg>
 
-        <div className="snow-ch-runway">
-          <span className="snow-ch-zone__label" style={{ display: 'block', textAlign: 'center', width: 'auto' }}>
-            {t('games.casinoHoldem.label.community')}
-          </span>
-          <div className="snow-ch-row">
-            {[0, 1, 2, 3, 4].map((i) => (community[i] && i < revealedCommunity
-              ? <PlayingCard key={`c-${i}`} card={community[i]} delay={Math.max(0, i - 2) * 80} />
-              : <PlayingCardSlot key={`c-${i}`} />))}
-          </div>
-        </div>
+            <div className="snow-holdem-dealer-button" aria-hidden="true">D</div>
+            <div className="snow-holdem-ante-marker" aria-hidden="true">
+              <span className="snow-holdem-mini-chips"><i /><i /><i /></span>
+              <span><small>ANTE</small><strong>{ante.toLocaleString()}</strong></span>
+            </div>
 
-        <div className="snow-ch-zone">
-          <span className="snow-ch-zone__label">{t('games.casinoHoldem.label.you')}</span>
-          <div className="snow-ch-row">
-            {[0, 1].map((i) => (playerHole[i]
-              ? <PlayingCard key={`p-${i}`} card={playerHole[i]} delay={i * 80} compact />
-              : <PlayingCardSlot key={`p-${i}`} compact />))}
-          </div>
-          <span className="snow-ch-zone__label" style={{ textAlign: 'right' }}>
-            {phase === 'settled' && playerRank ? labelRank(playerRank) : ''}
-          </span>
-        </div>
+            <section className="snow-holdem-zone snow-holdem-zone--dealer" aria-label={t('games.casinoHoldem.label.dealer')}>
+              <div className="snow-holdem-zone__tag">
+                <span className="snow-holdem-zone__pip" aria-hidden="true">◆</span>
+                {t('games.casinoHoldem.label.dealer')}
+              </div>
+              <div className="snow-ch-row snow-holdem-hand">
+                {[0, 1].map((i) => (dealerHole[i]
+                  ? <PlayingCard key={`d-${i}`} card={dealerHole[i]} faceDown={!dealerRevealed} delay={i * 80} compact />
+                  : <PlayingCardSlot key={`d-${i}`} compact />))}
+              </div>
+              {phase === 'settled' && dealerRank && (
+                <span className="snow-holdem-rank">{labelRank(dealerRank)}</span>
+              )}
+            </section>
 
-        {phase === 'settled' && (playerRank || dealerRank) && (
-          <div className="snow-ch-versus">
-            {playerRank && <span className="snow-ch-rank">{t('games.casinoHoldem.result.youLabel')} <em>{labelRank(playerRank)}</em></span>}
-            {playerRank && dealerRank && <span className="snow-ch-zone__label" style={{ width: 'auto' }}>{t('games.casinoHoldem.result.versus')}</span>}
-            {dealerRank && (
-              <span className="snow-ch-rank">
-                {t('games.casinoHoldem.result.dealerLabel')} <em>{labelRank(dealerRank)}</em>
-                {!dealerQualified && ` · ${t('games.casinoHoldem.dealerDidntQualify')}`}
-              </span>
+            <section className="snow-holdem-runway" aria-label={t('games.casinoHoldem.label.community')}>
+              <div className="snow-holdem-runway__heading">
+                <span>{t('games.casinoHoldem.label.community')}</span>
+                <span className="snow-holdem-runway__line" aria-hidden="true" />
+                <span className="snow-holdem-pot" aria-hidden="true">
+                  <span className="snow-holdem-pot__chip">$</span>
+                  <b>POT</b>
+                </span>
+              </div>
+              <div className="snow-ch-row snow-holdem-board">
+                {[0, 1, 2, 3, 4].map((i) => (community[i] && i < revealedCommunity
+                  ? <PlayingCard key={`c-${i}`} card={community[i]} delay={Math.max(0, i - 2) * 80} />
+                  : <PlayingCardSlot key={`c-${i}`} />))}
+              </div>
+            </section>
+
+            <section className="snow-holdem-zone snow-holdem-zone--player" aria-label={t('games.casinoHoldem.label.you')}>
+              <div className="snow-holdem-zone__tag">
+                <span className="snow-holdem-zone__pip" aria-hidden="true">♠</span>
+                {t('games.casinoHoldem.label.you')}
+              </div>
+              <div className="snow-ch-row snow-holdem-hand">
+                {[0, 1].map((i) => (playerHole[i]
+                  ? <PlayingCard key={`p-${i}`} card={playerHole[i]} delay={i * 80} compact />
+                  : <PlayingCardSlot key={`p-${i}`} compact />))}
+              </div>
+              {phase === 'settled' && playerRank && (
+                <span className="snow-holdem-rank">{labelRank(playerRank)}</span>
+              )}
+            </section>
+
+            {phase === 'settled' && (playerRank || dealerRank) && (
+              <div className="snow-holdem-showdown">
+                {playerRank && <span>{t('games.casinoHoldem.result.youLabel')} <em>{labelRank(playerRank)}</em></span>}
+                {playerRank && dealerRank && <b>{t('games.casinoHoldem.result.versus')}</b>}
+                {dealerRank && (
+                  <span>
+                    {t('games.casinoHoldem.result.dealerLabel')} <em>{labelRank(dealerRank)}</em>
+                    {!dealerQualified && ` · ${t('games.casinoHoldem.dealerDidntQualify')}`}
+                  </span>
+                )}
+              </div>
             )}
+            {banner && <div className="snow-holdem-result">{banner}</div>}
           </div>
-        )}
-        {banner && <div className="snow-ch-versus">{banner}</div>}
+        </div>
       </div>
 
-      <GamePanel className="p-3">
+      <GamePanel className={`snow-holdem-dock snow-holdem-dock--${phase}`}>
+        <div className="snow-holdem-dock__prompt">
+          <span className="snow-holdem-dock__signal" aria-hidden="true">♠</span>
+          <span>
+            <small>{t('games.casinoHoldem.title')}</small>
+            <strong>
+              {phase === 'bet' && t('games.casinoHoldem.chooseAnte')}
+              {phase === 'decision' && t('games.casinoHoldem.chooseMove')}
+              {phase === 'reveal' && t('games.casinoHoldem.revealing')}
+              {phase === 'settled' && t('games.casinoHoldem.newHand')}
+            </strong>
+          </span>
+          {(error || backNote) && <p role="status">{error || backNote}</p>}
+        </div>
+
+        <div className="snow-holdem-dock__controls">
         {phase === 'bet' && (
-          <div className="snow-bet-row">
-            {ANTES.map((amt, idx) => (
-              <BetChip
-                key={amt}
-                ref={(el) => { chipRefs.current[idx] = el; }}
-                selected={ante === amt}
-                focused={focusBet === `chip-${idx}`}
-                onFocus={() => setFocusBet(`chip-${idx}`)}
-                onClick={() => { if (affordable(amt)) setAnte(amt); }}
-                aria-disabled={affordable(amt) ? undefined : 'true'}
-              >
-                {amt}
-              </BetChip>
-            ))}
+          <div className="snow-bet-row snow-holdem-bet-row">
+            <div className="snow-holdem-chip-rack">
+              {ANTES.map((amt, idx) => (
+                <BetChip
+                  key={amt}
+                  ref={(el) => { chipRefs.current[idx] = el; }}
+                  selected={ante === amt}
+                  focused={visibleFocusBet === `chip-${idx}` && usableChips.includes(idx)}
+                  onFocus={() => {
+                    if (usableChips.includes(idx)) setFocusBet(`chip-${idx}`);
+                    else backRef.current?.focus({ preventScroll: true });
+                  }}
+                  onClick={() => { if (usableChips.includes(idx)) setAnte(amt); }}
+                  aria-disabled={usableChips.includes(idx) ? undefined : 'true'}
+                  className="snow-holdem-chip"
+                >
+                  <span>{amt}</span>
+                </BetChip>
+              ))}
+            </div>
             <Button
               ref={dealRef}
               type="button"
-              onFocus={() => setFocusBet('deal')}
-              onClick={() => { if (!(busy || !user || balance === null || balance < ante)) deal(); }}
-              aria-disabled={busy || !user || balance === null || balance < ante ? 'true' : undefined}
+              onFocus={() => {
+                if (dealUsable) setFocusBet('deal');
+                else backRef.current?.focus({ preventScroll: true });
+              }}
+              onClick={() => { if (!busy && dealUsable) deal(); }}
+              aria-disabled={busy || !dealUsable ? 'true' : undefined}
               data-busy={busy ? 'true' : undefined}
-              data-tv-focused={focusBet === 'deal' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} ml-3 px-8`}
+              data-tv-focused={visibleFocusBet === 'deal' && dealUsable ? 'true' : 'false'}
+              className={`${GAME_ACTION_CLASS} snow-holdem-action snow-holdem-action--primary`}
             >
-              {balance === null
+              <span className="snow-holdem-action__icon">
+                {busy ? <Loader2 className="animate-spin" /> : <HoldemActionIcon name="deal" />}
+              </span>
+              <span>{balance === null
                 ? t('games.casinoHoldem.loadingChips')
-                : busy
-                  ? <><Loader2 className="animate-spin" /> {t('games.casinoHoldem.dealButton', { ante })}</>
-                  : t('games.casinoHoldem.dealButton', { ante })}
+                : t('games.casinoHoldem.dealButton', { ante })}</span>
             </Button>
           </div>
         )}
@@ -570,11 +702,12 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
                   aria-disabled={!canAfford || busy ? 'true' : undefined}
                   data-busy={busy ? 'true' : undefined}
                   data-tv-focused={focusDecision === `opt-${i}` ? 'true' : 'false'}
-                  className={`${GAME_ACTION_CLASS} px-6`}
+                  className={`${GAME_ACTION_CLASS} snow-holdem-action ${isCall ? 'snow-holdem-action--primary' : ''}`}
                 >
-                  {isCall
+                  <span className="snow-holdem-action__icon"><HoldemActionIcon name={isCall ? 'call' : 'raise'} /></span>
+                  <span>{isCall
                     ? t('games.casinoHoldem.callOption', { multiplier: opt.multiplier, cost: opt.cost })
-                    : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost })}
+                    : t('games.casinoHoldem.raiseOption', { multiplier: opt.multiplier, cost: opt.cost })}</span>
                 </Button>
               );
             })}
@@ -587,14 +720,20 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
               aria-disabled={busy ? 'true' : undefined}
               data-busy={busy ? 'true' : undefined}
               data-tv-focused={focusDecision === 'fold' ? 'true' : 'false'}
-              className="snow-game-action tv-ring min-h-12 border-2 px-6 font-black"
+              className="snow-game-action tv-ring min-h-12 border-2 font-black snow-holdem-action snow-holdem-action--fold"
             >
-              {t('games.casinoHoldem.fold')}
+              <span className="snow-holdem-action__icon"><HoldemActionIcon name="fold" /></span>
+              <span>{t('games.casinoHoldem.fold')}</span>
             </Button>
           </div>
         )}
 
-        {phase === 'reveal' && <p className="snow-game-note">{t('games.casinoHoldem.revealing')}</p>}
+        {phase === 'reveal' && (
+          <div className="snow-holdem-reveal" role="status">
+            <span aria-hidden="true"><i /><i /><i /></span>
+            {t('games.casinoHoldem.revealing')}
+          </div>
+        )}
 
         {phase === 'settled' && (
           <div className="snow-game-actions">
@@ -604,16 +743,19 @@ const CasinoHoldem = ({ onBack }: CasinoHoldemProps) => {
               onFocus={() => setFocusSettle('again')}
               onClick={playAgain}
               data-tv-focused={focusSettle === 'again' ? 'true' : 'false'}
-              className={`${GAME_ACTION_CLASS} px-10`}
+              className={`${GAME_ACTION_CLASS} snow-holdem-action snow-holdem-action--primary snow-holdem-action--again`}
             >
-              {t('games.casinoHoldem.newHand')}
+              <span className="snow-holdem-action__icon"><HoldemActionIcon name="again" /></span>
+              <span>{t('games.casinoHoldem.newHand')}</span>
             </Button>
           </div>
         )}
+        </div>
 
-        {error && <p className="snow-game-error">{error}</p>}
-        {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
-        {phase === 'bet' && !error && <p className="snow-game-note">{t('games.casinoHoldem.chooseAnte')}</p>}
+        <div className="snow-holdem-dock__ante" aria-hidden="true">
+          <small>ANTE</small>
+          <strong>{ante.toLocaleString()}</strong>
+        </div>
       </GamePanel>
 
       <FairnessPanel
