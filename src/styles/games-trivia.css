@@ -1,0 +1,867 @@
+/* TV Trivia — readable from a couch, light enough for Fire TV hardware.
+   Plain pixel/rem values always precede clamp/container enhancements so an
+   older Android System WebView still receives a complete play surface. */
+
+.snow-trivia {
+  --trivia-accent: 190 88% 68%;
+  --trivia-accent-deep: 197 80% 34%;
+  --trivia-gold: 43 86% 68%;
+  background-color: hsl(222 72% 6%);
+  background-image:
+    radial-gradient(ellipse at 50% -12%, hsl(190 72% 32% / .34), transparent 43%),
+    radial-gradient(ellipse at 8% 20%, hsl(281 66% 38% / .3), transparent 38%),
+    radial-gradient(ellipse at 94% 65%, hsl(326 65% 30% / .18), transparent 38%),
+    linear-gradient(145deg, hsl(220 78% 10%), hsl(225 73% 5%) 62%, hsl(281 52% 8%));
+}
+
+.snow-trivia .snow-game-body {
+  max-width: 95rem;
+  gap: 9px;
+}
+
+.snow-trivia__topbar {
+  position: relative;
+  z-index: 6;
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: minmax(205px, 1fr) auto minmax(440px, 1fr);
+  align-items: center;
+}
+
+.snow-trivia__back {
+  justify-self: start;
+  min-width: 184px;
+  min-height: 54px;
+  border: 1px solid hsl(var(--trivia-gold) / .76);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.snow-trivia__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(0 0% 100%);
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.snow-trivia__brand-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 11px;
+  border: 1px solid hsl(var(--trivia-accent) / .65);
+  border-radius: 15px;
+  color: hsl(var(--trivia-accent));
+  background:
+    linear-gradient(145deg, hsl(var(--trivia-accent) / .18), transparent 70%),
+    hsl(220 68% 8%);
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), 0 0 20px hsl(var(--trivia-accent) / .15);
+}
+
+.snow-trivia__brand-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.snow-trivia__brand > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.snow-trivia__brand small {
+  color: hsl(var(--trivia-accent));
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  line-height: 1;
+}
+
+.snow-trivia__brand strong {
+  margin-top: 5px;
+  font: 900 25px/1 Montserrat, system-ui, sans-serif;
+  letter-spacing: .035em;
+}
+
+.snow-trivia__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.snow-trivia__toolbar > * + * {
+  margin-left: 8px;
+}
+
+.snow-trivia-stat {
+  height: 54px;
+  min-width: 104px;
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+  border: 1px solid hsl(var(--trivia-accent) / .3);
+  border-radius: 12px;
+  background: linear-gradient(150deg, hsl(218 61% 12% / .98), hsl(224 68% 7% / .98));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .07);
+}
+
+.snow-trivia-stat > svg {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  margin-right: 9px;
+  color: hsl(var(--trivia-gold));
+}
+
+.snow-trivia-stat > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.snow-trivia-stat small {
+  color: hsl(211 23% 70%);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-trivia-stat strong {
+  margin-top: 4px;
+  color: hsl(0 0% 100%);
+  font: 900 18px/1 Montserrat, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.snow-trivia-stat--streak {
+  min-width: 84px;
+}
+
+.snow-trivia-stat--streak > svg {
+  color: hsl(211 22% 58%);
+}
+
+.snow-trivia-stat--streak.is-hot {
+  border-color: hsl(24 94% 63% / .58);
+  background: linear-gradient(150deg, hsl(25 66% 18%), hsl(224 68% 7%) 74%);
+}
+
+.snow-trivia-stat--streak.is-hot > svg {
+  color: hsl(27 98% 65%);
+}
+
+.snow-trivia__fx {
+  min-width: 102px;
+  min-height: 50px;
+  border: 1px solid hsl(var(--trivia-accent) / .48);
+  border-radius: 11px;
+  font-weight: 900;
+}
+
+.snow-trivia__progress {
+  min-height: 47px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px;
+}
+
+.snow-trivia__round {
+  display: flex;
+  align-items: center;
+}
+
+.snow-trivia__round > span {
+  min-width: 132px;
+  color: hsl(210 23% 81%);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.snow-trivia__progress-track {
+  width: 270px;
+  height: 8px;
+  overflow: hidden;
+  margin-left: 13px;
+  border: 1px solid hsl(var(--trivia-accent) / .24);
+  border-radius: 10px;
+  background: hsl(220 64% 4% / .92);
+  box-shadow: inset 0 1px 3px hsl(220 80% 2% / .8);
+}
+
+.snow-trivia__progress-track i {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, hsl(278 76% 61%), hsl(var(--trivia-accent)) 72%, hsl(0 0% 100%));
+  box-shadow: 0 0 12px hsl(var(--trivia-accent) / .45);
+  transition: width 320ms ease-out;
+}
+
+.snow-trivia__free-play {
+  display: flex;
+  align-items: center;
+  color: hsl(var(--trivia-accent) / .9);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: .035em;
+}
+
+.snow-trivia__free-play svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 7px;
+  color: hsl(var(--trivia-gold));
+}
+
+.snow-trivia__stage {
+  --trivia-accent: 190 88% 68%;
+  --trivia-accent-deep: 197 80% 34%;
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(145px, .78fr) minmax(260px, 1.42fr) minmax(88px, .46fr);
+  gap: 13px;
+  overflow: hidden;
+}
+
+.snow-trivia__stage--screen { --trivia-accent: 327 84% 68%; --trivia-accent-deep: 327 72% 40%; }
+.snow-trivia__stage--world { --trivia-accent: 162 76% 56%; --trivia-accent-deep: 164 72% 31%; }
+.snow-trivia__stage--music { --trivia-accent: 282 82% 72%; --trivia-accent-deep: 279 67% 43%; }
+.snow-trivia__stage--sports { --trivia-accent: 42 92% 63%; --trivia-accent-deep: 34 83% 39%; }
+.snow-trivia__stage--nature { --trivia-accent: 111 68% 61%; --trivia-accent-deep: 124 57% 33%; }
+
+.snow-trivia__question-card {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 22px 105px 23px;
+  border: 1px solid hsl(var(--trivia-accent) / .52);
+  border-radius: 27px;
+  background:
+    radial-gradient(circle at 50% 0%, hsl(var(--trivia-accent) / .2), transparent 54%),
+    linear-gradient(145deg, hsl(219 57% 13% / .98), hsl(224 67% 7% / .98));
+  box-shadow:
+    inset 0 1px hsl(0 0% 100% / .09),
+    inset 0 -35px 70px hsl(220 90% 2% / .18),
+    0 15px 30px hsl(220 90% 2% / .32);
+  text-align: center;
+}
+
+.snow-trivia__question-card::before,
+.snow-trivia__question-card::after {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border: 1px solid hsl(var(--trivia-accent) / .14);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.snow-trivia__question-card::before { left: -56px; bottom: -83px; box-shadow: 0 0 0 22px hsl(var(--trivia-accent) / .025); }
+.snow-trivia__question-card::after { right: -62px; top: -88px; box-shadow: 0 0 0 22px hsl(var(--trivia-accent) / .025); }
+
+.snow-trivia__category {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 6px 13px;
+  border: 1px solid hsl(var(--trivia-accent) / .46);
+  border-radius: 20px;
+  color: hsl(var(--trivia-accent));
+  background: hsl(220 68% 6% / .7);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-trivia__category svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 7px;
+}
+
+.snow-trivia__question-card h2 {
+  position: relative;
+  z-index: 2;
+  max-width: 1120px;
+  margin: 0;
+  color: hsl(0 0% 100%);
+  font: 900 34px/1.18 Montserrat, system-ui, sans-serif;
+  font-size: clamp(1.75rem, 3.4cqh, 2.4rem);
+  letter-spacing: -.025em;
+  text-wrap: balance;
+  text-shadow: 0 3px 12px hsl(220 90% 2% / .55);
+}
+
+.snow-trivia__question-mark {
+  position: absolute;
+  right: 3.8%;
+  top: 50%;
+  color: hsl(var(--trivia-accent) / .095);
+  font: 900 126px/1 Montserrat, system-ui, sans-serif;
+  transform: translateY(-50%) rotate(8deg);
+  pointer-events: none;
+}
+
+.snow-trivia__answers {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.snow-trivia-answer {
+  position: relative;
+  min-width: 0;
+  min-height: 116px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
+  align-items: center;
+  overflow: hidden;
+  padding: 15px 17px;
+  border: 2px solid hsl(215 28% 28%);
+  border-radius: 20px;
+  color: hsl(0 0% 98%);
+  background:
+    linear-gradient(115deg, hsl(var(--trivia-accent) / .09), transparent 48%),
+    linear-gradient(155deg, hsl(218 53% 15%), hsl(224 65% 8%));
+  box-shadow:
+    inset 0 1px hsl(0 0% 100% / .08),
+    0 11px 20px hsl(220 90% 2% / .28);
+  text-align: left;
+  transition: transform 140ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out, opacity 140ms ease-out;
+}
+
+.snow-trivia-answer::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, hsl(var(--trivia-accent) / .65));
+  content: "";
+}
+
+.snow-trivia-answer__letter {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--trivia-accent) / .56);
+  border-radius: 15px;
+  color: hsl(var(--trivia-accent));
+  background: linear-gradient(145deg, hsl(var(--trivia-accent) / .16), hsl(220 64% 7%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1);
+  font: 900 23px/1 Montserrat, system-ui, sans-serif;
+}
+
+.snow-trivia-answer__text {
+  overflow-wrap: anywhere;
+  font: 850 23px/1.18 Montserrat, system-ui, sans-serif;
+  font-size: clamp(1.18rem, 2.3cqh, 1.65rem);
+}
+
+.snow-trivia-answer__state {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.snow-trivia-answer__state svg {
+  width: 25px;
+  height: 25px;
+  stroke-width: 3;
+}
+
+.snow-trivia-answer.is-correct {
+  border-color: hsl(151 75% 57%);
+  background:
+    linear-gradient(115deg, hsl(151 72% 39% / .28), transparent 58%),
+    linear-gradient(155deg, hsl(158 49% 15%), hsl(224 62% 8%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), 0 0 23px hsl(151 75% 45% / .18);
+}
+
+.snow-trivia-answer.is-correct .snow-trivia-answer__letter,
+.snow-trivia-answer.is-correct .snow-trivia-answer__state {
+  border-color: hsl(151 75% 62%);
+  color: hsl(151 83% 78%);
+  background: hsl(151 64% 23%);
+}
+
+.snow-trivia-answer.is-wrong {
+  border-color: hsl(350 78% 61%);
+  background:
+    linear-gradient(115deg, hsl(350 68% 44% / .24), transparent 58%),
+    linear-gradient(155deg, hsl(347 47% 15%), hsl(224 62% 8%));
+}
+
+.snow-trivia-answer.is-wrong .snow-trivia-answer__letter,
+.snow-trivia-answer.is-wrong .snow-trivia-answer__state {
+  border-color: hsl(350 78% 65%);
+  color: hsl(350 88% 82%);
+  background: hsl(349 58% 23%);
+}
+
+.snow-trivia-answer.is-dimmed {
+  opacity: .52;
+}
+
+.snow-trivia__feedback {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  padding: 8px 16px;
+  border: 1px solid hsl(var(--trivia-accent) / .25);
+  border-radius: 17px;
+  background: linear-gradient(145deg, hsl(220 58% 10% / .95), hsl(224 68% 6% / .95));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .06);
+}
+
+.snow-trivia__feedback.is-revealed {
+  justify-content: space-between;
+  border-color: hsl(var(--trivia-accent) / .43);
+}
+
+.snow-trivia__hint {
+  display: flex;
+  align-items: center;
+  color: hsl(210 23% 77%);
+}
+
+.snow-trivia__hint > span:last-child,
+.snow-trivia__verdict > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.snow-trivia__hint strong {
+  color: hsl(0 0% 96%);
+  font-size: 15px;
+}
+
+.snow-trivia__hint small {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.snow-trivia__remote {
+  width: 102px;
+  display: grid;
+  grid-template-columns: repeat(3, 29px);
+  grid-template-rows: repeat(3, 18px);
+  justify-content: center;
+  margin-right: 13px;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.snow-trivia__remote i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--trivia-accent) / .32);
+  color: hsl(var(--trivia-accent) / .85);
+  background: hsl(220 63% 6%);
+  font-style: normal;
+}
+
+.snow-trivia__remote i:nth-child(1) { grid-column: 2; }
+.snow-trivia__remote i:nth-child(2) { grid-column: 1; }
+.snow-trivia__remote i:nth-child(3) { grid-column: 2; color: hsl(var(--trivia-gold)); font-weight: 900; }
+.snow-trivia__remote i:nth-child(4) { grid-column: 3; }
+.snow-trivia__remote i:nth-child(5) { grid-column: 2; }
+
+.snow-trivia__verdict {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  margin-right: 18px;
+}
+
+.snow-trivia__verdict > span {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: 13px;
+  border: 1px solid;
+  border-radius: 50%;
+}
+
+.snow-trivia__verdict > span svg {
+  width: 27px;
+  height: 27px;
+  stroke-width: 3;
+}
+
+.snow-trivia__verdict.is-correct > span { border-color: hsl(151 75% 62%); color: hsl(151 83% 76%); background: hsl(151 64% 20%); }
+.snow-trivia__verdict.is-wrong > span { border-color: hsl(350 78% 65%); color: hsl(350 88% 81%); background: hsl(349 58% 20%); }
+.snow-trivia__verdict strong { color: hsl(0 0% 100%); font: 900 19px/1 Montserrat, system-ui, sans-serif; }
+.snow-trivia__verdict small { max-width: 790px; margin-top: 5px; color: hsl(210 23% 79%); font-size: 12px; line-height: 1.25; }
+
+.snow-trivia__next,
+.snow-trivia__replay {
+  flex: none;
+  min-width: 220px;
+  min-height: 57px;
+  border: 1px solid hsl(var(--trivia-gold));
+  border-radius: 14px;
+  color: hsl(220 76% 7%);
+  background: linear-gradient(180deg, hsl(46 91% 78%), hsl(40 67% 55%));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .55), 0 8px 18px hsl(220 90% 2% / .4);
+  font-size: 15px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.snow-trivia__next svg,
+.snow-trivia__replay svg {
+  width: 19px;
+  height: 19px;
+  margin-left: 7px;
+}
+
+.snow-trivia__replay svg {
+  margin-right: 8px;
+  margin-left: 0;
+}
+
+.snow-trivia__burst {
+  position: absolute;
+  right: 120px;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.snow-trivia__burst i {
+  position: absolute;
+  width: 7px;
+  height: 12px;
+  border-radius: 2px;
+  background: hsl(var(--trivia-gold));
+  animation: snow-trivia-pop 750ms ease-out both;
+}
+
+.snow-trivia__burst i:nth-child(2n) { background: hsl(var(--trivia-accent)); }
+.snow-trivia__burst i:nth-child(3n) { background: hsl(151 78% 60%); }
+.snow-trivia__burst i:nth-child(1) { --burst-x: -90px; --burst-y: -46px; transform: rotate(20deg); }
+.snow-trivia__burst i:nth-child(2) { --burst-x: -52px; --burst-y: -68px; transform: rotate(70deg); }
+.snow-trivia__burst i:nth-child(3) { --burst-x: -13px; --burst-y: -75px; transform: rotate(110deg); }
+.snow-trivia__burst i:nth-child(4) { --burst-x: 36px; --burst-y: -57px; transform: rotate(150deg); }
+.snow-trivia__burst i:nth-child(5) { --burst-x: 78px; --burst-y: -24px; transform: rotate(200deg); }
+.snow-trivia__burst i:nth-child(6) { --burst-x: 61px; --burst-y: 38px; transform: rotate(240deg); }
+.snow-trivia__burst i:nth-child(7) { --burst-x: 4px; --burst-y: 54px; transform: rotate(285deg); }
+.snow-trivia__burst i:nth-child(8) { --burst-x: -61px; --burst-y: 32px; transform: rotate(330deg); }
+
+@keyframes snow-trivia-pop {
+  0% { opacity: 0; translate: 0 0; scale: .4; }
+  18% { opacity: 1; }
+  100% { opacity: 0; translate: var(--burst-x) var(--burst-y); scale: 1; }
+}
+
+.snow-trivia__results {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 30px;
+  border: 1px solid hsl(var(--trivia-accent) / .48);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 50% 24%, hsl(var(--trivia-accent) / .2), transparent 28%),
+    radial-gradient(ellipse at 50% 105%, hsl(278 73% 42% / .22), transparent 46%),
+    linear-gradient(145deg, hsl(219 58% 13% / .98), hsl(224 69% 6% / .98));
+  box-shadow: inset 0 1px hsl(0 0% 100% / .1), 0 18px 40px hsl(220 90% 2% / .38);
+  text-align: center;
+}
+
+.snow-trivia__results::before,
+.snow-trivia__results::after {
+  position: absolute;
+  top: 51%;
+  width: 29%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--trivia-gold) / .44));
+  content: "";
+}
+
+.snow-trivia__results::before { left: 4%; }
+.snow-trivia__results::after { right: 4%; transform: rotate(180deg); }
+
+.snow-trivia__trophy {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  border: 1px solid hsl(var(--trivia-gold) / .72);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, hsl(47 85% 74% / .22), transparent 64%),
+    hsl(220 67% 7%);
+  box-shadow: 0 0 0 9px hsl(var(--trivia-gold) / .055), 0 0 37px hsl(var(--trivia-gold) / .19);
+}
+
+.snow-trivia__trophy span {
+  width: 77px;
+  height: 77px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: hsl(43 90% 70%);
+  background: linear-gradient(145deg, hsl(44 81% 28%), hsl(37 73% 13%));
+}
+
+.snow-trivia__trophy svg { width: 46px; height: 46px; stroke-width: 2.4; }
+.snow-trivia__trophy i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--trivia-accent)); box-shadow: 0 0 8px hsl(var(--trivia-accent)); }
+.snow-trivia__trophy i:nth-child(2) { left: 2px; top: 31px; }
+.snow-trivia__trophy i:nth-child(3) { right: 5px; top: 22px; background: hsl(var(--trivia-gold)); }
+.snow-trivia__trophy i:nth-child(4) { right: 8px; bottom: 20px; }
+
+.snow-trivia__results > small {
+  color: hsl(var(--trivia-accent));
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.snow-trivia__results h2 {
+  margin: 7px 0 5px;
+  color: hsl(0 0% 100%);
+  font: 900 42px/1 Montserrat, system-ui, sans-serif;
+  text-transform: uppercase;
+  text-shadow: 0 4px 18px hsl(220 90% 2% / .62);
+}
+
+.snow-trivia__results > p {
+  margin: 7px 0 20px;
+  color: hsl(210 23% 80%);
+  font-size: 17px;
+}
+
+.snow-trivia__results > p strong { color: hsl(var(--trivia-gold)); }
+
+.snow-trivia__results-grid {
+  width: 680px;
+  max-width: 84%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 23px;
+}
+
+.snow-trivia__results-grid > div {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid hsl(var(--trivia-accent) / .28);
+  border-radius: 15px;
+  background: hsl(220 64% 7% / .88);
+  box-shadow: inset 0 1px hsl(0 0% 100% / .07);
+}
+
+.snow-trivia__results-grid svg {
+  width: 26px;
+  height: 26px;
+  margin-right: 10px;
+  color: hsl(var(--trivia-gold));
+}
+
+.snow-trivia__results-grid span { display: flex; flex-direction: column; text-align: left; }
+.snow-trivia__results-grid small { color: hsl(210 22% 67%); font-size: 9px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.snow-trivia__results-grid strong { margin-top: 4px; color: white; font: 900 24px/1 Montserrat, system-ui, sans-serif; }
+.snow-trivia__replay { min-width: 270px; min-height: 64px; font-size: 16px; }
+.snow-trivia__results-note { margin-top: 13px; color: hsl(210 20% 66%); font-size: 11px; }
+
+/* A 1920×1080 television is the baseline presentation, with larger touch
+   targets and type than the compact 720p fallback below. */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .snow-trivia .snow-game-body { max-width: 96rem; }
+  .snow-trivia__topbar { min-height: 72px; }
+  .snow-trivia__back { min-height: 58px; font-size: 16px; }
+  .snow-trivia__brand strong { font-size: 28px; }
+  .snow-trivia__question-card h2 { font-size: 38px; }
+  .snow-trivia-answer { min-height: 136px; grid-template-columns: 72px minmax(0, 1fr) 48px; padding: 18px 21px; }
+  .snow-trivia-answer__letter { width: 58px; height: 58px; font-size: 25px; }
+  .snow-trivia-answer__text { font-size: 27px; }
+  .snow-trivia__verdict small { font-size: 13px; }
+}
+
+/* Native 4K displays often expose the full 3840×2160 CSS viewport. Let the
+   composition expand instead of leaving a 1280px island in the center. */
+@media (min-width: 2500px) and (min-height: 1400px) {
+  .snow-trivia .snow-game-body { max-width: 188rem; gap: 18px; }
+  .snow-trivia__topbar { min-height: 116px; grid-template-columns: minmax(390px, 1fr) auto minmax(760px, 1fr); }
+  .snow-trivia__back { min-width: 310px; min-height: 88px; border-radius: 18px; font-size: 25px; }
+  .snow-trivia__brand-icon { width: 88px; height: 88px; margin-right: 20px; border-radius: 25px; }
+  .snow-trivia__brand-icon svg { width: 52px; height: 52px; }
+  .snow-trivia__brand small { font-size: 17px; }
+  .snow-trivia__brand strong { margin-top: 9px; font-size: 46px; }
+  .snow-trivia-stat { min-width: 178px; height: 88px; padding: 12px 20px; border-radius: 20px; }
+  .snow-trivia-stat > svg { width: 38px; height: 38px; margin-right: 15px; }
+  .snow-trivia-stat small { font-size: 15px; }
+  .snow-trivia-stat strong { font-size: 30px; }
+  .snow-trivia-stat--streak { min-width: 140px; }
+  .snow-trivia__toolbar > * + * { margin-left: 15px; }
+  .snow-trivia__fx { min-width: 168px; min-height: 82px; border-radius: 18px; font-size: 21px; }
+  .snow-trivia__progress { min-height: 75px; padding: 0 9px; }
+  .snow-trivia__round > span { min-width: 220px; font-size: 20px; }
+  .snow-trivia__progress-track { width: 470px; height: 14px; margin-left: 22px; }
+  .snow-trivia__free-play { font-size: 20px; }
+  .snow-trivia__free-play svg { width: 26px; height: 26px; margin-right: 11px; }
+  .snow-trivia__stage { grid-template-rows: minmax(250px, .78fr) minmax(500px, 1.42fr) minmax(150px, .46fr); gap: 22px; }
+  .snow-trivia__question-card { padding: 38px 190px; border-radius: 44px; }
+  .snow-trivia__category { margin-bottom: 18px; padding: 11px 22px; border-radius: 34px; font-size: 18px; }
+  .snow-trivia__category svg { width: 26px; height: 26px; margin-right: 12px; }
+  .snow-trivia__question-card h2 { max-width: 2000px; font-size: 64px; }
+  .snow-trivia__question-mark { font-size: 220px; }
+  .snow-trivia__answers { gap: 22px; }
+  .snow-trivia-answer { min-height: 215px; grid-template-columns: 112px minmax(0, 1fr) 72px; padding: 28px 34px; border-radius: 32px; }
+  .snow-trivia-answer__letter { width: 90px; height: 90px; border-radius: 24px; font-size: 40px; }
+  .snow-trivia-answer__text { font-size: 44px; }
+  .snow-trivia-answer__state { width: 62px; height: 62px; }
+  .snow-trivia-answer__state svg { width: 40px; height: 40px; }
+  .snow-trivia__feedback { padding: 14px 28px; border-radius: 28px; }
+  .snow-trivia__verdict > span { width: 74px; height: 74px; margin-right: 22px; }
+  .snow-trivia__verdict > span svg { width: 44px; height: 44px; }
+  .snow-trivia__verdict strong { font-size: 31px; }
+  .snow-trivia__verdict small { max-width: 1420px; margin-top: 8px; font-size: 21px; }
+  .snow-trivia__next { min-width: 370px; min-height: 91px; border-radius: 23px; font-size: 24px; }
+  .snow-trivia__hint strong { font-size: 25px; }
+  .snow-trivia__hint small { font-size: 18px; }
+  .snow-trivia__remote { width: 165px; grid-template-columns: repeat(3, 47px); grid-template-rows: repeat(3, 27px); margin-right: 22px; font-size: 14px; }
+  .snow-trivia__results { padding: 50px; border-radius: 48px; }
+  .snow-trivia__trophy { width: 200px; height: 200px; margin-bottom: 24px; }
+  .snow-trivia__trophy span { width: 124px; height: 124px; }
+  .snow-trivia__trophy svg { width: 76px; height: 76px; }
+  .snow-trivia__results > small { font-size: 20px; }
+  .snow-trivia__results h2 { margin: 13px 0 9px; font-size: 70px; }
+  .snow-trivia__results > p { margin: 12px 0 32px; font-size: 28px; }
+  .snow-trivia__results-grid { width: 1130px; gap: 20px; margin-bottom: 38px; }
+  .snow-trivia__results-grid > div { min-height: 132px; border-radius: 24px; }
+  .snow-trivia__results-grid svg { width: 44px; height: 44px; margin-right: 17px; }
+  .snow-trivia__results-grid small { font-size: 15px; }
+  .snow-trivia__results-grid strong { font-size: 40px; }
+  .snow-trivia__replay { min-width: 450px; min-height: 100px; font-size: 26px; border-radius: 23px; }
+  .snow-trivia__results-note { margin-top: 22px; font-size: 18px; }
+}
+
+/* 720p is supported as a compact fallback, not the design target. */
+@media (max-height: 820px) {
+  .snow-trivia .snow-game-body { max-width: 72rem; gap: 5px; }
+  .snow-trivia__topbar { min-height: 48px; grid-template-columns: minmax(165px, 1fr) auto minmax(330px, 1fr); }
+  .snow-trivia__back { min-width: 155px; min-height: 43px; font-size: 12px; }
+  .snow-trivia__brand-icon { width: 39px; height: 39px; margin-right: 8px; border-radius: 11px; }
+  .snow-trivia__brand-icon svg { width: 23px; height: 23px; }
+  .snow-trivia__brand small { font-size: 8px; }
+  .snow-trivia__brand strong { margin-top: 3px; font-size: 19px; }
+  .snow-trivia-stat { height: 43px; min-width: 83px; padding: 5px 9px; border-radius: 9px; }
+  .snow-trivia-stat > svg { width: 18px; height: 18px; margin-right: 6px; }
+  .snow-trivia-stat small { font-size: 7px; }
+  .snow-trivia-stat strong { font-size: 14px; }
+  .snow-trivia-stat--streak { min-width: 66px; }
+  .snow-trivia__fx { min-width: 82px; min-height: 41px; font-size: 11px; }
+  .snow-trivia__progress { min-height: 35px; }
+  .snow-trivia__round > span { min-width: 105px; font-size: 9px; }
+  .snow-trivia__progress-track { width: 205px; height: 6px; margin-left: 8px; }
+  .snow-trivia__free-play { font-size: 9px; }
+  .snow-trivia__free-play svg { width: 13px; height: 13px; }
+  .snow-trivia__stage { grid-template-rows: minmax(94px, .72fr) minmax(164px, 1.38fr) minmax(62px, .45fr); gap: 7px; }
+  .snow-trivia__question-card { padding: 11px 76px 12px; border-radius: 18px; }
+  .snow-trivia__category { margin-bottom: 5px; padding: 4px 9px; font-size: 8px; }
+  .snow-trivia__category svg { width: 12px; height: 12px; margin-right: 5px; }
+  .snow-trivia__question-card h2 { font-size: 24px; }
+  .snow-trivia__question-mark { font-size: 83px; }
+  .snow-trivia__answers { gap: 7px; }
+  .snow-trivia-answer { min-height: 76px; grid-template-columns: 47px minmax(0, 1fr) 31px; padding: 8px 10px; border-radius: 13px; }
+  .snow-trivia-answer__letter { width: 38px; height: 38px; border-radius: 10px; font-size: 17px; }
+  .snow-trivia-answer__text { font-size: 17px; }
+  .snow-trivia-answer__state { width: 28px; height: 28px; }
+  .snow-trivia-answer__state svg { width: 19px; height: 19px; }
+  .snow-trivia__feedback { padding: 5px 10px; border-radius: 12px; }
+  .snow-trivia__verdict { margin-right: 10px; }
+  .snow-trivia__verdict > span { width: 35px; height: 35px; margin-right: 8px; }
+  .snow-trivia__verdict > span svg { width: 20px; height: 20px; }
+  .snow-trivia__verdict strong { font-size: 14px; }
+  .snow-trivia__verdict small { max-width: 610px; margin-top: 2px; font-size: 9px; }
+  .snow-trivia__next { min-width: 166px; min-height: 43px; border-radius: 10px; font-size: 11px; }
+  .snow-trivia__hint strong { font-size: 12px; }
+  .snow-trivia__hint small { font-size: 9px; }
+  .snow-trivia__remote { width: 79px; grid-template-columns: repeat(3, 22px); grid-template-rows: repeat(3, 13px); margin-right: 9px; font-size: 7px; }
+  .snow-trivia__results { padding: 18px; border-radius: 20px; }
+  .snow-trivia__trophy { width: 82px; height: 82px; margin-bottom: 7px; }
+  .snow-trivia__trophy span { width: 52px; height: 52px; }
+  .snow-trivia__trophy svg { width: 31px; height: 31px; }
+  .snow-trivia__results > small { font-size: 9px; }
+  .snow-trivia__results h2 { margin: 4px 0 2px; font-size: 29px; }
+  .snow-trivia__results > p { margin: 4px 0 10px; font-size: 13px; }
+  .snow-trivia__results-grid { width: 520px; gap: 8px; margin-bottom: 11px; }
+  .snow-trivia__results-grid > div { min-height: 58px; padding: 7px; border-radius: 10px; }
+  .snow-trivia__results-grid svg { width: 19px; height: 19px; margin-right: 7px; }
+  .snow-trivia__results-grid small { font-size: 7px; }
+  .snow-trivia__results-grid strong { font-size: 17px; }
+  .snow-trivia__replay { min-width: 210px; min-height: 47px; font-size: 12px; }
+  .snow-trivia__results-note { margin-top: 6px; font-size: 8px; }
+}
+
+/* No expensive blur/filter layers are used. Low-memory and Reduced FX only
+   need to retire the small one-shot celebration and optional glow shadows. */
+.native-low-memory .snow-trivia__question-card,
+.native-low-memory .snow-trivia-answer,
+.native-low-memory .snow-trivia__results,
+.native-low-memory .snow-trivia-stat {
+  box-shadow: none;
+}
+
+.native-low-memory .snow-trivia__burst,
+[data-game-fx="reduced"] .snow-trivia__burst {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow-trivia__burst { display: none; }
+  .snow-trivia__progress-track i,
+  .snow-trivia-answer { transition-duration: .01ms; }
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2 } from 'lucide-react';
+import { Clock3, Coins, Gift, Loader2, Snowflake, Sparkles, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGameSocket } from '@/hooks/useGameSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,17 +12,16 @@ import { useReducedGameFx } from './shared/useReducedGameFx';
 import { useGameLifecycle } from './shared/gameLifecycle';
 import { activateFocused, useTvActivate } from './shared/tvActivate';
 import { useGameBack } from './shared/gameBack';
-import { arrowDir, isGlobalModalOpen } from './shared/gameInput';
+import { isGlobalModalOpen, visualArrowDir } from './shared/gameInput';
 import type { GameFairInfo } from './shared/gameTypes';
+import '@/styles/games-wheels.css';
 
 interface DailySpinProps {
   onBack: () => void;
 }
 
 const PRIZES = [50, 100, 250, 500, 2000];
-const SEG_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b'];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;
-const WHEEL_SIZE = 420;
 
 /** Countdown units come from the active locale, never hardcoded h/m/s. */
 function fmtCountdown(ms: number, u: { h: string; m: string; s: string }) {
@@ -44,6 +43,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const life = useGameLifecycle();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wheelMeasureRef = useRef<HTMLDivElement>(null);
   const wheelVisualRef = useRef<HTMLDivElement>(null);
   const spinBtnRef = useRef<HTMLButtonElement>(null);
   const backBtnRef = useRef<HTMLButtonElement>(null);
@@ -81,9 +81,12 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const size = WHEEL_SIZE;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+    const measured = wheelMeasureRef.current?.getBoundingClientRect().width ?? 0;
+    // The CSS owns the responsive size; the bitmap follows it. The fallback is
+    // only for first-paint/jsdom, before layout has produced a measurable box.
+    const size = Math.max(240, Math.round(measured || 420));
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -91,31 +94,66 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
 
     const cx = size / 2;
     const cy = size / 2;
-    const r = size / 2 - 8;
+    const rOuter = size / 2 - Math.max(4, size * 0.012);
+    const rFace = rOuter - size * 0.068;
+    const rInner = size * 0.175;
     const n = PRIZES.length;
     const seg = (Math.PI * 2) / n;
     const startOffset = -Math.PI / 2 - seg / 2;
+
+    // Lacquered midnight backing and three metallic rails. They are all
+    // painted once per resize/language change, never animated independently.
+    const caseGrad = ctx.createRadialGradient(cx - size * 0.15, cy - size * 0.18, size * 0.04, cx, cy, rOuter);
+    caseGrad.addColorStop(0, '#fff2b0');
+    caseGrad.addColorStop(0.35, '#d5a93f');
+    caseGrad.addColorStop(0.68, '#775017');
+    caseGrad.addColorStop(0.82, '#f3cf68');
+    caseGrad.addColorStop(1, '#3e290b');
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
+    ctx.fillStyle = caseGrad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rFace + size * 0.012, 0, Math.PI * 2);
+    ctx.fillStyle = '#071832';
+    ctx.fill();
+
+    const palettes = [
+      ['#063b63', '#0b75a7', '#082849'],
+      ['#075f57', '#10a381', '#073f3c'],
+      ['#4a1c68', '#843eb0', '#301044'],
+      ['#781d39', '#c83256', '#4e1128'],
+      ['#8c5b0a', '#ecb52e', '#684005'],
+    ];
 
     for (let i = 0; i < n; i++) {
       const a0 = startOffset + i * seg;
       const a1 = a0 + seg;
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, a0, a1);
+      ctx.moveTo(cx + Math.cos(a0) * rInner, cy + Math.sin(a0) * rInner);
+      ctx.arc(cx, cy, rFace, a0, a1);
+      ctx.lineTo(cx + Math.cos(a1) * rInner, cy + Math.sin(a1) * rInner);
+      ctx.arc(cx, cy, rInner, a1, a0, true);
       ctx.closePath();
       const isJackpot = PRIZES[i] === 2000;
-      if (isJackpot) {
-        const grad = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
-        grad.addColorStop(0, '#fde68a');
-        grad.addColorStop(0.6, '#f59e0b');
-        grad.addColorStop(1, '#b45309');
-        ctx.fillStyle = grad;
-      } else {
-        ctx.fillStyle = SEG_COLORS[i % SEG_COLORS.length];
-      }
+      const colors = palettes[i];
+      const grad = ctx.createRadialGradient(cx, cy, rInner, cx, cy, rFace);
+      grad.addColorStop(0, isJackpot ? '#ffe89a' : colors[0]);
+      grad.addColorStop(0.55, isJackpot ? '#d79b18' : colors[1]);
+      grad.addColorStop(1, isJackpot ? '#704507' : colors[2]);
+      ctx.fillStyle = grad;
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = Math.max(2, size * 0.006);
+      ctx.strokeStyle = 'rgba(255,236,171,0.72)';
+      ctx.stroke();
+
+      // A restrained highlight along each pocket gives depth without a GPU
+      // filter or a second animated layer.
+      ctx.beginPath();
+      ctx.arc(cx, cy, rFace - size * 0.018, a0 + 0.018, a1 - 0.018);
+      ctx.lineWidth = Math.max(1, size * 0.004);
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
       ctx.stroke();
 
       const mid = a0 + seg / 2;
@@ -124,52 +162,77 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
       ctx.rotate(mid);
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isJackpot ? '#1f1300' : '#ffffff';
-      ctx.font = `${isJackpot ? '800' : '700'} ${isJackpot ? 26 : 22}px system-ui, -apple-system, sans-serif`;
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = isJackpot ? 0 : 4;
-      ctx.fillText(`${PRIZES[i]}`, r - 18, 0);
+      ctx.fillStyle = isJackpot ? '#2b1900' : '#ffffff';
+      ctx.font = `900 ${Math.round(size * (isJackpot ? 0.072 : 0.065))}px Montserrat, system-ui, sans-serif`;
+      ctx.shadowColor = 'rgba(0,0,0,0.68)';
+      ctx.shadowBlur = isJackpot ? 0 : Math.max(2, size * 0.012);
+      ctx.fillText(`+${PRIZES[i].toLocaleString()}`, rFace - size * 0.055, -size * 0.012);
+      ctx.font = `800 ${Math.round(size * 0.026)}px system-ui, sans-serif`;
+      ctx.fillStyle = isJackpot ? '#553000' : 'rgba(255,255,255,0.8)';
+      ctx.fillText('SNOW COINS', rFace - size * 0.055, size * 0.042);
       if (isJackpot) {
-        ctx.font = '800 12px system-ui';
-        ctx.fillStyle = '#7c2d12';
-        ctx.fillText(t('games.dailySpin.jackpotTag'), r - 18, 20);
+        ctx.font = `900 ${Math.round(size * 0.024)}px system-ui, sans-serif`;
+        ctx.fillStyle = '#633a00';
+        ctx.fillText(t('games.dailySpin.jackpotTag'), rFace - size * 0.055, size * 0.075);
       }
       ctx.restore();
     }
 
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#fbbf24';
+    ctx.arc(cx, cy, rFace, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(2, size * 0.012);
+    ctx.strokeStyle = '#ffe59a';
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(cx, cy, 28, 0, Math.PI * 2);
-    const hubGrad = ctx.createRadialGradient(cx - 6, cy - 6, 2, cx, cy, 28);
-    hubGrad.addColorStop(0, '#fde68a');
-    hubGrad.addColorStop(1, '#92400e');
-    ctx.fillStyle = hubGrad;
+    ctx.arc(cx, cy, rInner + size * 0.012, 0, Math.PI * 2);
+    const innerGrad = ctx.createRadialGradient(cx - size * 0.04, cy - size * 0.05, size * 0.01, cx, cy, rInner);
+    innerGrad.addColorStop(0, '#174a6a');
+    innerGrad.addColorStop(0.62, '#081d39');
+    innerGrad.addColorStop(1, '#020b18');
+    ctx.fillStyle = innerGrad;
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = Math.max(2, size * 0.01);
+    ctx.strokeStyle = '#d5ac4a';
     ctx.stroke();
   }, [t]);
 
-  useEffect(() => { drawWheel(); }, [drawWheel]);
+  const userId = user?.id;
+
+  useEffect(() => {
+    drawWheel();
+    const target = wheelMeasureRef.current;
+    let observer: ResizeObserver | null = null;
+    let queued = 0;
+    const redraw = () => {
+      window.cancelAnimationFrame(queued);
+      queued = window.requestAnimationFrame(drawWheel);
+    };
+    if (target && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(redraw);
+      observer.observe(target);
+    }
+    window.addEventListener('resize', redraw);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', redraw);
+      window.cancelAnimationFrame(queued);
+    };
+  }, [drawWheel]);
 
   useEffect(() => {
     let cancelled = false;
     // A changed (or signed-out) user must never inherit the previous account's
     // cooldown, result or loading state.
     setNextClaimAt(null);
-    setLoadingCooldown(!!user);
+    setLoadingCooldown(!!userId);
     async function loadCooldown() {
-      if (!user) { setLoadingCooldown(false); return; }
+      if (!userId) { setLoadingCooldown(false); return; }
       try {
         const { data } = await supabase
           .from('daily_claims')
           .select('last_claim_at')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .maybeSingle();
         if (cancelled) return;
         if (data?.last_claim_at) {
@@ -184,7 +247,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     }
     loadCooldown();
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     if (!nextClaimAt) return;
@@ -215,7 +278,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isGlobalModalOpen()) return;
-      const dir = arrowDir(e);
+      const dir = visualArrowDir(e);
       if (!dir) return;
       // Consume every arrow so native spatial focus cannot diverge from the
       // single data-tv-focused marker, even at a graph boundary.
@@ -260,20 +323,41 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
     setSpinning(true);
 
     const startRot = rotRef.current;
-    const animStart = performance.now();
     let resolved = false;
-    let raf = 0;
+    let raf: number | null = null;
+    let visualElapsed = 0;
+    let lastFrame = performance.now();
     const duration = reducedFx ? 1600 : 4000;
     const baseSpins = reducedFx ? 2 : 6;
 
-    const animate = (time: number) => {
-      if (resolved) return;
-      if (!life.isHidden()) setRot(startRot + ((time - animStart) / 1000) * 720);
-      raf = life.raf(animate);
+    const scheduleIdle = () => {
+      if (!resolved && !life.isHidden() && raf === null) raf = life.raf(animate);
     };
-    raf = life.raf(animate);
+    const animate = (time: number) => {
+      raf = null;
+      if (resolved || life.isHidden()) return;
+      visualElapsed += Math.max(0, time - lastFrame);
+      lastFrame = time;
+      setRot(startRot + (visualElapsed / 1000) * 720);
+      scheduleIdle();
+    };
+    const stopWatchingVisibility = life.onVisibilityChange((hidden) => {
+      if (hidden) {
+        life.cancelRaf(raf);
+        raf = null;
+      } else {
+        lastFrame = performance.now();
+        scheduleIdle();
+      }
+    });
+    scheduleIdle();
 
-    const stopIdle = () => { resolved = true; life.cancelRaf(raf); };
+    const stopIdle = () => {
+      resolved = true;
+      life.cancelRaf(raf);
+      raf = null;
+      stopWatchingVisibility();
+    };
     const settle = () => { inFlight.current = false; };
 
     try {
@@ -345,7 +429,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
   const spinBlocked = spinning || !eligible;
 
   return (
-    <GameShell accent="ice">
+    <GameShell accent="ice" className="snow-wheels-game snow-daily-game">
       <GameTopBar
         ref={backBtnRef}
         onBack={requestBack}
@@ -362,39 +446,90 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
         fxFocused={zone === 'fx'}
         onFxFocus={() => setZone('fx')}
       />
-      <GamePanel className="tv-game-board snow-wheel-stage">
-        <div className="snow-wheel-layout">
-          <div className="snow-wheel-wrap">
-            <span className="snow-wheel-pointer" aria-hidden="true" />
-            <div ref={wheelVisualRef} className="snow-wheel-visual"><canvas ref={canvasRef} /></div>
-          </div>
-          <div className="snow-wheel-controls">
-            {!user ? (
-              <ResultBanner tone="info" title={t('games.dailySpin.signInPrompt')} />
-            ) : loadingCooldown ? (
-              <div className="snow-wheel-loading"><Loader2 className="animate-spin" /> {t('games.dailySpin.checkingSpin')}</div>
-            ) : nextClaimAt ? (
-              <ResultBanner tone="info" title={fmtCountdown(remaining, { h: t('games.dailySpin.unitHours'), m: t('games.dailySpin.unitMinutes'), s: t('games.dailySpin.unitSeconds') })}>{t('games.dailySpin.nextSpinReady')}</ResultBanner>
-            ) : (
-              <Button
-                ref={spinBtnRef}
-                variant="gold"
-                aria-disabled={spinBlocked ? 'true' : undefined}
-                data-tv-focused={zone === 'spin' ? 'true' : undefined}
-                onFocus={() => setZone('spin')}
-                onClick={() => { if (!spinBlocked) void handleSpin(); }}
-                className="snow-game-action snow-wheel-spin"
-              >
-                {spinning ? t('games.dailySpin.spinning') : t('games.dailySpin.spin')}
-              </Button>
-            )}
-            {errorMsg && <ResultBanner tone="lose" title={errorMsg} />}
-            {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
-            {lastWin && (
-              <ResultBanner tone="win" title={lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}>
-                {t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}
-              </ResultBanner>
-            )}
+      <GamePanel className="tv-game-board snow-wheel-stage snow-daily-stage">
+        <div className="snow-daily-layout">
+          <section className="snow-daily-showpiece" aria-label={t('games.dailySpin.heading')}>
+            <div className="snow-daily-marquee">
+              <span className="snow-daily-marquee__icon" aria-hidden="true"><Sparkles /></span>
+              <span>{t('games.dailySpin.heading')}</span>
+              <small>{t('games.dailySpin.phase')}</small>
+            </div>
+
+            <div className="snow-daily-wheel-frame">
+              <div className="snow-daily-lights" aria-hidden="true" />
+              <span className="snow-daily-pointer" aria-hidden="true"><span /></span>
+              <div ref={wheelMeasureRef} className="snow-daily-wheel-measure">
+                <div ref={wheelVisualRef} className="snow-daily-wheel-disc">
+                  <canvas ref={canvasRef} />
+                </div>
+              </div>
+              <div className="snow-daily-hub" aria-hidden="true">
+                <Snowflake />
+                <span>SMC</span>
+              </div>
+            </div>
+
+            <div className="snow-daily-pedestal" aria-hidden="true">
+              <span /><strong>SNOW MEDIA CASINO</strong><span />
+            </div>
+          </section>
+
+          <section className="snow-wheel-controls snow-daily-console">
+            <header className="snow-daily-console__head">
+              <span className="snow-daily-console__gift" aria-hidden="true"><Gift /></span>
+              <div>
+                <small>{t('games.dailySpin.phase')}</small>
+                <strong>{t('games.dailySpin.heading')}</strong>
+              </div>
+              <Trophy aria-hidden="true" />
+            </header>
+
+            <div className="snow-daily-prizes" aria-label={t('games.dailySpin.heading')}>
+              {PRIZES.map((prize) => (
+                <span key={prize} className={prize === 2000 ? 'is-jackpot' : undefined}>
+                  <Coins aria-hidden="true" /><b>{prize.toLocaleString()}</b>
+                </span>
+              ))}
+            </div>
+
+            <div className="snow-daily-status-deck">
+              {!user ? (
+                <ResultBanner tone="info" title={t('games.dailySpin.signInPrompt')} />
+              ) : loadingCooldown ? (
+                <div className="snow-wheel-loading"><Loader2 className="animate-spin" /> {t('games.dailySpin.checkingSpin')}</div>
+              ) : nextClaimAt ? (
+                <div className="snow-daily-countdown" role="status">
+                  <Clock3 aria-hidden="true" />
+                  <span><small>{t('games.dailySpin.nextSpinReady')}</small><strong>{fmtCountdown(remaining, { h: t('games.dailySpin.unitHours'), m: t('games.dailySpin.unitMinutes'), s: t('games.dailySpin.unitSeconds') })}</strong></span>
+                </div>
+              ) : (
+                <div className="snow-daily-ready" aria-hidden="true">
+                  <span><Sparkles /></span>
+                  <strong>{t('games.dailySpin.spin')}</strong>
+                </div>
+              )}
+
+              {lastWin && (
+                <ResultBanner tone="win" title={lastWin.jackpot ? t('games.dailySpin.jackpotResult') : t('games.dailySpin.youWon')}>
+                  {t('games.dailySpin.winAmount', { prize: lastWin.prize.toLocaleString() })}
+                </ResultBanner>
+              )}
+              {errorMsg && <ResultBanner tone="lose" title={errorMsg} />}
+              {backNote && <p className="snow-game-note" role="status">{backNote}</p>}
+            </div>
+
+            <Button
+              ref={spinBtnRef}
+              variant="gold"
+              aria-disabled={spinBlocked ? 'true' : undefined}
+              data-tv-focused={zone === 'spin' ? 'true' : undefined}
+              onFocus={() => setZone('spin')}
+              onClick={() => { if (!spinBlocked) void handleSpin(); }}
+              className="snow-game-action snow-wheel-spin snow-daily-spin"
+            >
+              {spinning ? <><Loader2 className="animate-spin" /> {t('games.dailySpin.spinning')}</> : <><Gift /> {t('games.dailySpin.spin')}</>}
+            </Button>
+
             {fair && (
               <FairnessPanel
                 ref={fairRef}
@@ -406,7 +541,7 @@ const DailySpin = ({ onBack }: DailySpinProps) => {
                 labels={{ title: t('games.dailySpin.provablyFair'), note: t('games.dailySpin.fairVerify') }}
               />
             )}
-          </div>
+          </section>
         </div>
       </GamePanel>
       <GameFxCanvas burstKey={celebrate && lastWin ? lastWin.prize : null} reduced={reducedFx} />

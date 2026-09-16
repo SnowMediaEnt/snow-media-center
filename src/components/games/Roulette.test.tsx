@@ -47,6 +47,14 @@ describe('Roulette settled round', () => {
     }, { timeout: 15000, interval: 40 });
   };
 
+  it('uses the visible translated names for outside-bet accessibility labels', () => {
+    render(<Roulette onBack={() => {}} />);
+    for (const key of ['betLow', 'betEven', 'betRed', 'betBlack', 'betOdd', 'betHigh']) {
+      expect(screen.getByRole('button', { name: `games.roulette.${key}` })).toBeTruthy();
+    }
+    expect(document.querySelector('button[aria-label="null"]')).toBeNull();
+  });
+
   it('keeps win/loss colouring after the spent chips are cleared', async () => {
     await placeAndSpin();
     // Live placements are gone (nothing left to undo) but the felt still shows

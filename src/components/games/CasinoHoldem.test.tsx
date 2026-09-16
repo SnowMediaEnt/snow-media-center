@@ -123,4 +123,30 @@ describe("Casino Hold'em decision phase", () => {
     expect(screen.queryByRole('button', { name: /games\.casinoHoldem\.fold/ })).toBeNull();
     spy.mockRestore();
   });
+
+  it('keeps real and visual Back/FX focus throughout the reveal', async () => {
+    await dealHand();
+    callCasinoHoldem.mockResolvedValue({
+      ok: true,
+      status: 'win',
+      playerHole: ['AS', 'KD'],
+      dealerHole: ['QH', 'JD'],
+      community: ['2C', '7H', 'TS', '4D', '9S'],
+      net: 20,
+    });
+
+    fireEvent.click(callButton());
+    const back = screen.getByRole('button', { name: 'games.casinoHoldem.back' });
+    await waitFor(() => expect(document.activeElement).toBe(back));
+    expect(back.dataset.focused).toBe('true');
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    const fx = screen.getByRole('button', { name: /games\.shared\.fx/ });
+    await waitFor(() => expect(document.activeElement).toBe(fx));
+    expect(fx.dataset.tvFocused).toBe('true');
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    await waitFor(() => expect(document.activeElement).toBe(back));
+    expect(back.dataset.focused).toBe('true');
+  });
 });

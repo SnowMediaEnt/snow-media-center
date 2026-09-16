@@ -1,0 +1,1052 @@
+/* Daily Spin + Roulette presentation layer.
+   These rules deliberately avoid images, backdrop filters and perpetual
+   decorative animation. Canvas work is static except for the already bounded
+   game spin, while all focus feedback stays transform/opacity-only. */
+
+.snow-wheels-game .snow-game-body {
+  max-width: 1500px;
+}
+
+.snow-wheels-game .snow-game-topbar {
+  position: relative;
+  z-index: 10;
+}
+
+.snow-wheels-game .snow-game-heading span {
+  color: #8fe9ef;
+  text-shadow: 0 2px 12px rgba(70, 211, 224, .2);
+}
+
+/* --------------------------------------------------------------------------
+   Daily Spin — a single premium prize machine rather than a canvas in a box.
+   -------------------------------------------------------------------------- */
+
+.snow-daily-stage {
+  position: relative;
+  padding: 18px 24px;
+  overflow: hidden;
+  border: 2px solid rgba(226, 190, 91, .58);
+  border-radius: 22px;
+  background-color: #06162f;
+  background-image:
+    radial-gradient(ellipse at 25% 46%, rgba(37, 186, 209, .18), rgba(6, 22, 47, 0) 52%),
+    radial-gradient(ellipse at 82% 15%, rgba(118, 55, 145, .24), rgba(6, 22, 47, 0) 45%),
+    linear-gradient(145deg, #0b2548 0%, #07172f 54%, #170d27 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05), inset 0 -28px 70px rgba(0, 3, 13, .38), 0 18px 38px rgba(0, 3, 16, .42);
+}
+
+.snow-daily-stage::before,
+.snow-daily-stage::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.snow-daily-stage::before {
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  border: 1px solid rgba(126, 226, 235, .12);
+  border-radius: 15px;
+}
+
+.snow-daily-stage::after {
+  top: 0;
+  left: 14%;
+  width: 44%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(119, 236, 242, 0), #7debf0 48%, rgba(119, 236, 242, 0));
+}
+
+.snow-daily-layout {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+}
+
+.snow-daily-showpiece {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-right: 30px;
+}
+
+.snow-daily-marquee {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 390px;
+  min-height: 48px;
+  margin-bottom: 7px;
+  padding: 7px 20px;
+  border: 1px solid rgba(235, 201, 105, .48);
+  border-radius: 25px;
+  color: #ffffff;
+  background: linear-gradient(180deg, rgba(14, 45, 80, .96), rgba(5, 20, 43, .98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 8px 22px rgba(0, 4, 19, .34);
+  font-family: Montserrat, Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: .055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.snow-daily-marquee__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 11px;
+  border-radius: 50%;
+  color: #102642;
+  background: linear-gradient(180deg, #fff0a9, #c99328);
+}
+
+.snow-daily-marquee__icon svg { width: 18px; height: 18px; }
+
+.snow-daily-marquee small {
+  margin-left: 13px;
+  color: #9ce9ee;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.snow-daily-wheel-frame {
+  position: relative;
+  flex: 0 0 auto;
+  width: 455px;
+  height: 455px;
+  border: 3px solid #d5a53b;
+  border-radius: 50%;
+  background: radial-gradient(circle, #0d2d4f 0%, #071a34 60%, #020b18 100%);
+  box-shadow:
+    0 0 0 5px #392407,
+    0 0 0 8px rgba(241, 203, 97, .8),
+    0 0 0 13px rgba(7, 20, 40, .9),
+    0 21px 42px rgba(0, 3, 15, .55),
+    inset 0 0 28px rgba(0, 0, 0, .62);
+}
+
+.snow-daily-lights {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  z-index: 3;
+  border: 10px dotted #f9de83;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12), 0 0 0 2px rgba(72, 40, 5, .74);
+}
+
+.snow-daily-wheel-measure {
+  position: absolute;
+  top: 6.5%;
+  right: 6.5%;
+  bottom: 6.5%;
+  left: 6.5%;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.snow-daily-wheel-disc {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform-origin: 50% 50%;
+}
+
+.snow-daily-wheel-disc canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.snow-daily-pointer {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  z-index: 8;
+  width: 54px;
+  height: 72px;
+  margin-left: -27px;
+  border: 3px solid #ffe9a0;
+  border-radius: 24px 24px 13px 13px;
+  background: linear-gradient(180deg, #fff0a5 0%, #d39a29 44%, #73450b 100%);
+  box-shadow: 0 8px 15px rgba(0, 3, 13, .62), inset 0 2px rgba(255, 255, 255, .5);
+}
+
+.snow-daily-pointer::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #09203f;
+  box-shadow: inset 0 0 0 3px #6adce6;
+}
+
+.snow-daily-pointer span {
+  position: absolute;
+  left: 50%;
+  bottom: -24px;
+  width: 0;
+  height: 0;
+  margin-left: -17px;
+  border-right: 17px solid transparent;
+  border-left: 17px solid transparent;
+  border-top: 30px solid #e4b044;
+}
+
+.snow-daily-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  border: 4px solid #f4d472;
+  border-radius: 50%;
+  color: #a5f2f2;
+  background: radial-gradient(circle at 35% 24%, #194f73, #07172f 64%, #020915);
+  box-shadow: 0 0 0 5px rgba(75, 44, 7, .9), inset 0 0 16px rgba(100, 227, 236, .18);
+  pointer-events: none;
+}
+
+.snow-daily-hub svg { width: 35px; height: 35px; }
+.snow-daily-hub span { margin-top: 2px; color: #f4d472; font: 900 12px/1 Montserrat, Arial, sans-serif; letter-spacing: .18em; }
+
+.snow-daily-pedestal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 74%;
+  min-height: 31px;
+  margin-top: 12px;
+  color: #f2d878;
+  font: 900 10px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .16em;
+}
+
+.snow-daily-pedestal span {
+  flex: 1 1 auto;
+  height: 1px;
+  margin: 0 12px;
+  background: linear-gradient(90deg, rgba(232, 196, 92, 0), rgba(232, 196, 92, .78));
+}
+.snow-daily-pedestal span:last-child { background: linear-gradient(90deg, rgba(232, 196, 92, .78), rgba(232, 196, 92, 0)); }
+
+.snow-daily-console {
+  position: relative;
+  flex: 0 0 390px;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: none;
+  padding: 18px;
+  border: 2px solid rgba(108, 225, 234, .48);
+  border-radius: 18px;
+  background-color: #07172f;
+  background-image:
+    radial-gradient(circle at 88% 5%, rgba(123, 53, 147, .25), rgba(7, 23, 47, 0) 42%),
+    linear-gradient(160deg, rgba(15, 48, 82, .96), rgba(5, 17, 37, .98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 18px 36px rgba(0, 3, 15, .42);
+  text-align: left;
+}
+
+.snow-daily-console__head {
+  display: flex;
+  align-items: center;
+  min-height: 74px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid rgba(235, 198, 91, .28);
+}
+
+.snow-daily-console__gift {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  margin-right: 13px;
+  border: 2px solid #f1d474;
+  border-radius: 14px;
+  color: #122542;
+  background: linear-gradient(145deg, #fff1ac, #c58c24);
+}
+
+.snow-daily-console__gift svg { width: 25px; height: 25px; }
+.snow-daily-console__head > svg { width: 25px; height: 25px; margin-left: auto; color: #f1cd63; }
+.snow-daily-console__head div { display: flex; flex-direction: column; min-width: 0; }
+.snow-daily-console__head small { color: #8ee9ee; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.snow-daily-console__head strong {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  color: #fff;
+  font: 900 20px/1.08 Montserrat, Arial, sans-serif;
+  text-overflow: clip;
+  text-transform: uppercase;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.snow-daily-prizes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.snow-daily-prizes > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-right: 7px;
+  border: 1px solid rgba(119, 227, 235, .32);
+  border-radius: 11px;
+  color: #d9f8f8;
+  background: rgba(4, 17, 38, .72);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .06);
+}
+.snow-daily-prizes > span:last-child { margin-right: 0; }
+.snow-daily-prizes > span.is-jackpot { border-color: #eac85f; color: #ffe89c; background: rgba(89, 53, 7, .48); }
+.snow-daily-prizes svg { width: 17px; height: 17px; margin-bottom: 5px; color: #dbb849; }
+.snow-daily-prizes b { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.snow-daily-status-deck {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 118px;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px;
+  background: rgba(2, 11, 27, .62);
+}
+
+.snow-daily-status-deck .snow-result-banner {
+  width: 100%;
+  min-width: 0;
+}
+
+.snow-daily-status-deck .snow-result-banner + .snow-result-banner { margin-top: 8px; }
+
+.snow-daily-ready,
+.snow-daily-countdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.snow-daily-ready > span,
+.snow-daily-countdown > svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  margin-right: 13px;
+  padding: 12px;
+  border: 2px solid rgba(110, 229, 237, .64);
+  border-radius: 50%;
+  color: #8df0f0;
+  background: #0b2b4d;
+}
+
+.snow-daily-ready strong { font: 900 20px/1.1 Montserrat, Arial, sans-serif; text-transform: uppercase; }
+.snow-daily-countdown span { display: flex; flex-direction: column; }
+.snow-daily-countdown small { color: #a7cbd9; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.snow-daily-countdown strong { margin-top: 5px; color: #ffe18a; font: 900 27px/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+
+.snow-daily-spin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 70px;
+  margin-top: 14px;
+  border-radius: 12px;
+  font: 900 22px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.snow-daily-spin svg { width: 25px; height: 25px; margin-right: 10px; }
+.snow-daily-console > .snow-fairness { margin-top: 10px; }
+.snow-daily-console .snow-fairness__toggle { width: 100%; }
+
+/* --------------------------------------------------------------------------
+   Roulette — physical wheel, compact felt and a dedicated control console.
+   -------------------------------------------------------------------------- */
+
+.snow-roulette-game .snow-game-body { max-width: 1540px; }
+
+.snow-roulette-game .snow-rl-layout {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  padding: 12px;
+  border: 2px solid rgba(225, 187, 82, .52);
+  border-radius: 20px;
+  background-color: #06152b;
+  background-image:
+    radial-gradient(ellipse at 18% 35%, rgba(134, 32, 63, .18), rgba(6, 21, 43, 0) 47%),
+    linear-gradient(145deg, #0a2344, #07162d 55%, #140c20);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .06), 0 18px 36px rgba(0, 3, 15, .44);
+  overflow: hidden;
+}
+
+.snow-roulette-game .snow-rl-side {
+  width: 345px;
+  max-width: 345px;
+  min-width: 345px;
+  flex: 0 0 345px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 15px;
+  padding: 12px;
+  border: 1px solid rgba(239, 202, 99, .3);
+  border-radius: 15px;
+  background: linear-gradient(160deg, rgba(15, 39, 71, .9), rgba(4, 14, 31, .96));
+}
+
+.snow-rl-side__header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 43px;
+  margin-bottom: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(230, 193, 87, .27);
+}
+
+.snow-rl-side__header > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  margin-right: 10px;
+  border: 1px solid #e4c35e;
+  border-radius: 50%;
+  color: #091a34;
+  background: linear-gradient(145deg, #fff0a6, #c58b23);
+}
+.snow-rl-side__header svg { width: 20px; height: 20px; }
+.snow-rl-side__header div { display: flex; flex-direction: column; }
+.snow-rl-side__header small { color: #83e4ea; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.snow-rl-side__header strong { margin-top: 4px; color: #fff; font: 900 16px/1 Montserrat, Arial, sans-serif; letter-spacing: .06em; }
+
+.snow-rl-wheel-shell {
+  width: 100%;
+  padding: 7px 6px 5px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(2, 9, 21, .76), rgba(10, 29, 51, .58));
+}
+
+.snow-roulette-game .snow-rl-wheel-wrap {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.snow-roulette-game .snow-rl-wheel {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  border: 2px solid rgba(247, 216, 125, .74);
+  border-radius: 50%;
+  background: #070b12;
+  box-shadow: 0 0 0 4px #392307, 0 0 0 7px rgba(223, 177, 63, .72), 0 14px 27px rgba(0, 2, 10, .58);
+}
+
+.snow-roulette-game .snow-rl-wheel-visual,
+.snow-roulette-game .snow-rl-ball-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform-origin: 50% 50%;
+}
+
+.snow-roulette-game .snow-rl-wheel-visual canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0;
+}
+
+.snow-roulette-game .snow-rl-ball-track { z-index: 4; pointer-events: none; }
+
+.snow-roulette-game .snow-rl-ball {
+  position: absolute;
+  top: 17px;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  margin-left: -7px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #ffffff, #c6d2dc 62%, #607181);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, .72);
+}
+
+.snow-roulette-game .snow-rl-pointer {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  z-index: 8;
+  width: 42px;
+  height: 34px;
+  margin-left: -21px;
+  border: 2px solid #ffeda4;
+  border-radius: 15px 15px 6px 6px;
+  background: linear-gradient(180deg, #ffefa8, #c28722);
+  box-shadow: 0 5px 9px rgba(0, 0, 0, .55);
+}
+
+.snow-roulette-game .snow-rl-pointer i {
+  position: absolute;
+  left: 50%;
+  bottom: -17px;
+  width: 0;
+  height: 0;
+  margin-left: -11px;
+  border-right: 11px solid transparent;
+  border-left: 11px solid transparent;
+  border-top: 20px solid #d79b2d;
+}
+
+.snow-rl-wheel-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border: 3px solid #f4d579;
+  border-radius: 50%;
+  color: #102039;
+  background: linear-gradient(145deg, #fff2b0, #c58a22);
+  box-shadow: 0 0 0 4px rgba(48, 29, 5, .82);
+  pointer-events: none;
+}
+.snow-rl-wheel-hub svg { width: 21px; height: 21px; }
+.snow-rl-wheel-hub b { margin-top: 1px; font: 900 8px/1 Montserrat, Arial, sans-serif; letter-spacing: .12em; }
+
+.snow-rl-wheel-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  margin-top: 8px;
+  color: #e8c65f;
+  font: 900 9px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .16em;
+}
+.snow-rl-wheel-caption span { width: 48px; height: 1px; margin: 0 8px; background: #8b6a25; }
+
+.snow-roulette-game .snow-rl-callout {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 58px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid rgba(228, 190, 83, .58);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(13, 34, 62, .97), rgba(4, 14, 31, .98));
+}
+
+.snow-rl-callout__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  margin-right: 10px;
+  border-radius: 50%;
+  color: #f3d270;
+  background: rgba(224, 181, 64, .12);
+}
+.snow-rl-callout__icon svg { width: 21px; height: 21px; }
+.snow-roulette-game .snow-rl-callout > strong { margin-right: 11px; font-size: 30px; }
+.snow-roulette-game .snow-rl-callout > span:last-child { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.snow-roulette-game .snow-rl-callout small { overflow: hidden; color: #b9cedb; font-size: 10px; font-style: normal; font-weight: 800; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.snow-roulette-game .snow-rl-callout em { margin-top: 3px; color: #fff; font-size: 16px; }
+.snow-roulette-game .snow-rl-callout--idle { border-color: rgba(110, 226, 234, .34); }
+
+.snow-roulette-game .snow-rl-wheelkind {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.snow-roulette-game .snow-rl-label {
+  display: flex;
+  align-items: center;
+  color: #99e9ed;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.snow-roulette-game .snow-rl-label svg { width: 15px; height: 15px; margin-right: 6px; color: #e5bf54; }
+
+.snow-roulette-game .snow-rl-wheelkind__row { display: flex; margin-top: 5px; }
+.snow-roulette-game .snow-rl-toggle {
+  min-height: 40px;
+  border: 1px solid rgba(232, 194, 88, .48);
+  border-radius: 8px;
+  color: #d9eef1;
+  background: #0a203d;
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.snow-roulette-game .snow-rl-toggle.is-active { border-color: #f4d472; color: #081830; background: linear-gradient(180deg, #ffe8a0, #c89128); }
+
+.snow-roulette-game .snow-rl-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* The TV frame is taller than the betting grid. Turn that breathing room into
+   an intentional casino-table plaque rather than an empty lower half. */
+.snow-roulette-game .snow-rl-main::after {
+  content: 'SMC  •  ROULETTE';
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 22px 0;
+  color: rgba(238, 211, 132, .34);
+  background-image:
+    linear-gradient(90deg, transparent, rgba(223, 190, 100, .3), transparent),
+    linear-gradient(90deg, transparent, rgba(107, 224, 232, .2), transparent),
+    radial-gradient(circle at center, rgba(19, 76, 91, .2), transparent 42%);
+  background-position: center top, center bottom, center;
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 1px, 68% 90%;
+  font: 900 20px/1 Montserrat, Arial, sans-serif;
+  letter-spacing: .28em;
+  pointer-events: none;
+}
+
+.snow-roulette-game .snow-rl-side::after {
+  content: '✦';
+  flex: 1 1 auto;
+  width: 72%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  color: rgba(229, 195, 92, .38);
+  background: linear-gradient(90deg, transparent, rgba(229, 195, 92, .2), transparent) center / 100% 1px no-repeat;
+  font-size: 20px;
+  pointer-events: none;
+}
+
+.snow-rl-table-head {
+  order: 0;
+  flex: 0 0 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 7px 13px;
+  border: 1px solid rgba(231, 192, 84, .34);
+  border-radius: 12px;
+  background: linear-gradient(150deg, rgba(15, 42, 73, .98), rgba(5, 17, 36, .98));
+}
+
+.snow-rl-table-head__title,
+.snow-rl-table-head__wager {
+  display: flex;
+  align-items: center;
+}
+
+.snow-rl-table-head__title > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-right: 10px;
+  border: 1px solid rgba(112, 226, 233, .55);
+  border-radius: 10px;
+  color: #8de7ec;
+  background: rgba(21, 77, 96, .34);
+}
+.snow-rl-table-head__title svg { width: 21px; height: 21px; }
+.snow-rl-table-head__title div,
+.snow-rl-table-head__wager span { display: flex; flex-direction: column; }
+.snow-rl-table-head__title small,
+.snow-rl-table-head__wager small { color: #91dce3; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.snow-rl-table-head__title strong { margin-top: 4px; color: #fff; font: 900 18px/1 Montserrat, Arial, sans-serif; text-transform: uppercase; }
+.snow-rl-table-head__wager { min-width: 126px; justify-content: flex-end; padding-left: 14px; border-left: 2px solid rgba(230, 190, 80, .56); }
+.snow-rl-table-head__wager > svg { width: 25px; height: 25px; margin-right: 9px; color: #e9c65f; }
+.snow-rl-table-head__wager strong { margin-top: 3px; color: #ffe28a; font: 900 21px/1 Montserrat, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+
+.snow-roulette-game .snow-rl-felt {
+  order: 1;
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  margin-top: 8px;
+  padding: 14px;
+  overflow: hidden;
+  border: 3px solid #b6872c;
+  border-radius: 15px;
+  background-color: #063b2e;
+  background-image:
+    radial-gradient(ellipse at 50% 15%, rgba(36, 144, 105, .38), rgba(6, 59, 46, 0) 58%),
+    linear-gradient(155deg, #0b5b43 0%, #064632 52%, #03291f 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 226, 139, .18), inset 0 0 48px rgba(0, 20, 14, .54), 0 12px 25px rgba(0, 3, 12, .32);
+}
+
+.snow-rl-felt::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  border: 1px solid rgba(255, 228, 154, .16);
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+.snow-rl-felt__brand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  margin: -34px 0 0 -70px;
+  color: rgba(238, 213, 146, .1);
+  pointer-events: none;
+}
+.snow-rl-felt__brand svg { width: 54px; height: 54px; }
+.snow-rl-felt__brand span { margin-left: 8px; font: 900 36px/1 Montserrat, Arial, sans-serif; letter-spacing: .12em; }
+
+.snow-roulette-game .snow-rl-board,
+.snow-roulette-game .snow-rl-dozens,
+.snow-roulette-game .snow-rl-evens { position: relative; z-index: 1; }
+
+.snow-roulette-game .snow-rl-board { display: flex; }
+.snow-roulette-game .snow-rl-zeros { display: flex; flex: 0 0 48px; flex-direction: column; width: 48px; }
+.snow-roulette-game .snow-rl-cols { display: flex; flex: 0 0 64px; flex-direction: column; width: 64px; }
+
+.snow-roulette-game .snow-rl-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px;
+  padding: 2px;
+  border: 1px solid rgba(255, 225, 139, .6);
+  border-radius: 5px;
+  color: #fff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .12), 0 2px 4px rgba(0, 15, 10, .3);
+  font-family: Montserrat, Arial, sans-serif;
+  font-weight: 900;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, .55);
+}
+
+.snow-roulette-game .snow-rl-cell--red { background: linear-gradient(145deg, #cf2944, #821427); }
+.snow-roulette-game .snow-rl-cell--black { background: linear-gradient(145deg, #26394a, #0a1018); }
+.snow-roulette-game .snow-rl-cell--green { background: linear-gradient(145deg, #159263, #07563c); }
+.snow-roulette-game .snow-rl-cell--neutral { background: linear-gradient(145deg, rgba(23, 97, 73, .94), rgba(7, 54, 42, .98)); }
+.snow-roulette-game .snow-rl-cell.is-won { outline: 3px solid #65f0a9; opacity: 1; box-shadow: 0 0 0 2px rgba(255, 242, 174, .72), 0 0 17px rgba(75, 229, 145, .58); }
+.snow-roulette-game .snow-rl-cell.is-lost { opacity: .42; }
+
+.snow-roulette-game .snow-rl-num { height: 48px; font-size: 17px; }
+.snow-roulette-game .snow-rl-zero { font-size: 18px; }
+.snow-roulette-game .snow-rl-zero--tall { min-height: 154px; }
+.snow-roulette-game .snow-rl-col { font-size: 10px; line-height: 1.08; }
+.snow-roulette-game .snow-rl-dozens { margin-top: 2px; }
+.snow-roulette-game .snow-rl-evens { margin-top: 2px; }
+.snow-roulette-game .snow-rl-outside { height: 40px; font-size: 12px; letter-spacing: .02em; }
+
+.snow-roulette-game .snow-rl-chip {
+  top: -6px;
+  right: -4px;
+  z-index: 3;
+  min-width: 27px;
+  height: 25px;
+  padding: 0 4px;
+  border: 3px double #fff0af;
+  border-radius: 14px;
+  color: #07172c;
+  background: linear-gradient(145deg, #ffe99c, #c78c20);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, .48);
+  font-size: 10px;
+  text-shadow: none;
+}
+
+.snow-rl-console {
+  order: 3;
+  position: relative;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid rgba(108, 224, 232, .34);
+  border-radius: 12px;
+  background: linear-gradient(155deg, rgba(13, 37, 67, .98), rgba(4, 15, 32, .98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .06);
+}
+
+.snow-roulette-game .snow-rl-controls {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  margin-top: 0;
+}
+
+.snow-roulette-game .snow-rl-denoms__row { display: flex; margin-top: 5px; }
+.snow-roulette-game .snow-rl-denom {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  margin-right: 7px;
+  border: 3px dashed rgba(231, 193, 87, .62);
+  border-radius: 50%;
+  color: #d9f5f5;
+  background: #0c2947;
+  box-shadow: inset 0 0 0 3px rgba(103, 221, 230, .08), 0 4px 8px rgba(0, 4, 16, .38);
+  font-size: 14px;
+  font-weight: 900;
+}
+.snow-roulette-game .snow-rl-denom:last-child { margin-right: 0; }
+.snow-roulette-game .snow-rl-denom span { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; }
+.snow-roulette-game .snow-rl-denom.is-active { border-style: solid; border-color: #fff0ad; color: #07172c; background: linear-gradient(145deg, #fff0a9, #bf8120); }
+
+.snow-roulette-game .snow-rl-total {
+  min-width: 92px;
+  margin-left: 15px;
+  padding: 6px 11px;
+  border: 0;
+  border-left: 3px solid #d9ad3d;
+  border-radius: 0 8px 8px 0;
+  background: rgba(2, 11, 25, .48);
+}
+.snow-roulette-game .snow-rl-total small { font-size: 9px; letter-spacing: .08em; }
+.snow-roulette-game .snow-rl-total strong { margin-top: 3px; color: #ffe28a; font-size: 23px; }
+
+.snow-roulette-game .snow-rl-actions { display: flex; align-items: center; margin-left: auto; }
+.snow-roulette-game .snow-rl-actions .snow-game-action {
+  min-height: 50px;
+  padding-right: 15px;
+  padding-left: 15px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+.snow-roulette-game .snow-rl-actions .snow-game-action svg { width: 17px; height: 17px; margin-right: 7px; }
+.snow-roulette-game .snow-rl-spin { min-width: 150px; min-height: 54px; font-size: 17px !important; }
+
+.snow-rl-console__status {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+}
+.snow-rl-console__status > p { flex: 1 1 auto; }
+.snow-rl-console__status > .snow-fairness { margin-left: auto; }
+.snow-roulette-game .snow-fairness { position: relative; }
+.snow-roulette-game .snow-fairness__toggle { min-height: 32px; padding: 5px 10px; border-radius: 7px; color: #b8dde3; background: #071a34; font-size: 11px; }
+.snow-roulette-game .snow-fairness__details { position: absolute; right: 0; bottom: 38px; z-index: 50; width: 480px; max-height: 155px; }
+
+/* Low-memory devices keep the same hierarchy and colour, with cheaper depth. */
+.native-low-memory .snow-daily-stage,
+.native-low-memory .snow-daily-wheel-frame,
+.native-low-memory .snow-daily-console,
+.native-low-memory .snow-roulette-game .snow-rl-layout,
+.native-low-memory .snow-roulette-game .snow-rl-side,
+.native-low-memory .snow-roulette-game .snow-rl-felt,
+.native-low-memory .snow-rl-console { box-shadow: none; }
+
+/* 720p / Fire TV: same visual story, denser dimensions and larger controls. */
+@media (max-height: 760px) {
+  .snow-daily-stage { padding: 10px 16px; border-radius: 17px; }
+  .snow-daily-showpiece { margin-right: 21px; }
+  .snow-daily-marquee { min-width: 330px; min-height: 39px; margin-bottom: 5px; padding: 4px 14px; font-size: 15px; }
+  .snow-daily-marquee__icon { width: 27px; height: 27px; margin-right: 8px; }
+  .snow-daily-marquee__icon svg { width: 15px; height: 15px; }
+  .snow-daily-wheel-frame { width: 344px; height: 344px; }
+  .snow-daily-lights { top: 6px; right: 6px; bottom: 6px; left: 6px; border-width: 8px; }
+  .snow-daily-pointer { top: -14px; width: 44px; height: 56px; margin-left: -22px; }
+  .snow-daily-pointer span { bottom: -20px; margin-left: -14px; border-right-width: 14px; border-left-width: 14px; border-top-width: 25px; }
+  .snow-daily-hub { width: 72px; height: 72px; margin: -36px 0 0 -36px; border-width: 3px; }
+  .snow-daily-hub svg { width: 27px; height: 27px; }
+  .snow-daily-pedestal { min-height: 22px; margin-top: 6px; font-size: 8px; }
+  .snow-daily-console { flex-basis: 350px; padding: 12px; border-radius: 14px; }
+  .snow-daily-console__head { min-height: 50px; padding-bottom: 9px; }
+  .snow-daily-console__gift { width: 41px; height: 41px; flex-basis: 41px; }
+  .snow-daily-console__gift svg { width: 21px; height: 21px; }
+  .snow-daily-console__head { min-height: 58px; }
+  .snow-daily-console__head strong {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.08;
+    text-overflow: clip;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .snow-daily-prizes { margin-top: 9px; }
+  .snow-daily-prizes > span { width: 51px; height: 48px; margin-right: 5px; border-radius: 8px; }
+  .snow-daily-prizes svg { width: 14px; height: 14px; margin-bottom: 3px; }
+  .snow-daily-prizes b { font-size: 11px; }
+  .snow-daily-status-deck { min-height: 80px; margin-top: 9px; padding: 7px; }
+  .snow-daily-ready > span,
+  .snow-daily-countdown > svg { width: 42px; height: 42px; flex-basis: 42px; margin-right: 9px; padding: 9px; }
+  .snow-daily-ready strong { font-size: 17px; }
+  .snow-daily-countdown strong { font-size: 22px; }
+  .snow-daily-spin { min-height: 55px; margin-top: 9px; font-size: 18px; }
+  .snow-daily-console > .snow-fairness { margin-top: 7px; }
+
+  .snow-roulette-game .snow-rl-layout { padding: 8px; border-radius: 15px; }
+  .snow-roulette-game .snow-rl-main::after { min-height: 46px; margin-top: 6px; font-size: 14px; }
+  .snow-roulette-game .snow-rl-side::after { min-height: 28px; margin-top: 5px; font-size: 14px; }
+  .snow-roulette-game .snow-rl-side { width: 300px; max-width: 300px; min-width: 300px; flex-basis: 300px; margin-right: 10px; padding: 8px; }
+  .snow-rl-side__header { min-height: 35px; margin-bottom: 4px; padding-bottom: 5px; }
+  .snow-rl-side__header > span { width: 31px; height: 31px; flex-basis: 31px; margin-right: 8px; }
+  .snow-rl-side__header svg { width: 16px; height: 16px; }
+  .snow-rl-side__header strong { font-size: 13px; }
+  .snow-rl-wheel-shell { padding: 4px; }
+  .snow-roulette-game .snow-rl-wheel-wrap,
+  .snow-roulette-game .snow-rl-wheel { width: 260px; height: 260px; }
+  .snow-roulette-game .snow-rl-ball { top: 15px; width: 12px; height: 12px; margin-left: -6px; }
+  .snow-rl-wheel-hub { width: 46px; height: 46px; margin: -23px 0 0 -23px; border-width: 2px; }
+  .snow-rl-wheel-hub svg { width: 17px; height: 17px; }
+  .snow-rl-wheel-caption { min-height: 17px; margin-top: 5px; font-size: 7px; }
+  .snow-roulette-game .snow-rl-callout { min-height: 46px; margin-top: 5px; padding: 5px 8px; }
+  .snow-rl-callout__icon { width: 31px; height: 31px; flex-basis: 31px; margin-right: 7px; }
+  .snow-roulette-game .snow-rl-callout > strong { font-size: 23px; }
+  .snow-roulette-game .snow-rl-wheelkind { margin-top: 4px; }
+  .snow-roulette-game .snow-rl-toggle { min-height: 32px; padding: 4px; font-size: 9px; }
+  .snow-rl-table-head { flex-basis: 45px; min-height: 45px; padding: 5px 10px; }
+  .snow-rl-table-head__title > span { width: 31px; height: 31px; margin-right: 8px; }
+  .snow-rl-table-head__title strong { font-size: 15px; }
+  .snow-rl-table-head__wager strong { font-size: 18px; }
+  .snow-roulette-game .snow-rl-felt { margin-top: 6px; padding: 8px; border-width: 2px; }
+  .snow-roulette-game .snow-rl-zeros { width: 42px; flex-basis: 42px; }
+  .snow-roulette-game .snow-rl-cols { width: 54px; flex-basis: 54px; }
+  .snow-roulette-game .snow-rl-cell { margin: 1px; border-radius: 4px; }
+  .snow-roulette-game .snow-rl-num { height: 48px; font-size: 15px; }
+  .snow-roulette-game .snow-rl-zero--tall { min-height: 146px; }
+  .snow-roulette-game .snow-rl-col { font-size: 8px; }
+  .snow-roulette-game .snow-rl-outside { height: 38px; font-size: 10px; }
+  .snow-rl-console { margin-top: 6px; padding: 6px 8px; }
+  .snow-roulette-game .snow-rl-controls { min-height: 51px; }
+  .snow-roulette-game .snow-rl-denom { width: 39px; height: 39px; margin-right: 5px; border-width: 2px; font-size: 11px; }
+  .snow-roulette-game .snow-rl-denom span { width: 27px; height: 27px; }
+  .snow-roulette-game .snow-rl-total { min-width: 76px; margin-left: 10px; padding: 4px 8px; }
+  .snow-roulette-game .snow-rl-total strong { font-size: 18px; }
+  .snow-roulette-game .snow-rl-actions .snow-game-action { min-height: 41px; padding-right: 9px; padding-left: 9px; font-size: 10px; }
+  .snow-roulette-game .snow-rl-actions .snow-game-action svg { width: 14px; height: 14px; margin-right: 4px; }
+  .snow-roulette-game .snow-rl-spin { min-width: 117px; min-height: 45px; font-size: 14px !important; }
+  .snow-roulette-game .snow-fairness__toggle { min-height: 28px; font-size: 9px; }
+}
+
+@media (min-height: 1000px) {
+  .snow-daily-wheel-frame { width: 520px; height: 520px; }
+  .snow-daily-console { flex-basis: 430px; padding: 22px; }
+  .snow-daily-status-deck { min-height: 145px; }
+
+  .snow-roulette-game .snow-rl-side { width: 455px; max-width: 455px; min-width: 455px; flex-basis: 455px; }
+  .snow-roulette-game .snow-rl-wheel-wrap,
+  .snow-roulette-game .snow-rl-wheel { width: 420px; height: 420px; }
+  .snow-roulette-game .snow-rl-ball { top: 23px; width: 18px; height: 18px; margin-left: -9px; }
+  .snow-rl-wheel-hub { width: 76px; height: 76px; margin: -38px 0 0 -38px; }
+  .snow-roulette-game .snow-rl-num { height: 75px; font-size: 21px; }
+  .snow-roulette-game .snow-rl-zero--tall { min-height: 229px; }
+  .snow-roulette-game .snow-rl-outside { height: 60px; font-size: 15px; }
+  .snow-roulette-game .snow-rl-denom { width: 58px; height: 58px; font-size: 16px; }
+  .snow-roulette-game .snow-rl-actions .snow-game-action { min-height: 58px; font-size: 14px; }
+  .snow-roulette-game .snow-rl-spin { min-height: 62px; font-size: 20px !important; }
+}
+
+@media (max-width: 1080px) {
+  .snow-daily-console { flex-basis: 340px; }
+  .snow-daily-showpiece { margin-right: 18px; }
+  .snow-roulette-game .snow-rl-side { width: 260px; max-width: 260px; min-width: 260px; flex-basis: 260px; }
+  .snow-roulette-game .snow-rl-wheel-wrap,
+  .snow-roulette-game .snow-rl-wheel { width: 220px; height: 220px; }
+  .snow-roulette-game .snow-rl-actions .snow-game-action { padding-right: 8px; padding-left: 8px; }
+}
+
+html[dir='rtl'] .snow-daily-showpiece,
+html[dir='rtl'] .snow-roulette-game .snow-rl-side { margin-right: 0; margin-left: 15px; }
+html[dir='rtl'] .snow-daily-marquee__icon,
+html[dir='rtl'] .snow-daily-console__gift,
+html[dir='rtl'] .snow-rl-side__header > span,
+html[dir='rtl'] .snow-rl-callout__icon,
+html[dir='rtl'] .snow-rl-table-head__title > span,
+html[dir='rtl'] .snow-roulette-game .snow-rl-label svg,
+html[dir='rtl'] .snow-roulette-game .snow-rl-actions .snow-game-action svg { margin-right: 0; margin-left: 9px; }
+html[dir='rtl'] .snow-rl-table-head__wager { padding-right: 14px; padding-left: 0; border-right: 2px solid rgba(230, 190, 80, .56); border-left: 0; }
+html[dir='rtl'] .snow-roulette-game .snow-rl-actions { margin-right: auto; margin-left: 0; }
