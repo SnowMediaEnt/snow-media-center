@@ -30,6 +30,47 @@ export const isActivatable = (el: Element | null | undefined): el is HTMLElement
   return true;
 };
 
+/**
+ * The React focus graph is the source of truth for TV navigation. Some TV
+ * WebViews keep `document.activeElement` on the previous button even after the
+ * visible cursor has moved, which can otherwise turn OK on "Play Again" into
+ * a click on Back. Prefer the single managed cursor when it exists; if the
+ * screen is not using managed focus (or is temporarily inconsistent), fall
+ * back to the browser's active element rather than guessing.
+ */
+export const resolveTvActivationTarget = (
+  active: HTMLElement | null,
+): HTMLElement | null => {
+  if (typeof document === 'undefined') return active;
+  const managed = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-tv-focused="true"]'),
+  ).filter((element) => element.isConnected && !element.closest('[aria-hidden="true"]'));
+  if (managed.length !== 1 || managed[0] === active) return active;
+
+  // A direct pointer/native-focus change is allowed to win. The broken TV
+  // case is specifically a stale Back focus (or body after a phase unmount)
+  // while the managed cursor has already advanced to the next action.
+  const activeIsStaleBack = !!active
+    && active.getAttribute('data-focus-id') === 'back'
+    && active.getAttribute('data-tv-focused') === 'false';
+  const activeIsPage = !active
+    || active === document.body
+    || active === document.documentElement
+    || !active.isConnected;
+  return activeIsStaleBack || activeIsPage ? managed[0] : active;
+};
+
+const focusTvTarget = (target: HTMLElement): void => {
+  if (document.activeElement === target) return;
+  try {
+    target.focus({ preventScroll: true });
+  } catch {
+    // Older Fire TV / Android System WebViews only implement focus() without
+    // FocusOptions. Activation must still follow the visible cursor there.
+    target.focus();
+  }
+};
+
 export const useTvActivate = (
   onActivate: (target: HTMLElement | null) => void,
   enabled = true,
@@ -50,7 +91,9 @@ export const useTvActivate = (
       event.stopImmediatePropagation();
       if (event.repeat || held.current) return;
       held.current = true;
-      handler.current(document.activeElement as HTMLElement | null);
+      const target = resolveTvActivationTarget(document.activeElement as HTMLElement | null);
+      if (target) focusTvTarget(target);
+      handler.current(target);
     };
     const up = (event: KeyboardEvent) => {
       if (isSelectKey(event)) held.current = false;

@@ -36,7 +36,7 @@ export const GameTopBar = forwardRef<HTMLButtonElement, {
   const { t } = useTranslation();
   return (
     <header className="snow-game-topbar">
-      <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} className="snow-game-back" />
+      <BackButton ref={ref} onClick={onBack} label={backLabel} focused={backFocused} onFocus={onBackFocus} data-tv-focused={backFocused ? 'true' : 'false'} className="snow-game-back" />
       {phase && <div className="snow-game-heading"><span>{title ? `${title} · ${phase}` : phase}</span></div>}
       <div className="snow-game-topbar__right">
         {onToggleFx && (

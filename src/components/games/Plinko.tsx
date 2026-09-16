@@ -232,6 +232,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
           onClick={requestBack}
           label="Back to the Lounge"
           focused={focus === 'back'}
+          data-tv-focused={focus === 'back' ? 'true' : 'false'}
           onFocus={() => setFocus('back')}
           className="snow-plinko-back"
         />

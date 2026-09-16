@@ -297,7 +297,10 @@ const VideoPoker = ({ onBack }: VideoPokerProps) => {
       } else if (zone === 'bet') {
         const pos = usableBets.indexOf(betIdx);
         if (dir === 'left') { if (pos > 0) setBetIdx(usableBets[pos - 1]); else setZone('back'); }
-        else if (dir === 'right') { if (pos >= 0 && pos < usableBets.length - 1) setBetIdx(usableBets[pos + 1]); }
+        else if (dir === 'right') {
+          if (pos >= 0 && pos < usableBets.length - 1) setBetIdx(usableBets[pos + 1]);
+          else if (primaryUsable) setZone('primary');
+        }
         else if (dir === 'down') belowBets();
         else setZone('back');
       } else if (zone === 'card') {

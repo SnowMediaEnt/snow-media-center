@@ -132,7 +132,7 @@ describe('Games hub D-pad navigation', () => {
 
   it('still leaves the hub through the visible Back button', () => {
     renderHub();
-    tile(0).focus();
+    act(() => tile(0).focus());
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(onOpenGame).not.toHaveBeenCalled();

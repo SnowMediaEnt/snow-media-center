@@ -27,6 +27,50 @@ describe('TV one-activation guard', () => {
     expect(onHit).toHaveBeenCalledTimes(1);
   });
 
+  it('activates the visible TV cursor when stale DOM focus is still on Back', () => {
+    const onBack = vi.fn();
+    const onNext = vi.fn();
+    render(
+      <>
+        <button type="button" data-focus-id="back" data-tv-focused="false" onClick={onBack}>Back</button>
+        <button type="button" data-tv-focused="true" onClick={onNext}>Next Round</button>
+        <Harness onHit={() => {}} />
+      </>,
+    );
+    const back = screen.getByRole('button', { name: 'Back' });
+    const next = screen.getByRole('button', { name: 'Next Round' });
+    back.focus();
+
+    okDown();
+    okUp();
+
+    expect(onBack).not.toHaveBeenCalled();
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(next);
+  });
+
+  it('falls back to DOM focus if more than one managed cursor is present', () => {
+    const onBack = vi.fn();
+    const onFirst = vi.fn();
+    const onSecond = vi.fn();
+    render(
+      <>
+        <button type="button" onClick={onBack}>Back</button>
+        <button type="button" data-tv-focused="true" onClick={onFirst}>First</button>
+        <button type="button" data-tv-focused="true" onClick={onSecond}>Second</button>
+        <Harness onHit={() => {}} />
+      </>,
+    );
+    screen.getByRole('button', { name: 'Back' }).focus();
+
+    okDown();
+    okUp();
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onFirst).not.toHaveBeenCalled();
+    expect(onSecond).not.toHaveBeenCalled();
+  });
+
   it('swallows every repeat while OK is held down', () => {
     const onHit = vi.fn();
     render(<Harness onHit={onHit} />);

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ vi.mock('react-i18next', () => ({
 
 import Blackjack from './Blackjack';
 import CasinoHoldem from './CasinoHoldem';
+import VideoPoker from './VideoPoker';
 
 type GameName = 'blackjack' | 'holdem';
 
@@ -57,5 +58,25 @@ describe.each<GameName>(['blackjack', 'holdem'])('%s betting focus safety', (gam
     expect(deal.getAttribute('aria-disabled')).toBe('true');
     expect(deal.dataset.tvFocused).toBe('false');
     expect(back.dataset.focused).toBe('true');
+  });
+});
+
+describe('video poker betting navigation', () => {
+  beforeEach(() => {
+    state.user = { id: 'u1' };
+    state.balance = 1000;
+  });
+
+  it('moves Right from the largest chip directly to Deal', async () => {
+    render(<VideoPoker onBack={() => {}} />);
+    const largestChip = screen.getByRole('button', { name: '100' });
+    const deal = screen.getByRole('button', { name: /games\.videoPoker\.dealWithBet/ });
+
+    act(() => largestChip.focus());
+    expect(largestChip.dataset.tvFocused).toBe('true');
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+    await waitFor(() => expect(document.activeElement).toBe(deal));
+    expect(deal.dataset.tvFocused).toBe('true');
   });
 });

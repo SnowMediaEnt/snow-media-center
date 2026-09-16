@@ -423,6 +423,14 @@
 .snow-lobby button { outline:3px solid transparent; outline-offset:2px; }
 .snow-casino [aria-disabled="true"] { opacity:.5; }
 
+/* A few TV WebViews leave native DOM focus on Back after the managed cursor
+   moves. Do not paint that stale native ring alongside the real TV cursor. */
+.snow-casino [data-focus-id="back"][data-tv-focused="false"]:focus,
+.snow-lobby [data-focus-id="back"][data-tv-focused="false"]:focus {
+  box-shadow:none;
+  transform:none;
+}
+
 /* Headline hierarchy: the top bar carries the title, the surface gets the room. */
 .snow-game-heading { position:absolute; left:18%; right:27%; overflow:hidden; text-align:center; pointer-events:none; }
 .snow-game-heading span { display:block; overflow:hidden; color:hsl(var(--game-accent)); font-size:14px; font-weight:800; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; letter-spacing:.06em; }

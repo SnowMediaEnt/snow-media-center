@@ -200,6 +200,8 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   /** Bumped per hand: an ack from an older hand can never mutate a newer one. */
   const roundEpoch = useRef(0);
+  /** Carries the intended post-reveal action without making it focusable early. */
+  const focusAgainAfterReveal = useRef(false);
 
   const revealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
   const dealUsable = !!user && balance !== null && balance >= bet;
@@ -247,6 +249,15 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setFocus((current) => (rehome(focusRows, current) as FocusId) ?? 'back');
   }, [focusRows]);
 
+  // A terminal ack precedes the dealer reveal, so Play Again is intentionally
+  // unavailable for a moment. Remember that destination outside the active
+  // focus graph, then transfer both cursors when the reveal is actually done.
+  useEffect(() => {
+    if (phase !== 'settled' || !revealComplete || !focusAgainAfterReveal.current) return;
+    focusAgainAfterReveal.current = false;
+    setFocus('again');
+  }, [phase, revealComplete]);
+
   useEffect(() => {
     // Availability can change between renders (auth/balance/socket acks). Use
     // the safe graph target for real DOM focus immediately; do not spend one
@@ -281,6 +292,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setFair(null);
       setFocus(resp.canHit ? 'hit' : resp.canStand ? 'stand' : 'hit');
     } else if (resp?.status) {
+      focusAgainAfterReveal.current = true;
       setPhase('settled');
       setPlayerHand(resp.playerHand ?? []);
       const dHand = resp.dealerHand ?? [];
@@ -293,7 +305,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       setCanStand(false);
       setCanDouble(false);
       if (resp.fair) setFair(resp.fair);
-      setFocus('again');
+      setFocus('back');
       setRevealedDealer(Math.min(1, dHand.length));
     }
   }, []);
@@ -306,6 +318,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
    * terminal — the hand may still be live — so it is left untouched.
    */
   const reconcileTerminalRound = useCallback(() => {
+    focusAgainAfterReveal.current = false;
     setPhase('bet');
     setPlayerHand([]);
     setDealerHand([]);
@@ -382,6 +395,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [busy, applyAck, life]);
 
   const playAgain = () => {
+    focusAgainAfterReveal.current = false;
     setPhase('bet');
     setPlayerHand([]);
     setDealerHand([]);
@@ -415,6 +429,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       const dir = visualArrowDir(e);
       if (!dir) return;
       e.preventDefault();
+      focusAgainAfterReveal.current = false;
       setFocus((current) => (moveInRows(focusRows, current, dir) as FocusId) ?? current);
     };
     window.addEventListener('keydown', handler);

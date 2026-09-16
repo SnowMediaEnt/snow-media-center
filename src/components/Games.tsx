@@ -114,7 +114,7 @@ const Games = ({ onBack, onOpenGame }: GamesProps) => {
     <main className="snow-casino snow-lobby snow-games-lobby snow-casino--ice">
       <div className="snow-casino__aurora" aria-hidden="true" /><div className="snow-casino__vignette" aria-hidden="true" />
       <header className="snow-game-topbar snow-games-lobby__topbar relative z-10">
-        <BackButton data-game-focus={0} onFocus={() => setFocusIndex(0)} onClick={onBack} label={t('games.hub.back')} focused={focusIndex === 0} />
+        <BackButton data-game-focus={0} data-tv-focused={focusIndex === 0 ? 'true' : 'false'} onFocus={() => setFocusIndex(0)} onClick={onBack} label={t('games.hub.back')} focused={focusIndex === 0} />
         <div className="snow-games-lobby__heading text-center">
           <div className="snow-games-lobby__title-row"><Sparkles aria-hidden="true" /><h1 className="snow-lobby__title">{t('games.hub.heroTitle')}</h1><Sparkles aria-hidden="true" /></div>
           <p className="snow-lobby__subtitle">{t('games.hub.heroTagline')}</p>
