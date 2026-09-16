@@ -58,10 +58,13 @@ describe('Snow Plinko TV game', () => {
     await waitFor(() => expect(document.activeElement).toBe(drop));
 
     press('ArrowUp');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Chill/ }));
-    press('ArrowRight');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Wild/ }));
+    press('ArrowUp');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Classic/ }));
-    press('ArrowRight');
+    press('ArrowUp');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Chill/ }));
+    press('ArrowDown');
+    press('ArrowDown');
     const wild = screen.getByRole('button', { name: /Wild/ });
     expect(document.activeElement).toBe(wild);
     press('Enter');

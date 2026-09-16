@@ -24,7 +24,7 @@
   z-index: 6;
   min-height: 66px;
   display: grid;
-  grid-template-columns: minmax(205px, 1fr) auto minmax(700px, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: 16px;
   align-items: center;
 }
@@ -1023,4 +1023,20 @@
   .snow-trivia__burst { display: none; }
   .snow-trivia__progress-track i,
   .snow-trivia-answer { transition-duration: .01ms; }
+}
+
+/* Let the title use remaining space instead of reserving two oversized tracks. */
+.snow-trivia .snow-trivia__topbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+.snow-trivia__brand { min-width: 0; }
+.snow-trivia__brand strong { white-space: nowrap; }
+@media (max-width: 1500px) {
+  .snow-trivia .snow-trivia__topbar {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .snow-trivia__brand { justify-self: end; }
+  .snow-trivia__toolbar { grid-column: 1 / -1; justify-content: center; }
 }
