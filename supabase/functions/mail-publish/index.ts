@@ -5,9 +5,10 @@
 // screen shows it under Mail. Removing a campaign on the website removes it
 // here too.
 //
-// verify_jwt = false. Server-to-server only, guarded by INTERNAL_FN_SECRET in
-// the x-internal-secret header — the same secret the website already uses
-// for notify-admin. Nothing here is reachable from a customer device.
+// verify_jwt = false. Server-to-server only, guarded by the x-internal-secret
+// header matching INTERNAL_FN_SECRET or SMC_BRIDGE_SECRET — the same pair the
+// giveaway bridge accepts from the website. Nothing here is reachable from a
+// customer device.
 //
 // POST {
 //   action?:     'publish' | 'remove'          (default publish)
@@ -38,6 +39,7 @@ const MAX_RECIPIENTS = 20000;
 
 /** First six hex characters of SHA-256 — enough to tell two values apart, useless for recovering one. */
 async function fingerprint(value: string): Promise<string> {
+  if (!value) return 'unset';
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 6);
 }
@@ -86,21 +88,23 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' });
 
-  // Trimmed on both sides: a value pasted into a dashboard with a trailing
-  // newline must not break the link. On a mismatch the log says only how long
-  // each side is, never what it is.
+  // Same two secrets the giveaway bridge accepts, so the website keeps
+  // working with whichever of them it holds. Trimmed on both sides: a value
+  // pasted into a dashboard with a trailing newline must not break the link.
+  // On a mismatch the log names only lengths and six-character hash
+  // fingerprints of each value, never the values.
   const guard = (Deno.env.get('INTERNAL_FN_SECRET') ?? '').trim();
+  const bridge = (Deno.env.get('SMC_BRIDGE_SECRET') ?? '').trim();
   const provided = (req.headers.get('x-internal-secret') ?? '').trim();
-  if (!guard) {
-    console.error('[mail-publish] 401: INTERNAL_FN_SECRET is not set on this project');
+  if (!guard && !bridge) {
+    console.error('[mail-publish] 401: neither INTERNAL_FN_SECRET nor SMC_BRIDGE_SECRET is set on this project');
     return json(401, { error: 'unauthorized', reason: 'secret_not_set' });
   }
-  if (provided !== guard) {
-    // Six hex characters of a hash identify which copy of the secret is the
-    // odd one out without revealing any of them.
-    const [g, p] = await Promise.all([fingerprint(guard), fingerprint(provided)]);
-    console.warn(`[mail-publish] 401: secret mismatch (project value ${guard.length} chars, fingerprint ${g}; caller sent ${provided.length} chars, fingerprint ${p})`);
-    return json(401, { error: 'unauthorized', reason: 'secret_mismatch', project_fingerprint: g, caller_fingerprint: p });
+  const accepted = provided.length > 0 && ((!!guard && provided === guard) || (!!bridge && provided === bridge));
+  if (!accepted) {
+    const [g, b, p] = await Promise.all([fingerprint(guard), fingerprint(bridge), fingerprint(provided)]);
+    console.warn(`[mail-publish] 401: secret mismatch (INTERNAL_FN_SECRET ${guard.length} chars ${g}; SMC_BRIDGE_SECRET ${bridge.length} chars ${b}; caller sent ${provided.length} chars ${p})`);
+    return json(401, { error: 'unauthorized', reason: 'secret_mismatch', internal_fingerprint: g, bridge_fingerprint: b, caller_fingerprint: p });
   }
 
   let body: Record<string, unknown>;
