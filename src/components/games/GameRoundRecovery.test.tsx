@@ -8,6 +8,7 @@ const dealBlackjack = vi.fn();
 const hit = vi.fn();
 const stand = vi.fn();
 const double = vi.fn();
+const split = vi.fn();
 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
 vi.mock('@/hooks/useGameSocket', () => ({ useGameSocket: () => ({ balance: 1000, status: 'connected' }) }));
@@ -20,6 +21,7 @@ vi.mock('@/lib/gameSocket', () => ({
     hit: (...a: unknown[]) => hit(...a),
     stand: (...a: unknown[]) => stand(...a),
     double: (...a: unknown[]) => double(...a),
+    split: (...a: unknown[]) => split(...a),
   },
 }));
 vi.mock('react-i18next', () => ({
@@ -64,6 +66,25 @@ afterEach(() => {
 });
 
 describe('terminal round reconciliation', () => {
+  it('Blackjack sends optional side stakes and renders two separately tracked split hands', async () => {
+    const cards = [{ rank: '8', suit: 'H' }, { rank: '8', suit: 'S' }];
+    dealBlackjack.mockResolvedValue({ ok: true, status: 'player_turn', playerHand: cards, playerTotal: 16, canSplit: true, canHit: true, canStand: true });
+    split.mockResolvedValue({ ok: true, status: 'player_turn', playerHand: [cards[0], { rank: 'K', suit: 'H' }], playerTotal: 18,
+      canHit: true, canStand: true, activeHand: 0, hands: [
+        { cards: [cards[0], { rank: 'K', suit: 'H' }], bet: 10 },
+        { cards: [cards[1], { rank: '9', suit: 'H' }], bet: 10 },
+      ] });
+    render(<Blackjack onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Perfect Pairs: 0 coins' }));
+    fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ }));
+    const splitButton = await screen.findByRole('button', { name: /Split ·/ });
+    expect(dealBlackjack.mock.calls[0][3]).toEqual({ pairs: 10, three: 0, ladies: 0 });
+    fireEvent.click(splitButton);
+    await screen.findByText('Hand 1 · 10 coins');
+    expect(screen.getByText('Hand 2 · 10 coins')).toBeTruthy();
+    expect(split).toHaveBeenCalledTimes(1);
+  });
+
   it("Hold'em recovers to a usable betting state when the server confirms the round is gone", async () => {
     const onBack = vi.fn();
     dealCasinoHoldem.mockResolvedValue(holdemDealAck);
