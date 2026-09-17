@@ -36,6 +36,12 @@ const BLOCK_TYPES = new Set(['heading', 'paragraph', 'image', 'button', 'product
 const MAX_BLOCKS = 200;
 const MAX_RECIPIENTS = 20000;
 
+/** First six hex characters of SHA-256 — enough to tell two values apart, useless for recovering one. */
+async function fingerprint(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 6);
+}
+
 const str = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined;
 
@@ -90,8 +96,11 @@ Deno.serve(async (req) => {
     return json(401, { error: 'unauthorized', reason: 'secret_not_set' });
   }
   if (provided !== guard) {
-    console.warn(`[mail-publish] 401: secret mismatch (project value ${guard.length} chars, caller sent ${provided.length} chars)`);
-    return json(401, { error: 'unauthorized', reason: 'secret_mismatch' });
+    // Six hex characters of a hash identify which copy of the secret is the
+    // odd one out without revealing any of them.
+    const [g, p] = await Promise.all([fingerprint(guard), fingerprint(provided)]);
+    console.warn(`[mail-publish] 401: secret mismatch (project value ${guard.length} chars, fingerprint ${g}; caller sent ${provided.length} chars, fingerprint ${p})`);
+    return json(401, { error: 'unauthorized', reason: 'secret_mismatch', project_fingerprint: g, caller_fingerprint: p });
   }
 
   let body: Record<string, unknown>;
