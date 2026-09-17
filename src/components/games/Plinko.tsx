@@ -30,7 +30,7 @@ const STARTING_POINTS = 100;
 const STEP_X = 7;
 const BEST_DROP_KEY = 'snow-plinko-best-drop-v1';
 const FULL_DROP_MS = 1560;
-const REDUCED_DROP_MS = 190;
+const REDUCED_DROP_MS = 1800;
 const ARCADE_BETS = [10, 25, 50, 100];
 const BET_STORAGE_KEY = 'snow-plinko-bet-v1';
 
@@ -304,7 +304,7 @@ const Plinko = ({ onBack }: PlinkoProps) => {
     const width = bounds.width || boardElement.clientWidth || 900;
     const height = bounds.height || boardElement.clientHeight || 560;
     const source = reduced
-      ? [motion.points[0], { ...motion.points[motion.points.length - 1], offset: 1, scale: 1, rotation: 0 }]
+      ? motion.points.map(point => ({ ...point, scale: 1, rotation: 0 }))
       : motion.points;
 
     const impactPoints = reduced

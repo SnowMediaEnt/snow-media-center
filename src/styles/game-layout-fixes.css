@@ -1,0 +1,75 @@
+/* Keep the TV-safe perimeter, but use more of the actual game viewport. */
+.snow-blackjack.tv-game-shell,
+.snow-slots-game.tv-game-shell,
+.snow-dice-game.tv-game-shell,
+.snow-plinko.tv-game-shell,
+.snow-roulette-game.tv-game-shell {
+  padding: 3vh 3vw;
+  padding: max(env(safe-area-inset-top), 3vh) max(env(safe-area-inset-right), 3vw) max(env(safe-area-inset-bottom), 3vh) max(env(safe-area-inset-left), 3vw);
+}
+.snow-blackjack.tv-game-shell .snow-game-body,
+.snow-slots-game.tv-game-shell .snow-game-body,
+.snow-dice-game.tv-game-shell .snow-game-body,
+.snow-plinko.tv-game-shell .snow-game-body,
+.snow-roulette-game.tv-game-shell .snow-game-body { max-width: none; }
+.snow-slot-layout .snow-slot-controls { padding: 14px 16px; }
+.snow-slot-layout .snow-slot-spin { margin-left: 16px; }
+
+/* Card dimensions follow the space left after headers and action controls. */
+.snow-blackjack.snow-blackjack .snow-bj-table__felt { grid-template-rows: minmax(0, 1fr) 34px minmax(0, 1fr); }
+.snow-blackjack.snow-blackjack .snow-bj-seat { min-height: 0; justify-content: flex-start; }
+.snow-blackjack.snow-blackjack .snow-bj-hand-well { flex: 1 1 0; min-height: 0; }
+.snow-blackjack.snow-blackjack .snow-hand { min-height: 0; }
+.snow-blackjack.snow-blackjack .snow-playing-card.tv-game-card {
+  height: var(--fitted-card-height, 110px) !important;
+  width: var(--fitted-card-width, 73px) !important;
+  max-height: 24vh;
+  max-width: 16vh;
+}
+.snow-blackjack.snow-blackjack .snow-bj-medallion { width: 32px; height: 32px; }
+.snow-blackjack.snow-blackjack .snow-bj-medallion svg { display: none; }
+.snow-blackjack.snow-blackjack .snow-bj-medallion strong { font-size: 16px; }
+.snow-blackjack.snow-blackjack .snow-bj-controls { padding: 15px 18px 12px; }
+.snow-blackjack.snow-blackjack .snow-bj-live-rules { margin-top: 12px; }
+
+/* A wager row plus actions must wrap instead of competing for one row. */
+.snow-dice-game .snow-dice-controls { flex-wrap: wrap; gap: 14px; padding: 20px; }
+.snow-dice-game .snow-dice-wager { width: auto; flex: 1 1 280px; gap: 14px; margin: 0; }
+.snow-dice-game .snow-dice-controls > button + button { margin-left: 0; }
+.snow-dice-game .snow-dice-controls__note { flex: 0 0 100%; max-width: none; margin: 0; text-align: center; }
+
+/* Decorative statistics yield before the drop controls and their focus ring. */
+.snow-plinko.snow-plinko .snow-plinko-console { padding-bottom: 22px; }
+.snow-plinko.snow-plinko .snow-plinko-actions { gap: 16px; padding: 12px 8px 0; }
+.snow-plinko.snow-plinko .snow-plinko-wager { gap: 16px; margin-bottom: 6px; }
+.snow-plinko.snow-plinko .snow-plinko-board-high { display: none; }
+.snow-plinko.snow-plinko .snow-plinko-mode { margin-bottom: 10px; }
+.snow-plinko.snow-plinko .snow-plinko-disclaimer { margin-top: 18px; }
+.snow-plinko.snow-plinko .snow-plinko-drop { min-width: 0; flex: 1 1 0; }
+.snow-plinko.snow-plinko .snow-plinko-reset { flex: 0 0 52px; width: 52px; margin-left: 0; }
+
+/* Roulette: protect two control rows; the plaque must never consume height. */
+.snow-roulette-game.snow-roulette-game .snow-rl-main::after,
+.snow-roulette-game.snow-roulette-game .snow-rl-side::after { display: none; }
+.snow-roulette-game.snow-roulette-game .snow-rl-felt { flex: 0 0 auto; }
+.snow-roulette-game.snow-roulette-game .snow-rl-console { margin-top: auto; }
+.snow-roulette-game.snow-roulette-game .snow-rl-wheel-wrap,
+.snow-roulette-game.snow-roulette-game .snow-rl-wheel { width: 32vh; height: 32vh; }
+.snow-roulette-game.snow-roulette-game .snow-rl-num { height: 8vh; }
+.snow-roulette-game.snow-roulette-game .snow-rl-zero--tall { min-height: 0; }
+.snow-roulette-game.snow-roulette-game .snow-rl-outside { height: 6vh; }
+.snow-roulette-game.snow-roulette-game .snow-rl-table-head { flex-basis: 42px; min-height: 42px; }
+.snow-roulette-game.snow-roulette-game .snow-rl-console { padding: 12px; }
+
+@media (max-height: 650px) {
+  .snow-plinko.snow-plinko .snow-plinko-callout { display: none; }
+  .snow-plinko.snow-plinko .snow-plinko-console__head { padding-bottom: 4px; }
+  .snow-plinko.snow-plinko .snow-plinko-console { padding: 10px 12px 20px; }
+  .snow-dice-game .snow-dice-controls__note { display: none; }
+  .snow-dice-game .snow-dice-controls { gap: 12px; padding: 18px; }
+  .snow-dice-game .snow-dice-wager { flex-basis: 230px; }
+  .snow-dice-game .snow-dice-wager .snow-bet-chip { min-width: 44px; width: 44px; min-height: 44px; height: 44px; }
+  .snow-roulette-game.snow-roulette-game .snow-rl-side { padding: 8px; }
+  .snow-roulette-game.snow-roulette-game .snow-rl-side__header { min-height: 30px; margin-bottom: 0; padding-bottom: 3px; }
+  .snow-roulette-game.snow-roulette-game .snow-rl-table-head { display: none; }
+}

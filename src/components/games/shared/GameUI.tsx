@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { GameAccent, GameFairInfo } from './gameTypes';
 import { useGameAudio } from './gameAudio';
+import '@/styles/game-layout-fixes.css';
 
 export const GAME_ACTION_CLASS = 'snow-game-action tv-ring min-h-12 border-2 font-black transition-transform duration-150';
 
