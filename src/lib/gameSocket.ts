@@ -251,12 +251,13 @@ class GameSocketManager {
     });
   }
 
-  async dealBlackjack(bet: number, clientSeed?: string, variant: string = 'classic'): Promise<any> {
-    const res = await this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null, variant });
+  async dealBlackjack(bet: number, clientSeed?: string, variant: string = 'classic', sideBets?: Record<string, number>): Promise<any> {
+    const res = await this.emitWithAck('bj_deal', { bet, clientSeed: clientSeed ?? null, variant, sideBets });
     this.noteWager('blackjack', bet, { variant });
     return res;
   }
   async hit(): Promise<any> { return this.emitWithAck('bj_hit', undefined); }
+  async split(): Promise<any> { return this.emitWithAck('bj_split', undefined); }
   async stand(): Promise<any> { return this.emitWithAck('bj_stand', undefined); }
   async double(): Promise<any> {
     const res = await this.emitWithAck('bj_double', undefined);

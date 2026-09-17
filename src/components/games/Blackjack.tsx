@@ -27,7 +27,14 @@ const BET_STORAGE_KEY = 'snow-blackjack-bet-v1';
 
 type Phase = 'bet' | 'playing' | 'settled';
 type BlackjackVariantId = 'classic' | 'single_deck' | 'double_reveal';
-type FocusId = 'back' | 'fx' | 'deal' | 'hit' | 'stand' | 'double' | 'again' | `variant-${number}` | `chip-${number}`;
+type FocusId = 'back' | 'fx' | 'deal' | 'hit' | 'stand' | 'double' | 'split' | 'again' | `side-${number}` | `variant-${number}` | `chip-${number}`;
+
+const SIDE_OPTIONS = [0, 10, 25, 50, 100];
+const SIDE_GAMES = [
+  { key: 'pairs', label: 'Perfect Pairs', rule: 'Pair 6:1 · same color 12:1 · identical 25:1' },
+  { key: 'three', label: '21+3', rule: 'Flush 5:1 · straight 10:1 · trips 30:1 · straight flush 40:1 · suited trips 100:1' },
+  { key: 'ladies', label: 'Lucky Ladies', rule: '20 pays 4:1 · suited 10:1 · matched 25:1 · two heart queens 200:1 (dealer blackjack 1000:1)' },
+];
 
 const BLACKJACK_VARIANTS: ReadonlyArray<{
   id: BlackjackVariantId;
@@ -68,6 +75,10 @@ const computeBjTotal = (cards: GameCardValue[]): number => {
 };
 
 interface BlackjackAck {
+  canSplit?: boolean;
+  activeHand?: number;
+  hands?: Array<{ cards: GameCardValue[]; bet: number; outcome?: string }>;
+  sideResults?: Array<{ key: string; bet: number; payout: number }>;
   bet?: number;
   status?: string;
   playerHand?: GameCardValue[];
@@ -238,6 +249,14 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   const [canHit, setCanHit] = useState(false);
   const [canStand, setCanStand] = useState(false);
   const [canDouble, setCanDouble] = useState(false);
+  const [canSplit, setCanSplit] = useState(false);
+  const [splitHands, setSplitHands] = useState<BlackjackAck['hands']>([]);
+  const [activeHand, setActiveHand] = useState(0);
+  const [sideBets, setSideBets] = useState<Record<string, number>>({ pairs: 0, three: 0, ladies: 0 });
+  const [sideResults, setSideResults] = useState<NonNullable<BlackjackAck['sideResults']>>([]);
+  const sideStake = Object.values(sideBets).reduce((sum, amount) => sum + amount, 0);
+  const splitRef = useRef<HTMLButtonElement>(null);
+  const sideRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const [settleStatus, setSettleStatus] = useState<string | null>(null);
   const [net, setNet] = useState(0);
@@ -270,7 +289,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
 
   const dealerRevealComplete = phase === 'settled' && revealedDealer >= dealerHand.length;
   const revealComplete = dealerRevealComplete && doubleCardRevealed;
-  const dealUsable = !!user && balance !== null && balance >= bet;
+  const dealUsable = !!user && balance !== null && balance >= bet + sideStake;
   const selectedVariant = BLACKJACK_VARIANTS.find((table) => table.id === variant) ?? BLACKJACK_VARIANTS[0];
 
   /**
@@ -293,18 +312,20 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       return [
         top,
         BLACKJACK_VARIANTS.map((_, index) => `variant-${index}`),
+        SIDE_GAMES.map((_, index) => `side-${index}`),
         [...chips, ...(dealUsable ? ['deal'] : [])],
       ];
     }
     if (phase === 'playing') {
       return [top, [
+        ...(canSplit ? ['split'] : []),
         ...(canHit ? ['hit'] : []),
         ...(canStand ? ['stand'] : []),
         ...(canDouble ? ['double'] : []),
       ]];
     }
     return [top, revealComplete ? ['again'] : []];
-  }, [phase, balance, user, dealUsable, canHit, canStand, canDouble, revealComplete]);
+  }, [phase, balance, user, dealUsable, canHit, canStand, canDouble, canSplit, revealComplete]);
 
   // Render from the availability-filtered graph too, so a balance/auth change
   // cannot leave a one-frame visual ring on Deal before state is re-homed.
@@ -329,7 +350,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     // Availability can change between renders (auth/balance/socket acks). Use
     // the safe graph target for real DOM focus immediately; do not spend one
     // effect cycle focusing a control that has just become unavailable.
-    const target = visibleFocus === 'back' ? backRef.current
+    const target = visibleFocus === 'split' ? splitRef.current
+      : visibleFocus.startsWith('side-') ? sideRefs.current[Number(visibleFocus.slice(5))]
+      : visibleFocus === 'back' ? backRef.current
       : visibleFocus === 'fx' ? fxRef.current
         : visibleFocus === 'deal' ? dealRef.current
           : visibleFocus === 'hit' ? hitRef.current
@@ -343,9 +366,13 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
   }, [visibleFocus, phase]);
 
   const applyAck = useCallback((resp: BlackjackAck) => {
+    setCanSplit(!!resp.canSplit);
+    setSplitHands(resp.hands ?? []);
+    setActiveHand(resp.activeHand ?? 0);
+    setSideResults(resp.sideResults ?? []);
     // A double-down ack reports the total committed stake. Keep the player's
     // chosen base wager selected for the next hand instead of replacing it.
-    if (typeof resp?.bet === 'number' && !resp.doubled && BETS.includes(resp.bet)) setBet(resp.bet);
+    if (typeof resp?.bet === 'number' && !resp.doubled && !resp.hands?.length && BETS.includes(resp.bet)) setBet(resp.bet);
     if (resp.variant && BLACKJACK_VARIANTS.some((table) => table.id === resp.variant)) {
       setVariant(resp.variant);
     }
@@ -438,14 +465,16 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     if (inFlight.current || busy) return;
     if (!user) { setError(t('games.blackjack.errorSignIn')); return; }
     if (balance === null) { setError(t('games.blackjack.errorLoadingChips')); return; }
-    if (balance < bet) { setError(t('games.blackjack.errorInsufficientBalance')); return; }
+    if (balance < bet + sideStake) { setError(t('games.blackjack.errorInsufficientBalance')); return; }
     inFlight.current = true;
     const epoch = ++roundEpoch.current;
     setError(null);
     setBusy(true);
     try {
       const seed = crypto.getRandomValues(new Uint32Array(2)).join('-');
-      const resp = await gameSocket.dealBlackjack(bet, seed, variant);
+      const resp = sideStake > 0
+        ? await gameSocket.dealBlackjack(bet, seed, variant, sideBets)
+        : await gameSocket.dealBlackjack(bet, seed, variant);
       // An ack that lands after unmount, or after a newer hand started, must
       // not touch state or schedule timers.
       if (!life.isMounted() || epoch !== roundEpoch.current) return;
@@ -461,9 +490,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       inFlight.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, user, balance, bet, variant, applyAck, life, play]);
+  }, [busy, user, balance, bet, variant, sideBets, sideStake, applyAck, life, play]);
 
-  const action = useCallback(async (which: 'hit' | 'stand' | 'double') => {
+  const action = useCallback(async (which: 'hit' | 'stand' | 'double' | 'split') => {
     if (inFlight.current || busy) return;
     inFlight.current = true;
     const epoch = roundEpoch.current;
@@ -471,6 +500,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
     setError(null);
     try {
       const resp =
+        which === 'split' ? await gameSocket.split() :
         which === 'hit' ? await gameSocket.hit() :
         which === 'stand' ? await gameSocket.stand() :
         await gameSocket.double();
@@ -690,7 +720,13 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                 <div className="snow-bj-hand-well">
                   {phase === 'bet'
                     ? <><EmptyHand /><p className="snow-bj-hint">{t('games.blackjack.cardsAppearHere')}</p></>
-                    : <Hand
+                    : splitHands && splitHands.length > 0 ? <div className="snow-bj-split-hands">
+                      {splitHands.map((hand, index) => <div key={index} className={phase === 'playing' && activeHand === index ? 'is-active' : ''}>
+                        <strong>Hand {index + 1} · {hand.bet} coins{phase === 'settled' && revealComplete ? ` · ${hand.outcome}` : ''}</strong>
+                        <Hand cards={hand.cards} compact />
+                        <span>{computeBjTotal(hand.cards)}</span>
+                      </div>)}
+                    </div> : <Hand
                       cards={playerHand}
                       faceDownAfter={phase === 'settled' && !doubleCardRevealed && doubleCardIndex !== null
                         ? doubleCardIndex
@@ -711,6 +747,7 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
       </div>
 
       <GamePanel className="snow-bj-controls">
+        {phase !== 'bet' && sideResults.length > 0 && <p className="snow-bj-side-results">Side bets (returned at settlement): {sideResults.map(result => `${SIDE_GAMES.find(game => game.key === result.key)?.label}: ${result.payout} coins`).join(' · ')}</p>}
         {phase === 'bet' && (
           <div className="snow-bj-controls__row snow-bj-controls__row--bet">
             <div className="snow-bj-variants" role="group" aria-label="Blackjack table">
@@ -733,6 +770,15 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
                   <small>{table.kicker}</small>
                 </Button>
               ))}
+            </div>
+            <div className="snow-bj-side-options" role="group" aria-label="Optional side bets">
+              {SIDE_GAMES.map((game, index) => <Button key={game.key} ref={el => { sideRefs.current[index] = el; }} variant="navy" type="button"
+                data-tv-focused={visibleFocus === `side-${index}` ? 'true' : 'false'} onFocus={() => setFocus(`side-${index}`)}
+                aria-disabled={busy ? 'true' : undefined}
+                onClick={() => { if (!busy) setSideBets(current => ({ ...current, [game.key]: SIDE_OPTIONS[(SIDE_OPTIONS.indexOf(current[game.key]) + 1) % SIDE_OPTIONS.length] })); }}>
+                {game.label}: {sideBets[game.key]} coins
+              </Button>)}
+              <small>{SIDE_GAMES[Number(focus.slice(5))]?.rule ?? 'Split once · split aces get one card · no double after split. Side bets: OK cycles 0 / 10 / 25 / 50 / 100'} · Total deal: {bet + sideStake} coins</small>
             </div>
             <div className="snow-bj-controls__label">
               <span className="snow-bj-controls__chip" aria-hidden="true">◆</span>
@@ -783,6 +829,9 @@ const Blackjack = ({ onBack }: BlackjackProps) => {
               <small>{t('games.shared.playChips')}</small>
             </div>
             <div className="snow-game-actions">
+              {canSplit && <Button ref={splitRef} type="button" variant="navy" onFocus={() => setFocus('split')}
+                onClick={() => { if (!busy) action('split'); }} aria-disabled={busy ? 'true' : undefined}
+                data-tv-focused={visibleFocus === 'split' ? 'true' : 'false'} className={`${GAME_ACTION_CLASS} snow-bj-action`}>Split · +{bet}</Button>}
               <Button
                 ref={hitRef}
                 type="button"
