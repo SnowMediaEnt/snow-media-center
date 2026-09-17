@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { takeIntent, INTENT_KEYS, type ReportIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy } from 'lucide-react';
@@ -68,6 +69,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   // Read-only "Account info" view, shown from the header Account button.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The assistant can open Player Settings straight on a screen.
+  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | undefined>(undefined);
   // "Finish your Snow Media account": opened right after a Live TV sign-in
   // when Snow Media has no account for that line yet.
   const [claimOpen, setClaimOpen] = useState(false);
@@ -286,6 +289,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     if (!credsLoaded || playerOpenRef.current) return;
     playerOpenRef.current = true;
+    // The assistant's "open Live TV / the Guide / Plex / Appearance", or a
+    // channel to report: read once, act once the Player knows its sign-in.
+    const intent = takeIntent<{ section?: string; settings?: string; report?: ReportIntent }>(INTENT_KEYS.player, true);
+    if (intent && creds) {
+      const sec = intent.section ?? 'live';
+      if (sec === 'movies') enterMode('movies');
+      else if (sec === 'backups') enterMode('backups');
+      else {
+        enterMode('live');
+        if (sec === 'guide' || sec === 'multi') { setSection(sec); setPane('content'); }
+      }
+      if (intent.report) { try { sessionStorage.setItem('smc-live-report', JSON.stringify(intent.report)); } catch { /* ignore */ } }
+      if (intent.settings) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
+    }
     if (!DEMO) {
       try {
         trackEvent('player_open', 'player', {
@@ -697,7 +714,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     return (
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
         <SettingsHub
-          onBack={() => setSettingsOpen(false)}
+          initialView={settingsInitialView}
+          onBack={() => { setSettingsOpen(false); setSettingsInitialView(undefined); }}
           onSignOut={() => { void signOut(); }}
           onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
           onSwitchAccount={onSwitchAccount}

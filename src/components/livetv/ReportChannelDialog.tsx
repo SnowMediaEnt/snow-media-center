@@ -22,6 +22,9 @@ interface Props {
    */
   onRefreshFavorite?: () => Promise<'fixed' | 'same' | 'missing' | 'failed'>;
   onOpenBufferingGuide?: () => void;
+  /** Open past the menu with a reason picked (the assistant's report). */
+  initialChoice?: Choice;
+  initialNote?: string;
   onClose: () => void;
 }
 
@@ -47,6 +50,8 @@ const ReportChannelDialog = memo(({
   onToggleFavorite,
   onRefreshFavorite,
   onOpenBufferingGuide,
+  initialChoice,
+  initialNote,
   onClose,
 }: Props) => {
   const { toast } = useToast();
@@ -73,13 +78,13 @@ const ReportChannelDialog = memo(({
   const { account } = usePlayerAccount();
   const { createTicket } = useSupportTickets(user);
 
-  const [step, setStep] = useState<Step>('menu');
+  const [step, setStep] = useState<Step>(initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
   // Focus index:
   //   menu:   0 = Report, 1 = Fav toggle, 2 = Cancel
   //   reasons: 0..3 = CHOICES, 4 = Cancel
   //   other:  0 = textarea, 1 = Submit, 2 = Cancel
-  const [focusIdx, setFocusIdx] = useState(0);
-  const [note, setNote] = useState('');
+  const [focusIdx, setFocusIdx] = useState(initialChoice && initialChoice !== 'Other' ? Math.max(0, CHOICES.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
+  const [note, setNote] = useState(initialNote ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);

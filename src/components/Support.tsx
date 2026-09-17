@@ -29,6 +29,7 @@ import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
 import { useSnowMail } from '@/hooks/useSnowMail';
+import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
@@ -66,10 +67,14 @@ const HELP_TWO_COL = '(min-width: 768px)';
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { badgeCount: unreadMailCount } = useSnowMail();
-  const [tab, setTab] = useState<Tab>('help');
-  const [helpView, setHelpView] = useState<HelpView>('menu');
+  // Where to land: the assistant (or a How-to link) can ask for a tab or a
+  // tool before Support mounts. Read once, then it is an ordinary visit.
+  const [landing] = useState(() => peekIntent(INTENT_KEYS.support));
+  useEffect(() => { clearIntent(INTENT_KEYS.support); }, []);
+  const [tab, setTab] = useState<Tab>(landing === 'posts' ? 'mail' : landing === 'ai' ? 'ai' : 'help');
+  const [helpView, setHelpView] = useState<HelpView>(landing === 'tickets' ? 'tickets' : landing === 'cleaner' ? 'cleaner' : landing === 'videos' ? 'videos' : 'menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
-  const [showSpeedTest, setShowSpeedTest] = useState(false);
+  const [showSpeedTest, setShowSpeedTest] = useState(landing === 'speedtest');
   // Synchronous handoff from the Plex player's "Buffering?" shortcut: LiveTV
   // sets this flag BEFORE navigating to Support so the guide opens in the
   // same commit (no setTimeout race with the CustomEvent fallback).
@@ -328,15 +333,18 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     };
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
     const openCleaner = () => { setTab('help'); setHelpView('cleaner'); };
+    const openPosts = () => { setChildFocusActive(false); setTab('mail'); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-cleaner', openCleaner);
+    window.addEventListener('support:open-posts', openPosts);
     window.addEventListener('support:open-buffering-guide', openGuide);
     window.addEventListener('support:open-howto', openHowTo);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
       window.removeEventListener('support:open-tickets', openTickets);
       window.removeEventListener('support:open-cleaner', openCleaner);
+      window.removeEventListener('support:open-posts', openPosts);
       window.removeEventListener('support:open-buffering-guide', openGuide);
       window.removeEventListener('support:open-howto', openHowTo);
     };

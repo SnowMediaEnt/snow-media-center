@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -471,6 +472,19 @@ const InstallAppsContent = ({ onBack, apps, onNavigateToChat }: { onBack: () => 
     // Warnings only fire on launch — go straight to download here.
     startDownload(app);
   }, [toast, checkInstallStatus, getAlertForApp, startDownload]);
+
+  // The assistant's "install X": find it in the list and start the download.
+  useEffect(() => {
+    if (!apps.length) return;
+    const want = takeIntent(INTENT_KEYS.installApp);
+    if (!want) return;
+    const q = want.trim().toLowerCase();
+    const app = apps.find((a) => a.name.toLowerCase() === q)
+      ?? apps.find((a) => a.name.toLowerCase().includes(q) || q.includes(a.name.toLowerCase()));
+    if (!app) { toast({ title: 'App not found', description: `Couldn't find "${want}" in Main Apps.` }); return; }
+    const t = setTimeout(() => { void handleDownload(app); }, 350);
+    return () => clearTimeout(t);
+  }, [apps, handleDownload, toast]);
 
   const offerInstall = (app: AppData) => {
     if (app.downloadUrl) {

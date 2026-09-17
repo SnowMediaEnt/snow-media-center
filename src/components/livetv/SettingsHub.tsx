@@ -19,6 +19,8 @@ const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAcco
 
 interface Props {
   onBack: () => void;
+  /** Open on a screen other than the menu (the assistant's "open Appearance"). */
+  initialView?: View;
   onSignOut: () => void;
   onChangeCredentials: () => void;
   onSwitchAccount: (c: XtreamCreds) => void;
@@ -35,8 +37,8 @@ const fallback = (
   </div>
 );
 
-const SettingsHub = memo(({ onBack, onSignOut, onChangeCredentials, onSwitchAccount }: Props) => {
-  const [view, setView] = useState<View>('menu');
+const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount }: Props) => {
+  const [view, setView] = useState<View>(initialView ?? 'menu');
   const [menuIdx, setMenuIdx] = useState(1); // start on first list row (skip Back)
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);

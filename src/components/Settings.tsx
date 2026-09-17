@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
+import { peekIntent, clearIntent, INTENT_KEYS } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
 import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper } from 'lucide-react';
@@ -102,9 +103,13 @@ const Settings = ({ onBack }: SettingsProps) => {
       toast({ title: 'Could not update', description: (e as Error).message, variant: 'destructive' });
     }
   };
-  const [activeTab, setActiveTab] = useState('media');
+  const [activeTab, setActiveTab] = useState(() => {
+    const want = peekIntent(INTENT_KEYS.settings);
+    return want && ['media', 'ui', 'updates', 'alerts', 'ai'].includes(want) ? want : 'media';
+  });
   const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
   const [mediaManagerActive, setMediaManagerActive] = useState(false);
+  useEffect(() => { clearIntent(INTENT_KEYS.settings); }, []);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

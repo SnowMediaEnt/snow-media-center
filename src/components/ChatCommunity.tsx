@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, type Screen, type PreferenceKey } from '@/lib/appActions';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
@@ -692,6 +693,39 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         });
         break;
       
+      case 'open_screen': {
+        if (!onNavigate) break;
+        stopVoicePlayback();
+        const where = openScreen(String(args.screen) as Screen, onNavigate);
+        toast({ title: 'On it', description: `Opening ${where}.` });
+        break;
+      }
+      case 'set_preference': {
+        const said = setPreference(String(args.key) as PreferenceKey, String(args.value));
+        toast({ title: said ? 'Done' : 'Hmm', description: said ?? "I couldn't change that one." });
+        break;
+      }
+      case 'report_channel': {
+        if (!onNavigate) break;
+        stopVoicePlayback();
+        reportChannel({ search: String(args.channel_name || ''), issue: args.issue ? String(args.issue) : undefined, details: args.details ? String(args.details) : undefined }, onNavigate);
+        toast({ title: 'Finding the channel', description: 'Press OK on the report when it opens to send it.' });
+        break;
+      }
+      case 'install_app': {
+        if (!onNavigate) break;
+        stopVoicePlayback();
+        installApp(String(args.app_name || ''), onNavigate);
+        toast({ title: 'Main Apps', description: `Finding ${args.app_name} and starting the download.` });
+        break;
+      }
+      case 'generate_wallpaper': {
+        if (!onNavigate) break;
+        stopVoicePlayback();
+        generateWallpaper(String(args.prompt || ''), onNavigate);
+        toast({ title: 'Wallpaper', description: 'Making it now — this takes a moment.' });
+        break;
+      }
       default:
         console.log('Unknown function:', name, args);
     }

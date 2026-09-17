@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { takeIntent, INTENT_KEYS } from '@/lib/appActions';
 import { Button } from '@/components/ui/button';
 import { isDemo } from '@/lib/demoMode';
 import { Card } from '@/components/ui/card';
@@ -883,6 +884,20 @@ const MediaManager = ({ onBack, embedded = false, isActive = true }: MediaManage
    * server decides, and charges the normal Premium price if it was already
    * used). Nothing is saved until the viewer keeps one.
    */
+  // The assistant's "make me a wallpaper of …": fill the prompt, then generate.
+  const autoPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    const p = takeIntent(INTENT_KEYS.wallpaper);
+    if (p) { autoPromptRef.current = p; setGeneratePrompt(p); }
+  }, []);
+  useEffect(() => {
+    if (!autoPromptRef.current || generatePrompt !== autoPromptRef.current) return;
+    autoPromptRef.current = null;
+    const t = setTimeout(() => { void handleGenerateImage(); }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatePrompt]);
+
   const handleCompare = async () => {
     const prompt = generatePrompt.trim();
     if (!prompt || comparing || generating) return;

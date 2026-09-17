@@ -20,6 +20,7 @@ const CHANGELOG: Record<string, string[]> = {
     '💎 Snow Gems from the TV: pick a pack, scan the code, pay on your phone — the gems land on your account by themselves',
     '✨ Premium AI: switch Chat and Image Gen to the top models for Snow Gems, or stay on free',
     '🏠 Dashboard fits on one screen — or pick Large under Settings → UI',
+    '🤖 AI Chat can do things now: ask it to open a screen, change your Live TV look, report a channel, install an app or make you a wallpaper — and How to use SMC is up to date',
     '🎯 Content bar, built for you: what you were watching, your live channels with what\'s on now, and Plex picks based on what you watch',
   ],
   '1.7.1': [

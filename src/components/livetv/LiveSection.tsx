@@ -62,6 +62,7 @@ import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, type LiveLayout } from '@/lib/liveLayout';
+import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import LiveLayoutChooser from '@/components/livetv/LiveLayoutChooser';
 import { recordChannelWatch } from '@/lib/watchHistory';
 import {
@@ -585,13 +586,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // is opened. Search runs across every line.
   const [allByLine, setAllByLine] = useState<Map<string, XtreamLiveStream[]>>(new Map());
   const [allChannelsLoading, setAllChannelsLoading] = useState(false);
+  // Lines whose full list is on its way, kept in a ref: gating on the state
+  // re-ran this effect, whose cleanup then cancelled the very fetch it had
+  // just started, so search never got its results.
+  const allLoadingRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!searchOpen || allChannelsLoading) return;
-    const missing = lines.filter((l) => !allByLine.has(lineKey(l)));
+    if (!searchOpen) return;
+    const missing = lines.filter((l) => !allByLine.has(lineKey(l)) && !allLoadingRef.current.has(lineKey(l)));
     if (!missing.length) return;
+    for (const l of missing) allLoadingRef.current.add(lineKey(l));
     setAllChannelsLoading(true);
-    let cancelled = false;
-    Promise.all(missing.map((line) =>
+    void Promise.all(missing.map((line) =>
       fetchLiveStreams(line)
         .then((list) => {
           tagLine(list, line);
@@ -601,12 +606,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         })
         .catch(() => [lineKey(line), [] as XtreamLiveStream[]] as const)))
       .then((pairs) => {
-        if (cancelled) return;
         setAllByLine((prev) => { const n = new Map(prev); for (const [k, list] of pairs) n.set(k, list); return n; });
       })
-      .finally(() => { if (!cancelled) setAllChannelsLoading(false); });
-    return () => { cancelled = true; };
-  }, [searchOpen, lines, allByLine, allChannelsLoading, noteCountsFor, tagLine, healFavorites]);
+      .finally(() => {
+        for (const l of missing) allLoadingRef.current.delete(lineKey(l));
+        if (allLoadingRef.current.size === 0) setAllChannelsLoading(false);
+      });
+  }, [searchOpen, lines, allByLine, noteCountsFor, tagLine, healFavorites]);
 
   // The number next to "All channels" is the size of the whole service, and
   // the panel has no count call — so the line-up is measured once a week, on
@@ -673,6 +679,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Reset channel focus whenever the visible list changes context.
   useEffect(() => { setChannelIdx(0); }, [categoryIdx, searchOpen, searchQuery]);
+
+  // The assistant's "report ESPN, it's buffering": search every line for the
+  // channel, then open Report with the reason already picked. The viewer
+  // presses OK to send. If nothing matches within a few seconds the search
+  // stays open with the name typed, and the viewer picks from there.
+  const [pendingReport, setPendingReport] = useState<ReportIntent | null>(() => peekIntent<ReportIntent>('smc-live-report', true));
+  useEffect(() => { clearIntent('smc-live-report'); }, []);
+  const [reportPreset, setReportPreset] = useState<{ choice?: 'Channel down' | 'Channel buffering' | 'No audio' | 'Other'; note?: string } | null>(null);
+  useEffect(() => {
+    if (!pendingReport || lines.length === 0) return;
+    setSearchOpen(true);
+    setSearchQuery(pendingReport.search);
+    const giveUp = setTimeout(() => setPendingReport(null), 12000);
+    return () => clearTimeout(giveUp);
+  }, [pendingReport, lines.length]);
+  useEffect(() => {
+    if (!pendingReport || !searchOpen || searchQuery !== pendingReport.search || visibleChannels.length === 0) return;
+    const q = pendingReport.search.trim().toLowerCase();
+    const hit = visibleChannels.find((s) => s.name.toLowerCase() === q) ?? visibleChannels[0];
+    const issue = (pendingReport.issue || '').toLowerCase();
+    const choice = issue.includes('buffer') ? 'Channel buffering' : issue.includes('audio') || issue.includes('sound') ? 'No audio'
+      : issue.includes('down') || issue.includes('not work') || issue.includes('black') || issue.includes('load') ? 'Channel down' : 'Other';
+    setPendingReport(null);
+    setReportPreset({ choice, note: pendingReport.details || (choice === 'Other' ? pendingReport.issue : undefined) });
+    setReportFor(hit);
+  }, [pendingReport, searchOpen, searchQuery, visibleChannels]);
+  useEffect(() => { if (!reportFor) setReportPreset(null); }, [reportFor]);
   // Safety clamp: never let channelIdx point past the current list.
   useEffect(() => {
     if (channelIdx >= visibleChannels.length) setChannelIdx(0);
@@ -1914,6 +1947,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             isFavorite={isFav(reportFor)}
             onToggleFavorite={() => toggleFavorite(reportFor)}
             onRefreshFavorite={() => refreshFavorite(reportFor)}
+            initialChoice={reportPreset?.choice}
+            initialNote={reportPreset?.note}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -1956,6 +1991,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             isFavorite={isFav(reportFor)}
             onToggleFavorite={() => toggleFavorite(reportFor)}
             onRefreshFavorite={() => refreshFavorite(reportFor)}
+            initialChoice={reportPreset?.choice}
+            initialNote={reportPreset?.note}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
@@ -2025,6 +2062,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             isFavorite={isFav(reportFor)}
             onToggleFavorite={() => toggleFavorite(reportFor)}
             onRefreshFavorite={() => refreshFavorite(reportFor)}
+            initialChoice={reportPreset?.choice}
+            initialNote={reportPreset?.note}
             onOpenBufferingGuide={() => {
               setReportFor(null);
               enterFiredRef.current = false;
