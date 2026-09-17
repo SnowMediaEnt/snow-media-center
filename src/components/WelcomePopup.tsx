@@ -311,6 +311,17 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
 
   const changelog = useMemo(() => CHANGELOG[version] || [], [version]);
 
+  // Only offer to scroll when the notes actually overflow the box.
+  const [canScroll, setCanScroll] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const box = document.querySelector<HTMLElement>('[data-welcome-scroll="true"]');
+      setCanScroll(!!box && box.scrollHeight > box.clientHeight + 4);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [open, changelog]);
+
   if (!open) return null;
 
   return (
@@ -373,7 +384,7 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
                 ))}
               </ul>
             </div>
-            <p className="mt-3 text-xs text-white/50">▲ ▼ scroll · OK close</p>
+            <p className="mt-3 text-xs text-white/50">{canScroll ? "▲ ▼ scroll · OK close" : "OK close"}</p>
           </>
         )}
 
