@@ -49,6 +49,7 @@ import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume, savePlayerVolume } from '@/utils/volume';
 import { setPlexKeyOwner, isPlexKeyOwner } from './plexKeyOwner';
+import { recordPlexWatch } from '@/lib/watchHistory';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
@@ -1228,10 +1229,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const routeLabel = conn ? plexRouteLabel(conn.route, conn.base) : '';
   const playFromDetail = useCallback((it: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext) => {
     try { trackEvent('plex_play', 'player', { title: it.title, type: it.type ?? 'movie', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    if (!DEMO) recordPlexWatch(it);
     void playRatingKey(it.ratingKey, it.title, resumeSec, ctx, resolutionLabel(it.videoResolution));
   }, [playRatingKey, conn]);
   const playEpisode = useCallback((ep: PlexEpisode, ctx?: SubtitleSearchContext) => {
     try { trackEvent('plex_play', 'player', { title: ep.title, type: 'episode', route: conn?.route ?? 'unknown', secure: !!conn?.base.startsWith('https://') }); } catch { /* ignore */ }
+    // The SHOW is what to come back to and what "more like this" keys off.
+    const show = detailRef.current;
+    if (!DEMO && show) recordPlexWatch({ ...show, type: 'show', grandparentTitle: undefined }, undefined);
     void playRatingKey(ep.ratingKey, ep.title, undefined, ctx, '');
   }, [playRatingKey, conn]);
 

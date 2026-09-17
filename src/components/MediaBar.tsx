@@ -16,12 +16,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { getLiveHints, type LiveHintKind } from '@/lib/liveCategoryHints';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
+import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
 
 type MediaItem = {
   id: string;
-  source: 'plex' | 'tmdb' | 'sports';
+  /** plex: the shared "recently added" feed · history / live / foryou: built
+   *  on the device for this viewer. 'sports' is only ever seen from an old
+   *  cached or not-yet-redeployed feed and is dropped on read. */
+  source: 'plex' | 'tmdb' | 'sports' | 'history' | 'live' | 'foryou';
   kind: string;
   title: string;
   subtitle?: string;
@@ -37,6 +41,7 @@ type MediaItem = {
   androidLink?: string;
   deepLink?: string;
   webLink?: string;
+  channel?: BarChannel;
 };
 
 type Props = {
@@ -49,7 +54,7 @@ type Props = {
 // Demo mode gets its own cache bucket because it stores the sanitised
 // ?public=1 feed, which is NOT interchangeable with the signed-in payload.
 const DEMO = isDemo();
-const STORAGE_KEY = DEMO ? 'snow-media-bar-cache-demo-v1' : 'snow-media-bar-cache-v5';
+const STORAGE_KEY = DEMO ? 'snow-media-bar-cache-demo-v1' : 'snow-media-bar-cache-v6';
 const REFRESH_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 8;
 const AUTO_ROTATE_MS = 30 * 1000;
@@ -57,15 +62,20 @@ const AUTO_ROTATE_MS = 30 * 1000;
 const SOURCE_BADGE: Record<string, { label: string; color: string } | null> = {
   plex: null, // hidden per design
   tmdb: { label: 'TRENDING', color: 'hsl(200 90% 55%)' },
-  sports: { label: 'LIVE', color: 'hsl(0 80% 55%)' },
+  sports: null,
+  history: { label: 'CONTINUE', color: 'hsl(39 31% 60%)' },
+  live: { label: 'LIVE', color: 'hsl(0 80% 55%)' },
+  foryou: { label: 'FOR YOU', color: 'hsl(189 37% 80%)' },
 };
+
+const notSports = (i: MediaItem) => i?.title && i.source !== 'sports';
 
 const readCache = (): MediaItem[] | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.items) ? parsed.items : null;
+    return Array.isArray(parsed?.items) ? (parsed.items as MediaItem[]).filter(notSports) : null;
   } catch { return null; }
 };
 
@@ -189,12 +199,27 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   const [pageIdx, setPageIdx] = useState(0);
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
-  const [liveDialog, setLiveDialog] = useState<MediaItem | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // The two halves of the bar. The viewer's rows come first; the shared
+  // Plex feed fills in after them, minus anything already shown.
+  const viewerItemsRef = useRef<MediaItem[]>([]);
+  const feedItemsRef = useRef<MediaItem[]>([]);
+  const composeItems = () => {
+    const seen = new Set<string>();
+    const out: MediaItem[] = [];
+    for (const it of [...viewerItemsRef.current, ...feedItemsRef.current]) {
+      const k = it.ratingKey ? `rk:${it.ratingKey}` : it.id;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(it);
+    }
+    if (out.length) { setItems(out); writeCache(out); }
+  };
 
   const [demoNotice, setDemoNotice] = useState(false);
 
-  // Sports = live TV. Plex/TMDB items = deep link into Plex.
+  // A channel tile plays that channel in the Player; every Plex tile opens in
+  // the app's own Plex browser.
   const handleClick = (item: MediaItem) => {
     // Demo: browsing is real, but nothing may navigate or deep-link out.
     if (DEMO) { setDemoNotice(true); return; }
@@ -207,15 +232,18 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         title: item.title ?? null,
       });
     } catch { /* ignore */ }
-    if (item.source === 'sports') {
-      setLiveDialog(item);
+    if (item.channel && onOpenPlayer) {
+      try {
+        sessionStorage.setItem('smc-live-deeplink', JSON.stringify(item.channel));
+      } catch { /* ignore */ }
+      onOpenPlayer();
       return;
     }
     // ALL Plex kinds (movie / show / episode) open in the app's built-in
     // Plex browser via a deep-link. The old code fell through to the plex://
     // Android intent for shows + episodes, which surfaces "not available"
     // when the target lives in a shared library.
-    if (item.source === 'plex' && item.ratingKey && onOpenPlayer) {
+    if (item.ratingKey && onOpenPlayer) {
       try {
         sessionStorage.setItem('smc-plex-deeplink', JSON.stringify({
           ratingKey: String(item.ratingKey),
@@ -261,32 +289,57 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         if (error) throw error;
         // The function reports its own failures as HTTP 200 + `error`.
         if (data?.error) throw new Error(String(data.error));
-        const next: MediaItem[] = (data?.items ?? []).filter((i: MediaItem) => i?.title);
-        if (next.length) {
-          setItems(next);
-          writeCache(next);
-        }
+        const next: MediaItem[] = (data?.items ?? []).filter(notSports);
+        if (next.length) { feedItemsRef.current = next; composeItems(); }
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       } finally {
         if (!cancelled) setLoaded(true);
       }
     };
+    // The viewer's own rows: built on the device from their history, their
+    // lines and Plex. Demo has no viewer and no lines — the feed alone.
+    const loadViewer = async () => {
+      if (DEMO) return;
+      try {
+        const { items: mine } = await buildViewerBar();
+        if (cancelled) return;
+        viewerItemsRef.current = mine as MediaItem[];
+        composeItems();
+      } catch (e) {
+        console.warn('[MediaBar] viewer rows failed:', (e as Error).message);
+      }
+    };
+    const loadAll = () => { void loadViewer(); void load(); };
     const cancelFirst = onFirstInteraction(() => {
-      cancelIdleFirst = runWhenIdle(load, 3500);
+      cancelIdleFirst = runWhenIdle(loadAll, 3500);
+    });
+    // A new play, or a different account signing in, reshapes the rows.
+    let debounce: number | null = null;
+    const onHistory = () => {
+      if (debounce) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => { debounce = null; void loadViewer(); }, 2500);
+    };
+    window.addEventListener(WATCH_HISTORY_EVENT, onHistory);
+    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') onHistory();
     });
     // Periodic refresh stays — non-essential but pause-aware via setPausableInterval.
     // Skip while streaming so the fetch can't compete with active playback.
     const cancelInterval = setPausableInterval(() => {
       if (document.documentElement.classList.contains('streaming-active')) return;
-      load();
+      loadAll();
     }, REFRESH_MS);
     return () => {
       cancelled = true;
       cancelFirst();
       cancelIdleFirst?.();
       cancelInterval();
+      window.removeEventListener(WATCH_HISTORY_EVENT, onHistory);
+      if (debounce) window.clearTimeout(debounce);
+      authSub.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -331,7 +384,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   const currentPageRef = useRef(currentPage);
   const totalPagesRef = useRef(totalPages);
   const activeRef = useRef(active);
-  const liveDialogRef = useRef(liveDialog);
   const onExitDownRef = useRef(onExitDown);
   const onExitUpRef = useRef(onExitUp);
 
@@ -341,28 +393,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
   useEffect(() => { totalPagesRef.current = totalPages; }, [totalPages]);
   useEffect(() => { activeRef.current = active; }, [active]);
-  useEffect(() => { liveDialogRef.current = liveDialog; }, [liveDialog]);
   useEffect(() => { onExitDownRef.current = onExitDown; }, [onExitDown]);
   useEffect(() => { onExitUpRef.current = onExitUp; }, [onExitUp]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!activeRef.current) return;
-      const liveDialog = liveDialogRef.current;
       const focusIdx = focusIdxRef.current;
       const pageIdx = pageIdxRef.current;
       const items = itemsRef.current;
       const currentPage = currentPageRef.current;
       const totalPages = totalPagesRef.current;
-
-      if (liveDialog) {
-        if (isHardwareBackKey(e)) {
-          e.preventDefault();
-          e.stopPropagation();
-          setLiveDialog(null);
-        }
-        return;
-      }
 
       switch (e.key) {
         case 'ArrowLeft':
@@ -406,38 +447,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
-  useEffect(() => {
-    if (!liveDialog) return;
-
-    let listener: { remove?: () => void } | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        listener = await CapApp.addListener('backButton', () => {
-          setLiveDialog(null);
-        });
-        if (cancelled) listener?.remove?.();
-      } catch {
-        // Capacitor not available in web preview.
-      }
-    })();
-
-    const onBackKey = (e: KeyboardEvent) => {
-      if (isHardwareBackKey(e)) {
-        e.preventDefault();
-        e.stopPropagation();
-        setLiveDialog(null);
-      }
-    };
-
-    window.addEventListener('keydown', onBackKey, true);
-    return () => {
-      cancelled = true;
-      listener?.remove?.();
-      window.removeEventListener('keydown', onBackKey, true);
-    };
-  }, [liveDialog]);
-
   const isEmpty = items.length === 0;
 
   return (
@@ -473,7 +482,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
               )))
             : currentPage.map((item, idx) => {
                 const badge = SOURCE_BADGE[item.source];
-                const clickable = item.source === 'sports' || !!item.deepLink || !!item.webLink;
+                const clickable = !!item.channel || !!item.ratingKey || !!item.deepLink || !!item.webLink;
                 const isFocused = active && idx === focusIdx;
                 return (
                   <button
@@ -489,7 +498,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                         : ''
                     }`}
                   >
-                    <div className="relative w-full bg-black/60 flex-shrink-0 overflow-hidden media-poster">
+                    <div className={`relative w-full flex-shrink-0 overflow-hidden media-poster ${item.channel ? 'bg-white/90' : 'bg-black/60'}`}>
                       {item.poster && imagesReady ? (
                         <img
                           src={item.poster}
@@ -498,9 +507,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                           decoding="async"
                           // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           {...({ fetchpriority: 'low' } as any)}
-                          className="absolute top-0 left-0 w-full h-full object-cover"
+                          // Channel logos are drawn for a light card and must
+                          // not be cropped; posters fill the tile.
+                          className={item.channel ? 'absolute inset-0 m-auto max-w-[80%] max-h-[70%] object-contain' : 'absolute top-0 left-0 w-full h-full object-cover'}
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
+                      ) : item.channel ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Tv className="w-8 h-8 text-black/40" />
+                        </div>
                       ) : null}
                       {badge && (
                         <span
@@ -551,76 +566,6 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
           <span className="text-xs text-brand-ice/70 ml-2">{pageIdx + 1}/{totalPages}</span>
         </div>
       )}
-
-      <Dialog open={!!liveDialog} onOpenChange={(o) => !o && setLiveDialog(null)}>
-        <DialogContent className="bg-[hsl(var(--brand-navy))] border-[hsl(var(--brand-gold))]/40 text-white max-w-lg sm:rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[hsl(var(--brand-gold))]">
-              <Tv className="w-5 h-5" />
-              Watch Live TV
-            </DialogTitle>
-            <DialogDescription className="text-white/80 pt-2 space-y-1">
-              <span className="block font-semibold text-white text-base">{liveDialog?.title}</span>
-              {liveDialog?.subtitle && (
-                <span className="block text-sm text-brand-ice/70">{liveDialog.subtitle}</span>
-              )}
-              <span className="block pt-2 text-sm">
-                Open <b className="text-[hsl(var(--brand-gold))]">Dreamstreams</b> or <b className="text-[hsl(var(--brand-gold))]">VibezTV</b> and check these categories:
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-
-          {(() => {
-            const hints = getLiveHints(liveDialog);
-            if (!hints.length) {
-              return (
-                <div className="text-sm text-white/70 px-1">
-                  Browse the matching league or sport category in your IPTV app.
-                </div>
-              );
-            }
-            const chipColor: Record<LiveHintKind, string> = {
-              zone: 'bg-[hsl(var(--brand-gold))]/20 text-[hsl(var(--brand-gold))] border-[hsl(var(--brand-gold))]/40',
-              team: 'bg-blue-500/20 text-blue-200 border-blue-400/40',
-              locals: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
-              spectrum: 'bg-orange-500/20 text-orange-200 border-orange-400/40',
-              tip: 'bg-white/10 text-white/70 border-white/20',
-            };
-            return (
-              <ul className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                {hints.map((h, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3 rounded-xl bg-black/30 border border-white/10 px-3 py-2"
-                  >
-                    <span
-                      className={`shrink-0 text-xs font-bold tracking-wider uppercase px-2 py-0.5 rounded-lg border ${chipColor[h.kind]}`}
-                    >
-                      {h.chip}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-white text-sm font-medium leading-snug">{h.label}</div>
-                      {h.sublabel && (
-                        <div className="text-brand-ice/70 text-xs mt-1">{h.sublabel}</div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="h-12 px-6 rounded-xl text-base transition-transform duration-150 ease-out bg-blue-600/20 border-blue-400/50 text-white hover:bg-blue-600/40"
-              onClick={() => setLiveDialog(null)}
-            >
-              Got it
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={demoNotice} onOpenChange={(o) => { if (!o) setDemoNotice(false); }}>
         <DialogContent className="max-w-md sm:rounded-3xl">

@@ -1,36 +1,17 @@
-// Aggregates Plex (Recently Added) + TRULY LIVE sports events (happening RIGHT NOW)
-// Uses ESPN's public scoreboard API which exposes a real "in progress" status flag
-// (status.type.state === "in"). Only events that are actively airing at this moment
-// are returned with isLive=true. Everything else is dropped — for non-live content
-// we rely on Plex VOD.
+// Plex (Recently Added + On Deck) for the content bar's shared rows. The live
+// half of the bar — the viewer's own channels, what they watched, what is on
+// now — is assembled on the device from their signed-in line; nothing about a
+// line ever reaches this function. The old ESPN "live now" feed is gone.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const PLEX_URL = (Deno.env.get('PLEX_SERVER_URL') ?? '').replace(/\/+$/, '');
 const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN') ?? '';
 let PLEX_MACHINE_ID = '';
 
-// ESPN public scoreboard endpoints. No API key required.
-// state values: "pre" (scheduled), "in" (LIVE NOW), "post" (final)
-const ESPN_LEAGUES: { url: string; label: string }[] = [
-  { label: 'NBA',     url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard' },
-  { label: 'WNBA',    url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard' },
-  { label: 'NCAAB',   url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard' },
-  { label: 'NFL',     url: 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' },
-  { label: 'NCAAF',   url: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard' },
-  { label: 'MLB',     url: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard' },
-  { label: 'NHL',     url: 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard' },
-  { label: 'MLS',     url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard' },
-  { label: 'EPL',     url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard' },
-  { label: 'UCL',     url: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard' },
-  { label: 'F1',      url: 'https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard' },
-  { label: 'NASCAR',  url: 'https://site.api.espn.com/apis/site/v2/sports/racing/nascar-premier/scoreboard' },
-  { label: 'PGA',     url: 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard' },
-  { label: 'UFC',     url: 'https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard' },
-];
 
 type Item = {
   id: string;
-  source: 'plex' | 'sports';
+  source: 'plex';
   kind: string;
   title: string;
   subtitle?: string;
@@ -258,88 +239,8 @@ const fetchPlex = async (): Promise<{ movies: Item[]; shows: Item[]; onDeck: Ite
   };
 };
 
-// ---------- ESPN (LIVE NOW only) ----------
-// ESPN's public scoreboard sits behind a WAF that answers 403 to the edge
-// runtime's default `Deno/x.y` User-Agent — every league at once, which is
-// exactly how it presented (liveCount 0 on a Saturday in September). It
-// serves the same JSON to anything that looks like a browser.
-const ESPN_HEADERS: HeadersInit = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Referer': 'https://www.espn.com/',
-  'Origin': 'https://www.espn.com',
-};
-
-const fetchEspnLive = async (url: string, label: string): Promise<Item[]> => {
-  const res = await fetch(url, { headers: ESPN_HEADERS, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`espn ${label} ${res.status}`);
-  const data = await res.json();
-  const events = data?.events ?? [];
-  const out: Item[] = [];
-  for (const e of events) {
-    const comp = e?.competitions?.[0];
-    const status = comp?.status ?? e?.status;
-    const state = status?.type?.state; // "pre" | "in" | "post"
-    if (state !== 'in') continue; // ONLY truly live right now
-
-    const competitors = comp?.competitors ?? [];
-    const home = competitors.find((c: any) => c.homeAway === 'home') ?? competitors[0];
-    const away = competitors.find((c: any) => c.homeAway === 'away') ?? competitors[1];
-
-    const homeName = home?.team?.shortDisplayName ?? home?.team?.name ?? '';
-    const awayName = away?.team?.shortDisplayName ?? away?.team?.name ?? '';
-    const title = (awayName && homeName)
-      ? `${awayName} @ ${homeName}`
-      : (e?.shortName ?? e?.name ?? 'Live Event');
-
-    const homeScore = home?.score;
-    const awayScore = away?.score;
-    const scoreStr = (awayScore !== undefined && homeScore !== undefined && (awayName || homeName))
-      ? ` · ${awayScore}-${homeScore}`
-      : '';
-    const period = status?.type?.shortDetail ?? 'LIVE';
-
-    const poster =
-      home?.team?.logo ??
-      away?.team?.logo ??
-      comp?.competitors?.[0]?.team?.logo ??
-      undefined;
-
-    out.push({
-      id: `sports-${e.id}`,
-      source: 'sports',
-      kind: 'sport',
-      title,
-      subtitle: `${label} · ${period}${scoreStr}`,
-      poster,
-      startTime: e?.date,
-      isLive: true,
-    });
-  }
-  return out;
-};
-
-const fetchSportsLiveNow = async (): Promise<Item[]> => {
-  const results = await Promise.all(
-    ESPN_LEAGUES.map((l) => safe(fetchEspnLive(l.url, l.label), `espn ${l.label}`)),
-  );
-  const all = results.flatMap((r) => r ?? []);
-  // Sort by league priority (NFL > NBA > others) then by event id for stability
-  const priority: Record<string, number> = {
-    NFL: 0, NBA: 1, NHL: 2, MLB: 3, UFC: 4, EPL: 5, UCL: 6, NCAAF: 7, NCAAB: 8,
-    MLS: 9, F1: 10, NASCAR: 11, PGA: 12, WNBA: 13,
-  };
-  all.sort((a, b) => {
-    const la = (a.subtitle ?? '').split(' · ')[0];
-    const lb = (b.subtitle ?? '').split(' · ')[0];
-    return (priority[la] ?? 99) - (priority[lb] ?? 99);
-  });
-  return all.slice(0, 24);
-};
-
 // ---------- Weave ----------
-// Order: live sports → continue watching → movies/shows interleaved.
+// Order: continue watching → movies/shows interleaved.
 // Goal: a long, varied feed so the bar effectively never "ends".
 const weave = (movies: Item[], liveSports: Item[], shows: Item[], onDeck: Item[]): Item[] => {
   const out: Item[] = [];
@@ -379,23 +280,18 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const isPublic = new URL(req.url).searchParams.get('public') === '1';
-    const [plex, sports] = await Promise.all([
-      safe(fetchPlex(), 'plex'),
-      safe(fetchSportsLiveNow(), 'sports-live'),
-    ]);
+    const plex = await safe(fetchPlex(), 'plex');
     let items = weave(
       plex?.movies ?? [],
-      sports ?? [],
+      [],
       plex?.shows ?? [],
       plex?.onDeck ?? [],
     );
-    // Sports items are already free of Plex data (public CDN logos) — the strip
-    // is a no-op for them beyond dropping undefined fields.
     if (isPublic) items = items.map(toPublicItem);
     return new Response(
       JSON.stringify({
         items,
-        liveCount: (sports ?? []).length,
+        liveCount: 0,
         fetchedAt: Date.now(),
       }),
       {

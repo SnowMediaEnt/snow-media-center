@@ -755,6 +755,28 @@ function mapMetadata(items: Array<Record<string, unknown>>): PlexItem[] {
   }));
 }
 
+/** Titles Plex considers related to one item — the content bar's "for you"
+ *  row. Plex answers with several hubs (Similar, Same director …); they are
+ *  flattened, deduped and capped. Episodes are skipped in favour of shows. */
+export async function getPlexRelated(base: string, token: string, ratingKey: string, limit = 10): Promise<PlexItem[]> {
+  const data = await plexReq<{ MediaContainer?: { Hub?: Array<{ Metadata?: Array<Record<string, unknown>> }> } }>(
+    'GET', `${base}/hubs/metadata/${encodeURIComponent(ratingKey)}/related?count=${limit}&excludeFields=summary`, token, 8000,
+  );
+  const hubs = data?.MediaContainer?.Hub ?? [];
+  const seen = new Set<string>([String(ratingKey)]);
+  const out: PlexItem[] = [];
+  for (const h of hubs) {
+    for (const it of mapMetadata(h.Metadata ?? [])) {
+      if (it.type !== 'movie' && it.type !== 'show') continue;
+      if (seen.has(it.ratingKey)) continue;
+      seen.add(it.ratingKey);
+      out.push(it);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
 /** Fetch a hub (On Deck, Recently Added, etc.) by path. */
 export async function getPlexHub(base: string, token: string, path: string): Promise<PlexItem[]> {
   const data = await plexReq<{ MediaContainer?: { Metadata?: Array<Record<string, unknown>> } }>('GET', `${base}${path}`, token);

@@ -62,6 +62,7 @@ import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
 import { useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
+import { recordChannelWatch } from '@/lib/watchHistory';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -151,11 +152,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // group, so a viewer with two services scrolls one list instead of
   // switching accounts.
   const [lines, setLines] = useState<XtreamCreds[]>(() => [creds]);
+  const linesSettledRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const saved = DEMO ? [] : await loadSavedAccounts().catch(() => []);
-      if (!cancelled) setLines(buildLines(creds, saved));
+      if (!cancelled) { linesSettledRef.current = true; setLines(buildLines(creds, saved)); }
     };
     void load();
     window.addEventListener(SAVED_ACCOUNTS_REFRESH_EVENT, load);
@@ -906,6 +908,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         const catName = visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
           ?? currentCat?.name ?? '';
         watchingRef.current = { channel: stream.name, category: catName };
+        recordChannelWatch(stream, line, catName);
         trackEvent('channel_play', 'player', {
           channel: stream.name,
           category: catName,
@@ -927,6 +930,34 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [playChannel, lineFor]);
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
+
+  // A channel chosen on the content bar: play it as soon as its line is
+  // known. The payload is consumed once; a line no longer signed in here is
+  // simply ignored and the section opens as usual.
+  const playChannelRef = useRef(playChannel);
+  useEffect(() => { playChannelRef.current = playChannel; }, [playChannel]);
+  useEffect(() => {
+    if (DEMO) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem('smc-live-deeplink'); } catch { return; }
+    if (!raw) return;
+    let target: { host?: string; username?: string; streamId?: number; name?: string; icon?: string; categoryId?: string; num?: number } | null = null;
+    try { target = JSON.parse(raw); } catch { target = null; }
+    if (!target?.host || !target.username || !target.streamId) {
+      try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ }
+      return;
+    }
+    const line = lines.find((l) => lineKey(l) === lineKey({ host: target!.host!, username: target!.username! }));
+    if (!line) {
+      // The saved accounts may not have loaded yet; try again when they do.
+      if (lines.length > 1 || linesSettledRef.current) { try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ } }
+      return;
+    }
+    try { sessionStorage.removeItem('smc-live-deeplink'); } catch { /* ignore */ }
+    const stream: XtreamLiveStream = { stream_id: target.streamId, name: target.name ?? 'Channel', stream_icon: target.icon, category_id: target.categoryId, num: target.num };
+    streamLineRef.current.set(stream, line);
+    playChannelRef.current(stream);
+  }, [lines]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer

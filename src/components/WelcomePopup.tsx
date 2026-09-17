@@ -33,6 +33,7 @@ const CHANGELOG: Record<string, string[]> = {
     '📺 Live TV, three ways: pick Classic, Compact or Grid under Player Settings → Appearance. Compact is a slim list with a big preview; Grid is a wall of channel logos',
     '▶️ Live TV preview: OK on a channel plays it in the preview box with sound, OK again goes full screen — on every box, Fire TV included',
     '🖥️ Dashboard fits on one screen — no more scrolling to reach your account. Prefer it bigger? Settings → UI → Large dashboard',
+    '🎯 The content bar is yours now: what you watched last in Live TV and Plex, your favorite channels and more from the categories you watch with what\'s on right now, and Plex titles like the ones you watched. OK on a channel plays it. The ESPN scores are gone',
   ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',

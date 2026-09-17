@@ -324,6 +324,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   useEffect(() => {
     try {
       if (sessionStorage.getItem('smc-plex-deeplink')) enterMode('movies');
+      // A channel from the content bar: LiveSection plays it on mount.
+      else if (sessionStorage.getItem('smc-live-deeplink')) enterMode('live');
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
