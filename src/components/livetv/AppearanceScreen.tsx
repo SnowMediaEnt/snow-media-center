@@ -166,7 +166,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   const groupHints: Record<number, string> = { 0: LIVE_LAYOUTS.find(l => l.id === liveLayout)?.desc ?? '' };
 
   return (
-    <div className="min-h-screen flex flex-col text-white bg-black/70">
+    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton
           onClick={onBack}

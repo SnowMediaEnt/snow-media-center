@@ -164,7 +164,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials }: Prop
   ];
 
   return (
-    <div className="min-h-screen flex flex-col text-white bg-black/70">
+    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
         <div className="flex items-center gap-3">
           <BackButton

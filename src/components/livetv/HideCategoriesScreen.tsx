@@ -142,7 +142,7 @@ const HideCategoriesScreen = memo(({ onBack }: Props) => {
   const focusedRow = focusIdx > 0 ? focusable[focusIdx - 1] : -1;
 
   return (
-    <div className="min-h-screen flex flex-col text-white bg-black/70">
+    <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
       <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-black/30">
         <BackButton onClick={onBack} label="Back" data-player-header-btn="" focused={focusIdx === 0} />
         <div className="flex items-center gap-2">

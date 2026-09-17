@@ -727,7 +727,22 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
-      <div style={{ position: 'fixed', bottom: 4, right: 8, fontSize: 12, opacity: 0.5, color: '#fff', pointerEvents: 'none', zIndex: 50 }}>v{appVersion}</div>
+      {/* Pinned to the overscan-safe corner, not the physical edge — a flush
+          4/8px offset was clipped on TVs that still crop the picture. */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5vh)',
+          right: 'calc(env(safe-area-inset-right, 0px) + 1.5vw)',
+          fontSize: 12,
+          opacity: 0.5,
+          color: '#fff',
+          pointerEvents: 'none',
+          zIndex: 50,
+        }}
+      >
+        v{appVersion}
+      </div>
 
       {serverAlert && serverLabel && (
         <PlayerServerAlertDialog
