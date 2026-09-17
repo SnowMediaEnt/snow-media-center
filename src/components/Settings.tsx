@@ -7,7 +7,7 @@ import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Mail } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper } from 'lucide-react';
 import MediaManager from '@/components/MediaManager';
 import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
@@ -575,12 +575,12 @@ const Settings = ({ onBack }: SettingsProps) => {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <Mail className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
+                  <Newspaper className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Mail notifications</h3>
+                    <h3 className="text-lg font-bold text-white">Post notifications</h3>
                     <p className="text-sm text-white/70 mt-1">
-                      On, new mail from Snow Media shows a count on the Support card and a
-                      heads-up on the home screen. Off, it still arrives under Support → Mail,
+                      On, a new post from Snow Media shows a count on the Support card and a
+                      heads-up on the home screen. Off, it still arrives under Support → Posts,
                       quietly.
                     </p>
                   </div>
@@ -588,7 +588,7 @@ const Settings = ({ onBack }: SettingsProps) => {
                 <Switch
                   checked={mailNotify}
                   onCheckedChange={saveMailNotify}
-                  aria-label="Mail notifications"
+                  aria-label="Post notifications"
                   className="mt-1"
                 />
               </div>

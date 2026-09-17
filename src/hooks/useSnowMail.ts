@@ -32,7 +32,7 @@ export function useSnowMail(opts: Options = {}) {
     if (!notify || fresh.length === 0) return;
     const newest = fresh[0];
     toast({
-      title: fresh.length === 1 ? 'New mail from Snow Media' : `${fresh.length} new mails from Snow Media`,
+      title: fresh.length === 1 ? 'New post from Snow Media' : `${fresh.length} new posts from Snow Media`,
       description: newest.subject,
     });
   }, [opts.announce, state, notify, toast]);

@@ -9,7 +9,7 @@ import {
   MessageCircle,
   HelpCircle,
   Brain,
-  Mail,
+  Newspaper,
   GraduationCap,
   MonitorSmartphone,
   Sparkles,
@@ -395,7 +395,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">Support</h1>
             <p className="text-xl text-blue-200">
-              Get help, chat with AI, or read your mail from Snow Media
+              Get help, chat with AI, or catch up on posts from Snow Media
             </p>
           </div>
         </div>
@@ -423,8 +423,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               data-support-tv-focus-id="tab-mail"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
-              <Mail className="w-5 h-5 mr-2" />
-              Mail
+              <Newspaper className="w-5 h-5 mr-2" />
+              Posts
               {unreadMailCount > 0 && (
                 <span className="ml-3 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold inline-flex items-center justify-center ring-2 ring-white/70">
                   {unreadMailCount > 9 ? '9+' : unreadMailCount}

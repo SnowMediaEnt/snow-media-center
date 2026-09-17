@@ -1,6 +1,6 @@
 # Snow Media mail on the TV — what the website has to do
 
-The TV app (Snow Media Center) now has a **Mail** tab under Support. It lists
+The TV app (Snow Media Center) now has a **Posts** tab under Support. It lists
 every email campaign Snow Media Entertainment sends, dated, marked *New* until
 the viewer opens it, and opens one full screen at TV size. The TV app reads
 from its own Supabase project (`falmwzhvxoefvkfsiylp`), so the website has to
@@ -144,7 +144,7 @@ await publishMailToTv({
 
 ## What the TV does with it
 
-- Lists mails newest first under Support → Mail, with the date, subject, preheader and a *New* pill until opened.
-- Shows a count on the home screen's Support card and on the Mail tab, and a heads-up toast when a new one lands while the app is open. Viewers can switch that off under Settings → UI → Mail notifications; the mail still arrives.
+- Lists mails newest first under Support → Posts, with the date, subject, preheader and a *New* pill until opened.
+- Shows a count on the home screen's Support card and on the Posts tab, and a heads-up toast when a new one lands while the app is open. Viewers can switch that off under Settings → UI → Mail notifications; the mail still arrives.
 - Opened state is kept per viewer on the box, and on the account (`snow_mail_reads`) when signed in, so it follows them to another TV.
 - Realtime plus a five-minute poll, so a running TV sees a new campaign within moments of the send.

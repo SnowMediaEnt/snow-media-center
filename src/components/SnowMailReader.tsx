@@ -1,4 +1,4 @@
-// One mail from Snow Media, full screen, at TV size.
+// One post from Snow Media, full screen, at TV size.
 //
 // The email's blocks render natively at couch-readable sizes rather than as
 // the 600px email itself. Up/Down scroll the page; Left/Right step through
@@ -170,7 +170,7 @@ const SnowMailReader = ({ mail, onClose }: Props) => {
           {mail.preheader && <p className="text-xl text-brand-ice/90 mb-6">{mail.preheader}</p>}
           <div className="mt-6">
             {mail.blocks.map(renderBlock)}
-            {mail.blocks.length === 0 && <p className="text-xl text-white/60">This mail has no content to show.</p>}
+            {mail.blocks.length === 0 && <p className="text-xl text-white/60">This post has no content to show.</p>}
           </div>
         </div>
       </div>

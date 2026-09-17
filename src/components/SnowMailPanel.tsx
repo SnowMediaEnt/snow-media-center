@@ -1,4 +1,4 @@
-// The Mail tab in Support: everything Snow Media has sent, newest first,
+// The Posts tab in Support: everything Snow Media has sent, newest first,
 // dated, with the ones this viewer has not opened marked. OK opens one full
 // screen (SnowMailReader).
 //
@@ -6,7 +6,7 @@
 // 'snow-mail:focus-list' event, and Up from the first row (or Back) hands it
 // back through 'support:focus-tab'.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Mail, ChevronRight, BellOff } from 'lucide-react';
+import { Newspaper, ChevronRight, BellOff } from 'lucide-react';
 import { useTVFocus, type TVFocusNavigationMap } from '@/hooks/useTVFocus';
 import { useSnowMail } from '@/hooks/useSnowMail';
 import { mailDate, type SnowMail } from '@/lib/snowMail';
@@ -71,8 +71,8 @@ const SnowMailPanel = () => {
     <div ref={focus.containerRef} className="w-full">
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-3 text-white/80">
-          <Mail className="w-6 h-6 text-brand-gold" />
-          <span className="text-lg font-semibold">Mail from Snow Media Entertainment</span>
+          <Newspaper className="w-6 h-6 text-brand-gold" />
+          <span className="text-lg font-semibold">Posts from Snow Media Entertainment</span>
         </div>
         {!notify && (
           <span className="flex items-center gap-2 text-sm text-white/50"><BellOff className="w-4 h-4" /> Notifications off (Settings → UI)</span>
@@ -80,7 +80,7 @@ const SnowMailPanel = () => {
       </div>
 
       {!loaded && (
-        <div className="text-white/60 text-lg px-1 py-6">Checking for mail…</div>
+        <div className="text-white/60 text-lg px-1 py-6">Checking for posts…</div>
       )}
 
       {loaded && mails.length === 0 && (
@@ -89,9 +89,9 @@ const SnowMailPanel = () => {
           tabIndex={0}
           className={`rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center outline-none ${focus.currentFocusId === 'mail-empty' && active ? 'ring-2 ring-brand-gold' : ''}`}
         >
-          <Mail className="w-10 h-10 text-white/40 mx-auto mb-3" />
+          <Newspaper className="w-10 h-10 text-white/40 mx-auto mb-3" />
           <div className="text-xl font-semibold text-white/80">Nothing here yet</div>
-          <div className="text-base text-white/55 mt-1">When Snow Media sends out news, deals or event announcements, they land here — dated, and marked until you open them.</div>
+          <div className="text-base text-white/55 mt-1">When Snow Media posts news, deals or event announcements, they land here — dated, and marked until you open them.</div>
         </div>
       )}
 
