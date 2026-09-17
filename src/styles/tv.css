@@ -446,6 +446,21 @@
 }
 .snow-casino button,
 .snow-lobby button { outline:3px solid transparent; outline-offset:2px; }
+/* Shared remote cursor: extra specificity intentionally beats lazy-loaded
+   game themes, including their gold selected-state shadows. Only the managed
+   cursor gets this ring; selected bets and held cards keep their own fills. */
+.snow-casino.snow-casino button[data-tv-focused="true"][data-tv-focused] {
+  outline: 4px solid #f4ffff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 8px #00bde8, 0 0 24px 10px rgba(0, 221, 255, .65) !important;
+}
+@media (min-width: 2500px) and (min-height: 1400px) {
+  .snow-casino.snow-casino button[data-tv-focused="true"][data-tv-focused] {
+    outline-width: 7px !important;
+    outline-offset: 5px !important;
+    box-shadow: 0 0 0 13px #00bde8, 0 0 38px 15px rgba(0, 221, 255, .65) !important;
+  }
+}
 .snow-casino [aria-disabled="true"] { opacity:.5; }
 
 /* A few TV WebViews leave native DOM focus on Back after the managed cursor
