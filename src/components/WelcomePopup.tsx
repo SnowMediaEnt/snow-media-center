@@ -11,7 +11,7 @@ import { useVersion } from '@/hooks/useVersion';
  * Keep entries SHORT and user-facing — no internal/code talk.
  */
 const CHANGELOG: Record<string, string[]> = {
-  '1.7.2': [
+  '1.7.3': [
     '📰 Posts from Snow Media, in Support: every email we send out lands under the Posts tab too — dated, marked New until you open it, readable full screen. Turn the heads-up off under Settings → UI',
     '🎬 Plex (Movies & Series): the Player\'s card says Plex, with Movies & Series underneath',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',

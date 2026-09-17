@@ -79,8 +79,8 @@ android {
         applicationId "app.lovable.f44324110df840aea0a1fb97cafa76e7"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 32
-        versionName "1.7.2"
+        versionCode 33
+        versionName "1.7.3"
 
         // Never hardcode the key in Kotlin; see the block above.
         buildConfigField "String", "SMC_BILLING_APP_KEY", "\"${billingAppKey}\""
