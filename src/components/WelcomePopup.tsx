@@ -12,7 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.2': [
-    '🎬 Movies & Series: the Player\'s Plex + VOD card, renamed so it says what it is',
+    '🎬 Plex (Movies & Series): the Player\'s card says Plex, with Movies & Series underneath',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
     '💎 Snow Gems: pick a pack on the TV, scan the code, pay on your phone — the gems land on your account by themselves',
     '✨ Premium AI: switch Chat and Image Gen to the top models for Snow Gems, or stay on free — and try both side by side once for nothing',
@@ -29,7 +29,7 @@ const CHANGELOG: Record<string, string[]> = {
     '📂 Live TV: every account you\'ve signed in shows in one list — Dreamstreams and Vibez each under their own name, fold one up to get to the other',
     '🙈 Hide Categories: under Player Settings, switch off the categories you never open',
     '⭐ Favorites: a favorite whose link the service changed fixes itself when its category loads — or hold OK on it and pick Refresh channel link',
-    '🎞️ Movies & Series, redone: a menu down the left for Home, your libraries and their rows, a strip that describes whatever poster you land on — cover art, rating, runtime, summary and how much is left — and slimmer rails with more on screen',
+    '🎞️ Plex (Movies & Series), redone: a menu down the left for Home, your libraries and their rows, a strip that describes whatever poster you land on — cover art, rating, runtime, summary and how much is left — and slimmer rails with more on screen',
     '📺 Live TV, redone: a slimmer channel list with what\'s on now beside each channel, the categories one press to the left, and a big preview with Now and Next underneath',
   ],
   '1.7.1': [

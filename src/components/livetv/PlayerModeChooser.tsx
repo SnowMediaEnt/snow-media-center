@@ -8,7 +8,7 @@ interface Props {
 
 const CARDS = [
   { id: 'live' as const,   label: 'Live TV',        desc: 'Live channels & guide', icon: Tv },
-  { id: 'movies' as const, label: 'Movies & Series', desc: 'Plex + VOD',            icon: Film },
+  { id: 'movies' as const, label: 'Plex',           desc: 'Movies & Series',       icon: Film },
   { id: 'backups' as const, label: 'Backups',       desc: 'For Live TV members',    icon: LifeBuoy },
 ];
 
