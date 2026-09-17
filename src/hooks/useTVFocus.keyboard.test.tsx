@@ -561,6 +561,28 @@ describe('Enter and OK on a field', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("the remote's Play/Pause on a field being typed in is Next", async () => {
+    // The Fire TV keyboard legend calls Play "Next"; Amazon's keyboard does
+    // nothing with it over a web page, so the page moves the field itself.
+    const onSubmit = vi.fn();
+    const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);
+    const email = getByLabelText('email') as HTMLInputElement;
+    const password = getByLabelText('password') as HTMLInputElement;
+    await tap(email);
+    await fireDidShow();
+    await act(async () => { fireEvent.input(email, { target: { value: 'me@x.com' } }); });
+    await act(async () => { fireEvent.keyDown(email, { key: 'MediaPlayPause', keyCode: 179 }); });
+    await flush();
+    expect(document.activeElement).toBe(password);
+    expect(onSubmit).not.toHaveBeenCalled();
+    // The native side reports the same press a moment later: an echo, not a second Next.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('snowkeyboard:editoraction', { detail: { action: 'next' } }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(password);
+  });
+
   it('composition keys never submit or move the highlight', async () => {
     const onSubmit = vi.fn();
     const { getByLabelText } = render(<Harness onSubmit={onSubmit} />);

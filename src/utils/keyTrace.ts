@@ -10,6 +10,9 @@ const entries: string[] = [];
 const listeners = new Set<(lines: string[]) => void>();
 
 export const traceKey = (line: string) => {
+  // Also to the console: on the box that is logcat, tagged chromium, which
+  // is how a device log answers the question without a screenshot.
+  try { console.log('[keys] ' + line); } catch { /* never break a key press */ }
   entries.push(line);
   if (entries.length > MAX) entries.splice(0, entries.length - MAX);
   const snapshot = entries.slice();

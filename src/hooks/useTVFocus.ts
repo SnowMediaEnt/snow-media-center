@@ -135,6 +135,18 @@ const noteFieldEnter = (
   } catch { /* analytics must never break a key press */ }
 };
 
+/**
+ * The keys the Fire TV keyboard legend calls "Next" while typing: the
+ * remote's Play/Pause (and the skip key on remotes that have one). A device
+ * log showed Amazon's keyboard does nothing with Play over a web page — it
+ * neither moves focus nor sends an Enter — so the page takes the key itself.
+ * Tab is here for the WebViews that turn the keyboard's Next into a Tab.
+ */
+const isNextKey = (e: KeyboardEvent) =>
+  e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaTrackNext'
+  || e.keyCode === 179 || e.keyCode === 176
+  || e.key === 'Tab';
+
 /** Enter, or Space — both activate a focused control when not typing. */
 const isOkKey = (e: KeyboardEvent) =>
   isEnterKey(e) || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space' || e.keyCode === 32;
@@ -568,7 +580,9 @@ export const useTVFocus = ({
       if (action !== 'next') return;
       const active = document.activeElement as HTMLElement | null;
       if (!ownsElement(active)) return;
-      lastEnterRef.current = Date.now();
+      const now = Date.now();
+      if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
+      lastEnterRef.current = now;
       noteFieldEnter('action', null, active, true);
       advanceFrom(active);
     };
@@ -610,6 +624,7 @@ export const useTVFocus = ({
       }
       const target = event.target as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
+      if (isTextInput(active) || isTextInput(target)) traceKey(`kd ${event.key}/${event.keyCode}`);
       const isLooseTarget = (el: HTMLElement | null) =>
         !el || el === document.body || el === document.documentElement || el === containerRef.current;
       const managedTarget = findManagedElement(target)
@@ -718,15 +733,27 @@ export const useTVFocus = ({
       // keyboard on the same field — it blinked and stayed put.
       const enterField = isTextInput(active) ? active : (isTextInput(target) ? target : null);
       const allowEnter = managedTarget.dataset.tvAllowEnter === 'true';
+      if (isNextKey(event) && enterField) {
+        event.preventDefault();
+        event.stopPropagation();
+        // The native side reports the same press as an action; whichever
+        // lands first moves the field and the other is an echo.
+        if (now - lastEnterRef.current < ENTER_ECHO_MS) return;
+        lastEnterRef.current = now;
+        noteFieldEnter('keydown', event, enterField, true);
+        advanceFrom(enterField);
+        return;
+      }
       if (isEnterKey(event) && enterField) {
         const editing = fieldIsBeingEdited(enterField);
         // A multiline box keeps ordinary editing: Enter inserts a newline.
         if (enterField.tagName === 'TEXTAREA' && editing) return;
         event.preventDefault();
         event.stopPropagation();
-        lastEnterRef.current = now;
         noteFieldEnter('keydown', event, enterField, editing);
-        if (editing) advanceFrom(enterField);
+        // The echo window only covers a press that MOVED the field. An OK
+        // that asked for the keyboard must not shadow a Next that follows it.
+        if (editing) { lastEnterRef.current = now; advanceFrom(enterField); }
         else activate();
         return;
       }
