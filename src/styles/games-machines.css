@@ -375,7 +375,7 @@
 
 .snow-slot-screen {
   position: relative;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -561,7 +561,7 @@
   border-radius: 12px;
 }
 
-.snow-slot-paytable-panel { flex: 1 1 60%; min-height: 0; }
+.snow-slot-paytable-panel { flex: 1 1 60%; min-height: 0; overflow: auto; }
 .snow-slot-status-panel { flex: 1 1 40%; min-height: 0; }
 
 .snow-machine-panel-title {

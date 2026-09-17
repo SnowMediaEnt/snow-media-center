@@ -96,6 +96,11 @@ describe('terminal round reconciliation', () => {
     render(<Blackjack onBack={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /games\.blackjack\.dealWithBet/ }));
 
+    // Down has no destination until the reveal finishes. It must not cancel
+    // the scheduled handoff to Play Again and leave the remote on Back.
+    await waitFor(() => expect(screen.getByRole('button', { name: /games\.blackjack\.playAgain/ }).getAttribute('aria-disabled')).toBe('true'));
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+
     const again = await waitFor(
       () => {
         const button = screen.getByRole('button', { name: /games\.blackjack\.playAgain/ });
