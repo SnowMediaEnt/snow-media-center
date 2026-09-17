@@ -807,10 +807,6 @@ const Slots = ({ onBack }: SlotsProps) => {
             </div>
 
             <div className="snow-slot-controls">
-              <div className="snow-slot-meter">
-                <small>{t('games.slots.bet')}</small>
-                <strong>{bet.toLocaleString()}</strong>
-              </div>
               <div className="snow-slot-bet">
                 <Button
                   ref={minusBtnRef}
@@ -825,7 +821,7 @@ const Slots = ({ onBack }: SlotsProps) => {
                 >
                   <Minus />
                 </Button>
-                <span className="snow-slot-bet__value">{bet}</span>
+                <span className="snow-slot-bet__value"><small>{t('games.slots.bet')}</small><strong>{bet.toLocaleString()}</strong></span>
                 <Button
                   ref={plusBtnRef}
                   type="button"

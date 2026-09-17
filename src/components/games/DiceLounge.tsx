@@ -273,7 +273,9 @@ const DiceLounge = ({ onBack }: DiceLoungeProps) => {
       ...(rollUsable ? ['roll'] : []),
       ...(phase === 'choosing' ? ['bank'] : []),
     ];
-    return [top, wagerRow, diceRow, actions];
+    // Wager chips and Roll are one horizontal remote-navigation row.
+    if (phase === 'ready') return [top, [...wagerRow, ...actions]];
+    return [top, diceRow, actions];
   }, [phase, canHold, dice, rollUsable, user]);
 
   useEffect(() => {
