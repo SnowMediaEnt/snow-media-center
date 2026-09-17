@@ -12,6 +12,7 @@ import { useVersion } from '@/hooks/useVersion';
  */
 const CHANGELOG: Record<string, string[]> = {
   '1.7.2': [
+    '📬 Mail from Snow Media, in Support: every email we send lands under the Mail tab too — dated, marked until you open it, readable full screen. Turn the heads-up off under Settings → UI',
     '🎬 Plex (Movies & Series): the Player\'s card says Plex, with Movies & Series underneath',
     '🧹 Device Cleaner in Support: frees space and memory, and finds apps nobody opens',
     '💎 Snow Gems: pick a pack on the TV, scan the code, pay on your phone — the gems land on your account by themselves',

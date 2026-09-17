@@ -28,6 +28,7 @@ import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
+import { useSnowMail } from '@/hooks/useSnowMail';
 import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
@@ -439,6 +440,7 @@ const Index = () => {
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
+  const { badgeCount: unreadMailCount } = useSnowMail({ announce: true });
   const { version } = useVersion();
   // Mirrors a locally-stored player account into customer_services once a
   // signed-in session is detected. Fire-and-forget; safe no-op when either
@@ -1215,7 +1217,7 @@ const Index = () => {
                     layoutMode={effectiveLayout}
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
-                    badgeCount={button.title === t('home.support.title') ? unreadTicketCount : 0}
+                    badgeCount={button.title === t('home.support.title') ? unreadTicketCount + unreadMailCount : 0}
                   />
                 );
 

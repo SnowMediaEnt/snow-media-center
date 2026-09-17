@@ -952,3 +952,15 @@ html.no-flex-gap .flex.flex-col.gap-3 > * + * { margin-top: 0.75rem; }
    watermark ever share the screen with a stream, stop their compositing. */
 html.smc-quiet .news-ticker-track { animation-play-state: paused !important; }
 html.smc-quiet .home-watermark, html.smc-quiet .news-ticker { visibility: hidden; }
+
+/* Rich text inside a Snow Media mail (Support → Mail), sanitized upstream. */
+.mail-prose p { margin: 0 0 1.1rem; }
+.mail-prose ul, .mail-prose ol { margin: 0 0 1.1rem; padding-left: 1.6rem; }
+.mail-prose ul { list-style: disc; }
+.mail-prose ol { list-style: decimal; }
+.mail-prose li { margin: 0 0 0.35rem; }
+.mail-prose h1, .mail-prose h2, .mail-prose h3, .mail-prose h4 { color: #fff; font-weight: 800; line-height: 1.2; margin: 1.4rem 0 0.6rem; }
+.mail-prose h1 { font-size: 1.75rem; } .mail-prose h2 { font-size: 1.5rem; } .mail-prose h3, .mail-prose h4 { font-size: 1.25rem; }
+.mail-prose a { color: #a1d5dc; text-decoration: underline; }
+.mail-prose img { max-width: 100%; border-radius: 1rem; margin: 0.5rem 0 1.1rem; }
+.mail-prose blockquote { border-left: 4px solid rgba(195,170,114,0.6); padding-left: 1rem; color: rgba(255,255,255,0.7); margin: 0 0 1.1rem; }

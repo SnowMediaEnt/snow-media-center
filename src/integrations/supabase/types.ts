@@ -2233,6 +2233,66 @@ export type Database = {
         }
         Relationships: []
       }
+      snow_mail: {
+        Row: {
+          audience_mode: string
+          blocks: Json
+          campaign_id: string
+          created_at: string
+          hero_image: string | null
+          id: string
+          preheader: string | null
+          recipient_emails: string[]
+          sent_at: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          audience_mode?: string
+          blocks?: Json
+          campaign_id: string
+          created_at?: string
+          hero_image?: string | null
+          id?: string
+          preheader?: string | null
+          recipient_emails?: string[]
+          sent_at?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          audience_mode?: string
+          blocks?: Json
+          campaign_id?: string
+          created_at?: string
+          hero_image?: string | null
+          id?: string
+          preheader?: string | null
+          recipient_emails?: string[]
+          sent_at?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      snow_mail_reads: {
+        Row: {
+          mail_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          mail_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          mail_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       watch_history: {
         Row: {
           count: number

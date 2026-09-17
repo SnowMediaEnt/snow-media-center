@@ -9,7 +9,7 @@ import {
   MessageCircle,
   HelpCircle,
   Brain,
-  MessageSquare,
+  Mail,
   GraduationCap,
   MonitorSmartphone,
   Sparkles,
@@ -28,11 +28,12 @@ import { trackAppLaunch, trackEvent } from '@/lib/analytics';
 import { hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { snapAllTVScrollToTop } from '@/utils/tvScroll';
 import { useUnreadTickets } from '@/hooks/useUnreadTickets';
+import { useSnowMail } from '@/hooks/useSnowMail';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
-const CommunityChat = lazy(() => import('@/components/CommunityChat'));
+const SnowMailPanel = lazy(() => import('@/components/SnowMailPanel'));
 const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
 const HowToGuide = lazy(() => import('@/components/HowToGuide'));
 const RemoteSupport = lazy(() => import('@/components/RemoteSupport'));
@@ -44,7 +45,7 @@ interface SupportProps {
   onOpenMainApps?: () => void;
 }
 
-type Tab = 'help' | 'ai' | 'community';
+type Tab = 'help' | 'ai' | 'mail';
 type HelpView = 'menu' | 'videos' | 'tickets' | 'remote' | 'cleaner';
 
 /** DOM order of the Help cards. The D-pad map below is derived from this plus
@@ -64,6 +65,7 @@ const HELP_TWO_COL = '(min-width: 768px)';
 
 const Support = ({ onBack, onNavigate }: SupportProps) => {
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
+  const { badgeCount: unreadMailCount } = useSnowMail();
   const [tab, setTab] = useState<Tab>('help');
   const [helpView, setHelpView] = useState<HelpView>('menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
@@ -184,9 +186,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       window.dispatchEvent(new CustomEvent('chat-community:focus-ai-input'));
       return true;
     }
-    if (childTab === 'community') {
+    if (childTab === 'mail') {
       setChildFocusActive(true);
-      window.dispatchEvent(new CustomEvent('community-chat:focus-room'));
+      window.dispatchEvent(new CustomEvent('snow-mail:focus-list'));
       return true;
     }
     return false;
@@ -200,14 +202,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     // count instead, so Down moves down a column and Right moves across a row.
     const nav: TVFocusNavigationMap = {
       'support-back': { down: `tab-${tab}` },
-      'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-community', down: 'help-howto' },
+      'tab-help': { up: 'support-back', right: 'tab-ai', left: 'tab-mail', down: 'help-howto' },
       'tab-ai': {
-        up: 'support-back', right: 'tab-community', left: 'tab-help',
+        up: 'support-back', right: 'tab-mail', left: 'tab-help',
         down: () => { focusIntoChild('ai'); return null; },
       },
-      'tab-community': {
+      'tab-mail': {
         up: 'support-back', right: 'tab-help', left: 'tab-ai',
-        down: () => { focusIntoChild('community'); return null; },
+        down: () => { focusIntoChild('mail'); return null; },
       },
     };
     const stay = () => null;
@@ -393,7 +395,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           <div className="text-center mt-4">
             <h1 className="text-4xl font-bold text-white mb-2">Support</h1>
             <p className="text-xl text-blue-200">
-              Get help, chat with AI, or connect with the community
+              Get help, chat with AI, or read your mail from Snow Media
             </p>
           </div>
         </div>
@@ -417,12 +419,17 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
               AI Chat
             </TabsTrigger>
             <TabsTrigger
-              value="community"
-              data-support-tv-focus-id="tab-community"
+              value="mail"
+              data-support-tv-focus-id="tab-mail"
               className="h-full inline-flex items-center justify-center text-white text-center text-lg min-w-0 transition-all duration-200 outline-none data-[state=active]:bg-green-600 data-[state=active]:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.45)]"
             >
-              <MessageSquare className="w-5 h-5 mr-2" />
-              Community
+              <Mail className="w-5 h-5 mr-2" />
+              Mail
+              {unreadMailCount > 0 && (
+                <span className="ml-3 min-w-[1.5rem] h-6 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold inline-flex items-center justify-center ring-2 ring-white/70">
+                  {unreadMailCount > 9 ? '9+' : unreadMailCount}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -556,9 +563,9 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="community" className="mt-0">
+          <TabsContent value="mail" className="mt-0">
             <Suspense fallback={null}>
-              <CommunityChat onBack={onBack} embedded />
+              <SnowMailPanel />
             </Suspense>
           </TabsContent>
         </Tabs>

@@ -96,3 +96,9 @@ verify_jwt = false
 # and per line.
 [functions.plex-provider-token]
 verify_jwt = false
+
+# The website posts each sent email campaign here so the TV app can show it
+# under Support → Mail. Server-to-server only: guarded in code by
+# INTERNAL_FN_SECRET, nothing on a customer device calls it.
+[functions.mail-publish]
+verify_jwt = false
