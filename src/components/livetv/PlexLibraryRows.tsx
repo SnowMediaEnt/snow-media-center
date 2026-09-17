@@ -27,7 +27,6 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
-import type { PlexHighlight } from './PlexHighlightStrip';
 import {
   getPlexSectionOnDeck, getPlexSectionRow, getCachedHub, setCachedHub,
   getPlexSectionMeta, getPlexFilterValues, getPlexLibraryQuery,
@@ -47,9 +46,6 @@ interface LoadedRow {
   items: PlexItem[];
 }
 
-/** A rail as the side menu lists it. */
-export interface PlexMenuRow { id: string; title: string }
-
 export interface PlexLibraryRowsProps {
   /** The remote is ours: the section is active, the user is in the content
    *  zone, no detail page is open. Drives the keyboard and the focus ring. */
@@ -64,12 +60,6 @@ export interface PlexLibraryRowsProps {
   sectionType: PlexSectionType;
   onOpen: (it: PlexItem) => void;
   onExitToTabs: () => void;
-  /** The highlighted poster, for the strip above the rails. */
-  onHighlight?: (h: PlexHighlight | null) => void;
-  /** The rails currently showing, for the side menu's jump list. */
-  onRowsChange?: (rows: PlexMenuRow[]) => void;
-  /** Focus a rail by id (from the side menu). `n` makes repeats distinct. */
-  jumpTo?: { id: string; n: number } | null;
 }
 
 /** Cache key for a row, so a revisit paints instantly from the hub cache. */
@@ -80,7 +70,7 @@ const rowCachePath = (libKey: string, spec: LibraryRowSpec) =>
 
 const PlexLibraryRows = memo(({
   isActive, isCurrent, base, token, libKey, libTitle, sectionType,
-  onOpen, onExitToTabs, onHighlight, onRowsChange, jumpTo,
+  onOpen, onExitToTabs,
 }: PlexLibraryRowsProps) => {
   const specs = useMemo(() => libraryRowSpecs(sectionType), [sectionType]);
 
@@ -138,24 +128,6 @@ const PlexLibraryRows = memo(({
       setCol(Math.max(0, r.items.length - 1));
     }
   }, [rows, row, col]);
-
-  // Tell the side menu which rails exist. Every spec is listed, not only the
-  // loaded ones, so the menu does not reshuffle as wave-2 rows land; a jump to
-  // a rail that turned out empty simply stays where it is.
-  const onRowsChangeRef = useRef(onRowsChange); useEffect(() => { onRowsChangeRef.current = onRowsChange; }, [onRowsChange]);
-  useEffect(() => {
-    onRowsChangeRef.current?.(rows.map((r) => ({ id: r.spec.id, title: r.spec.title })));
-  }, [rows]);
-
-  // A jump from the side menu lands on the first tile of that rail.
-  useEffect(() => {
-    if (!jumpTo) return;
-    if (rows.some((r) => r.spec.id === jumpTo.id)) {
-      setZone('content');
-      setFocusedRowId(jumpTo.id);
-      setCol(0);
-    }
-  }, [jumpTo, rows]);
 
   // ── filter bar ───────────────────────────────────────────────────────────
   // 'bar' is a zone above the content, not a row in the rows array. Keeping it
@@ -394,24 +366,6 @@ const PlexLibraryRows = memo(({
     if (id === 'unwatched') { setFilters((f) => ({ ...f, unwatched: !f.unwatched })); return; }
     void openMenu(id);
   }, [openMenu]);
-
-  // The strip above the rails follows whatever tile is highlighted: a rail
-  // tile, or a grid tile while filtering. Nothing while the chip bar has it.
-  const onHighlightRef = useRef(onHighlight); useEffect(() => { onHighlightRef.current = onHighlight; }, [onHighlight]);
-  useEffect(() => {
-    if (!onHighlightRef.current) return;
-    // The chip bar keeps whatever was last described rather than blanking
-    // the strip: the user is one press from the same tile.
-    if (zone === 'bar') return;
-    if (filtering) {
-      const it = results?.items[gridCursor];
-      onHighlightRef.current(it ? { item: it, from: describeFilters(filters, sortOptions.find((o) => o.key === filters.sort)?.title) || 'Filtered' } : null);
-      return;
-    }
-    const r = rows[row];
-    const it = r?.items[col];
-    onHighlightRef.current(it ? { item: it, from: r.spec.title } : null);
-  }, [zone, filtering, results, gridCursor, rows, row, col, filters, sortOptions]);
 
   // ── D-pad ────────────────────────────────────────────────────────────────
   const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);

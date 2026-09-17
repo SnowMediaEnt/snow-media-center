@@ -61,6 +61,7 @@ import { AlertTriangle, RotateCw } from 'lucide-react';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { useNativePlayer } from '@/hooks/useNativePlayer';
 import { isDemo, DEMO_DIALOG_MSG } from '@/lib/demoMode';
+import { useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -92,7 +93,12 @@ interface Props {
 type Pane = 'categories' | 'channels';
 const FAV_ID = '__favorites__';
 const ALL_ID = '__all__';
-const ROW_HEIGHT = 60; // px — a 56px ChannelRow inside a 60px slot (2px padding top and bottom)
+// Slot height per layout. The row inside must match (see ChannelRow): the
+// D-pad scroll math below is written against the slot, never measured.
+//   classic: the 80px row in an 84px slot · compact: 56px in 60px ·
+//   grid: a row of GRID_COLS tiles, 168px tall in a 176px slot.
+const rowHeightFor = (l: LiveLayout): number => (l === 'classic' ? 84 : l === 'grid' ? 176 : 60);
+const GRID_COLS = 5;
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
@@ -682,13 +688,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // Wrapper around the virtualized rows — sits BELOW the Search button inside
   // the same scroll container, so we must measure its offset to scroll correctly.
   const categoriesListRef = useRef<HTMLDivElement | null>(null);
+  const layout = useLiveLayout();
+  const cols = layout === 'grid' ? GRID_COLS : 1;
+  const rowHeight = rowHeightFor(layout);
+  const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
+  // One virtual row per list row, or per GRID_COLS tiles in the grid.
+  const rowCount = Math.ceil(visibleChannels.length / cols);
   const rowVirtualizer = useVirtualizer({
-    count: visibleChannels.length,
+    count: rowCount,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: isFireTV() ? 2 : 8,
-    getItemKey: (i) => visibleChannels[i]?.stream_id ?? i,
+    getItemKey: (i) => (cols === 1 ? (visibleChannels[i]?.stream_id ?? i) : i),
   });
+  // Switching layout changes every slot's height: drop the measurements.
+  useEffect(() => { rowVirtualizer.measure(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rowHeight, cols]);
 
   // Virtualize the category pane too — Vibez can expose 100+ categories and
   // rendering them all caused layout thrash that interfered with D-pad
@@ -737,8 +751,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const node = scrollParentRef.current;
       if (!node) return;
       if (channelIdx === 0) { node.scrollTop = 0; return; }
-      const rowTop = channelIdx * ROW_HEIGHT;
-      const rowBottom = rowTop + ROW_HEIGHT;
+      const rowTop = Math.floor(channelIdx / cols) * rowHeight;
+      const rowBottom = rowTop + rowHeight;
       if (rowTop < node.scrollTop) node.scrollTop = rowTop;
       else if (rowBottom > node.scrollTop + node.clientHeight) node.scrollTop = rowBottom - node.clientHeight;
     };
@@ -747,7 +761,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelIdx, visibleChannels.length]);
+  }, [channelIdx, visibleChannels.length, cols, rowHeight]);
 
   // Keep the focused category visible.
   //
@@ -821,11 +835,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const virtualItems = rowVirtualizer.getVirtualItems();
   useEffect(() => {
     for (const v of virtualItems) {
-      const s = visibleChannels[v.index];
-      if (s) enqueueEpg(s);
+      for (let c = 0; c < cols; c++) {
+        const s = visibleChannels[v.index * cols + c];
+        if (s) enqueueEpg(s);
+      }
     }
     if (focusedChannel) enqueueEpg(focusedChannel);
-  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg]);
+  }, [virtualItems, visibleChannels, focusedChannel, enqueueEpg, cols]);
 
   const focusedNowNext = epgFor(focusedChannel);
 
@@ -840,12 +856,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     || document.documentElement.classList.contains('native-low-memory')
     || document.documentElement.classList.contains('legacy-webview'),
   );
+  // Two ways into the preview box. Where a <video> is cheap, the highlighted
+  // channel previews on its own after a short dwell, muted. Everywhere — and
+  // on Fire TV this is the only way — OK on a channel previews it, with
+  // sound, and OK on the channel already previewing goes fullscreen. An
+  // explicit preview stays up while the user keeps browsing.
+  const [armedPreviewId, setArmedPreviewId] = useState<number | null>(null);
   useEffect(() => {
-    if (previewDisabled) { setPreviewChannel(null); return; }
+    if (previewDisabled) return; // only OK puts a <video> up on these boxes
+    if (armedPreviewId != null) return; // the explicit choice wins over dwell
     if (!focusedChannel) { setPreviewChannel(null); return; }
     const t = window.setTimeout(() => setPreviewChannel(focusedChannel), PREVIEW_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [focusedChannel, previewDisabled]);
+  }, [focusedChannel, previewDisabled, armedPreviewId]);
 
   const previewUrl = useMemo(
     // Demo: no stream URL may ever be constructed — the host is a sentinel.
@@ -860,6 +883,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (DEMO || !playingChannelId) return null;
     return buildLiveStreamUrl(playingLine, playingChannelId);
   }, [playingChannelId, playingLine]);
+
+  const previewChannelRef = useRef(previewChannel);
+  useEffect(() => { previewChannelRef.current = previewChannel; }, [previewChannel]);
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
   // What is on screen right now, for the watch timer below.
@@ -888,6 +914,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
     } catch { /* ignore */ }
   }, [visibleCategories, currentCat, lineFor]);
+
+  // OK on a channel: preview it if it is not the one in the box, otherwise
+  // go fullscreen. Demo has no streams to preview, so it goes straight on.
+  const activateChannel = useCallback((stream: XtreamLiveStream) => {
+    const cur = previewChannelRef.current;
+    const same = !!cur && cur.stream_id === stream.stream_id && lineFor(cur) === lineFor(stream);
+    // The grid has no preview box, so OK plays straight away.
+    if (same || DEMO || colsRef.current > 1) { playChannel(stream); return; }
+    setArmedPreviewId(stream.stream_id);
+    setPreviewChannel(stream);
+  }, [playChannel, lineFor]);
+  const activateChannelRef = useRef(activateChannel);
+  useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer
@@ -1283,13 +1322,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
 
       // pane === 'channels'
-      if (e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
-      else if (e.key === 'ArrowUp') {
+      const nCols = colsRef.current;
+      if (nCols > 1) {
+        // The grid: Up/Down move a whole row, Left/Right a tile, Left off the
+        // first column opens the categories. Ends clamp rather than wrap.
+        const n = chans.length;
+        if (e.key === 'ArrowDown') setChannelIdx(i => (i + nCols < n ? i + nCols : (Math.floor(i / nCols) < Math.floor((n - 1) / nCols) ? n - 1 : i)));
+        else if (e.key === 'ArrowUp') setChannelIdx(i => (i - nCols >= 0 ? i - nCols : i));
+        else if (e.key === 'ArrowLeft') { if (channelIdxRef.current % nCols === 0) setPane('categories'); else setChannelIdx(i => i - 1); }
+        else if (e.key === 'ArrowRight') setChannelIdx(i => (i % nCols < nCols - 1 && i + 1 < n ? i + 1 : i));
+      }
+      if (nCols === 1 && e.key === 'ArrowDown') setChannelIdx(i => chans.length ? (i + 1) % chans.length : 0);
+      else if (nCols === 1 && e.key === 'ArrowUp') {
         // Wrap to the LAST channel when at the top — one press to reach the
         // bottom of a long list. Was previously exiting up to sections.
         setChannelIdx(i => chans.length ? (i - 1 + chans.length) % chans.length : 0);
       }
-      else if (e.key === 'ArrowLeft') {
+      else if (nCols === 1 && e.key === 'ArrowLeft') {
         setPane('categories');
       }
       else if (e.key === 'Enter' || e.key === ' ') {
@@ -1319,7 +1368,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // Released before long-press threshold → treat as short press (play).
         cancelEnterTimer();
         const ch = visibleChannelsRef.current[channelIdxRef.current];
-        if (ch) playChannel(ch);
+        if (ch) activateChannelRef.current(ch);
       }
       // If long-press already fired, just consume the keyup.
       enterFiredRef.current = false;
@@ -1340,6 +1389,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     (async () => {
       try {
         const h = await CapApp.addListener('backButton', () => {
+          // The Player shell owns hardware Back: it turns the press into an
+          // Escape keydown that the handler above deals with. Acting here as
+          // well meant ONE press was handled twice — the Escape opened the
+          // categories, then this listener saw them open and left the section.
+          if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           if (reportForRef.current) return;
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
@@ -1505,19 +1559,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const catCount = currentCat?.count ?? (visibleChannels.length || undefined);
   const nowLeftMins = focusedNowNext?.now ? Math.max(0, Math.round((focusedNowNext.now.end - Date.now()) / 60000)) : null;
-  return (
-    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden relative">
-      {/* Categories — a drawer over the channel list. Left (or Back) from the
-          list opens it; picking a category closes it. It stays mounted and is
-          only moved off-screen, so its virtualizer keeps a measured scroll
-          parent and the manual scroll math (see the long comment above) still
-          holds when it slides back in. */}
-      <div
-        ref={categoriesScrollRef}
-        aria-hidden={pane !== 'categories'}
-        style={{ transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' }}
-        className={`absolute left-0 top-0 bottom-0 z-20 w-[38%] min-w-[340px] max-w-[480px] border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`}
-      >
+  const paneW = 'w-[38%] min-w-[340px] max-w-[480px]';
+
+  // ── the categories pane: a static column (classic, grid) or a drawer over
+  //    the channel list (compact). Same DOM either way, so its virtualizer
+  //    keeps a measured scroll parent and the manual scroll math holds.
+  const drawer = layout === 'compact';
+  const categoriesPane = (
+    <div
+      ref={categoriesScrollRef}
+      aria-hidden={drawer && pane !== 'categories'}
+      style={drawer ? { transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' } : undefined}
+      className={drawer
+        ? `absolute left-0 top-0 bottom-0 z-20 ${paneW} border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`
+        : `w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}`}
+    >
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
@@ -1616,42 +1672,26 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             )}
           </>
         )}
-      </div>
+    </div>
+  );
 
-      {/* Channel list: the current category as a switcher row, then slim rows */}
-      <div className="w-[38%] min-w-[340px] max-w-[480px] flex-shrink-0 flex flex-col border-r border-white/10 bg-black/30">
-        <div
-          onClick={() => setPane('categories')}
-          className="flex-shrink-0 h-12 flex items-center gap-3 px-4 border-b border-white/10 cursor-pointer"
-        >
-          <span className="text-brand-ice/50 text-sm" aria-hidden="true">◀</span>
-          <div className="flex-1 min-w-0 text-center">
-            {grouped && currentCat?.line && (
-              <div className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold truncate">{lineLabel(currentCat.line)}</div>
-            )}
-            <div className="text-sm font-quicksand font-semibold text-white truncate">
-              {searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}
-              {!searchOpen && catCount ? <span className="text-brand-ice/60 font-nunito font-normal"> · {formatCount(catCount)}</span> : null}
+  // ── the channel list / grid, virtualized by row ────────────────────────
+  const rowVariant: 'classic' | 'compact' | 'tile' = layout === 'grid' ? 'tile' : layout;
+  const channelList = (
+    <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
+      {channelsLoading && visibleChannels.length === 0 ? (
+        <div className="space-y-1">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
+              <div className="w-8 h-4 rounded-full bg-white/10" />
+              <div className="w-14 h-14 rounded-lg bg-white/10" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/2 rounded-full bg-white/10" />
+                <div className="h-3 w-2/3 rounded-full bg-white/5" />
+              </div>
             </div>
-          </div>
-          <span className="text-xs font-nunito text-brand-ice/50 flex-shrink-0">categories</span>
+          ))}
         </div>
-
-        {/* Virtualized channel list */}
-        <div ref={scrollParentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
-          {channelsLoading && visibleChannels.length === 0 ? (
-            <div className="space-y-1">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 animate-pulse">
-                  <div className="w-8 h-4 rounded-full bg-white/10" />
-                  <div className="w-14 h-14 rounded-lg bg-white/10" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-1/2 rounded-full bg-white/10" />
-                    <div className="h-3 w-2/3 rounded-full bg-white/5" />
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : visibleChannels.length === 0 ? (
             <div className="h-full flex items-center justify-center text-brand-ice/70 font-nunito text-center px-6">
               {searchOpen
@@ -1662,70 +1702,106 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   ? 'No favorites yet. Press F on a channel to add it.'
                   : 'No channels in this category.'}
             </div>
-          ) : (
-            <div style={{ height: totalSize, position: 'relative', width: '100%' }}>
-              {virtualItems.map(v => {
-                const s = visibleChannels[v.index];
-                if (!s) return null;
-                const isFocused = isActive && pane === 'channels' && v.index === safeChannelIdx;
-                return (
-                  <div
-                    key={v.key}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: ROW_HEIGHT,
-                      transform: `translateY(${v.start}px)`,
-                      padding: '2px 0',
-                    }}
-                  >
+      ) : (
+        <div style={{ height: totalSize, position: 'relative', width: '100%' }}>
+          {virtualItems.map(v => {
+            const first = v.index * cols;
+            const slot = visibleChannels.slice(first, first + cols);
+            if (slot.length === 0) return null;
+            return (
+              <div
+                key={v.key}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: rowHeight, transform: `translateY(${v.start}px)`, padding: cols > 1 ? '4px 0' : '2px 0' }}
+                className={cols > 1 ? 'grid gap-3' : undefined}
+                // Inline, not a Tailwind class: the column count is a constant
+                // and gap + grid must paint on the Chromium 66 WebView.
+                {...(cols > 1 ? { style: { position: 'absolute', top: 0, left: 0, width: '100%', height: rowHeight, transform: `translateY(${v.start}px)`, padding: '4px 0', display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 12 } } : {})}
+              >
+                {slot.map((s, c) => {
+                  const idx = first + c;
+                  return (
                     <ChannelRow
+                      key={s.stream_id}
+                      variant={rowVariant}
                       channel={s}
-                      index={v.index}
-                      isFocused={isFocused}
+                      index={idx}
+                      isFocused={isActive && pane === 'channels' && idx === safeChannelIdx}
                       isPlaying={playingChannelId === s.stream_id}
                       isFavorite={isFav(s)}
                       nowNext={epgFor(s)}
-                      onSelect={(idx) => { setChannelIdx(idx); }}
-                      onActivate={(idx) => { setPane('channels'); setChannelIdx(idx); playChannel(visibleChannels[idx]); }}
-                      onLongPress={(idx) => { setChannelIdx(idx); setReportFor(visibleChannels[idx]); }}
+                      onSelect={(i) => { setChannelIdx(i); }}
+                      onActivate={(i) => { setPane('channels'); setChannelIdx(i); activateChannel(visibleChannels[i]); }}
+                      onLongPress={(i) => { setChannelIdx(i); setReportFor(visibleChannels[i]); }}
                     />
-
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
+    </div>
+  );
 
-      {/* Stage: the preview, then what is on now and next */}
-      <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
-        <div className="relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
-          {previewDisabled ? (
-            // Preview <video> is disabled on Fire TV and low-memory / legacy
-            // WebView devices — each <video> spawns a WebMediaPlayer that
-            // saturates the compositor thread and freezes the UI.
-            <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
-              {focusedChannel?.stream_icon ? (
-                <img src={focusedChannel.stream_icon} alt="" className="w-24 h-24 object-contain opacity-90" />
-              ) : (
-                <Tv className="w-12 h-12 text-brand-ice/40" />
-              )}
-              {focusedChannel ? 'Press OK to play' : 'No channel selected'}
-            </div>
-          ) : previewUrl ? (
-            <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
-              <VideoPlayer src={previewUrl} volume={0} muted={true} className="w-full h-full" chrome="minimal" />
-            </Suspense>
+  // ── the preview box, shared by the classic header and the compact stage ─
+  const previewBox = (
+    <>
+      {previewUrl ? (
+        // One <video> at most, and on Fire TV / low-memory boxes only after
+        // the user asked for it with OK — each <video> spawns a
+        // WebMediaPlayer that saturates the compositor thread. A dwell
+        // preview is muted; an OK preview plays with sound.
+        <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
+          <VideoPlayer src={previewUrl} volume={armedPreviewId != null ? volume : 0} muted={armedPreviewId == null} className="w-full h-full" chrome="minimal" />
+        </Suspense>
+      ) : previewDisabled || !focusedChannel ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-brand-ice/70 font-nunito text-sm text-center px-4">
+          {focusedChannel?.stream_icon ? (
+            <img src={focusedChannel.stream_icon} alt="" className="w-20 h-20 object-contain opacity-90" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
-              {focusedChannel ? 'Preview loading…' : 'No channel selected'}
-            </div>
+            <Tv className="w-10 h-10 text-brand-ice/40" />
           )}
+          {focusedChannel ? 'Press OK to preview' : 'No channel selected'}
         </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-brand-ice/70 font-nunito text-sm text-center px-4">
+          {focusedChannel ? 'Preview loading…' : 'No channel selected'}
+        </div>
+      )}
+    </>
+  );
+
+  if (layout === 'compact') {
+    return (
+      <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden relative">
+        {categoriesPane}
+
+        {/* Channel list: the current category as a switcher row, then slim rows */}
+        <div className={`${paneW} flex-shrink-0 flex flex-col border-r border-white/10 bg-black/30`}>
+          <div
+            onClick={() => setPane('categories')}
+            className="flex-shrink-0 h-12 flex items-center gap-3 px-4 border-b border-white/10 cursor-pointer"
+          >
+            <span className="text-brand-ice/50 text-sm" aria-hidden="true">◀</span>
+            <div className="flex-1 min-w-0 text-center">
+              {grouped && currentCat?.line && (
+                <div className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold truncate">{lineLabel(currentCat.line)}</div>
+              )}
+              <div className="text-sm font-quicksand font-semibold text-white truncate">
+                {searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}
+                {!searchOpen && catCount ? <span className="text-brand-ice/60 font-nunito font-normal"> · {formatCount(catCount)}</span> : null}
+              </div>
+            </div>
+            <span className="text-xs font-nunito text-brand-ice/50 flex-shrink-0">categories</span>
+          </div>
+          {channelList}
+        </div>
+
+        {/* Stage: the preview, then what is on now and next */}
+        <div className="flex-1 min-w-0 flex flex-col p-5 gap-3 overflow-hidden">
+          <div className="relative w-full aspect-video max-h-[56%] rounded-2xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
+            {previewBox}
+          </div>
 
         {/* The highlighted channel, under the preview rather than over it so
             it never fights the preview's own controls. */}
@@ -1782,7 +1858,116 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-        <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK play · Hold OK options · ◀ categories · F favorite</p>
+          <p className="flex-shrink-0 text-xs font-nunito text-brand-ice/55">OK preview · OK again full screen · Hold OK options · ◀ categories</p>
+        </div>
+      {reportFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={reportFor.name}
+            channelId={reportFor.stream_id}
+            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
+            isFavorite={isFav(reportFor)}
+            onToggleFavorite={() => toggleFavorite(reportFor)}
+            onRefreshFavorite={() => refreshFavorite(reportFor)}
+            onOpenBufferingGuide={() => {
+              setReportFor(null);
+              enterFiredRef.current = false;
+              onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
+            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
+          />
+
+        </Suspense>
+      )}
+      </div>
+    );
+  }
+
+  if (layout === 'grid') {
+    return (
+      <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+        {categoriesPane}
+        <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
+          <div className="flex-shrink-0 h-12 flex items-center gap-3 px-5 border-b border-white/10">
+            <div className="flex-1 min-w-0 flex items-baseline gap-2">
+              {grouped && currentCat?.line && (
+                <span className="text-xs font-quicksand font-semibold tracking-[0.12em] uppercase text-brand-gold">{lineLabel(currentCat.line)}</span>
+              )}
+              <span className="text-base font-quicksand font-semibold text-white truncate">{searchOpen ? 'Search' : (currentCat?.name ?? 'Channels')}</span>
+              {!searchOpen && catCount ? <span className="text-sm text-brand-ice/60 font-nunito">{formatCount(catCount)}</span> : null}
+            </div>
+            <span className="text-xs font-nunito text-brand-ice/50">OK play · Hold OK options · ◀ categories</span>
+          </div>
+          {channelList}
+        </div>
+      {reportFor && (
+        <Suspense fallback={null}>
+          <ReportChannelDialog
+            channelName={reportFor.name}
+            channelId={reportFor.stream_id}
+            categoryName={searchOpen ? 'Search' : (currentCat?.isFav ? 'Favorites' : (currentCat?.name || ''))}
+            isFavorite={isFav(reportFor)}
+            onToggleFavorite={() => toggleFavorite(reportFor)}
+            onRefreshFavorite={() => refreshFavorite(reportFor)}
+            onOpenBufferingGuide={() => {
+              setReportFor(null);
+              enterFiredRef.current = false;
+              onNavigate?.('support');
+              setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+            }}
+            onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
+          />
+
+        </Suspense>
+      )}
+      </div>
+    );
+  }
+
+  // classic
+  return (
+    <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+      {categoriesPane}
+      <div className="flex-1 min-w-0 flex flex-col bg-black/30 overflow-x-hidden">
+        <div className="flex gap-4 p-4 border-b border-white/10 bg-black/40">
+          <div className="w-64 aspect-video rounded-xl overflow-hidden bg-black border border-white/10 flex-shrink-0">
+            {previewBox}
+          </div>
+          <div className="flex-1 min-w-0">
+            {focusedChannel ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-quicksand font-bold text-white truncate">{focusedChannel.name}</h3>
+                  {isFav(focusedChannel) && <Star className="w-5 h-5 text-brand-gold fill-brand-gold" />}
+                  {channelsLoading && <Loader2 className="w-4 h-4 animate-spin text-brand-gold ml-auto" />}
+                </div>
+                {focusedNowNext?.now ? (
+                  <>
+                    <p className="text-brand-ice/90 font-nunito truncate mt-1">Now: {focusedNowNext.now.title}</p>
+                    <p className="text-xs text-brand-ice/70 font-nunito mt-1">
+                      {formatTime(focusedNowNext.now.start)} – {formatTime(focusedNowNext.now.end)}
+                      {nowLeftMins != null ? ` · ${nowLeftMins} min left` : ''}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-brand-ice/70 font-nunito mt-1 text-sm">No program info available</p>
+                )}
+                {focusedNowNext?.next && (
+                  <p className="text-sm text-brand-ice/70 font-nunito mt-2 truncate">
+                    Next: {focusedNowNext.next.title} · {formatTime(focusedNowNext.next.start)}
+                  </p>
+                )}
+                <p className="text-xs text-brand-ice/60 font-nunito mt-4">OK preview · OK again full screen · Hold OK options · F favorite</p>
+              </>
+            ) : (
+              <p className="text-brand-ice/70 font-nunito">
+                {channelsLoading ? 'Loading channels…' : 'No channel focused'}
+              </p>
+            )}
+          </div>
+        </div>
+        {channelList}
       </div>
       {reportFor && (
         <Suspense fallback={null}>

@@ -29,8 +29,9 @@ const CHANGELOG: Record<string, string[]> = {
     '📂 Live TV: every account you\'ve signed in shows in one list — Dreamstreams and Vibez each under their own name, fold one up to get to the other',
     '🙈 Hide Categories: under Player Settings, switch off the categories you never open',
     '⭐ Favorites: a favorite whose link the service changed fixes itself when its category loads — or hold OK on it and pick Refresh channel link',
-    '🎞️ Plex (Movies & Series), redone: a menu down the left for Home, your libraries and their rows, a strip that describes whatever poster you land on — cover art, rating, runtime, summary and how much is left — and slimmer rails with more on screen',
-    '📺 Live TV, redone: a slimmer channel list with what\'s on now beside each channel, the categories one press to the left, and a big preview with Now and Next underneath',
+    '🎞️ Plex (Movies & Series), redone: a menu down the left for Home, your libraries, Search, Request and Settings, slimmer rails with more on screen, a lighter title page — and hold OK on a library to hide it',
+    '📺 Live TV, three ways: pick Classic, Compact or Grid under Player Settings → Appearance. Compact is a slim list with a big preview; Grid is a wall of channel logos',
+    '▶️ Live TV preview: OK on a channel plays it in the preview box with sound, OK again goes full screen — on every box, Fire TV included',
   ],
   '1.7.1': [
     '🚀 No streaming account yet? Create one right on the TV from the sign-in screen',

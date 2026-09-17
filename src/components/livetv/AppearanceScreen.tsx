@@ -11,10 +11,11 @@ import {
   TEXT_SWATCHES,
   resetTheme,
 } from '@/lib/theme';
+import { LIVE_LAYOUTS, saveLiveLayout, useLiveLayout, type LiveLayout } from '@/lib/liveLayout';
 
 interface Props { onBack: () => void }
 
-type ChipKind = 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
+type ChipKind = 'liveLayout' | 'fontScale' | 'fontFamily' | 'accent' | 'bg' | 'text';
 interface Chip {
   kind: ChipKind;
   id: string;
@@ -26,14 +27,16 @@ interface Chip {
 
 const AppearanceScreen = memo(({ onBack }: Props) => {
   const [theme, setTheme] = useTheme();
+  const liveLayout = useLiveLayout();
 
   const groups = useMemo(() => {
-    const gFontScale: Chip[] = FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value, groupIdx: 0 }));
-    const gFontFamily: Chip[] = FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label, groupIdx: 1 }));
-    const gAccent: Chip[] = ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 2 }));
-    const gBg: Chip[] = BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 3 }));
-    const gText: Chip[] = TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 4 }));
-    return [gFontScale, gFontFamily, gAccent, gBg, gText];
+    const gLayout: Chip[] = LIVE_LAYOUTS.map(l => ({ kind: 'liveLayout', id: l.id, label: l.label, groupIdx: 0 }));
+    const gFontScale: Chip[] = FONT_SCALES.map(s => ({ kind: 'fontScale', id: s.id, label: s.label, value: s.value, groupIdx: 1 }));
+    const gFontFamily: Chip[] = FONT_FAMILIES.map(f => ({ kind: 'fontFamily', id: f.id, label: f.label, groupIdx: 2 }));
+    const gAccent: Chip[] = ACCENT_SWATCHES.map(s => ({ kind: 'accent', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 3 }));
+    const gBg: Chip[] = BG_SWATCHES.map(s => ({ kind: 'bg', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 4 }));
+    const gText: Chip[] = TEXT_SWATCHES.map(s => ({ kind: 'text', id: s.id, label: s.label, hsl: s.hsl, groupIdx: 5 }));
+    return [gLayout, gFontScale, gFontFamily, gAccent, gBg, gText];
   }, []);
 
   // Flat focus index: 0 = Back, then for each group N chips, then Reset last.
@@ -62,6 +65,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   };
 
   const isSelected = (chip: Chip): boolean => {
+    if (chip.kind === 'liveLayout') return liveLayout === chip.id;
     if (chip.kind === 'fontScale') return theme.fontScale === chip.value;
     if (chip.kind === 'fontFamily') return theme.fontFamily === chip.id;
     if (chip.kind === 'accent') return theme.accentColor === chip.hsl;
@@ -71,7 +75,8 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
   };
 
   const applyChip = (chip: Chip) => {
-    if (chip.kind === 'fontScale' && typeof chip.value === 'number') setTheme({ fontScale: chip.value });
+    if (chip.kind === 'liveLayout') saveLiveLayout(chip.id as LiveLayout);
+    else if (chip.kind === 'fontScale' && typeof chip.value === 'number') setTheme({ fontScale: chip.value });
     else if (chip.kind === 'fontFamily') setTheme({ fontFamily: chip.id });
     else if (chip.kind === 'accent' && chip.hsl) setTheme({ accentColor: chip.hsl });
     else if (chip.kind === 'bg' && chip.hsl) setTheme({ bgColor: chip.hsl });
@@ -157,7 +162,8 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
     );
   };
 
-  const groupLabels = ['Text size', 'Font', 'Highlight color', 'Background', 'Text color'];
+  const groupLabels = ['Live TV layout', 'Text size', 'Font', 'Highlight color', 'Background', 'Text color'];
+  const groupHints: Record<number, string> = { 0: LIVE_LAYOUTS.find(l => l.id === liveLayout)?.desc ?? '' };
 
   return (
     <div className="min-h-screen flex flex-col text-white bg-black/70">
@@ -179,6 +185,7 @@ const AppearanceScreen = memo(({ onBack }: Props) => {
           {groups.map((g, gi) => (
             <div key={groupLabels[gi]} className="space-y-3">
               <div className="text-xs uppercase tracking-wide text-white/70">{groupLabels[gi]}</div>
+              {groupHints[gi] ? <div className="text-sm font-nunito text-brand-ice/70">{groupHints[gi]}</div> : null}
               <div className="flex flex-wrap gap-2">
                 {g.map((chip, ci) => renderChip(chip, groupStarts.starts[gi] + ci))}
               </div>

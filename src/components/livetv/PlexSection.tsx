@@ -41,9 +41,8 @@ import {
 import PlexAuthScreen from './PlexAuthScreen';
 import OverseerrRequestPanel from './OverseerrRequestPanel';
 import PlexImage from './PlexImage';
-import PlexLibraryRows, { type PlexMenuRow } from './PlexLibraryRows';
+import PlexLibraryRows from './PlexLibraryRows';
 import PlexPosterTile from './PlexPosterTile';
-import PlexHighlightStrip, { type PlexHighlight } from './PlexHighlightStrip';
 import PlexDetail from './PlexDetail';
 import PlexPlayerOverlay, { type SubtitleSearchContext } from './PlexPlayerOverlay';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
@@ -79,7 +78,7 @@ const PAGE_MORE = 200;
 type TabType = 'home' | 'search' | 'movie' | 'show' | 'request' | 'manage';
 interface Tab { key: string; title: string; type: TabType; libKey?: string; }
 type MenuGroup = 'home' | 'libraries' | 'more';
-interface MenuEntry { kind: 'tab' | 'row'; tabIdx: number; rowId?: string; title: string; group: MenuGroup; key: string; }
+interface MenuEntry { tabIdx: number; title: string; group: MenuGroup; key: string; }
 
 interface Props {
   isActive: boolean;
@@ -112,14 +111,8 @@ interface HomePanelProps {
   token: string;
   onPlay: (it: PlexItem) => void;
   onExitToTabs: () => void;
-  /** The highlighted poster, for the strip above the rails. */
-  onHighlight?: (h: PlexHighlight | null) => void;
-  /** The rails this panel is showing, for the side menu's jump list. */
-  onRowsChange?: (rows: PlexMenuRow[]) => void;
-  /** Focus a rail by id (from the side menu). `n` makes repeats distinct. */
-  jumpTo?: { id: string; n: number } | null;
 }
-const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs, onHighlight, onRowsChange, jumpTo }: HomePanelProps) => {
+const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs }: HomePanelProps) => {
   const onDeckPath = '/library/onDeck?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const recentPath = '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30';
   const [onDeck, setOnDeck] = useState<PlexItem[]>(() => getCachedHub(base, onDeckPath) ?? []);
@@ -168,23 +161,6 @@ const HomePanel = memo(({ isActive, base, token, onPlay, onExitToTabs, onHighlig
   }, [onDeck, recent]);
 
   useEffect(() => { if (row >= rows.length) setRow(Math.max(0, rows.length - 1)); }, [rows.length, row]);
-
-  // Tell the side menu which rails exist, and the strip what is highlighted.
-  const onRowsChangeRef = useRef(onRowsChange); useEffect(() => { onRowsChangeRef.current = onRowsChange; }, [onRowsChange]);
-  useEffect(() => { onRowsChangeRef.current?.(rows.map((r) => ({ id: r.id, title: r.title }))); }, [rows]);
-  const onHighlightRef = useRef(onHighlight); useEffect(() => { onHighlightRef.current = onHighlight; }, [onHighlight]);
-  useEffect(() => {
-    const r = rows[row];
-    const it = r?.items[col];
-    onHighlightRef.current?.(it ? { item: it, from: r.title } : null);
-  }, [rows, row, col]);
-
-  // A jump from the side menu lands on the first tile of that rail.
-  useEffect(() => {
-    if (!jumpTo) return;
-    const i = rows.findIndex((r) => r.id === jumpTo.id);
-    if (i >= 0) { setRow(i); setCol(0); }
-  }, [jumpTo, rows]);
 
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
   const colRef = useRef(col); useEffect(() => { colRef.current = col; }, [col]);
@@ -678,16 +654,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [items, setItems] = useState<PlexItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [zone, setZone] = useState<'tabs' | 'grid'>('tabs');
-  // The side menu. `menuIdx` is the focused ENTRY (a tab, or one of the
-  // current tab's rails listed under it); `libIdx` stays the selected tab.
-  // Tracked by entry KEY, not index: selecting a library collapses Home's
-  // rail entries above it, and an index would land on whatever slid into
-  // that slot.
+  // The side menu's focused entry, by tab key; `libIdx` is the selected tab.
   const [menuKey, setMenuKey] = useState<string | null>(null);
-  // Rails each panel reports, keyed by tab so switching back is instant.
-  const [menuRowsByTab, setMenuRowsByTab] = useState<Record<string, PlexMenuRow[]>>({});
-  const [highlight, setHighlight] = useState<PlexHighlight | null>(null);
-  const [jumpTo, setJumpTo] = useState<{ id: string; n: number } | null>(null);
   // What a library tab shows: the new row view, or the old A-Z grid reached
   // through "Browse all". Keyed by libKey so switching libraries cannot carry
   // one library's mode into another — the panels all render in the SAME slot
@@ -893,51 +861,38 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const currentTab = tabs[libIdx];
   const homeIdx = 0;
 
-  // The side menu, top to bottom: Home and its rails, each library and (when
-  // selected) its rails, then Search, Request and Settings.
+  // The side menu, top to bottom: Home, the libraries, then Search, Request
+  // and Settings — grouped, not in tab order.
   const menuEntries = useMemo<MenuEntry[]>(() => {
     const out: MenuEntry[] = [];
-    // Grouped, not in tab order: Search sits with Request and Settings at the
-    // bottom rather than between Home and the libraries.
     const order: MenuGroup[] = ['home', 'libraries', 'more'];
     for (const g of order) {
       tabs.forEach((t, i) => {
         const group: MenuGroup = t.type === 'home' ? 'home' : (t.type === 'movie' || t.type === 'show') ? 'libraries' : 'more';
-        if (group !== g) return;
-        out.push({ kind: 'tab', tabIdx: i, title: t.title, group, key: t.key });
-        if (i === libIdx && group !== 'more') {
-          for (const r of menuRowsByTab[t.key] ?? []) out.push({ kind: 'row', tabIdx: i, rowId: r.id, title: r.title, group, key: `${t.key}:${r.id}` });
-        }
+        if (group === g) out.push({ tabIdx: i, title: t.title, group, key: t.key });
       });
     }
     return out;
-  }, [tabs, libIdx, menuRowsByTab]);
+  }, [tabs]);
   const menuEntriesRef = useRef(menuEntries); useEffect(() => { menuEntriesRef.current = menuEntries; }, [menuEntries]);
-  // A vanished entry (a rail that emptied) falls back to the selected tab.
   const menuIdx = useMemo(() => {
     const i = menuEntries.findIndex((m) => m.key === menuKey);
     if (i >= 0) return i;
-    const t = menuEntries.findIndex((m) => m.kind === 'tab' && m.tabIdx === libIdx);
-    return Math.max(0, t);
+    return Math.max(0, menuEntries.findIndex((m) => m.tabIdx === libIdx));
   }, [menuEntries, menuKey, libIdx]);
+
+  // Hold OK on a library in the menu to hide it (Settings brings it back).
+  // Short press enters it. Timer on keydown, decided on keyup — the same
+  // pattern the channel list uses for its long-press.
+  const menuHoldTimerRef = useRef<number | null>(null);
+  const menuHoldFiredRef = useRef(false);
 
   // Leaving the content puts the menu's focus on the selected tab's entry.
   const exitToMenu = useCallback(() => {
-    const t = menuEntriesRef.current.find((m) => m.kind === 'tab' && m.tabIdx === libIdxRef.current);
+    const t = menuEntriesRef.current.find((m) => m.tabIdx === libIdxRef.current);
     if (t) setMenuKey(t.key);
     setZone('tabs');
   }, []);
-  const reportRows = useCallback((tabKey: string, rows: PlexMenuRow[]) => {
-    setMenuRowsByTab((m) => {
-      const prev = m[tabKey];
-      if (prev && prev.length === rows.length && prev.every((r, i) => r.id === rows[i].id && r.title === rows[i].title)) return m;
-      return { ...m, [tabKey]: rows };
-    });
-  }, []);
-  // Selecting a tab from the menu also blanks the strip, in the same batch:
-  // an effect on libIdx would run AFTER the new panel's own mount effect and
-  // wipe the highlight it had just reported.
-  const selectTab = useCallback((i: number) => { setLibIdx(i); setHighlight(null); }, []);
   // Tab to stay on across a tabs-list change (see the pin effect below).
   const wantTabKeyRef = useRef<string | null>(null);
 
@@ -1756,15 +1711,26 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           setMenuKey(next.key);
           // Landing on a tab selects it right away, exactly as the old strip
           // did, so its panel is already loading by the time the user enters.
-          if (next.kind === 'tab' && next.tabIdx !== libIdxRef.current) selectTab(next.tabIdx);
+          if (next.tabIdx !== libIdxRef.current) setLibIdx(next.tabIdx);
         };
         if (e.key === 'ArrowUp') { if (mi > 0) moveTo(mi - 1); }
         else if (e.key === 'ArrowDown') { if (mi < entries.length - 1) moveTo(mi + 1); }
         else if (e.key === 'ArrowLeft') { /* never leave Plex via arrows */ }
-        else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+        else if (e.key === 'ArrowRight') setZone('grid');
+        else if (e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat) return;
           const cur = entries[mi];
-          if (cur?.kind === 'row' && cur.rowId) setJumpTo({ id: cur.rowId, n: Date.now() });
-          setZone('grid');
+          const t = cur ? tabsRef.current[cur.tabIdx] : undefined;
+          // Only a library can be hidden; anything else opens on the press.
+          if (!t || !t.libKey || (t.type !== 'movie' && t.type !== 'show')) { setZone('grid'); return; }
+          if (menuHoldTimerRef.current || menuHoldFiredRef.current) return;
+          const libKey = t.libKey; const title = t.title;
+          menuHoldTimerRef.current = window.setTimeout(() => {
+            menuHoldTimerRef.current = null;
+            menuHoldFiredRef.current = true;
+            toggleHidden(libKey);
+            toast({ title: `${title} hidden`, description: 'Bring it back any time under Settings.' });
+          }, 600) as unknown as number;
         }
         return;
       }
@@ -1778,14 +1744,29 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       else if (e.key === 'ArrowRight') { if ((cur % COLS) < COLS - 1 && cur + 1 < total) setCursor(cur + 1); }
       else if (e.key === 'Enter' || e.key === ' ') { const it = itemsRef.current[cur]; if (it) openDetail(it); }
     };
+    // Release before the hold threshold is a short press: enter the library.
+    const keyup = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (menuHoldTimerRef.current) {
+        window.clearTimeout(menuHoldTimerRef.current);
+        menuHoldTimerRef.current = null;
+        if (zoneRef.current === 'tabs') setZone('grid');
+      }
+      menuHoldFiredRef.current = false;
+    };
     window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
+    window.addEventListener('keyup', keyup, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('keyup', keyup, true);
+      if (menuHoldTimerRef.current) { window.clearTimeout(menuHoldTimerRef.current); menuHoldTimerRef.current = null; }
+    };
     // NOTE: PlexSection intentionally does NOT register its own
     // CapApp.backButton listener. The Player (LiveTV.tsx) already converts
     // hardware Back into a synthetic Escape KeyboardEvent, which flows through
     // this exact capture chain. Registering our own listener caused double-
     // fires (each listener popped one level, exiting Plex on the first press).
-  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, exitToMenu, selectTab, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
+  }, [isActive, status, onExitLeft, onExitUp, openDetail, goHome, exitToMenu, toggleHidden, toast, cancelLink, detailItem, fullscreen, streamUrl, slowLoad, native.error]);
 
   // Demo notice owns the D-pad while open: swallow every key so focus can't
   // leak into the grid behind it. OK / Back / Escape dismiss.
@@ -1982,17 +1963,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <div className="flex-1 min-h-0 flex overflow-hidden bg-black/30 text-white">
-      {/* SIDE MENU: Home and its rails, the libraries, then Search / Request /
-          Settings. Entries under the selected tab are its rails — OK jumps
-          straight to that rail instead of scrolling past the others. */}
+      {/* SIDE MENU: Home, the libraries, then Search / Request / Settings. */}
       <div className="w-56 flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
         <div className="px-5 pt-2 pb-1 text-xs font-nunito text-brand-ice/60 truncate">Plex · {conn?.name}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
-          const selected = m.kind === 'tab' && libIdx === m.tabIdx;
+          const selected = libIdx === m.tabIdx;
           const first = i === 0 || menuEntries[i - 1].group !== m.group;
-          const Icon = m.kind === 'tab' ? menuIcon(tab) : null;
+          const Icon = menuIcon(tab);
           return (
             <div key={m.key}>
               {first && (
@@ -2001,32 +1980,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               <button
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 data-focused={focused ? 'true' : 'false'}
-                onClick={() => {
-                  setMenuKey(m.key); if (m.tabIdx !== libIdx) selectTab(m.tabIdx);
-                  if (m.kind === 'row' && m.rowId) setJumpTo({ id: m.rowId, n: Date.now() });
-                  setZone('grid');
-                }}
-                className={`tv-ring relative w-full flex items-center gap-2.5 text-left h-9 rounded-lg mx-2 font-nunito text-sm ${
-                  m.kind === 'row' ? 'pl-9 pr-3' : 'pl-3 pr-3'
-                } ${focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : m.kind === 'row' ? 'text-brand-ice/70' : 'text-brand-ice/85'}`}
+                onClick={() => { setMenuKey(m.key); if (m.tabIdx !== libIdx) setLibIdx(m.tabIdx); setZone('grid'); }}
+                className={`tv-ring relative w-full flex items-center gap-2.5 text-left h-10 rounded-lg mx-2 px-3 font-nunito text-sm ${
+                  focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : 'text-brand-ice/85'}`}
                 style={{ width: 'calc(100% - 1rem)' }}
               >
                 {selected && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
-                {Icon ? <Icon className="w-4 h-4 flex-shrink-0 opacity-80" /> : null}
+                <Icon className="w-4 h-4 flex-shrink-0 opacity-80" />
                 <span className="truncate">{m.title}</span>
               </button>
             </div>
           );
         })}
-        <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · OK jump · Back exit</div>
+        <div className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">▶ into rows · Hold OK hide a library · Back exit</div>
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {conn && (currentTab?.type === 'home' || currentTab?.type === 'movie' || currentTab?.type === 'show') && (
-          <PlexHighlightStrip highlight={highlight} base={conn.base} token={conn.token} />
-        )}
-
-        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-2">
+        <div ref={attachScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-5">
         {currentTab?.type === 'home' && conn ? (
           <HomePanel
             isActive={isActive && zone === 'grid' && !detailItem}
@@ -2034,9 +2004,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             token={conn.token}
             onPlay={openDetail}
             onExitToTabs={exitToMenu}
-            onHighlight={setHighlight}
-            onRowsChange={(rows) => reportRows('__home', rows)}
-            jumpTo={jumpTo}
           />
         ) : currentTab?.type === 'search' && conn ? (
           <SearchPanel isActive={isActive && zone === 'grid' && !detailItem} base={conn.base} token={conn.token} onPlay={openDetail} onExitToTabs={exitToMenu} />
@@ -2067,9 +2034,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             sectionType={currentTab.type === 'show' ? 'show' : 'movie'}
             onOpen={openDetail}
             onExitToTabs={exitToMenu}
-            onHighlight={setHighlight}
-            onRowsChange={(rows) => reportRows(currentTab.key, rows)}
-            jumpTo={jumpTo}
           />
         ) : itemsLoading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-brand-ice/70 gap-2"><Loader2 className="w-5 h-5 animate-spin text-brand-gold" /> Loading…</div>
